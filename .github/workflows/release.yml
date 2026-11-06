@@ -1,0 +1,220 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Test build without a tag: produces only the build artifacts of the run; the release job runs
+  # only for tags.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version the test build carries (form v1.2.3 or v1.2.3-rc1)'
+        required: true
+        default: 'v0.0.0-dev'
+
+permissions:
+  contents: read
+  # Read the CI workflow runs of the tagged commit (step "Check CI run").
+  actions: read
+
+env:
+  # Release tag; for a test build without a tag, the version entered.
+  TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: macos-latest # arm64
+            goos: darwin
+            goarch: arm64
+            platform: macos-arm64
+          - os: windows-latest # x64
+            goos: windows
+            goarch: amd64
+            platform: windows-x64
+          - os: ubuntu-latest # x64
+            goos: linux
+            goarch: amd64
+            platform: linux-x64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check CI run
+        # govulncheck, gofmt and go vet run in ci.yml for every pull request and every push to
+        # main; they are not repeated here. A tag is built only if the CI workflow succeeded for
+        # the tagged commit. A run still queued or in progress (tag pushed right after the
+        # merge) is waited for, up to 20 minutes.
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          api="repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$SHA&per_page=100"
+          for _ in $(seq 40); do
+            ok=$(gh api "$api" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+            if [[ "$ok" -gt 0 ]]; then
+              echo "CI succeeded for $SHA"
+              exit 0
+            fi
+            pending=$(gh api "$api" --jq '[.workflow_runs[] | select(.status != "completed")] | length')
+            if [[ "$pending" -eq 0 ]]; then
+              echo "No successful CI run for $SHA; release aborted" >&2
+              exit 1
+            fi
+            echo "CI run for $SHA still in progress, waiting"
+            sleep 30
+          done
+          echo "CI run for $SHA did not finish within 20 minutes; release aborted" >&2
+          exit 1
+      - name: Check release notes
+        # Final versions need hand-written release notes (see CLAUDE.md); if the file is
+        # missing, the run stops before building. Release candidates (-rc) use the notes
+        # GitHub generates. A test build without a tag publishes nothing.
+        if: github.ref_type == 'tag'
+        run: |
+          if [[ "$TAG" != *-rc* ]] && [[ ! -s "release-notes/$TAG.md" ]]; then
+            echo "release-notes/$TAG.md is missing or empty" >&2
+            exit 1
+          fi
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install Fyne dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+      - name: go test
+        # Stays on every platform: tests on real macOS and Windows have found failures the
+        # Linux CI did not see.
+        run: go test ./...
+
+      - name: Determine and embed version
+        run: |
+          # Numeric part (macOS CFBundleShortVersionString, Windows file version):
+          # tag v1.2.3-rc1 -> 1.2.3
+          version="${TAG#v}"
+          version="${version%%-*}"
+          if ! [[ "$version" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+            echo "Tag $TAG does not give a valid version: $version" >&2
+            exit 1
+          fi
+          echo "NUMERIC_VERSION=$version" >> "$GITHUB_ENV"
+          # Embed the display version including the pre-release suffix (0.1.0-rc14) in the app,
+          # see internal/ui/version.go
+          printf '%s\n' "${TAG#v}" > internal/ui/VERSION
+          mkdir -p dist
+
+      - name: Install Fyne CLI
+        if: runner.os != 'Linux'
+        run: go install fyne.io/tools/cmd/fyne@v1.7.4
+
+      - name: Build app bundle (macOS)
+        if: runner.os == 'macOS'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '1'
+        run: |
+          fyne package --os darwin --src cmd/openlamt \
+            --app-id io.github.srv02.openlamt --name OpenLAMT \
+            --app-version "$NUMERIC_VERSION" --release
+          test -d OpenLAMT.app
+
+      - name: Ad-hoc signature (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          codesign --force --deep -s - OpenLAMT.app
+          codesign --verify --deep --strict OpenLAMT.app
+
+      - name: Create archive (macOS)
+        if: runner.os == 'macOS'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: ditto -c -k --keepParent OpenLAMT.app "dist/OpenLAMT-${TAG}-${PLATFORM}.zip"
+
+      - name: Build executable (Windows)
+        if: runner.os == 'Windows'
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '1'
+        run: |
+          # Fyne needs cgo; the Windows runner ships MinGW gcc. --release builds without a console
+          # window and embeds icon, version info and manifest. No code signature (SmartScreen
+          # note in the README). Same method as rc17: executables built with go build and a
+          # .syso (rc19) or patched afterwards with 14 icon sizes (rc18) triggered the SmartScreen
+          # warning on download, this one did not.
+          # Own 256 px icon: fyne embeds the image unchanged in the ICO, and Explorer shows no
+          # icons above 256 px (cmd/openlamt/Icon.png has 1024 px and would stay blank there).
+          # The path is relative to --src because fyne changes into it before loading the icon.
+          fyne package --os windows --src cmd/openlamt --icon ../../packaging/windows/Icon.png \
+            --app-id io.github.srv02.openlamt --name OpenLAMT \
+            --app-version "$NUMERIC_VERSION" --release
+          # For Windows, fyne changes into the --src directory and writes the executable there,
+          # unlike macOS (.app in the working directory). Move it to the root.
+          mv cmd/openlamt/OpenLAMT.exe OpenLAMT.exe
+          test -f OpenLAMT.exe
+
+      - name: Create archive (Windows)
+        if: runner.os == 'Windows'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        shell: pwsh
+        run: Compress-Archive -Path OpenLAMT.exe -DestinationPath "dist/OpenLAMT-$env:TAG-$env:PLATFORM.zip"
+
+      - name: Build Debian package (Linux)
+        if: runner.os == 'Linux'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '1'
+        run: |
+          go build -ldflags '-s -w' -o openlamt ./cmd/openlamt
+          packaging/linux/build-deb.sh openlamt "${TAG#v}" "dist/OpenLAMT-${TAG}-${PLATFORM}.deb"
+          dpkg-deb -I "dist/OpenLAMT-${TAG}-${PLATFORM}.deb"
+          dpkg-deb -c "dist/OpenLAMT-${TAG}-${PLATFORM}.deb"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OpenLAMT-${{ matrix.platform }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: release-notes
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: OpenLAMT-*
+          merge-multiple: true
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          flags=()
+          if [[ "$TAG" == *-rc* ]]; then
+            flags+=(--prerelease --generate-notes)
+          else
+            flags+=(--notes-file "release-notes/$TAG.md")
+          fi
+          gh release create "$TAG" dist/* --verify-tag --title "OpenLAMT $TAG" "${flags[@]}"

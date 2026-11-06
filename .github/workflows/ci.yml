@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install Fyne dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+      - name: govulncheck
+        # Text mode: only there does govulncheck exit with 3 on findings (json/sarif always 0).
+        # Runs after the apt step because loading the packages needs the cgo headers.
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+          govulncheck ./...
+      - name: gofmt
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test ./...

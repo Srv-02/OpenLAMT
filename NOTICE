@@ -1,0 +1,97 @@
+OpenLAMT
+Copyright 2026 Michael Mayer
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+It uses and includes code derived from the following projects:
+
+- go-wsman-messages, Copyright Intel Corporation, Apache License 2.0
+  https://github.com/device-management-toolkit/go-wsman-messages
+- ui-toolkit, Copyright Intel Corporation, Apache License 2.0
+  https://github.com/device-management-toolkit/ui-toolkit
+  (KVM client code ported from TypeScript to Go at commit e1eb6980963b1e59df45e05edf94b68dd5c36920; ported files are marked in their header)
+- MeshCommander, Ylian Saint-Hilaire and contributors, Apache License 2.0
+  https://github.com/Ylianst/MeshCommander
+  (KVM session logic ported from amt-desktop-0.0.2.js and index.html; ported files are marked in their header)
+- Fyne, Copyright (C) 2018 Fyne.io developers, BSD 3-Clause License
+  https://github.com/fyne-io/fyne
+- go-keyring, Copyright (c) 2016 Zalando SE, MIT License
+  https://github.com/zalando/go-keyring
+- Inter 4.1 (font files Inter-Regular.ttf, Inter-SemiBold.ttf, embedded unmodified),
+  Copyright (c) 2016 The Inter Project Authors, SIL Open Font License 1.1
+  https://github.com/rsms/inter
+  (license text: internal/ui/style/fonts/OFL.txt)
+
+Third-party Go modules included in the binary (build target macOS arm64, Windows x64,
+Linux x64; the union of all three; go-wsman-messages, Fyne and go-keyring are listed above):
+
+- Go standard library, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://go.dev
+- fyne.io/systray, Copyright 2014 Brave New Software Project, Inc., Apache License 2.0
+  https://github.com/fyne-io/systray
+- github.com/anthonynsimon/bild, Copyright (c) 2021 Anthony Najjar Simon, MIT License
+  https://github.com/anthonynsimon/bild
+- github.com/BurntSushi/toml, Copyright (c) 2013 TOML authors, MIT License
+  https://github.com/BurntSushi/toml
+- github.com/clipperhouse/uax29/v2, Copyright (c) 2020 Matt Sherman, MIT License
+  https://github.com/clipperhouse/uax29
+- github.com/danieljoos/wincred (Windows builds only), Copyright (c) 2014 Daniel Joos, MIT License
+  https://github.com/danieljoos/wincred
+- github.com/fsnotify/fsnotify, Copyright (c) 2012 The Go Authors; Copyright (c) fsnotify Authors, BSD 3-Clause License
+  https://github.com/fsnotify/fsnotify
+- github.com/fyne-io/image, Copyright (c) 2022, Fyne.io, BSD 3-Clause License
+  https://github.com/fyne-io/image
+- github.com/fyne-io/oksvg, Copyright (c) 2018, Steven R Wiley, BSD 3-Clause License
+  https://github.com/fyne-io/oksvg
+- github.com/FyshOS/fancyfs, Copyright (C) 2025 FyshOS developers, BSD 3-Clause License
+  https://github.com/FyshOS/fancyfs
+- github.com/go-gl/gl, Copyright (c) 2014 Eric Woroshow, MIT License
+  https://github.com/go-gl/gl
+- github.com/go-gl/glfw/v3.4/glfw, Copyright (c) 2012 The glfw3-go Authors, BSD 3-Clause License
+  https://github.com/go-gl/glfw
+- github.com/go-text/render, Copyright 2021 The go-text authors, Unlicense OR BSD 3-Clause License
+  https://github.com/go-text/render
+- github.com/go-text/typesetting, Copyright 2021 The go-text authors, Unlicense OR BSD 3-Clause License
+  https://github.com/go-text/typesetting
+- github.com/godbus/dbus/v5, Copyright (c) 2013, Georg Reinke, Google, BSD 2-Clause License
+  https://github.com/godbus/dbus
+- github.com/google/uuid, Copyright (c) 2009,2014 Google Inc., BSD 3-Clause License
+  https://github.com/google/uuid
+- github.com/gorilla/websocket, Copyright (c) 2013 The Gorilla WebSocket Authors, BSD 2-Clause License
+  https://github.com/gorilla/websocket
+- github.com/jeandeaual/go-locale, Copyright (c) 2020 Alexis Jeandeau, MIT License
+  https://github.com/jeandeaual/go-locale
+- github.com/jsummers/gobmp, Copyright (c) 2012-2015 Jason Summers, MIT License
+  https://github.com/jsummers/gobmp
+- github.com/mattn/go-runewidth, Copyright (c) 2016 Yasuhiro Matsumoto, MIT License
+  https://github.com/mattn/go-runewidth
+- github.com/nfnt/resize, Copyright (c) 2012, Jan Schlicht, ISC License
+  https://github.com/nfnt/resize
+- github.com/nicksnyder/go-i18n/v2, Copyright (c) 2014 Nick Snyder, MIT License
+  https://github.com/nicksnyder/go-i18n
+- github.com/rymdport/portal, Copyright the portal authors (no copyright line in LICENSE), Apache License 2.0
+  https://github.com/rymdport/portal
+- github.com/sirupsen/logrus, Copyright (c) 2014 Simon Eskildsen, MIT License
+  https://github.com/sirupsen/logrus
+- github.com/srwiley/oksvg, Copyright (c) 2018, Steven R Wiley, BSD 3-Clause License
+  https://github.com/srwiley/oksvg
+- github.com/srwiley/rasterx, Copyright (c) 2018, Steven R Wiley, BSD 3-Clause License
+  https://github.com/srwiley/rasterx
+- github.com/yuin/goldmark, Copyright (c) 2019 Yusuke Inuzuka, MIT License
+  https://github.com/yuin/goldmark
+- golang.org/x/image, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/image
+- golang.org/x/net, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/net
+- golang.org/x/sys, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/sys
+- golang.org/x/text, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/text
+- gopkg.in/yaml.v3, Copyright (c) 2006-2011 Kirill Simonov; Copyright 2011-2016 Canonical Ltd., MIT License and Apache License 2.0
+  https://github.com/go-yaml/yaml
+
+The full license texts are contained in the respective modules (LICENSE or COPYING file
+in each module's source tree).
+
+Intel and AMT are trademarks of Intel Corporation. OpenLAMT is an independent project
+and is not affiliated with, endorsed by or supported by Intel Corporation.

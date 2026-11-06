@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#424248"/><stop offset="1" stop-color="#18181B"/></linearGradient>
+    <radialGradient id="led" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#30D158" stop-opacity="0.75"/><stop offset="1" stop-color="#30D158" stop-opacity="0"/></radialGradient>
+  </defs>
+  <path d="M286 100H738A186 186 0 0 1 924 286V738A186 186 0 0 1 738 924H286A186 186 0 0 1 100 738V286A186 186 0 0 1 286 100Z" fill="url(#bg)"/>
+  <path d="M286 102H738A184 184 0 0 1 922 286V738A184 184 0 0 1 738 922H286A184 184 0 0 1 102 738V286A184 184 0 0 1 286 102Z" fill="none" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="4"/>
+  <path d="M392 212v84M512 212v84M632 212v84M392 728v84M512 728v84M632 728v84M212 392h84M212 512h84M212 632h84M728 392h84M728 512h84M728 632h84" fill="none" stroke="#6E6E76" stroke-width="36" stroke-linecap="round"/>
+  <path d="M378 296H646A82 82 0 0 1 728 378V646A82 82 0 0 1 646 728H378A82 82 0 0 1 296 646V378A82 82 0 0 1 378 296Z" fill="#202024" stroke="#7C7C84" stroke-width="36"/>
+  <path d="M512 382v125" fill="none" stroke="#FFFFFF" stroke-width="43" stroke-linecap="round"/>
+  <path d="M432 433A125 125 0 1 0 592 433" fill="none" stroke="#FFFFFF" stroke-width="43" stroke-linecap="round"/>
+  <circle cx="661" cy="363" r="77" fill="url(#led)"/>
+  <circle cx="661" cy="363" r="24" fill="#30D158"/>
+</svg>

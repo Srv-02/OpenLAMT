@@ -1,0 +1,11 @@
+# Development documents never go into an export (git archive) for the public repository
+docs/ export-ignore
+# This is an app, not a workspace: never export agent or workspace files
+CLAUDE.md export-ignore
+AGENTS.md export-ignore
+.claude/ export-ignore
+.worktrees/ export-ignore
+workbench/ export-ignore
+# The developer tool and the template belong to the private workspace, not to the app
+cmd/openlamt-cli/ export-ignore
+.env.example export-ignore

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=OpenLAMT
+GenericName=Intel AMT Client
+Comment=Power control and KVM for Intel AMT devices
+Comment[de]=Stromsteuerung und KVM für Intel-AMT-Geräte
+Exec=openlamt
+Icon=openlamt
+Terminal=false
+Categories=Network;RemoteAccess;System;
+Keywords=AMT;KVM;vPro;Remote;

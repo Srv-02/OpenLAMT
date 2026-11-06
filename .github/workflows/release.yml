@@ -1,8 +1,15 @@
 name: Release
+run-name: ${{ github.ref_type == 'tag' && format('Release {0}', github.ref_name) || github.event_name == 'push' && 'Cache warm-up (main)' || format('Test build {0}', inputs.version) }}
 
 on:
   push:
     tags: ['v*']
+    # A push to main runs the build job only to fill the Go cache that tag runs restore: a cache
+    # is readable only from its own ref and the default branch, so caches saved by tag runs are
+    # never read again. Building with the release steps themselves keeps the build cache keys
+    # identical (fyne package --release compiles with -trimpath, -tags release and its own
+    # CGO_CFLAGS, unlike go test). No artifacts, no release.
+    branches: [main]
   # Test build without a tag: produces only the build artifacts of the run; the release job runs
   # only for tags.
   workflow_dispatch:
@@ -19,7 +26,11 @@ permissions:
 
 env:
   # Release tag; for a test build without a tag, the version entered.
-  TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
+  TAG: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version || 'v0.0.0-main' }}
+  # Part of the cache key: a new Fyne CLI may compile with other flags.
+  FYNE_VERSION: v1.7.4
+  # Only pushes to main save the Go cache; tag runs and test builds only restore it.
+  SAVE_CACHE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 jobs:
   build:
@@ -85,8 +96,35 @@ jobs:
             exit 1
           fi
       - uses: actions/setup-go@v7
+        id: setup-go
         with:
           go-version-file: go.mod
+          # The Go cache is handled by the steps below, setup-go cannot restore without saving.
+          cache: false
+      - name: Go cache key
+        id: go-cache
+        env:
+          GO_VERSION: ${{ steps.setup-go.outputs.go-version }}
+          GO_SUM: ${{ hashFiles('go.sum') }}
+        run: |
+          {
+            echo "key=go-release-${ImageOS}-${RUNNER_ARCH}-go${GO_VERSION}-fyne${FYNE_VERSION}-${GO_SUM}"
+            echo "paths<<EOF"
+            go env GOCACHE GOMODCACHE
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Restore Go cache
+        if: env.SAVE_CACHE != 'true'
+        uses: actions/cache/restore@v6
+        with:
+          key: ${{ steps.go-cache.outputs.key }}
+          path: ${{ steps.go-cache.outputs.paths }}
+      - name: Restore and save Go cache (main)
+        if: env.SAVE_CACHE == 'true'
+        uses: actions/cache@v6
+        with:
+          key: ${{ steps.go-cache.outputs.key }}
+          path: ${{ steps.go-cache.outputs.paths }}
       - name: Install Fyne dependencies (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -115,7 +153,7 @@ jobs:
 
       - name: Install Fyne CLI
         if: runner.os != 'Linux'
-        run: go install fyne.io/tools/cmd/fyne@v1.7.4
+        run: go install "fyne.io/tools/cmd/fyne@$FYNE_VERSION"
 
       - name: Build app bundle (macOS)
         if: runner.os == 'macOS'
@@ -185,6 +223,7 @@ jobs:
           dpkg-deb -c "dist/OpenLAMT-${TAG}-${PLATFORM}.deb"
 
       - uses: actions/upload-artifact@v7
+        if: env.SAVE_CACHE != 'true'
         with:
           name: OpenLAMT-${{ matrix.platform }}
           path: dist/*

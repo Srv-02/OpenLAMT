@@ -92,19 +92,15 @@ func TestRiskyChangeErrorCarriesRisk(t *testing.T) {
 	}
 }
 
-func TestConfirmCheckedOnlyForHighSeverity(t *testing.T) {
+func TestConfirmCheckedForEveryOperation(t *testing.T) {
 	const host = "device.example.com"
 	for _, op := range allOps {
 		c, err := ConfirmChecked(op, host, true)
-		if RiskOf(op).Severity == SeverityHigh {
-			if err != nil || !c.Allows(op, "DEVICE.example.com ") {
-				t.Errorf("%s checked: %v", op, err)
-			}
-			if c.Allows(op, "other.example.com") {
-				t.Errorf("%s: confirmation must be bound to the host", op)
-			}
-		} else if !errors.Is(err, ErrConfirmationMismatch) || c.Allows(op, host) {
-			t.Errorf("%s needs the typed phrase, checkbox accepted: %v", op, err)
+		if err != nil || !c.Allows(op, "DEVICE.example.com ") {
+			t.Errorf("%s checked: %v", op, err)
+		}
+		if c.Allows(op, "other.example.com") {
+			t.Errorf("%s: confirmation must be bound to the host", op)
 		}
 		if c, err := ConfirmChecked(op, host, false); !errors.Is(err, ErrConfirmationMismatch) || c.Allows(op, host) {
 			t.Errorf("%s unchecked: %v", op, err)

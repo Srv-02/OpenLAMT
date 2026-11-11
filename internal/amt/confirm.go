@@ -94,12 +94,12 @@ func Confirm(op Operation, host, typed string) (Confirmation, error) {
 	return Confirmation{op: op, host: normHost(host)}, nil
 }
 
-// ConfirmChecked is the confirmation for the orange level: the user ticked the checkbox
-// "I understand the risk" instead of typing a phrase. It only confirms SeverityHigh operations
-// and only when checked is true; every other case, including the more severe operations that
-// need the typed host (Confirm), returns ErrConfirmationMismatch.
+// ConfirmChecked is the confirmation of the UI: the user ticked the checkbox "I understand the
+// risk for <device>" instead of typing a phrase. It confirms every known operation, but only
+// when checked is true; otherwise, and for an unknown operation, it returns
+// ErrConfirmationMismatch.
 func ConfirmChecked(op Operation, host string, checked bool) (Confirmation, error) {
-	if !checked || RiskOf(op).Severity != SeverityHigh {
+	if !checked || RiskOf(op).Severity == 0 {
 		return Confirmation{}, ErrConfirmationMismatch
 	}
 	return Confirmation{op: op, host: normHost(host)}, nil

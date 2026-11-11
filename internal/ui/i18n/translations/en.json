@@ -216,7 +216,7 @@
   "Shut Down": "Shut Down",
   "Filter": "Filter",
   "I understand the risk": "I understand the risk",
-  "Type {{.Phrase}} to confirm": "Type {{.Phrase}} to confirm",
+  "I understand the risk for {{.Device}}": "I understand the risk for {{.Device}}",
   "Console": "Console",
   "Manage": "Manage",
   "Media": "Media",

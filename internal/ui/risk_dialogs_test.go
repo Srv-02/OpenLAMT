@@ -67,7 +67,7 @@ func TestOrangeConfirmNeedsTheCheckbox(t *testing.T) {
 		oldValue: "old.example.com", newValue: "new.example.com", button: "Change Name",
 		onConfirm: func(c amt.Confirmation) { got = append(got, c) },
 	})
-	if d.check == nil || d.check.Text != "I understand the risk" || d.check.Checked {
+	if d.check == nil || d.check.Text != "I understand the risk for device.example.com" || d.check.Checked {
 		t.Fatalf("checkbox %+v", d.check)
 	}
 	if !d.action.Disabled() {
@@ -139,13 +139,31 @@ func TestOrangeConfirmWithRedBoxAndExtra(t *testing.T) {
 	}
 }
 
-func TestOrangeConfirmRefusesLockoutOperations(t *testing.T) {
+// Since 11.11.2026 every level is confirmed with the checkbox, which names the device; the
+// lockout operations too (Michael: "einfach nur eine Checkbox").
+func TestOrangeConfirmAcceptsLockoutOperations(t *testing.T) {
 	w, _ := panelHarness(t)
+	var got []amt.Confirmation
 	d := showOrangeConfirm(w, orangeSpec{op: amt.OpNetwork, host: riskHost, title: "x", warning: "y", button: "Go",
-		onConfirm: func(amt.Confirmation) { t.Error("confirmed a lockout operation with a checkbox") }})
+		onConfirm: func(c amt.Confirmation) { got = append(got, c) }})
 	test.Tap(d.check)
-	if !d.action.Disabled() {
-		t.Error("a lockout operation must not be confirmable with the checkbox")
+	test.Tap(d.action)
+	if len(got) != 1 || !got[0].Allows(amt.OpNetwork, riskHost) {
+		t.Fatalf("confirmations %v", got)
+	}
+}
+
+func TestRiskCheckTextNamesTheDevice(t *testing.T) {
+	for _, c := range []struct{ device, host, want string }{
+		{deviceLabel("Lab", riskHost), riskHost, "I understand the risk for Lab (device.example.com)"},
+		{deviceLabel("device.example.com", riskHost), riskHost, "I understand the risk for device.example.com"},
+		{deviceLabel("", riskHost), riskHost, "I understand the risk for device.example.com"},
+		{"", riskHost, "I understand the risk for device.example.com"},
+		{"", "", "I understand the risk"},
+	} {
+		if got := riskCheckText(c.device, c.host); got != c.want {
+			t.Errorf("riskCheckText(%q, %q) = %q, want %q", c.device, c.host, got, c.want)
+		}
 	}
 }
 
@@ -157,7 +175,7 @@ func TestFlushPanelLinesUpTitle(t *testing.T) {
 		warningBold: "Bold.", warningRest: "Rest.", button: "Turn Off AMT"})
 	head := findLabel(t, w.Canvas().Overlays().Top(), "Turn off AMT on the network?")
 	textX := absPos(head).X + theme.InnerPadding()
-	for name, o := range map[string]fyne.CanvasObject{"warning box": d.warnBox, "field": d.border} {
+	for name, o := range map[string]fyne.CanvasObject{"warning box": d.warnBox, "checkbox": d.check} {
 		if dx := absPos(o).X - textX; dx < -0.5 || dx > 0.5 {
 			t.Errorf("%s %v px from the title", name, dx)
 		}
@@ -165,49 +183,33 @@ func TestFlushPanelLinesUpTitle(t *testing.T) {
 	d.Dismiss()
 }
 
-func TestRedConfirmNeedsTheExactHost(t *testing.T) {
+func TestRedConfirmNeedsTheCheckbox(t *testing.T) {
 	w, _ := panelHarness(t)
 	var got []amt.Confirmation
 	d := showRedConfirm(w, redSpec{
-		op: amt.OpDisableNetwork, host: riskHost, title: "Turn off AMT on the network?",
+		op: amt.OpDisableNetwork, host: riskHost, device: deviceLabel("Lab", riskHost), title: "Turn off AMT on the network?",
 		warningBold: "This cannot be undone remotely.", warningRest: "Only the BIOS (MEBx) at the device can turn it back on.",
 		button: "Turn Off AMT", onConfirm: func(c amt.Confirmation) { got = append(got, c) },
 	})
-	if d.phrase == nil || d.phrase.Text != riskHost || !d.phrase.TextStyle.Monospace {
-		t.Fatalf("phrase %+v", d.phrase)
-	}
-	if dy := absPos(d.phrase).Y - absPos(d.prefix).Y; dy > 4 || dy < -4 || absPos(d.phrase).X <= absPos(d.prefix).X {
-		t.Errorf("label not on one line: prefix %v phrase %v", absPos(d.prefix), absPos(d.phrase))
+	if d.check == nil || d.check.Checked || d.check.Text != "I understand the risk for Lab (device.example.com)" {
+		t.Fatalf("checkbox %+v", d.check)
 	}
 	if !d.action.Disabled() || d.action.Importance != widget.DangerImportance {
-		t.Fatal("button enabled or not red before typing")
+		t.Fatal("button enabled or not red before ticking")
 	}
-	normal := style.Color(style.ColorNameControlBorder)
-	if !same(d.border.StrokeColor, normal) {
-		t.Errorf("empty field border %v", d.border.StrokeColor)
+	if !same(d.warnBox.FillColor, style.Color(style.ColorNameDangerSurface)) {
+		t.Errorf("warning box %v", d.warnBox.FillColor)
 	}
-	if d.alarm.Visible() {
-		t.Error("red frame over the empty field")
+	test.Tap(d.check)
+	if d.action.Disabled() {
+		t.Fatal("button disabled with the ticked checkbox")
 	}
-	w.Canvas().Focus(d.entry) // typing: the red frame lies over the entry's focus border
-	d.entry.SetText("device.example.co")
-	if !d.action.Disabled() || !same(d.border.StrokeColor, style.Color(style.ColorNameDanger)) || d.border.StrokeWidth != 1.5 {
-		t.Errorf("mistyped: disabled %v border %v width %v", d.action.Disabled(), d.border.StrokeColor, d.border.StrokeWidth)
+	test.Tap(d.check)
+	if !d.action.Disabled() {
+		t.Fatal("button enabled after unticking")
 	}
-	if objs := d.field.Objects; !d.alarm.Visible() || objs[len(objs)-1] != d.alarm ||
-		!same(d.alarm.StrokeColor, style.Color(style.ColorNameDanger)) || d.alarm.StrokeWidth != 1.5 {
-		t.Errorf("mistyped: red frame visible %v on top %v color %v", d.alarm.Visible(), objs[len(objs)-1] == d.alarm, d.alarm.StrokeColor)
-	}
-	d.entry.SetText("  DEVICE.Example.com ")
-	if d.action.Disabled() || !same(d.border.StrokeColor, normal) || d.alarm.Visible() {
-		t.Fatalf("exact host (case and spaces ignored): disabled %v border %v", d.action.Disabled(), d.border.StrokeColor)
-	}
-	d.entry.SetText("")
-	if !d.action.Disabled() || !same(d.border.StrokeColor, normal) {
-		t.Errorf("cleared: disabled %v border %v", d.action.Disabled(), d.border.StrokeColor)
-	}
-	d.entry.SetText(riskHost)
-	d.entry.TypedKey(ret()) // a red dialog never confirms with Enter
+	test.Tap(d.check)
+	d.check.TypedKey(ret()) // a red dialog never confirms with Enter
 	if len(got) != 0 || !open(w) {
 		t.Fatal("Enter confirmed a red dialog")
 	}
@@ -232,17 +234,17 @@ func TestRedConfirmExtraCondition(t *testing.T) {
 		ready:  func() bool { return name.Text != "" },
 		button: "Change Account", onConfirm: func(amt.Confirmation) { confirmed++ },
 	})
-	d.entry.SetText(riskHost)
+	test.Tap(d.check)
 	if !d.action.Disabled() {
 		t.Fatal("extra condition does not block the button")
 	}
 	name.SetText("admin")
 	if d.action.Disabled() {
-		t.Fatal("button still disabled with host and extra condition met")
+		t.Fatal("button still disabled with checkbox and extra condition met")
 	}
 	// the extra fields sit between the warning and the confirmation
-	if absPos(name).Y >= absPos(d.entry).Y {
-		t.Errorf("extra field at %v below the confirmation at %v", absPos(name), absPos(d.entry))
+	if absPos(name).Y >= absPos(d.check).Y {
+		t.Errorf("extra field at %v below the checkbox at %v", absPos(name), absPos(d.check))
 	}
 	name.TypedKey(esc())
 	if open(w) || confirmed != 0 {

@@ -42,10 +42,10 @@ func TestSettingsEnvironmentDialog(t *testing.T) {
 	if !hasText(top, "Intranet domains") || f.input.PlaceHolder != "Add domain" || f.add.Text != "Add" || d.action.Text != "Save" {
 		t.Errorf("subhead, placeholder %q, add %q, button %q", f.input.PlaceHolder, f.add.Text, d.action.Text)
 	}
-	if !slices.Equal(f.domains, []string{"example.com", "corp.example.com"}) || len(f.rows) != 2 || d.phrase.Text != "device.example.com" {
-		t.Fatalf("domains %v rows %d phrase %q", f.domains, len(f.rows), d.phrase.Text)
+	if !slices.Equal(f.domains, []string{"example.com", "corp.example.com"}) || len(f.rows) != 2 || d.check.Text != "I understand the risk for Lab (device.example.com)" {
+		t.Fatalf("domains %v rows %d checkbox %q", f.domains, len(f.rows), d.check.Text)
 	}
-	d.entry.SetText("device.example.com")
+	d.check.SetChecked(true)
 	if !d.action.Disabled() {
 		t.Fatal("Save enabled without a change")
 	}
@@ -56,11 +56,11 @@ func TestSettingsEnvironmentDialog(t *testing.T) {
 	if d.action.Disabled() || open(h.m.parent) == false {
 		t.Fatal("Save disabled with a changed list and the address, or Enter closed the dialog")
 	}
-	d.entry.SetText("device.example.co")
+	d.check.SetChecked(false)
 	if !d.action.Disabled() {
-		t.Fatal("enabled with a mistyped address")
+		t.Fatal("enabled without the ticked checkbox")
 	}
-	d.entry.SetText("device.example.com")
+	d.check.SetChecked(true)
 	test.Tap(f.rows[0].remove)
 	if !slices.Equal(f.domains, []string{"corp.example.com", "lab.example.com"}) || len(f.rows) != 2 {
 		t.Fatalf("remove: %v", f.domains)
@@ -125,7 +125,7 @@ func TestSettingsEnvironmentRemoveAll(t *testing.T) {
 	d, f := envDialog(t, h, p)
 	test.Tap(f.rows[1].remove)
 	test.Tap(f.rows[0].remove)
-	d.entry.SetText("device.example.com")
+	d.check.SetChecked(true)
 	if len(f.domains) != 0 || d.action.Disabled() {
 		t.Fatalf("domains %v disabled %v", f.domains, d.action.Disabled())
 	}
@@ -140,7 +140,7 @@ func TestSettingsEnvironmentWriteError(t *testing.T) {
 	h, p := settingsHarness(t, func(f *session.Fake) { f.Cfg.WriteErr = amt.ErrNotModifiable })
 	d, f := envDialog(t, h, p)
 	addDomain(f, "lab.example.com")
-	d.entry.SetText("device.example.com")
+	d.check.SetChecked(true)
 	test.Tap(d.action)
 	h.written(t)
 	if p.envValue() != "example.com, corp.example.com" || !p.err.box.Visible() || p.changeEnv.Disabled() {
@@ -160,7 +160,7 @@ func TestSettingsEnvironmentDialogGrows(t *testing.T) {
 		t.Fatalf("height %v, before %v", d.frame.Size().Height, before)
 	}
 	last := f.rows[len(f.rows)-1].remove
-	if bottom := absPos(last).Y + last.Size().Height; bottom > absPos(d.entry).Y || last.Size().Height == 0 {
-		t.Errorf("the new row (bottom %v) overlaps the confirmation field at %v", bottom, absPos(d.entry).Y)
+	if bottom := absPos(last).Y + last.Size().Height; bottom > absPos(d.check).Y || last.Size().Height == 0 {
+		t.Errorf("the new row (bottom %v) overlaps the checkbox at %v", bottom, absPos(d.check).Y)
 	}
 }

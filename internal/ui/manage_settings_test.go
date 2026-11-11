@@ -241,10 +241,10 @@ func TestSettingsNetworkDialog(t *testing.T) {
 	if f.ip.Text != "192.0.2.10" || f.mask.Text != "255.255.255.0" || f.gw.Text != "192.0.2.1" || f.dns1.Text != "192.0.2.53" || f.ip.Disabled() {
 		t.Errorf("fields: %q %q %q %q disabled %v", f.ip.Text, f.mask.Text, f.gw.Text, f.dns1.Text, f.ip.Disabled())
 	}
-	if d.phrase.Text != "device.example.com" {
-		t.Errorf("phrase %q", d.phrase.Text)
+	if d.check.Text != "I understand the risk for Lab (device.example.com)" {
+		t.Errorf("checkbox %q", d.check.Text)
 	}
-	d.entry.SetText("device.example.com")
+	d.check.SetChecked(true)
 	if d.action.Disabled() {
 		t.Fatal("DHCP to static with valid values stays disabled")
 	}
@@ -261,11 +261,11 @@ func TestSettingsNetworkDialog(t *testing.T) {
 		f.mask.SetText("255.255.255.0")
 		f.gw.SetText("192.0.2.1")
 	}
-	d.entry.SetText("device.example.co")
+	d.check.SetChecked(false)
 	if !d.action.Disabled() {
-		t.Error("enabled with a mistyped address")
+		t.Error("enabled without the ticked checkbox")
 	}
-	d.entry.SetText("device.example.com")
+	d.check.SetChecked(true)
 	f.mode.Tap(0)
 	if !f.ip.Disabled() || !f.dns2.Disabled() || !d.action.Disabled() {
 		t.Errorf("DHCP: fields disabled %v, button disabled %v (nothing changed)", f.ip.Disabled(), d.action.Disabled())
@@ -471,13 +471,13 @@ func TestSettingsTurnOffAMT(t *testing.T) {
 	h, p := settingsHarness(t, nil)
 	test.Tap(p.turnOff)
 	d := p.dialog
-	if d == nil || d.entry == nil || !hasRichText(t, d.frame, "This cannot be undone remotely. ", true) {
+	if d == nil || d.check == nil || !hasRichText(t, d.frame, "This cannot be undone remotely. ", true) {
 		t.Fatal("no red confirmation")
 	}
 	if !hasRichText(t, d.frame, "“Lab” stops answering on the network right away: no power control, KVM or media, not from OpenLAMT and not from any other tool. Only the BIOS (MEBx) at the device can turn it back on.", false) {
 		t.Error("warning text")
 	}
-	d.entry.SetText("device.example.com")
+	d.check.SetChecked(true)
 	test.Tap(d.action)
 	h.wait(t)
 	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"DisableAMTNetwork"}) || h.dev.Cfg.Settings.General.NetworkEnabled {

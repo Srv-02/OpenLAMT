@@ -151,7 +151,7 @@ func (m *manager) showAdminDialog(v *usersPane, current string, signedIn bool) *
 	}
 	forget := func() { d.pw.SetText(""); d.repeat.SetText("") }
 	d.riskDialog = showRedConfirm(v.window(), redSpec{
-		op: amt.OpAdminAccount, host: m.deps.host, title: title,
+		op: amt.OpAdminAccount, host: m.deps.host, device: deviceLabel(m.name, m.deps.host), title: title,
 		warningBold: lang.L("Risk of lockout."),
 		warningRest: lang.L("If the new password is lost, only the BIOS (MEBx) at the device can reset it."),
 		extra: func(r *riskDialog) []fyne.CanvasObject {
@@ -276,6 +276,7 @@ func (m *manager) confirmDeleteUser(v *usersPane, d *userDialog) {
 		name = u.KerberosSID
 	}
 	v.deleteDlg = showOrangeConfirm(v.window(), orangeSpec{
+		host: m.deps.host, device: deviceLabel(m.name, m.deps.host),
 		title:  lang.L("Delete user “{{.User}}”?", map[string]any{"User": name}),
 		text:   lang.L("The user can no longer sign in to “{{.Name}}”. This cannot be undone.", map[string]any{"Name": m.name}),
 		button: lang.L("Delete User"),

@@ -39,7 +39,7 @@ func (p *settingsPane) openName(domain bool) {
 		return amt.GeneralChange{HostName: &v}
 	}
 	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
-		op: amt.OpHostName, host: p.m.confirmHost(), title: title,
+		op: amt.OpHostName, host: p.m.confirmHost(), device: p.m.confirmDevice(), title: title,
 		warning: lang.L("With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them."),
 		lead: func(d *riskDialog) []fyne.CanvasObject {
 			field = d.newEntry(false)
@@ -75,7 +75,7 @@ func (p *settingsPane) confirmDDNS(on bool) {
 			lang.L("Enable")
 	}
 	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
-		op: amt.OpHostName, host: p.m.confirmHost(), title: title, text: text, button: button,
+		op: amt.OpHostName, host: p.m.confirmHost(), device: p.m.confirmDevice(), title: title, text: text, button: button,
 		onConfirm: func(c amt.Confirmation) {
 			p.d.write(func() error { return p.m.sess.SetGeneral(amt.GeneralChange{DynamicDNS: &mode}, c) }, true)
 		},
@@ -108,7 +108,7 @@ func (p *settingsPane) confirmFeatureOff(f feature, change amt.FeatureChange) {
 		text = lang.L("Open Serial over LAN (SOL) sessions end right away. You can enable Serial over LAN again in Settings.")
 	}
 	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
-		op: amt.OpFeaturesOff, host: p.m.confirmHost(), title: title, text: text, button: lang.L("Disable"),
+		op: amt.OpFeaturesOff, host: p.m.confirmHost(), device: p.m.confirmDevice(), title: title, text: text, button: lang.L("Disable"),
 		onConfirm: func(c amt.Confirmation) {
 			p.d.write(func() error { return p.m.sess.SetFeatures(change, c) }, true)
 		},
@@ -119,7 +119,7 @@ func (p *settingsPane) confirmFeatureOff(f feature, change amt.FeatureChange) {
 // answer any more, so the settings are not read again.
 func (p *settingsPane) confirmTurnOff() {
 	p.dialog = showRedConfirm(p.window(), redSpec{
-		op: amt.OpDisableNetwork, host: p.m.confirmHost(),
+		op: amt.OpDisableNetwork, host: p.m.confirmHost(), device: p.m.confirmDevice(),
 		title:       lang.L("Turn off AMT on the network?"),
 		warningBold: lang.L("This cannot be undone remotely."),
 		warningRest: lang.L("“{{.Name}}” stops answering on the network right away: no power control, KVM or media, not from OpenLAMT and not from any other tool. Only the BIOS (MEBx) at the device can turn it back on.",
@@ -146,7 +146,7 @@ func (p *settingsPane) openNetwork(i int) {
 	f := &networkForm{cur: cur}
 	p.netForm = f
 	p.dialog = showRedConfirm(p.window(), redSpec{
-		op: amt.OpNetwork, host: p.m.confirmHost(),
+		op: amt.OpNetwork, host: p.m.confirmHost(), device: p.m.confirmDevice(),
 		title:       lang.L("Change network settings"),
 		warningBold: lang.L("Risk of lockout."),
 		warningRest: lang.L("A wrong address makes the device unreachable. Only the BIOS (MEBx) at the device can fix it."),
@@ -274,7 +274,7 @@ func (p *settingsPane) showTLS(all []amt.Certificate) {
 	f.selected = f.current
 	p.tlsForm = f
 	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
-		op: amt.OpTLS, host: p.m.confirmHost(), danger: true,
+		op: amt.OpTLS, host: p.m.confirmHost(), device: p.m.confirmDevice(), danger: true,
 		title:       lang.L("Change TLS certificate"),
 		warningBold: lang.L("Risk of lockout."),
 		warning:     lang.L("AMT restarts TLS with the new certificate. OpenLAMT updates the saved fingerprint for this device."),

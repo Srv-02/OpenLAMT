@@ -323,7 +323,6 @@ func newUIShots(t *testing.T, dir string) *uiShots {
 // manageDialogs renders the dialogs of Settings and Users on the window of its own w (35–39,
 // 41, 42, 46–50) in the states of Danger.dc.html, Forms.dc.html, Extras.dc.html and HostEnv.dc.html.
 func (h *uiShots) manageDialogs(w *manageWindow) {
-	host := h.d.sess.Config().Host
 	w.showPage(3)
 	h.settle()
 	sp := w.view.panes[3].impl.(*settingsPane)
@@ -348,22 +347,22 @@ func (h *uiShots) manageDialogs(w *manageWindow) {
 	h.shot("47-dialog-enable-ddns.png", w.win)
 	sp.dialog.Dismiss()
 
-	// 50: the two domains of the design and the address typed (HostEnv.dc.html)
+	// 50: the two domains of the design and the checkbox ticked (HostEnv.dc.html)
 	test.Tap(sp.changeEnv)
-	sp.dialog.entry.SetText(host)
+	sp.dialog.check.SetChecked(true)
 	w.win.Canvas().Unfocus()
 	h.shot("50-dialog-environment.png", w.win)
 	sp.dialog.Dismiss()
 
-	// 35: red, the address typed correctly
+	// 35: red, the checkbox ticked
 	test.Tap(sp.turnOff)
-	sp.dialog.entry.SetText(host)
+	sp.dialog.check.SetChecked(true)
 	h.shot("35-dialog-turn-off-amt.png", w.win)
 	sp.dialog.Dismiss()
 
-	// 39: Static chosen, the address typed
+	// 39: Static chosen, the checkbox ticked
 	sp.address.Tap(1)
-	sp.dialog.entry.SetText(host)
+	sp.dialog.check.SetChecked(true)
 	h.shot("39-dialog-network.png", w.win)
 	sp.dialog.Dismiss()
 
@@ -377,12 +376,12 @@ func (h *uiShots) manageDialogs(w *manageWindow) {
 	h.settle()
 	up := w.view.panes[4].impl.(*usersPane)
 
-	// 36: the address one digit short while typing: the button stays disabled, the field red
+	// 36: the checkbox not ticked yet: the button stays disabled
 	test.Tap(up.table.lines[0].edit)
 	ad := up.adminDlg
 	ad.pw.SetText(newPassword)
 	ad.repeat.SetText(newPassword)
-	ad.entry.SetText(host[:len(host)-1])
+	ad.check.SetChecked(false)
 	h.shot("36-dialog-admin-account.png", w.win)
 	ad.Dismiss()
 

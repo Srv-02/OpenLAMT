@@ -68,9 +68,9 @@ func TestUsersShots(t *testing.T) {
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
-	d.entry.SetText(riskHost[:len(riskHost)-1]) // one character missing, as in the mockup
+	d.check.SetChecked(false) // not ticked yet, as in the mockup
 	shot("users-dialog-admin.png", w.win)
-	d.entry.SetText(riskHost)
+	d.check.SetChecked(true)
 	shot("users-dialog-admin-ready.png", w.win)
 	d.Dismiss()
 

@@ -216,7 +216,7 @@
   "Shut Down": "Herunterfahren",
   "Filter": "Filter",
   "I understand the risk": "Ich verstehe das Risiko",
-  "Type {{.Phrase}} to confirm": "Gib zur Bestätigung {{.Phrase}} ein",
+  "I understand the risk for {{.Device}}": "Ich verstehe das Risiko für {{.Device}}",
   "Console": "Konsole",
   "Manage": "Verwalten",
   "Media": "Medien",

@@ -24,12 +24,12 @@ import (
 //   - showQuestion (Dialogs.dc.html): a tinted symbol tile above the title, a text, a secondary
 //     button and the blue main button; Enter confirms.
 //   - showOrangeConfirm (Danger.dc.html, right): an orange warning box (or a plain text,
-//     Extras.dc.html), an optional "old → new" line and the checkbox "I understand the risk"; the
-//     red button stays disabled until it is ticked and hands amt.ConfirmChecked's confirmation to
-//     onConfirm.
-//   - showRedConfirm (Danger.dc.html, left and middle): a red warning box, optional fields and
-//     "Type <phrase> to confirm"; the red button stays disabled until amt.Confirm accepts the
-//     typed text and the extra condition holds.
+//     Extras.dc.html), an optional "old → new" line and the checkbox "I understand the risk for
+//     <device>"; the red button stays disabled until it is ticked and hands amt.ConfirmChecked's
+//     confirmation to onConfirm.
+//   - showRedConfirm (Danger.dc.html, left and middle; RedCheck.dc.html): a red warning box,
+//     optional fields and the same checkbox; the red button stays disabled until it is ticked and
+//     the extra condition holds.
 //
 // The orange and red dialogs are destructive: Enter never confirms them.
 
@@ -52,13 +52,7 @@ func showQuestion(parent fyne.Window, icon icons.Name, tone tileTone, title, tex
 type riskDialog struct {
 	*panel
 	warnBox *canvas.Rectangle // background of the warning box
-	check   *dialogCheck      // orange: "I understand the risk"
-	entry   *dialogEntry      // red: the typed confirmation phrase
-	border  *canvas.Rectangle // red: frame of entry, red while it holds a wrong phrase
-	alarm   *canvas.Rectangle // red: the red frame again, over the entry's focus border
-	field   *fyne.Container   // red: border, entry and alarm
-	prefix  *canvas.Text      // red: text before the phrase in "Type … to confirm"
-	phrase  *canvas.Text      // red: the phrase in code style
+	check   *dialogCheck      // "I understand the risk for <device>"
 
 	validate func()
 }
@@ -87,6 +81,7 @@ type orangeSpec struct {
 	// the zero Confirmation.
 	op             amt.Operation
 	host           string // Session.Config().Host
+	device         string // the device in the checkbox text (deviceLabel); empty: host
 	title, warning string
 	// text is a plain paragraph in place of the warning box (Extras.dc.html); used when warning
 	// is empty.
@@ -109,8 +104,9 @@ type orangeSpec struct {
 	onCancel  func()                 // may be nil
 }
 
-// showOrangeConfirm shows an orange confirmation. The button stays disabled until the checkbox
-// is ticked and amt.ConfirmChecked accepts op (only SeverityHigh operations).
+// showOrangeConfirm shows an orange confirmation (or, with danger, the red one of
+// showRedConfirm). The button stays disabled until the checkbox is ticked and
+// amt.ConfirmChecked accepts op.
 func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 	d := &riskDialog{}
 	confirmation := func() (amt.Confirmation, error) {
@@ -159,7 +155,7 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 		if s.extra != nil {
 			body = append(body, s.extra(d)...)
 		}
-		d.check = p.newCheck(lang.L("I understand the risk"), false)
+		d.check = p.newCheck(riskCheckText(s.device, s.host), false)
 		d.check.OnChanged = func(bool) { d.Revalidate() }
 		return append(body, d.check)
 	})
@@ -175,9 +171,10 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 type redSpec struct {
 	op                       amt.Operation
 	host                     string // Session.Config().Host
+	device                   string // the device in the checkbox text (deviceLabel); empty: host
 	title                    string
 	warningBold, warningRest string // the warning: a semibold first sentence and the rest
-	// extra builds fields shown between the warning and the confirmation (the admin account
+	// extra builds fields shown between the warning and the checkbox (the admin account
 	// dialog); they call d.Revalidate when they change. May be nil.
 	extra func(d *riskDialog) []fyne.CanvasObject
 	// ready is the extra condition for the button (fields valid); nil means none.
@@ -187,93 +184,44 @@ type redSpec struct {
 	onCancel  func()                 // may be nil
 }
 
-// confirmPhraseMark stands for the phrase while "Type {{.Phrase}} to confirm" is translated, so
-// the translation can put the phrase anywhere and it is still drawn in code style.
-const confirmPhraseMark = ""
-
-// Geometry of the confirmation of Danger.dc.html: label 12 px semibold, the phrase in 12 px
-// monospace on a gray chip (radius 4, 1 x 5 px padding), the entry framed with radius 7 and a
-// 1 px border that turns red and 1.5 px for a wrong phrase.
-const (
-	confirmLabelSize   float32 = 12
-	codeRadius         float32 = 4
-	codePadH           float32 = 5
-	codePadV           float32 = 1
-	confirmFieldRadius float32 = 7
-	mistypedWidth      float32 = 1.5
-)
-
-// showRedConfirm shows a red confirmation. The button stays disabled until amt.Confirm accepts
-// the typed text (ConfirmPhrase: the host for these operations, case and surrounding spaces do
-// not matter) and ready holds; a non-empty wrong text draws the field red.
+// showRedConfirm shows a red confirmation: the orange dialog with the red warning box. The
+// checkbox names the device, so the confirmation still says which device it hits; the button
+// stays disabled until it is ticked and ready holds.
 func showRedConfirm(parent fyne.Window, s redSpec) *riskDialog {
-	d := &riskDialog{}
-	confirmation := func() (amt.Confirmation, error) {
-		typed := ""
-		if d.entry != nil {
-			typed = d.entry.Text
-		}
-		return amt.Confirm(s.op, s.host, typed)
-	}
-	d.panel = showPanel(parent, panelSpec{
-		danger: true, redButton: true, flush: true, title: s.title, action: s.button, cancel: lang.L("Cancel"),
-		onAction: func() {
-			if s.ready != nil && !s.ready() {
-				return
-			}
-			if c, err := confirmation(); err == nil && s.onConfirm != nil {
-				s.onConfirm(c)
-			}
-		},
-		onCancel: s.onCancel,
-	}, func(p *panel) []fyne.CanvasObject {
-		d.panel = p
-		var box fyne.CanvasObject
-		box, d.warnBox = warningBox(true, s.warningBold, s.warningRest)
-		body := []fyne.CanvasObject{box}
-		if s.extra != nil {
-			body = append(body, s.extra(d)...)
-		}
-		d.entry = p.newEntry(false)
-		d.entry.OnChanged = func(string) { d.Revalidate() }
-		d.border = &canvas.Rectangle{CornerRadius: confirmFieldRadius, StrokeWidth: 1}
-		style.BindRect(d.border, style.ColorNameField, "")
-		d.border.StrokeColor = style.Color(style.ColorNameControlBorder)
-		d.alarm = style.BindRect(&canvas.Rectangle{CornerRadius: confirmFieldRadius, StrokeWidth: mistypedWidth, FillColor: color.Transparent},
-			"", style.ColorNameDanger)
-		d.alarm.Hide()
-		d.field = container.NewStack(d.border, container.NewThemeOverride(d.entry, style.CardTheme{}), d.alarm)
-		p.focus = d.entry
-		return append(body, d.confirmLabel(amt.ConfirmPhrase(s.op, s.host)), d.field)
+	return showOrangeConfirm(parent, orangeSpec{
+		op: s.op, host: s.host, device: s.device, title: s.title,
+		danger: true, warningBold: s.warningBold, warning: s.warningRest,
+		extra: s.extra, ready: s.ready, button: s.button, onConfirm: s.onConfirm, onCancel: s.onCancel,
 	})
-	d.validate = func() {
-		_, err := confirmation()
-		mistyped := err != nil && strings.TrimSpace(d.entry.Text) != ""
-		d.border.StrokeColor, d.border.StrokeWidth = style.Color(style.ColorNameControlBorder), 1
-		if mistyped {
-			d.border.StrokeColor, d.border.StrokeWidth = style.Color(style.ColorNameDanger), mistypedWidth
-			d.alarm.Show()
-		} else {
-			d.alarm.Hide()
-		}
-		d.border.Refresh()
-		d.setEnabled(err == nil && (s.ready == nil || s.ready()))
-	}
-	d.Revalidate()
-	return d
 }
 
-// confirmLabel is "Type <phrase> to confirm" in one line, the phrase in code style.
-func (d *riskDialog) confirmLabel(phrase string) fyne.CanvasObject {
-	full := lang.L("Type {{.Phrase}} to confirm", map[string]any{"Phrase": confirmPhraseMark})
-	before, after, _ := strings.Cut(full, confirmPhraseMark)
-	d.prefix = designText(before, confirmLabelSize, style.ColorNameControlText, true)
-	d.phrase = designText(phrase, confirmLabelSize, theme.ColorNameForeground, false)
-	d.phrase.TextStyle = fyne.TextStyle{Monospace: true}
-	chipBg := style.BindRect(&canvas.Rectangle{CornerRadius: codeRadius}, style.ColorNameCodeBackground, "")
-	chip := container.NewStack(chipBg, container.New(layout.NewCustomPaddedLayout(codePadV, codePadV, codePadH, codePadH), d.phrase))
-	return container.New(&rowLayout{gap: 0, fill: -1}, d.prefix, chip, designText(after, confirmLabelSize, style.ColorNameControlText, true))
+// riskCheckText is the checkbox of the orange and red confirmations, naming the device: its
+// label (deviceLabel), else the host, else none.
+func riskCheckText(device, host string) string {
+	if device = strings.TrimSpace(device); device == "" {
+		device = strings.TrimSpace(host)
+	}
+	if device == "" {
+		return lang.L("I understand the risk")
+	}
+	return lang.L("I understand the risk for {{.Device}}", map[string]any{"Device": device})
 }
+
+// deviceLabel names a device in a confirmation: "name (host)", or one of them when the other
+// is empty or both are the same.
+func deviceLabel(name, host string) string {
+	name, host = strings.TrimSpace(name), strings.TrimSpace(host)
+	switch {
+	case name == "" || strings.EqualFold(name, host):
+		return host
+	case host == "":
+		return name
+	}
+	return name + " (" + host + ")"
+}
+
+// confirmFieldRadius is the corner radius of the framed fields in the confirmations.
+const confirmFieldRadius float32 = 7
 
 // Geometry of the warning boxes (Danger.dc.html .warn): radius 10, 1 px border, 12 px padding,
 // an 18 px triangle with stroke 2, 10 px from the text.

@@ -69,7 +69,7 @@ func TestAdminDialogNeedsValidFieldsAndTheHost(t *testing.T) {
 		do    func()
 		ready bool
 	}{
-		{func() { d.entry.SetText(riskHost) }, false},
+		{func() { d.check.SetChecked(true) }, false},
 		{func() { d.pw.SetText(newPassword) }, false},
 		{func() { d.repeat.SetText(newPassword + "x") }, false},
 		{func() { d.repeat.SetText(newPassword) }, true},
@@ -77,8 +77,8 @@ func TestAdminDialogNeedsValidFieldsAndTheHost(t *testing.T) {
 		{func() { d.name.SetText("admin2") }, true},
 		{func() { d.pw.SetText("short"); d.repeat.SetText("short") }, false},
 		{func() { d.pw.SetText(newPassword); d.repeat.SetText(newPassword) }, true},
-		{func() { d.entry.SetText("device.example.co") }, false},
-		{func() { d.entry.SetText(riskHost) }, true},
+		{func() { d.check.SetChecked(false) }, false},
+		{func() { d.check.SetChecked(true) }, true},
 	}
 	for i, s := range steps {
 		s.do()
@@ -109,7 +109,7 @@ func TestAdminDialogWithoutKeychainPassesNoStore(t *testing.T) {
 	test.Tap(d.keychain)
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
-	d.entry.SetText(riskHost)
+	d.check.SetChecked(true)
 	test.Tap(d.action)
 	h.wait(t)
 	h.wait(t)
@@ -133,7 +133,7 @@ func TestNotSavedDialogShowsThePasswordOnce(t *testing.T) {
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
-	d.entry.SetText(riskHost)
+	d.check.SetChecked(true)
 	test.Tap(d.action)
 	h.wait(t)
 	h.wait(t)
@@ -186,7 +186,7 @@ func TestNotSavedDialogAfterTheDeviceWindowClosed(t *testing.T) {
 			d := p.adminDlg
 			d.pw.SetText(newPassword)
 			d.repeat.SetText(newPassword)
-			d.entry.SetText(riskHost)
+			d.check.SetChecked(true)
 			test.Tap(d.action)
 			h.m.Close() // the device window closes while the write runs
 			h.wait(t)
@@ -215,7 +215,7 @@ func TestUncertainCredentialsShowTheNotSavedDialog(t *testing.T) {
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
-	d.entry.SetText(riskHost)
+	d.check.SetChecked(true)
 	test.Tap(d.action)
 	h.wait(t)
 	h.wait(t)
@@ -231,7 +231,7 @@ func TestAdminDialogOtherErrorsUseTheErrorDialog(t *testing.T) {
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
-	d.entry.SetText(riskHost)
+	d.check.SetChecked(true)
 	test.Tap(d.action)
 	h.wait(t)
 	h.wait(t)
@@ -406,8 +406,8 @@ func TestDeleteUserAsksAndRemoves(t *testing.T) {
 	top := h.m.parent.Canvas().Overlays().Top()
 	findLabel(t, top, "Delete user “helpdesk”?")
 	if !hasRichText(t, top, "The user can no longer sign in to “Lab”. This cannot be undone.", false) || c.warnBox != nil ||
-		c.action.Text != "Delete User" || c.check.Text != "I understand the risk" {
-		t.Errorf("text, warning box %v, button %q", c.warnBox != nil, c.action.Text)
+		c.action.Text != "Delete User" || c.check.Text != "I understand the risk for Lab (device.example.com)" {
+		t.Errorf("text, warning box %v, button %q, checkbox %q", c.warnBox != nil, c.action.Text, c.check.Text)
 	}
 	if !c.action.Disabled() {
 		t.Fatal("Delete User enabled before the box is ticked")

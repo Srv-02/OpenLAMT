@@ -75,7 +75,7 @@ func TestManageSettingsShots(t *testing.T) {
 	wp.dialog.Dismiss()
 
 	wp.address.Tap(1)
-	wp.dialog.entry.SetText("device.example.com")
+	wp.dialog.check.SetChecked(true)
 	shot("settings-dialog-network.png", w.win)
 	wp.dialog.Dismiss()
 
@@ -85,7 +85,7 @@ func TestManageSettingsShots(t *testing.T) {
 	wp.dialog.Dismiss()
 
 	test.Tap(wp.turnOff)
-	wp.dialog.entry.SetText("device.example.com")
+	wp.dialog.check.SetChecked(true)
 	shot("settings-dialog-turn-off.png", w.win)
 	wp.dialog.Dismiss()
 }

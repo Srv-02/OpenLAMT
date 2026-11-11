@@ -86,6 +86,9 @@ func (d *settingsData) fail(err error) {
 
 // confirmHost is the host a confirmation is bound to: the host of the connection, which the
 // device checks (Session.Config().Host).
+// confirmDevice names the device in the checkbox of a confirmation: "name (host)".
+func (m *manager) confirmDevice() string { return deviceLabel(m.name, m.confirmHost()) }
+
 func (m *manager) confirmHost() string {
 	if m.sess == nil {
 		return m.deps.host

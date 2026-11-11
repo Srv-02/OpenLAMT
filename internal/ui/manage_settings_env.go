@@ -49,7 +49,7 @@ func (p *settingsPane) openEnvironment() {
 	f := &envForm{cur: cur, domains: slices.Clone(cur)}
 	p.envForm = f
 	p.dialog = showRedConfirm(p.window(), redSpec{
-		op: amt.OpEnvironment, host: p.m.confirmHost(),
+		op: amt.OpEnvironment, host: p.m.confirmHost(), device: p.m.confirmDevice(),
 		title:       lang.L("Change environment detection"),
 		warningBold: lang.L("Risk of lockout."),
 		warningRest: lang.L("Outside these domains, AMT closes its network access. Only the BIOS (MEBx) at the device can fix a wrong entry."),

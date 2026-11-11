@@ -327,4 +327,5 @@ func (d *DeviceWindow) setTypingButtons(running bool) {
 	}
 	d.clipBtn.SetCaption(text)
 	d.barClip.SetCaption(text)
+	d.syncClipButtons() // in the Console view the end of the job may grey them out
 }

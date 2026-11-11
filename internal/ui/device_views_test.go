@@ -64,9 +64,10 @@ func TestToolbarOrder(t *testing.T) {
 	}
 }
 
-// TestConsoleViewControls: the Console view greys out only Quality; Ctrl+Alt+Del and Type
-// Clipboard work there without a KVM session and call the console hooks. Back in the KVM view
-// the KVM states return, and a tap on the inactive segment never connects.
+// TestConsoleViewControls: the Console view greys out Quality, and Type Clipboard while no
+// console session runs; Ctrl+Alt+Del works there without a KVM session and calls the console
+// hook. Back in the KVM view the KVM states return, and a tap on the inactive segment never
+// connects.
 func TestConsoleViewControls(t *testing.T) {
 	d := newOnDevice(t)
 	selected, reselected, cad, clip := 0, 0, 0, 0
@@ -85,18 +86,28 @@ func TestConsoleViewControls(t *testing.T) {
 	if !d.quality.Disabled() {
 		t.Fatal("Quality must be disabled in the Console view")
 	}
-	if d.cadBtn.Disabled() || d.clipBtn.Disabled() || d.mediaBtn.Disabled() || d.powerBtn.Disabled() ||
+	if d.cadBtn.Disabled() || d.mediaBtn.Disabled() || d.powerBtn.Disabled() ||
 		d.manageBtn.Disabled() || d.keyboard.Disabled() || d.viewSwitch.Disabled() {
-		t.Fatal("Console view: only Quality may be disabled")
+		t.Fatal("Console view: only Quality, Type Clipboard and Full Screen may be disabled")
+	}
+	if !d.clipBtn.Disabled() || !d.barClip.Disabled() {
+		t.Fatal("Type Clipboard must be disabled without a console session")
 	}
 	if !d.fullBtn.Disabled() {
 		t.Fatal("Full Screen needs the session of the shown view")
 	}
 	test.Tap(d.cadBtn)
 	test.Tap(d.clipBtn)
-	if cad != 1 || clip != 1 {
+	if cad != 1 || clip != 0 {
 		t.Fatalf("console hooks: Ctrl+Alt+Del %d, Type Clipboard %d", cad, clip)
 	}
+	d.typing = &typeJob{} // a KVM typing job: the button reads "Stop typing" and must stay usable
+	d.setKVMControls()
+	if d.clipBtn.Disabled() || d.barClip.Disabled() {
+		t.Fatal("Stop typing disabled in the Console view")
+	}
+	d.typing = nil
+	d.setKVMControls()
 	d.viewSwitch.Tap(viewConsole) // the selected segment
 	if reselected != 1 || selected != 1 {
 		t.Fatalf("reselect: %d, selected %d", reselected, selected)

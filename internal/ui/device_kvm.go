@@ -99,9 +99,9 @@ func (d *DeviceWindow) buildKVM() {
 // quality can be changed in the KVM view except while a connect or reconnect is pending (a
 // running session reconnects with it, switchQuality); full screen needs the session of the
 // shown view (fullScreenAllowed); Ctrl+Alt+Del needs a session; "Type clipboard" additionally
-// needs its hook (set in buildKVM). In the Console view Ctrl+Alt+Del and Type Clipboard go to
-// the console and stay enabled. The full screen bar mirrors the toolbar. Manage follows
-// syncManageBtn. Status bar and empty state follow.
+// needs its hook (set in buildKVM). In the Console view Ctrl+Alt+Del goes to the console and
+// stays enabled; Type Clipboard follows syncClipButtons. The full screen bar mirrors the
+// toolbar. Manage follows syncManageBtn. Status bar and empty state follow.
 func (d *DeviceWindow) setKVMControls() {
 	connected := d.kvmClient != nil || d.kvmReconnecting // a reconnect keeps the controls as they are
 	console := d.consoleView
@@ -119,11 +119,27 @@ func (d *DeviceWindow) setKVMControls() {
 	enable(d.fullBtn, d.fullScreenAllowed())
 	enable(d.cadBtn, connected || console)
 	enable(d.barCad, connected || console)
-	enable(d.clipBtn, (connected && d.onTypeClipboard != nil) || console)
-	enable(d.barClip, (connected && d.onTypeClipboard != nil) || console)
+	d.syncClipButtons()
 	d.syncManageBtn()
 	d.refreshKVMLine()
 	d.refreshEmptyState()
+}
+
+// syncClipButtons enables both Type Clipboard buttons (window and full screen bar): in the KVM
+// view with a KVM session and the typing hook, in the Console view with a console session. A
+// running KVM typing job keeps them enabled in both views, as they read "Stop typing" then.
+func (d *DeviceWindow) syncClipButtons() {
+	on := (d.kvmClient != nil || d.kvmReconnecting) && d.onTypeClipboard != nil
+	if d.consoleView {
+		on = d.con.out != nil
+	}
+	for _, b := range []*widgets.ToolbarButton{d.clipBtn, d.barClip} {
+		if (on || d.typing != nil) && !d.aborted {
+			b.Enable()
+		} else {
+			b.Disable()
+		}
+	}
 }
 
 func (d *DeviceWindow) toggleKVM() {

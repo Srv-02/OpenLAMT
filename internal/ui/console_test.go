@@ -325,6 +325,27 @@ func TestConsoleTypeClipboardWritesCarriageReturns(t *testing.T) {
 	}
 }
 
+// TestConsoleTypeClipboardFollowsTheSession: in the Console view Type Clipboard is enabled only
+// while a console session runs; the KVM view keeps its own rule (KVM session).
+func TestConsoleTypeClipboardFollowsTheSession(t *testing.T) {
+	h := newConsoleDevice(t, true)
+	p := h.open(t)
+	if h.d.clipBtn.Disabled() || h.d.barClip.Disabled() {
+		t.Fatal("Type Clipboard disabled with a console session")
+	}
+	tapKVM(h.d)
+	if !h.d.clipBtn.Disabled() {
+		t.Fatal("KVM view without a KVM session: Type Clipboard must be disabled")
+	}
+	h.d.viewSwitch.Tap(viewConsole)
+	h.sync()
+	p.EndReply(t)
+	h.waitEnded(t)
+	if !h.d.clipBtn.Disabled() || !h.d.barClip.Disabled() {
+		t.Fatal("Type Clipboard enabled after the console session ended")
+	}
+}
+
 // TestConsoleClipboardIsOneBlockBetweenKeys: Type Clipboard and the terminal's keys share one
 // writer, so a text longer than one SOL message is not split by keys typed meanwhile, and both
 // keep their order.

@@ -51,9 +51,10 @@ var ErrAuth = errors.New("authentication failed: wrong username or password")
 
 // Session owns one connected device. All WS-Man calls go through its mutex.
 type Session struct {
-	cfg amt.Config
-	dev Device
-	mu  sync.Mutex
+	cfgMu sync.Mutex // guards cfg: account and certificate changes replace login and pin
+	cfg   amt.Config
+	dev   Device
+	mu    sync.Mutex
 }
 
 // Open connects and reads the status once to verify the password. The returned Config
@@ -74,9 +75,16 @@ func Open(ctx context.Context, cfg amt.Config, prompt amt.TrustPrompt, connect C
 }
 
 // classify maps the WS-Man client's 401 error to ErrAuth; everything else passes through.
+// An *amt.CredentialsUncertainError keeps its type; only its cause is classified.
 func classify(err error) error {
 	if err == nil {
 		return nil
+	}
+	var ue *amt.CredentialsUncertainError
+	if errors.As(err, &ue) {
+		c := *ue
+		c.Err = classify(ue.Err)
+		return &c
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "wsman.Client post received: 401") {
@@ -99,10 +107,15 @@ func (s *Session) Close() {
 	}
 }
 
-// Config returns host, user, password (in memory) and the confirmed fingerprint.
-func (s *Session) Config() amt.Config { return s.cfg }
+// Config returns host, user, password (in memory) and the confirmed fingerprint. After an
+// accepted change of the session's own login or of the TLS certificate it returns the new values.
+func (s *Session) Config() amt.Config {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	return s.cfg
+}
 
-func (s *Session) Fingerprint() string { return s.cfg.Fingerprint }
+func (s *Session) Fingerprint() string { return s.Config().Fingerprint }
 
 func (s *Session) Status() (amt.Status, error) {
 	s.mu.Lock()

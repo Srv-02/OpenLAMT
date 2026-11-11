@@ -33,25 +33,38 @@ func Connect(ctx context.Context, cfg Config, prompt TrustPrompt) (*Device, erro
 		return nil, ErrIPv6Unsupported
 	}
 
+	fp := ""
+	if cfg.UseTLS {
+		var err error
+		if fp, err = resolvePin(ctx, cfg, prompt); err != nil {
+			return nil, err
+		}
+	}
+	dev := &Device{}
+	dev.setClient(cfg, fp)
+	return dev, nil
+}
+
+// newTransport returns the HTTP transport for cfg; with TLS it accepts only the pin fp.
+func newTransport(cfg Config, fp string) (*http.Transport, *tls.Config) {
 	dial := cfg.dialContext
 	if dial == nil {
 		dial = (&net.Dialer{Timeout: ConnectTimeout}).DialContext
 	}
 	transport := &http.Transport{DialContext: dial, TLSHandshakeTimeout: ConnectTimeout,
 		IdleConnTimeout: IdleConnTimeout}
-	fp := ""
 	var tlsCfg *tls.Config
 	if cfg.UseTLS {
-		var err error
-		if fp, err = resolvePin(ctx, cfg, prompt); err != nil {
-			return nil, err
-		}
 		// AMT certificates cannot be checked against system CAs; the pin replaces chain verification.
 		tlsCfg = tlsConfigFor(cfg.Host, fp)
 		transport.TLSClientConfig = tlsCfg
 	}
+	return transport, tlsCfg
+}
 
-	c := client.NewWsman(client.Parameters{
+// newClient returns a Digest WS-Man client for cfg's login over transport.
+func newClient(cfg Config, transport http.RoundTripper) *client.Target {
+	return client.NewWsman(client.Parameters{
 		Target:    cfg.Host,
 		Username:  cfg.Username,
 		Password:  cfg.Password,
@@ -59,11 +72,27 @@ func Connect(ctx context.Context, cfg Config, prompt TrustPrompt) (*Device, erro
 		UseTLS:    cfg.UseTLS,
 		Transport: transport,
 	})
-	dev := newDevice(c, fp)
-	dev.cfg = cfg
-	dev.tlsCfg = tlsCfg
-	dev.transport = transport
-	return dev, nil
+}
+
+// setClient builds transport and WS-Man client for cfg and pin fp. The library keeps the login
+// of a client private, so a changed login or pin needs a new client.
+func (d *Device) setClient(cfg Config, fp string) {
+	transport, tlsCfg := newTransport(cfg, fp)
+	d.msgs = messagesFor(newClient(cfg, transport))
+	d.cfg, d.fingerprint, d.tlsCfg, d.transport = cfg, fp, tlsCfg, transport
+}
+
+// relogin switches the device to cfg and pin fp after an accepted change of its own login or
+// certificate. Idle sockets of the old client are closed; open KVM, SOL and IDE-R sessions keep
+// their own sockets. A device built on a test client (no transport) only takes the values.
+func (d *Device) relogin(cfg Config, fp string) {
+	if d.transport == nil {
+		d.cfg, d.fingerprint = cfg, fp
+		return
+	}
+	old := d.transport
+	d.setClient(cfg, fp)
+	old.CloseIdleConnections()
 }
 
 // tlsConfigFor is the pinned TLS config Connect uses for WS-Man and OpenKVM for redirection.

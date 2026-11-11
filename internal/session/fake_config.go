@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/Srv-02/openlamt/internal/amt"
@@ -246,25 +247,71 @@ func (f *Fake) AddUser(u amt.UserSpec) (int, error) {
 	return h, nil
 }
 
-func (f *Fake) UpdateUser(h int, u amt.UserSpec) error {
+func (f *Fake) UpdateUser(h int, u amt.UserSpec, confirm amt.Confirmation) (amt.LoginChange, error) {
+	var res amt.LoginChange
 	i := -1
-	return f.cfgWrite("UpdateUser", func() (bool, error) {
+	err := f.cfgWrite("UpdateUser", func() (bool, error) {
 		if err := u.Validate(); err != nil {
 			return false, err
 		}
 		var err error
-		if i, err = f.changeableFakeUser("UpdateUser", h); err != nil {
+		if i, err = f.fakeUser("UpdateUser", h); err != nil {
 			return false, err
 		}
-		if f.Cfg.Users.Users[i].Name == "" {
+		cur := f.Cfg.Users.Users[i]
+		if cur.System {
+			return false, fmt.Errorf("UpdateUser: %w", amt.ErrProtectedAccount)
+		}
+		if cur.Name == "" {
 			return false, amt.ErrNotModifiable
 		}
+		if cur.Self {
+			if u.Access == amt.AccessLocal {
+				return false, &amt.ValidationError{Field: "Access", Reason: "the account of this connection needs network access"}
+			}
+			if err := f.confirmed(confirm, amt.OpOwnAccount, []string{amt.RiskOwnAccount}); err != nil {
+				return false, err
+			}
+		}
+		res = amt.LoginChange{OldUsername: cur.Name, Username: u.Name, Self: cur.Self}
 		return true, nil
 	}, func() {
 		n := specUser(h, u)
-		n.Enabled, n.EnabledKnown = f.Cfg.Users.Users[i].Enabled, f.Cfg.Users.Users[i].EnabledKnown
+		cur := f.Cfg.Users.Users[i]
+		n.Enabled, n.EnabledKnown, n.Self = cur.Enabled, cur.EnabledKnown, cur.Self
 		f.Cfg.Users.Users[i] = n
 	})
+	if err != nil {
+		return amt.LoginChange{}, err
+	}
+	return res, nil
+}
+
+// SetAdminAccount checks like *amt.Device and renames Users.Admin. The change is the session's
+// own login if the last ConnectFake user is the admin.
+func (f *Fake) SetAdminAccount(c amt.AccountChange, confirm amt.Confirmation) (amt.LoginChange, error) {
+	var res amt.LoginChange
+	err := f.cfgWrite("SetAdminAccount", func() (bool, error) {
+		if err := c.Validate(); err != nil {
+			return false, err
+		}
+		if err := f.confirmed(confirm, amt.OpAdminAccount, []string{amt.RiskAdmin}); err != nil {
+			return false, err
+		}
+		user := ""
+		if n := len(f.configs); n > 0 {
+			user = f.configs[n-1].Username
+		}
+		res = amt.LoginChange{OldUsername: f.Cfg.Users.Admin, Username: f.Cfg.Users.Admin, Self: strings.EqualFold(user, f.Cfg.Users.Admin)}
+		if c.Name != "" {
+			res.Username = c.Name
+		}
+		return true, nil
+	}, func() { f.Cfg.Users.Admin = res.Username })
+	if err != nil {
+		return amt.LoginChange{}, err
+	}
+	return res, nil
 }
 
 func (f *Fake) RemoveUser(h int) error {

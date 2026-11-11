@@ -72,14 +72,15 @@ func (d *Device) CloseIdleConnections() {
 }
 
 func newDevice(c client.WSMan, fingerprint string) *Device {
-	return &Device{
-		msgs: wsman.Messages{
-			Client: c,
-			AMT:    wsmanamt.NewMessages(c),
-			CIM:    wsmancim.NewMessages(c),
-			IPS:    ips.NewMessages(c),
-		},
-		fingerprint: fingerprint,
+	return &Device{msgs: messagesFor(c), fingerprint: fingerprint}
+}
+
+func messagesFor(c client.WSMan) wsman.Messages {
+	return wsman.Messages{
+		Client: c,
+		AMT:    wsmanamt.NewMessages(c),
+		CIM:    wsmancim.NewMessages(c),
+		IPS:    ips.NewMessages(c),
 	}
 }
 

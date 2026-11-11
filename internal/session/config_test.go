@@ -87,7 +87,7 @@ func TestSessionConfigClassifiesErrors(t *testing.T) {
 			return err
 		},
 		"UpdateUser": func() error {
-			return s.UpdateUser(2, amt.UserSpec{Name: "user1", Password: "Secret-Pass1", Realms: []amt.Realm{2}})
+			return s.UpdateUser(2, amt.UserSpec{Name: "user1", Password: "Secret-Pass1", Access: amt.AccessNetwork, Realms: []amt.Realm{2}}, amt.Confirmation{}, nil)
 		},
 		"RemoveUser":     func() error { return s.RemoveUser(2) },
 		"SetUserEnabled": func() error { return s.SetUserEnabled(2, false) },
@@ -191,7 +191,10 @@ func TestSessionUserGuards(t *testing.T) {
 		if err := s.RemoveUser(h); !errors.Is(err, amt.ErrProtectedAccount) {
 			t.Errorf("remove %d: %v", h, err)
 		}
-		if err := s.UpdateUser(h, spec); !errors.Is(err, amt.ErrProtectedAccount) {
+		// the own account may be updated, but only with a confirmation (TestSessionOwnAccount)
+		netSpec := spec
+		netSpec.Access = amt.AccessNetwork
+		if err := s.UpdateUser(h, netSpec, amt.Confirmation{}, nil); h == 1 && !errors.Is(err, amt.ErrProtectedAccount) || h == 3 && !errors.Is(err, amt.ErrRiskyChange) {
 			t.Errorf("update %d: %v", h, err)
 		}
 		if err := s.SetUserEnabled(h, false); !errors.Is(err, amt.ErrProtectedAccount) {
@@ -213,7 +216,7 @@ func TestSessionUserGuards(t *testing.T) {
 	if err != nil || h != 4 {
 		t.Fatalf("add: %d %v", h, err)
 	}
-	if err := s.UpdateUser(2, amt.UserSpec{Name: "user2", Password: "Secret-Pass1", Access: amt.AccessLocal, Realms: []amt.Realm{5, 2}}); err != nil {
+	if err := s.UpdateUser(2, amt.UserSpec{Name: "user2", Password: "Secret-Pass1", Access: amt.AccessLocal, Realms: []amt.Realm{5, 2}}, amt.Confirmation{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.RemoveUser(4); err != nil {

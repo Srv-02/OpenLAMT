@@ -28,6 +28,7 @@ type userWSMan struct {
 	admin    string
 	entries  map[int]*fakeACL
 	rv       map[string]int
+	errs     map[string]error // a transport error instead of an answer, per method
 	pageSize int
 	nextH    int
 }
@@ -47,6 +48,9 @@ func (f *userWSMan) Post(msg string) ([]byte, error) {
 		return f.cfgWSMan.Post(msg)
 	}
 	f.requests = append(f.requests, msg)
+	if err := f.errs[method]; err != nil {
+		return nil, err
+	}
 	h := -1
 	if m := handleRE.FindStringSubmatch(msg); m != nil {
 		h, _ = strconv.Atoi(m[1])
@@ -244,8 +248,9 @@ func TestAddUser(t *testing.T) {
 
 func TestUpdateUser(t *testing.T) {
 	d, f := userDevice()
-	if err := d.UpdateUser(3, UserSpec{Name: "user2", Password: "Other-Pass2", Access: AccessNetwork, Realms: []Realm{RealmRemoteControl}}); err != nil {
-		t.Fatal(err)
+	res, err := d.UpdateUser(3, UserSpec{Name: "user2", Password: "Other-Pass2", Access: AccessNetwork, Realms: []Realm{RealmRemoteControl}}, Confirmation{})
+	if err != nil || res != (LoginChange{OldUsername: "operator", Username: "user2"}) {
+		t.Fatalf("UpdateUser = %+v, %v", res, err)
 	}
 	body := onePut(t, &f.cfgWSMan, "UpdateUserAclEntryEx|AMT_AuthorizationService")
 	assertContains(t, body,
@@ -256,7 +261,7 @@ func TestUpdateUser(t *testing.T) {
 
 	f.rv["UpdateUserAclEntryEx"] = 2054
 	var me *MethodError
-	if err := d.UpdateUser(3, UserSpec{Name: "user2", Password: "Other-Pass2", Realms: []Realm{5}}); !errors.As(err, &me) || me.ReturnValue != 2054 {
+	if _, err := d.UpdateUser(3, UserSpec{Name: "user2", Password: "Other-Pass2", Realms: []Realm{5}}, Confirmation{}); !errors.As(err, &me) || me.ReturnValue != 2054 {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -264,7 +269,10 @@ func TestUpdateUser(t *testing.T) {
 func TestUserWritesProtectAccounts(t *testing.T) {
 	spec := UserSpec{Name: "user9", Password: "Secret-Pass1", Realms: []Realm{2}}
 	ops := map[string]func(d *Device, h int) error{
-		"update":  func(d *Device, h int) error { return d.UpdateUser(h, spec) },
+		"update": func(d *Device, h int) error {
+			_, err := d.UpdateUser(h, spec, confirmed(OpOwnAccount))
+			return err
+		},
 		"remove":  func(d *Device, h int) error { return d.RemoveUser(h) },
 		"disable": func(d *Device, h int) error { return d.SetUserEnabled(h, false) },
 	}
@@ -276,14 +284,16 @@ func TestUserWritesProtectAccounts(t *testing.T) {
 			}
 			assertNoWrites(t, &f.cfgWSMan)
 		})
-		t.Run(name+" own account", func(t *testing.T) {
-			d, f := userDevice()
-			d.cfg.Username = "user1"
-			if err := op(d, 2); !errors.Is(err, ErrProtectedAccount) {
-				t.Errorf("err = %v", err)
-			}
-			assertNoWrites(t, &f.cfgWSMan)
-		})
+		if name != "update" { // UpdateUser allows the own account with a confirmation (TestUpdateOwnAccount)
+			t.Run(name+" own account", func(t *testing.T) {
+				d, f := userDevice()
+				d.cfg.Username = "user1"
+				if err := op(d, 2); !errors.Is(err, ErrProtectedAccount) {
+					t.Errorf("err = %v", err)
+				}
+				assertNoWrites(t, &f.cfgWSMan)
+			})
+		}
 		t.Run(name+" unknown handle", func(t *testing.T) {
 			d, f := userDevice()
 			var me *MethodError
@@ -294,7 +304,7 @@ func TestUserWritesProtectAccounts(t *testing.T) {
 		})
 	}
 	d, _ := userDevice()
-	if err := d.UpdateUser(4, spec); !errors.Is(err, ErrNotModifiable) {
+	if _, err := d.UpdateUser(4, spec, Confirmation{}); !errors.Is(err, ErrNotModifiable) {
 		t.Errorf("update of a Kerberos account: %v", err)
 	}
 }

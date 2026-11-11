@@ -17,7 +17,8 @@ type ConfigDevice interface {
 
 	Users() (amt.UserList, error)
 	AddUser(amt.UserSpec) (handle int, err error)
-	UpdateUser(handle int, u amt.UserSpec) error
+	UpdateUser(handle int, u amt.UserSpec, confirm amt.Confirmation) (amt.LoginChange, error)
+	SetAdminAccount(c amt.AccountChange, confirm amt.Confirmation) (amt.LoginChange, error)
 	RemoveUser(handle int) error
 	SetUserEnabled(handle int, enabled bool) error
 }
@@ -100,13 +101,6 @@ func (s *Session) AddUser(u amt.UserSpec) (int, error) {
 		return 0, classify(err)
 	}
 	return h, nil
-}
-
-// UpdateUser replaces name, password, access and realms of an account.
-func (s *Session) UpdateUser(handle int, u amt.UserSpec) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return classify(s.dev.UpdateUser(handle, u))
 }
 
 // RemoveUser deletes an account.

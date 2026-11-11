@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/amterror"
 	authorization "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/amt/authorization"
 	client "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/client"
 )
@@ -81,7 +82,8 @@ type User struct {
 	Self         bool // the account this session is logged in with: read-only here
 }
 
-// Protected reports whether UpdateUser, RemoveUser and SetUserEnabled refuse the account.
+// Protected reports whether RemoveUser and SetUserEnabled refuse the account. UpdateUser
+// refuses only system accounts; the session's own account needs a confirmation (OpOwnAccount).
 func (u User) Protected() bool { return u.System || u.Self }
 
 // UserList is the admin account name and the user ACL entries.
@@ -110,18 +112,45 @@ const (
 // AMT SDK: 8–32 ASCII characters with upper and lower case letters, a digit and a special
 // character other than ':', ',' and '"'. AMT only receives a hash and cannot check them.
 func (u UserSpec) Validate() error {
-	if u.Name == "" || len(u.Name) > 16 {
+	if err := validateName(u.Name); err != nil {
+		return err
+	}
+	if err := validatePassword(u.Password); err != nil {
+		return err
+	}
+	if u.Access < AccessLocal || u.Access > AccessLocalAndNetwork {
+		return invalid("Access", "unknown access permission")
+	}
+	if len(u.Realms) == 0 {
+		return invalid("Realms", "at least one realm")
+	}
+	for _, r := range u.Realms {
+		if !slices.Contains(AssignableRealms, r) {
+			return invalid("Realms", fmt.Sprintf("realm %d cannot be assigned", r))
+		}
+	}
+	return nil
+}
+
+// validateName checks a digest user name: 1–16 printable ASCII characters without spaces and
+// without : , " < > &, not starting with "$$".
+func validateName(name string) error {
+	if name == "" || len(name) > 16 {
 		return invalid("Name", "1 to 16 characters")
 	}
-	if strings.HasPrefix(u.Name, systemAccountPrefix) {
+	if strings.HasPrefix(name, systemAccountPrefix) {
 		return invalid("Name", `must not start with "$$" (reserved for system accounts)`)
 	}
-	for _, r := range u.Name {
+	for _, r := range name {
 		if r <= ' ' || r > '~' || strings.ContainsRune(`:,"<>&`, r) {
 			return invalid("Name", `printable ASCII without spaces and without : , " < > &`)
 		}
 	}
-	p := u.Password
+	return nil
+}
+
+// validatePassword checks the AMT strong password rule (see UserSpec.Validate).
+func validatePassword(p string) error {
 	if len(p) < 8 || len(p) > 32 {
 		return invalid("Password", "8 to 32 characters")
 	}
@@ -142,17 +171,6 @@ func (u UserSpec) Validate() error {
 	}
 	if !upper || !lower || !digit || !special {
 		return invalid("Password", "needs an upper case letter, a lower case letter, a digit and a special character")
-	}
-	if u.Access < AccessLocal || u.Access > AccessLocalAndNetwork {
-		return invalid("Access", "unknown access permission")
-	}
-	if len(u.Realms) == 0 {
-		return invalid("Realms", "at least one realm")
-	}
-	for _, r := range u.Realms {
-		if !slices.Contains(AssignableRealms, r) {
-			return invalid("Realms", fmt.Sprintf("realm %d cannot be assigned", r))
-		}
 	}
 	return nil
 }
@@ -357,23 +375,40 @@ func (d *Device) AddUser(u UserSpec) (int, error) {
 }
 
 // UpdateUser replaces name, password, access and realms of digest account h (the library has
-// no UpdateUserAclEntryEx; the request is built here with its input type). System accounts and
-// the session's own account → ErrProtectedAccount; Kerberos accounts → ErrNotModifiable.
-func (d *Device) UpdateUser(h int, u UserSpec) error {
+// no UpdateUserAclEntryEx; the request is built here with its input type). System accounts →
+// ErrProtectedAccount; Kerberos accounts → ErrNotModifiable. The account of this connection
+// needs confirm for OpOwnAccount and keeps network access; the connection continues with the
+// new login. confirm is ignored for other accounts.
+func (d *Device) UpdateUser(h int, u UserSpec, confirm Confirmation) (LoginChange, error) {
 	const op = "update user"
 	if err := u.Validate(); err != nil {
-		return err
+		return LoginChange{}, err
 	}
-	cur, err := d.changeableUser(op, h)
+	cur, err := d.userEntry(h)
+	var me *MethodError
+	if errors.As(err, &me) {
+		return LoginChange{}, err
+	}
 	if err != nil {
-		return err
+		return LoginChange{}, writeError(op, err)
+	}
+	if cur.System {
+		return LoginChange{}, fmt.Errorf("%s: %w", op, ErrProtectedAccount)
 	}
 	if cur.Name == "" {
-		return fmt.Errorf("%s: Kerberos account: %w", op, ErrNotModifiable)
+		return LoginChange{}, fmt.Errorf("%s: Kerberos account: %w", op, ErrNotModifiable)
+	}
+	if cur.Self {
+		if u.Access == AccessLocal {
+			return LoginChange{}, invalid("Access", "the account of this connection needs network access")
+		}
+		if err := d.confirmed(confirm, OpOwnAccount, RiskOwnAccount); err != nil {
+			return LoginChange{}, err
+		}
 	}
 	realm, err := d.digestRealm()
 	if err != nil {
-		return writeError(op, err)
+		return LoginChange{}, writeError(op, err)
 	}
 	in := authorization.UpdateUserAclEntryEx_INPUT{
 		H:                resourceURI(classAuth),
@@ -385,15 +420,21 @@ func (d *Device) UpdateUser(h int, u UserSpec) error {
 	}
 	body, err := xml.Marshal(&in)
 	if err != nil {
-		return writeError(op, err)
+		return LoginChange{}, writeError(op, err)
 	}
 	const method = "UpdateUserAclEntryEx"
+	res := LoginChange{OldUsername: cur.Name, Username: u.Name, Self: cur.Self}
 	out, err := d.msgs.Client.Post(envelope(amtSchema+classAuth+"/"+method, resourceURI(classAuth), nil, string(body)))
-	if err != nil {
-		return writeError(op, err)
+	if err == nil {
+		if _, err := authOutput(&client.Message{XMLOutput: string(out)}, method); err != nil {
+			return LoginChange{}, err
+		}
+	} else if fault := (*amterror.AMTError)(nil); errors.As(err, &fault) || !cur.Self {
+		// AMT answered with a fault, or another account: its login cannot be tested from here
+		// (it may lack network access), so the error stands as for any other write.
+		return LoginChange{}, writeError(op, err)
 	}
-	_, err = authOutput(&client.Message{XMLOutput: string(out)}, method)
-	return err
+	return d.finishLogin(op, res, u.Password, err)
 }
 
 // RemoveUser deletes account h. System accounts and the session's own account →

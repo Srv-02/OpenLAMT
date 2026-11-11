@@ -9,9 +9,10 @@ import (
 )
 
 // FakeConfig is the AMT settings and user state of a Fake. Writes run the same validation,
-// risk and account checks as *amt.Device, then change this state and append the method name
-// to Writes (nothing is recorded without an effective change). WriteErr, if set, is returned
-// by every write after the checks, without changing anything.
+// risk, confirmation and account checks as *amt.Device (the device's host is the Host of the
+// last ConnectFake config), then change this state and append the method name to Writes
+// (nothing is recorded without an effective change). WriteErr, if set, is returned by every
+// write after the checks, without changing anything.
 type FakeConfig struct {
 	Settings    amt.Settings
 	SettingsErr error
@@ -49,6 +50,19 @@ func (f *Fake) cfgWrite(method string, check func() (changed bool, err error), a
 	return err
 }
 
+// confirmed is the fake's version of the device check: nil if c confirms op on the connected
+// host, else *amt.RiskyChangeError. Call it under f.mu.
+func (f *Fake) confirmed(c amt.Confirmation, op amt.Operation, fields []string) error {
+	host := ""
+	if n := len(f.configs); n > 0 {
+		host = f.configs[n-1].Host
+	}
+	if c.Allows(op, host) {
+		return nil
+	}
+	return &amt.RiskyChangeError{Op: op, Fields: fields}
+}
+
 // ConfigWrites returns the recorded write methods.
 func (f *Fake) ConfigWrites() []string {
 	f.mu.Lock()
@@ -72,17 +86,22 @@ func (f *Fake) Settings() (amt.Settings, error) {
 	return s, err
 }
 
-func (f *Fake) SetGeneral(c amt.GeneralChange) error {
+func (f *Fake) SetGeneral(c amt.GeneralChange, confirm amt.Confirmation) error {
 	g := &f.Cfg.Settings.General
 	return f.cfgWrite("SetGeneral", func() (bool, error) {
 		if err := c.Validate(); err != nil {
 			return false, err
 		}
+		if risky := c.Risky(*g); risky != nil {
+			if err := f.confirmed(confirm, amt.OpHostName, risky); err != nil {
+				return false, err
+			}
+		}
 		return c.Apply(*g) != *g, nil
 	}, func() { *g = c.Apply(*g) })
 }
 
-func (f *Fake) SetNetwork(c amt.NetworkChange, confirmRisky bool) error {
+func (f *Fake) SetNetwork(c amt.NetworkChange, confirm amt.Confirmation) error {
 	n := &f.Cfg.Settings.Network
 	return f.cfgWrite("SetNetwork", func() (bool, error) {
 		if !n.Available {
@@ -92,10 +111,10 @@ func (f *Fake) SetNetwork(c amt.NetworkChange, confirmRisky bool) error {
 			return false, err
 		}
 		risky := c.Risky(*n)
-		if risky != nil && !confirmRisky {
-			return false, &amt.RiskyChangeError{Fields: risky}
+		if risky == nil {
+			return false, nil
 		}
-		return risky != nil, nil
+		return true, f.confirmed(confirm, amt.OpNetwork, risky)
 	}, func() {
 		next := c.Apply(*n)
 		if next.DHCP || next.IPSync { // the device drops address fields in these modes
@@ -106,7 +125,7 @@ func (f *Fake) SetNetwork(c amt.NetworkChange, confirmRisky bool) error {
 	})
 }
 
-func (f *Fake) SetFeatures(c amt.FeatureChange, confirmRisky bool) error {
+func (f *Fake) SetFeatures(c amt.FeatureChange, confirm amt.Confirmation) error {
 	cur := &f.Cfg.Settings.Features
 	return f.cfgWrite("SetFeatures", func() (bool, error) {
 		if c.KVM != nil && *c.KVM && !cur.KVMAvailable {
@@ -115,8 +134,10 @@ func (f *Fake) SetFeatures(c amt.FeatureChange, confirmRisky bool) error {
 		if c.Apply(*cur) == *cur {
 			return false, nil
 		}
-		if risky := c.Risky(*cur); risky != nil && !confirmRisky {
-			return false, &amt.RiskyChangeError{Fields: risky}
+		if risky := c.Risky(*cur); risky != nil {
+			if err := f.confirmed(confirm, amt.OpFeaturesOff, risky); err != nil {
+				return false, err
+			}
 		}
 		return true, nil
 	}, func() { *cur = c.Apply(*cur) })
@@ -138,7 +159,7 @@ func (f *Fake) SetConsent(p amt.ConsentPolicy) error {
 	}, func() { c.Policy = p })
 }
 
-func (f *Fake) SetEnvironmentDetection(domains []string, confirmRisky bool) error {
+func (f *Fake) SetEnvironmentDetection(domains []string, confirm amt.Confirmation) error {
 	e := &f.Cfg.Settings.Environment
 	return f.cfgWrite("SetEnvironmentDetection", func() (bool, error) {
 		if err := amt.ValidateEnvironmentDomains(domains); err != nil {
@@ -148,10 +169,10 @@ func (f *Fake) SetEnvironmentDetection(domains []string, confirmRisky bool) erro
 			return false, amt.ErrNotModifiable
 		}
 		risky := amt.EnvironmentRisky(*e, domains)
-		if risky != nil && !confirmRisky {
-			return false, &amt.RiskyChangeError{Fields: risky}
+		if risky == nil {
+			return false, nil
 		}
-		return risky != nil, nil
+		return true, f.confirmed(confirm, amt.OpEnvironment, risky)
 	}, func() { e.Domains = slices.Clone(domains) })
 }
 

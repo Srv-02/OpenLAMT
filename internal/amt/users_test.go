@@ -114,6 +114,7 @@ func userDevice() (*Device, *userWSMan) {
 	}
 	d := newDevice(f, "")
 	d.cfg.Username = "admin"
+	d.cfg.Host = testHost
 	return d, f
 }
 

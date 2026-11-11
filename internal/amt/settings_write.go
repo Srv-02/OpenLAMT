@@ -15,7 +15,8 @@ import (
 
 // Every setter reads the current instance first, applies only the fields of the change that
 // differ, and writes the complete instance back (Put). Without a difference nothing is written.
-// Risky changes without confirmRisky return *RiskyChangeError and write nothing.
+// Risky changes without a Confirmation for their Operation and this device return
+// *RiskyChangeError and write nothing.
 
 // writeError wraps a failed read or write of op. Validation, risk and method errors pass as is.
 func writeError(op string, err error) error {
@@ -55,7 +56,9 @@ func (c *changeTracker) integer(prop string, v *int) {
 	}
 }
 
-// GeneralChange changes AMT_GeneralSettings; nil fields stay as they are. Not risky.
+// GeneralChange changes AMT_GeneralSettings; nil fields stay as they are. Changing HostName,
+// DomainName, SharedFQDN or DynamicDNS is risky (OpHostName): the device may no longer be
+// reachable under its current name. Ping and DDNS timing are not risky.
 type GeneralChange struct {
 	HostName            *string // up to 63 characters: letters, digits, hyphen; "" clears it
 	DomainName          *string // up to 191 characters, dot-separated labels; "" clears it
@@ -143,8 +146,28 @@ func (c GeneralChange) Apply(cur GeneralSettings) GeneralSettings {
 	return n
 }
 
-// SetGeneral writes host name, domain, ping response and dynamic DNS settings.
-func (d *Device) SetGeneral(c GeneralChange) error {
+// Risky lists the name-related fields the change alters, in the order HostName, DomainName,
+// SharedFQDN, DynamicDNS; nil if none.
+func (c GeneralChange) Risky(cur GeneralSettings) []string {
+	n := c.Apply(cur)
+	var out []string
+	for _, p := range []struct {
+		name    string
+		changed bool
+	}{
+		{RiskHostName, n.HostName != cur.HostName}, {RiskDomainName, n.DomainName != cur.DomainName},
+		{RiskSharedFQDN, n.SharedFQDN != cur.SharedFQDN}, {RiskDynamicDNS, n.DynamicDNS != cur.DynamicDNS},
+	} {
+		if p.changed {
+			out = append(out, p.name)
+		}
+	}
+	return out
+}
+
+// SetGeneral writes host name, domain, ping response and dynamic DNS settings. Name-related
+// changes need confirm for OpHostName.
+func (d *Device) SetGeneral(c GeneralChange, confirm Confirmation) error {
 	const op = "set general settings"
 	if err := c.Validate(); err != nil {
 		return err
@@ -152,6 +175,11 @@ func (d *Device) SetGeneral(c GeneralChange) error {
 	o, err := d.generalObject()
 	if err != nil {
 		return writeError(op, err)
+	}
+	if risky := c.Risky(generalFrom(o)); risky != nil {
+		if err := d.confirmed(confirm, OpHostName, risky...); err != nil {
+			return err
+		}
 	}
 	t := changeTracker{o: o}
 	t.str("HostName", c.HostName)
@@ -304,8 +332,8 @@ func (c NetworkChange) Validate(cur NetworkSettings) error {
 
 var networkAddressProps = []string{"IPAddress", "SubnetMask", "DefaultGateway", "PrimaryDNS", "SecondaryDNS"}
 
-// SetNetwork writes the wired port's IPv4 configuration. Risky: confirmRisky must be true.
-func (d *Device) SetNetwork(c NetworkChange, confirmRisky bool) error {
+// SetNetwork writes the wired port's IPv4 configuration. Risky: needs confirm for OpNetwork.
+func (d *Device) SetNetwork(c NetworkChange, confirm Confirmation) error {
 	const op = "set network settings"
 	o, err := d.wiredObject()
 	if err != nil {
@@ -320,8 +348,8 @@ func (d *Device) SetNetwork(c NetworkChange, confirmRisky bool) error {
 	}
 	if risky := c.Risky(cur); risky == nil {
 		return nil
-	} else if !confirmRisky {
-		return &RiskyChangeError{Fields: risky}
+	} else if err := d.confirmed(confirm, OpNetwork, risky...); err != nil {
+		return err
 	}
 	n := c.Apply(cur)
 	o.set("DHCPEnabled", strconv.FormatBool(n.DHCP))
@@ -395,7 +423,8 @@ func rscReturnValue(xmlOutput string) (int, bool) {
 // The steps are not atomic: after an error earlier steps may have been applied, so the caller
 // reads Settings again. The same holds for every write after a transport error, because the
 // WS-Man client resends a request after a connection reset.
-func (d *Device) SetFeatures(c FeatureChange, confirmRisky bool) error {
+// Switching a service off needs confirm for OpFeaturesOff.
+func (d *Device) SetFeatures(c FeatureChange, confirm Confirmation) error {
 	const op = "set features"
 	redir, err := d.redirectionObject()
 	if err != nil {
@@ -413,8 +442,10 @@ func (d *Device) SetFeatures(c FeatureChange, confirmRisky bool) error {
 	if n == cur {
 		return nil
 	}
-	if risky := c.Risky(cur); risky != nil && !confirmRisky {
-		return &RiskyChangeError{Fields: risky}
+	if risky := c.Risky(cur); risky != nil {
+		if err := d.confirmed(confirm, OpFeaturesOff, risky...); err != nil {
+			return err
+		}
 	}
 
 	state := redir.integer("EnabledState")
@@ -523,8 +554,8 @@ func EnvironmentRisky(cur EnvironmentDetection, domains []string) []string {
 }
 
 // SetEnvironmentDetection writes the intranet domain suffixes (nil or empty = detection off).
-// Risky: confirmRisky must be true.
-func (d *Device) SetEnvironmentDetection(domains []string, confirmRisky bool) error {
+// Risky: needs confirm for OpEnvironment.
+func (d *Device) SetEnvironmentDetection(domains []string, confirm Confirmation) error {
 	const op = "set environment detection"
 	if err := ValidateEnvironmentDomains(domains); err != nil {
 		return err
@@ -540,8 +571,8 @@ func (d *Device) SetEnvironmentDetection(domains []string, confirmRisky bool) er
 	if risky == nil {
 		return nil
 	}
-	if !confirmRisky {
-		return &RiskyChangeError{Fields: risky}
+	if err := d.confirmed(confirm, OpEnvironment, risky...); err != nil {
+		return err
 	}
 	o.setAll("DetectionStrings", domains)
 	return writeError(op, d.putObject(o, []selector{{"InstanceID", o.str("InstanceID")}}))

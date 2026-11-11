@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-// ErrRiskyChange: the change can cut the connection to the device (network address, redirection,
-// environment detection) and was not confirmed. The concrete error is *RiskyChangeError.
+// ErrRiskyChange: the change can cut the connection to the device or lock OpenLAMT out and was
+// not confirmed (see Confirm). The concrete error is *RiskyChangeError.
 var ErrRiskyChange = errors.New("the change can cut the connection to the device and needs confirmation")
 
 // Risk names in RiskyChangeError.Fields.
@@ -18,14 +18,29 @@ const (
 	RiskIDER        = "Features.IDER"
 	RiskKVM         = "Features.KVM"
 	RiskEnvironment = "Environment"
+	RiskHostName    = "General.HostName"
+	RiskDomainName  = "General.DomainName"
+	RiskSharedFQDN  = "General.SharedFQDN"
+	RiskDynamicDNS  = "General.DynamicDNS"
+	RiskAdmin       = "Users.Admin"
+	RiskOwnAccount  = "Users.Self"
+	RiskTLS         = "TLS"
+	RiskAMTNetwork  = "General.AMTNetworkEnabled"
 )
 
-// RiskyChangeError lists the risky parts of an unconfirmed change. Nothing was written.
-type RiskyChangeError struct{ Fields []string }
+// RiskyChangeError names the operation that needs a confirmation (Confirm with Op) and lists the
+// risky parts of the change. Nothing was written.
+type RiskyChangeError struct {
+	Op     Operation
+	Fields []string
+}
 
 func (e *RiskyChangeError) Error() string {
-	return "risky change needs confirmation: " + strings.Join(e.Fields, ", ")
+	return "risky change needs confirmation (" + string(e.Op) + "): " + strings.Join(e.Fields, ", ")
 }
+
+// Risk returns RiskOf(e.Op) for the UI's warning.
+func (e *RiskyChangeError) Risk() Risk { return RiskOf(e.Op) }
 
 func (e *RiskyChangeError) Is(target error) bool { return target == ErrRiskyChange }
 

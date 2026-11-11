@@ -122,6 +122,7 @@ func cfgDevice(seq map[string][]cfgResp) (*Device, *cfgWSMan) {
 	f := &cfgWSMan{seq: seq}
 	d := newDevice(f, "")
 	d.cfg.Username = "admin"
+	d.cfg.Host = testHost
 	return d, f
 }
 

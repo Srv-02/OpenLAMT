@@ -14,6 +14,16 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+// conf returns the confirmation of op for the host of openInfoSession.
+func conf(op amt.Operation) amt.Confirmation {
+	const host = "device.example.com"
+	c, err := amt.Confirm(op, host, amt.ConfirmPhrase(op, host))
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
 func staticChange() amt.NetworkChange {
 	return amt.NetworkChange{DHCP: ptr(false), IPAddress: ptr("192.0.2.10"), SubnetMask: ptr("255.255.255.0"), Gateway: ptr("192.0.2.1")}
 }
@@ -66,11 +76,11 @@ func TestSessionConfigClassifiesErrors(t *testing.T) {
 		t.Errorf("Users %+v %v", u, err)
 	}
 	writes := map[string]func() error{
-		"SetGeneral":              func() error { return s.SetGeneral(amt.GeneralChange{HostName: ptr("x")}) },
-		"SetNetwork":              func() error { return s.SetNetwork(staticChange(), true) },
-		"SetFeatures":             func() error { return s.SetFeatures(amt.FeatureChange{SOL: ptr(false)}, true) },
+		"SetGeneral":              func() error { return s.SetGeneral(amt.GeneralChange{HostName: ptr("x")}, conf(amt.OpHostName)) },
+		"SetNetwork":              func() error { return s.SetNetwork(staticChange(), conf(amt.OpNetwork)) },
+		"SetFeatures":             func() error { return s.SetFeatures(amt.FeatureChange{SOL: ptr(false)}, conf(amt.OpFeaturesOff)) },
 		"SetConsent":              func() error { return s.SetConsent(amt.ConsentAll) },
-		"SetEnvironmentDetection": func() error { return s.SetEnvironmentDetection([]string{"a.example.com"}, true) },
+		"SetEnvironmentDetection": func() error { return s.SetEnvironmentDetection([]string{"a.example.com"}, conf(amt.OpEnvironment)) },
 		"SyncClock":               s.SyncClock,
 		"AddUser": func() error {
 			_, err := s.AddUser(amt.UserSpec{Name: "new", Password: "Secret-Pass1", Realms: []amt.Realm{2}})
@@ -97,25 +107,25 @@ func TestSessionRiskyChangeNeedsConfirmation(t *testing.T) {
 	s := openInfoSession(t, dev)
 	static := staticChange()
 
-	err := s.SetNetwork(static, false)
+	err := s.SetNetwork(static, amt.Confirmation{})
 	var re *amt.RiskyChangeError
 	if !errors.As(err, &re) || !errors.Is(err, amt.ErrRiskyChange) || !reflect.DeepEqual(re.Fields, []string{amt.RiskNetwork}) {
 		t.Fatalf("unconfirmed: %v", err)
 	}
-	if err := s.SetFeatures(amt.FeatureChange{KVM: ptr(false), Redirection: ptr(true)}, false); !errors.As(err, &re) || !reflect.DeepEqual(re.Fields, []string{amt.RiskKVM}) {
+	if err := s.SetFeatures(amt.FeatureChange{KVM: ptr(false), Redirection: ptr(true)}, amt.Confirmation{}); !errors.As(err, &re) || !reflect.DeepEqual(re.Fields, []string{amt.RiskKVM}) {
 		t.Fatalf("features: %v", err)
 	}
-	if err := s.SetEnvironmentDetection([]string{"a.example.com"}, false); !errors.Is(err, amt.ErrRiskyChange) {
+	if err := s.SetEnvironmentDetection([]string{"a.example.com"}, amt.Confirmation{}); !errors.Is(err, amt.ErrRiskyChange) {
 		t.Fatalf("environment: %v", err)
 	}
 	if n := len(dev.ConfigWrites()); n != 0 {
 		t.Fatalf("unconfirmed changes were written: %v", dev.ConfigWrites())
 	}
 
-	if err := s.SetNetwork(static, true); err != nil {
+	if err := s.SetNetwork(static, conf(amt.OpNetwork)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.SetFeatures(amt.FeatureChange{SOL: ptr(true), IDER: ptr(false)}, true); err != nil {
+	if err := s.SetFeatures(amt.FeatureChange{SOL: ptr(true), IDER: ptr(false)}, conf(amt.OpFeaturesOff)); err != nil {
 		t.Fatal(err)
 	}
 	st, _ := s.Settings()
@@ -127,15 +137,41 @@ func TestSessionRiskyChangeNeedsConfirmation(t *testing.T) {
 	}
 }
 
+func TestSessionHostNameAndConfirmationBinding(t *testing.T) {
+	dev := configFake()
+	s := openInfoSession(t, dev)
+	change := amt.GeneralChange{HostName: ptr("renamed")}
+	var re *amt.RiskyChangeError
+	if err := s.SetGeneral(change, amt.Confirmation{}); !errors.As(err, &re) || re.Op != amt.OpHostName || !slices.Equal(re.Fields, []string{amt.RiskHostName}) {
+		t.Fatalf("unconfirmed: %v", err)
+	}
+	other, _ := amt.Confirm(amt.OpHostName, "other.example.com", amt.ConfirmWord)
+	if err := s.SetGeneral(change, other); !errors.Is(err, amt.ErrRiskyChange) {
+		t.Fatalf("confirmation of another device: %v", err)
+	}
+	if err := s.SetGeneral(change, conf(amt.OpNetwork)); !errors.Is(err, amt.ErrRiskyChange) {
+		t.Fatalf("confirmation of another operation: %v", err)
+	}
+	if err := s.SetGeneral(amt.GeneralChange{PingResponse: ptr(false)}, amt.Confirmation{}); err != nil {
+		t.Fatalf("ping is not risky: %v", err)
+	}
+	if err := s.SetGeneral(change, conf(amt.OpHostName)); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := s.Settings(); st.General.HostName != "renamed" || st.General.PingResponse {
+		t.Errorf("general after writes: %+v", st.General)
+	}
+}
+
 func TestSessionConfigNoChangeWritesNothing(t *testing.T) {
 	dev := configFake()
 	s := openInfoSession(t, dev)
 	for name, err := range map[string]error{
-		"general":     s.SetGeneral(amt.GeneralChange{HostName: ptr("amt-test")}),
-		"network":     s.SetNetwork(amt.NetworkChange{DHCP: ptr(true)}, false),
-		"features":    s.SetFeatures(amt.FeatureChange{KVM: ptr(true)}, false),
+		"general":     s.SetGeneral(amt.GeneralChange{HostName: ptr("amt-test")}, amt.Confirmation{}),
+		"network":     s.SetNetwork(amt.NetworkChange{DHCP: ptr(true)}, amt.Confirmation{}),
+		"features":    s.SetFeatures(amt.FeatureChange{KVM: ptr(true)}, amt.Confirmation{}),
 		"consent":     s.SetConsent(amt.ConsentKVM),
-		"environment": s.SetEnvironmentDetection(nil, false),
+		"environment": s.SetEnvironmentDetection(nil, amt.Confirmation{}),
 		"enabled":     s.SetUserEnabled(2, true),
 	} {
 		if err != nil {
@@ -212,7 +248,7 @@ func TestFakeNetworkDHCPKeepsLeaseAddresses(t *testing.T) {
 	dev := configFake()
 	dev.Cfg.Settings.Network = amt.NetworkSettings{Available: true, IPAddress: "192.0.2.10", SubnetMask: "255.255.255.0", Gateway: "192.0.2.1"}
 	s := openInfoSession(t, dev)
-	if err := s.SetNetwork(amt.NetworkChange{DHCP: ptr(true), IPAddress: ptr("192.0.2.99")}, true); err != nil {
+	if err := s.SetNetwork(amt.NetworkChange{DHCP: ptr(true), IPAddress: ptr("192.0.2.99")}, conf(amt.OpNetwork)); err != nil {
 		t.Fatal(err)
 	}
 	st, _ := s.Settings()

@@ -10,6 +10,18 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+// testHost is the host of cfgDevice and userDevice.
+const testHost = "device.example.com"
+
+// confirmed returns the confirmation of op for testHost, as the UI gets it from Confirm.
+func confirmed(op Operation) Confirmation {
+	c, err := Confirm(op, testHost, ConfirmPhrase(op, testHost))
+	if err != nil {
+		panic(err)
+	}
+	return c
+}
+
 // onePut returns the body of the only request with route, failing otherwise.
 func onePut(t *testing.T, f *cfgWSMan, route string) string {
 	t.Helper()
@@ -57,7 +69,7 @@ func writeSeq() map[string][]cfgResp {
 
 func TestSetGeneralWritesCompleteObjectWithChangedValues(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	err := d.SetGeneral(GeneralChange{HostName: ptr("new-name"), PingResponse: ptr(false), SharedFQDN: ptr(false)})
+	err := d.SetGeneral(GeneralChange{HostName: ptr("new-name"), PingResponse: ptr(false), SharedFQDN: ptr(false)}, confirmed(OpHostName))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +91,7 @@ func TestSetGeneralWritesCompleteObjectWithChangedValues(t *testing.T) {
 
 func TestSetGeneralDynamicDNS(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	if err := d.SetGeneral(GeneralChange{DynamicDNS: ptr(DDNSClient), DDNSIntervalMinutes: ptr(60)}); err != nil {
+	if err := d.SetGeneral(GeneralChange{DynamicDNS: ptr(DDNSClient), DDNSIntervalMinutes: ptr(60)}, confirmed(OpHostName)); err != nil {
 		t.Fatal(err)
 	}
 	assertContains(t, onePut(t, f, "Put|AMT_GeneralSettings"),
@@ -91,13 +103,63 @@ func TestSetGeneralDynamicDNS(t *testing.T) {
 
 func TestSetGeneralWithoutDifferenceDoesNotWrite(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	err := d.SetGeneral(GeneralChange{HostName: ptr("amt-test"), PingResponse: ptr(true), DynamicDNS: ptr(DDNSByDHCPServer)})
+	err := d.SetGeneral(GeneralChange{HostName: ptr("amt-test"), PingResponse: ptr(true), DynamicDNS: ptr(DDNSByDHCPServer)}, confirmed(OpHostName))
 	if err != nil {
 		t.Fatal(err)
 	}
 	assertNoWrites(t, f)
 	if len(f.requestsFor("Get|AMT_GeneralSettings")) != 1 {
 		t.Error("the current state must be read before deciding")
+	}
+}
+
+func TestSetGeneralNameChangesNeedConfirmation(t *testing.T) {
+	for name, c := range map[string]struct {
+		change GeneralChange
+		fields []string
+	}{
+		"host name":   {GeneralChange{HostName: ptr("new-name"), PingResponse: ptr(false)}, []string{RiskHostName}},
+		"domain":      {GeneralChange{DomainName: ptr("other.example.com")}, []string{RiskDomainName}},
+		"shared FQDN": {GeneralChange{SharedFQDN: ptr(true)}, []string{RiskSharedFQDN}},
+		"DDNS mode":   {GeneralChange{DynamicDNS: ptr(DDNSOff)}, []string{RiskDynamicDNS}},
+		"all":         {GeneralChange{HostName: ptr("n"), DomainName: ptr("example.org"), SharedFQDN: ptr(true), DynamicDNS: ptr(DDNSClient)}, []string{RiskHostName, RiskDomainName, RiskSharedFQDN, RiskDynamicDNS}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, conf := range []Confirmation{{}, confirmed(OpNetwork), {op: OpHostName, host: "other.example.com"}} {
+				d, f := cfgDevice(writeSeq())
+				err := d.SetGeneral(c.change, conf)
+				var re *RiskyChangeError
+				if !errors.As(err, &re) || re.Op != OpHostName || !reflect.DeepEqual(re.Fields, c.fields) {
+					t.Fatalf("err = %v", err)
+				}
+				assertNoWrites(t, f)
+			}
+		})
+	}
+}
+
+func TestSetGeneralPingIsNotRisky(t *testing.T) {
+	d, f := cfgDevice(writeSeq())
+	if err := d.SetGeneral(GeneralChange{PingResponse: ptr(false), RMCPPingResponse: ptr(false), DDNSTTLSeconds: ptr(60), HostName: ptr("amt-test")}, Confirmation{}); err != nil {
+		t.Fatal(err)
+	}
+	onePut(t, f, "Put|AMT_GeneralSettings")
+}
+
+func TestRiskyChangesRefuseOtherConfirmations(t *testing.T) {
+	other := Confirmation{op: OpNetwork, host: "other.example.com"}
+	for name, write := range map[string]func(d *Device) error{
+		"network":  func(d *Device) error { return d.SetNetwork(staticChange(), other) },
+		"features": func(d *Device) error { return d.SetFeatures(FeatureChange{KVM: ptr(false)}, confirmed(OpNetwork)) },
+		"environment": func(d *Device) error {
+			return d.SetEnvironmentDetection([]string{"a.example.com"}, confirmed(OpFeaturesOff))
+		},
+	} {
+		d, f := cfgDevice(writeSeq())
+		if err := write(d); !errors.Is(err, ErrRiskyChange) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+		assertNoWrites(t, f)
 	}
 }
 
@@ -114,7 +176,7 @@ func TestSetGeneralValidation(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			d, f := cfgDevice(writeSeq())
-			err := d.SetGeneral(c)
+			err := d.SetGeneral(c, confirmed(OpHostName))
 			var ve *ValidationError
 			if !errors.As(err, &ve) || !errors.Is(err, ErrInvalidValue) {
 				t.Fatalf("err = %v", err)
@@ -133,12 +195,12 @@ func TestSetGeneralPutErrors(t *testing.T) {
 	seq := writeSeq()
 	seq["Put|AMT_GeneralSettings"] = []cfgResp{{err: faultErr(t, "access_denied_fault.xml")}}
 	d, _ := cfgDevice(seq)
-	if err := d.SetGeneral(GeneralChange{HostName: ptr("x")}); !errors.Is(err, ErrAccessDenied) {
+	if err := d.SetGeneral(GeneralChange{HostName: ptr("x")}, confirmed(OpHostName)); !errors.Is(err, ErrAccessDenied) {
 		t.Errorf("err = %v", err)
 	}
 	seq["Put|AMT_GeneralSettings"] = []cfgResp{{err: errors.New("connection reset")}}
 	d, _ = cfgDevice(seq)
-	if err := d.SetGeneral(GeneralChange{HostName: ptr("x")}); err == nil || !strings.Contains(err.Error(), "connection reset") {
+	if err := d.SetGeneral(GeneralChange{HostName: ptr("x")}, confirmed(OpHostName)); err == nil || !strings.Contains(err.Error(), "connection reset") {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -150,7 +212,7 @@ func staticChange() NetworkChange {
 
 func TestSetNetworkNeedsConfirmation(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	err := d.SetNetwork(staticChange(), false)
+	err := d.SetNetwork(staticChange(), Confirmation{})
 	var re *RiskyChangeError
 	if !errors.As(err, &re) || !errors.Is(err, ErrRiskyChange) || !reflect.DeepEqual(re.Fields, []string{RiskNetwork}) {
 		t.Fatalf("err = %v", err)
@@ -160,7 +222,7 @@ func TestSetNetworkNeedsConfirmation(t *testing.T) {
 
 func TestSetNetworkStatic(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	if err := d.SetNetwork(staticChange(), true); err != nil {
+	if err := d.SetNetwork(staticChange(), confirmed(OpNetwork)); err != nil {
 		t.Fatal(err)
 	}
 	body := onePut(t, f, "Put|AMT_EthernetPortSettings")
@@ -181,7 +243,7 @@ func TestSetNetworkDHCPDropsAddresses(t *testing.T) {
 	seq := writeSeq()
 	seq["Pull|AMT_EthernetPortSettings"] = []cfgResp{{body: withProp(t, "cfg_ethernet_pull.xml", "DHCPEnabled", "false")}}
 	d, f := cfgDevice(seq)
-	if err := d.SetNetwork(NetworkChange{DHCP: ptr(true)}, true); err != nil {
+	if err := d.SetNetwork(NetworkChange{DHCP: ptr(true)}, confirmed(OpNetwork)); err != nil {
 		t.Fatal(err)
 	}
 	body := onePut(t, f, "Put|AMT_EthernetPortSettings")
@@ -192,7 +254,7 @@ func TestSetNetworkDHCPDropsAddresses(t *testing.T) {
 func TestSetNetworkWithoutDifference(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
 	// DHCP is on: address fields are what the DHCP server assigned and do not count as a change
-	if err := d.SetNetwork(NetworkChange{DHCP: ptr(true), IPSync: ptr(false), IPAddress: ptr("192.0.2.99")}, false); err != nil {
+	if err := d.SetNetwork(NetworkChange{DHCP: ptr(true), IPSync: ptr(false), IPAddress: ptr("192.0.2.99")}, Confirmation{}); err != nil {
 		t.Fatal(err)
 	}
 	assertNoWrites(t, f)
@@ -226,7 +288,7 @@ func TestSetNetworkValidation(t *testing.T) {
 	}
 
 	d, f := cfgDevice(writeSeq())
-	if err := d.SetNetwork(NetworkChange{DHCP: ptr(false), IPAddress: ptr("x")}, true); !errors.Is(err, ErrInvalidValue) {
+	if err := d.SetNetwork(NetworkChange{DHCP: ptr(false), IPAddress: ptr("x")}, confirmed(OpNetwork)); !errors.Is(err, ErrInvalidValue) {
 		t.Errorf("SetNetwork err = %v", err)
 	}
 	assertNoWrites(t, f)
@@ -236,7 +298,7 @@ func TestSetNetworkWithoutWiredPort(t *testing.T) {
 	seq := writeSeq()
 	seq["Pull|AMT_EthernetPortSettings"] = []cfgResp{{body: withProp(t, "cfg_ethernet_pull.xml", "PhysicalConnectionType", "3")}}
 	d, _ := cfgDevice(seq)
-	if err := d.SetNetwork(staticChange(), true); !errors.Is(err, ErrNotModifiable) {
+	if err := d.SetNetwork(staticChange(), confirmed(OpNetwork)); !errors.Is(err, ErrNotModifiable) {
 		t.Errorf("err = %v", err)
 	}
 }
@@ -253,7 +315,7 @@ func TestNetworkRisky(t *testing.T) {
 
 func TestSetFeaturesDisableKVM(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	err := d.SetFeatures(FeatureChange{KVM: ptr(false)}, false)
+	err := d.SetFeatures(FeatureChange{KVM: ptr(false)}, Confirmation{})
 	var re *RiskyChangeError
 	if !errors.As(err, &re) || !reflect.DeepEqual(re.Fields, []string{RiskKVM}) {
 		t.Fatalf("err = %v", err)
@@ -261,7 +323,7 @@ func TestSetFeaturesDisableKVM(t *testing.T) {
 	assertNoWrites(t, f)
 
 	d, f = cfgDevice(writeSeq())
-	if err := d.SetFeatures(FeatureChange{KVM: ptr(false)}, true); err != nil {
+	if err := d.SetFeatures(FeatureChange{KVM: ptr(false)}, confirmed(OpFeaturesOff)); err != nil {
 		t.Fatal(err)
 	}
 	assertContains(t, onePut(t, f, "RequestStateChange|CIM_KVMRedirectionSAP"), "<h:RequestedState>3</h:RequestedState>")
@@ -274,7 +336,7 @@ func TestSetFeaturesEnableSOL(t *testing.T) {
 	seq := writeSeq()
 	seq["Get|AMT_RedirectionService"] = []cfgResp{{body: withProp(t, "cfg_redirection_get.xml", "EnabledState", "32769")}}
 	d, f := cfgDevice(seq)
-	if err := d.SetFeatures(FeatureChange{SOL: ptr(true), IDER: ptr(true), KVM: ptr(true), Redirection: ptr(true)}, false); err != nil {
+	if err := d.SetFeatures(FeatureChange{SOL: ptr(true), IDER: ptr(true), KVM: ptr(true), Redirection: ptr(true)}, Confirmation{}); err != nil {
 		t.Fatal(err)
 	}
 	assertContains(t, onePut(t, f, "RequestStateChange|AMT_RedirectionService"), "<h:RequestedState>32771</h:RequestedState>")
@@ -285,13 +347,13 @@ func TestSetFeaturesEnableSOL(t *testing.T) {
 
 func TestSetFeaturesDisableListener(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	err := d.SetFeatures(FeatureChange{Redirection: ptr(false), SOL: ptr(false)}, false)
+	err := d.SetFeatures(FeatureChange{Redirection: ptr(false), SOL: ptr(false)}, Confirmation{})
 	var re *RiskyChangeError
 	if !errors.As(err, &re) || !reflect.DeepEqual(re.Fields, []string{RiskRedirection, RiskSOL}) {
 		t.Fatalf("err = %v", err)
 	}
 	d, f = cfgDevice(writeSeq())
-	if err := d.SetFeatures(FeatureChange{Redirection: ptr(false), SOL: ptr(false)}, true); err != nil {
+	if err := d.SetFeatures(FeatureChange{Redirection: ptr(false), SOL: ptr(false)}, confirmed(OpFeaturesOff)); err != nil {
 		t.Fatal(err)
 	}
 	assertContains(t, onePut(t, f, "RequestStateChange|AMT_RedirectionService"), "<h:RequestedState>32769</h:RequestedState>")
@@ -316,7 +378,7 @@ func TestSetFeaturesDisableListener(t *testing.T) {
 
 func TestSetFeaturesNoChangeAndErrors(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	if err := d.SetFeatures(FeatureChange{Redirection: ptr(true), KVM: ptr(true)}, false); err != nil {
+	if err := d.SetFeatures(FeatureChange{Redirection: ptr(true), KVM: ptr(true)}, Confirmation{}); err != nil {
 		t.Fatal(err)
 	}
 	assertNoWrites(t, f)
@@ -324,7 +386,7 @@ func TestSetFeaturesNoChangeAndErrors(t *testing.T) {
 	seq := writeSeq()
 	seq["Get|CIM_KVMRedirectionSAP"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
 	d, _ = cfgDevice(seq)
-	if err := d.SetFeatures(FeatureChange{KVM: ptr(true)}, true); !errors.Is(err, ErrNotModifiable) {
+	if err := d.SetFeatures(FeatureChange{KVM: ptr(true)}, confirmed(OpFeaturesOff)); !errors.Is(err, ErrNotModifiable) {
 		t.Errorf("KVM without SAP: %v", err)
 	}
 
@@ -332,14 +394,14 @@ func TestSetFeaturesNoChangeAndErrors(t *testing.T) {
 	seq["RequestStateChange|CIM_KVMRedirectionSAP"] = []cfgResp{{file: "kvm_requeststatechange_fail.xml"}}
 	d, _ = cfgDevice(seq)
 	var me *MethodError
-	if err := d.SetFeatures(FeatureChange{KVM: ptr(false)}, true); !errors.As(err, &me) || me.ReturnValue == 0 {
+	if err := d.SetFeatures(FeatureChange{KVM: ptr(false)}, confirmed(OpFeaturesOff)); !errors.As(err, &me) || me.ReturnValue == 0 {
 		t.Errorf("KVM state change failure: %v", err)
 	}
 
 	seq = writeSeq()
 	seq["RequestStateChange|AMT_RedirectionService"] = []cfgResp{{body: withProp(t, "cfg_redirection_rsc.xml", "ReturnValue", "2")}}
 	d, _ = cfgDevice(seq)
-	if err := d.SetFeatures(FeatureChange{SOL: ptr(false)}, true); !errors.As(err, &me) || me.ReturnValue != 2 {
+	if err := d.SetFeatures(FeatureChange{SOL: ptr(false)}, confirmed(OpFeaturesOff)); !errors.As(err, &me) || me.ReturnValue != 2 {
 		t.Errorf("redirection state change failure: %v", err)
 	}
 }
@@ -378,7 +440,7 @@ func TestSetConsent(t *testing.T) {
 
 func TestSetEnvironmentDetection(t *testing.T) {
 	d, f := cfgDevice(writeSeq())
-	err := d.SetEnvironmentDetection([]string{"a.example.com", "b.example.com"}, false)
+	err := d.SetEnvironmentDetection([]string{"a.example.com", "b.example.com"}, Confirmation{})
 	var re *RiskyChangeError
 	if !errors.As(err, &re) || !reflect.DeepEqual(re.Fields, []string{RiskEnvironment}) {
 		t.Fatalf("err = %v", err)
@@ -386,7 +448,7 @@ func TestSetEnvironmentDetection(t *testing.T) {
 	assertNoWrites(t, f)
 
 	d, f = cfgDevice(writeSeq())
-	if err := d.SetEnvironmentDetection([]string{"a.example.com", "b.example.com"}, true); err != nil {
+	if err := d.SetEnvironmentDetection([]string{"a.example.com", "b.example.com"}, confirmed(OpEnvironment)); err != nil {
 		t.Fatal(err)
 	}
 	body := onePut(t, f, "Put|AMT_EnvironmentDetectionSettingData")
@@ -395,13 +457,13 @@ func TestSetEnvironmentDetection(t *testing.T) {
 		"<h:DetectionAlgorithm>0</h:DetectionAlgorithm><h:DetectionStrings>a.example.com</h:DetectionStrings><h:DetectionStrings>b.example.com</h:DetectionStrings><h:ElementName>")
 
 	d, f = cfgDevice(writeSeq())
-	if err := d.SetEnvironmentDetection(nil, true); err != nil {
+	if err := d.SetEnvironmentDetection(nil, confirmed(OpEnvironment)); err != nil {
 		t.Fatal(err)
 	}
 	assertLacks(t, onePut(t, f, "Put|AMT_EnvironmentDetectionSettingData"), "DetectionStrings")
 
 	d, f = cfgDevice(writeSeq())
-	if err := d.SetEnvironmentDetection([]string{"intranet.example.com"}, false); err != nil {
+	if err := d.SetEnvironmentDetection([]string{"intranet.example.com"}, Confirmation{}); err != nil {
 		t.Fatal(err)
 	}
 	assertNoWrites(t, f)
@@ -412,7 +474,7 @@ func TestSetEnvironmentDetection(t *testing.T) {
 		"empty":       {""},
 		"too long":    {strings.Repeat("a", 64)},
 	} {
-		if err := d.SetEnvironmentDetection(domains, true); !errors.Is(err, ErrInvalidValue) {
+		if err := d.SetEnvironmentDetection(domains, confirmed(OpEnvironment)); !errors.Is(err, ErrInvalidValue) {
 			t.Errorf("%s: err = %v", name, err)
 		}
 	}
@@ -472,7 +534,7 @@ func TestSetNetworkLeavingDHCPNeedsExplicitAddresses(t *testing.T) {
 		t.Errorf("explicitly no gateway: %v", err)
 	}
 	d, f := cfgDevice(writeSeq())
-	if err := d.SetNetwork(NetworkChange{DHCP: ptr(false)}, true); !errors.Is(err, ErrInvalidValue) {
+	if err := d.SetNetwork(NetworkChange{DHCP: ptr(false)}, confirmed(OpNetwork)); !errors.Is(err, ErrInvalidValue) {
 		t.Errorf("SetNetwork err = %v", err)
 	}
 	assertNoWrites(t, f)
@@ -482,7 +544,7 @@ func TestSetFeaturesKVMOffWithoutKVMIsNoChange(t *testing.T) {
 	seq := writeSeq()
 	seq["Get|CIM_KVMRedirectionSAP"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
 	d, f := cfgDevice(seq)
-	if err := d.SetFeatures(FeatureChange{Redirection: ptr(true), SOL: ptr(true), IDER: ptr(true), KVM: ptr(false)}, false); err != nil {
+	if err := d.SetFeatures(FeatureChange{Redirection: ptr(true), SOL: ptr(true), IDER: ptr(true), KVM: ptr(false)}, Confirmation{}); err != nil {
 		t.Fatal(err)
 	}
 	assertNoWrites(t, f)

@@ -4,13 +4,15 @@ import "github.com/Srv-02/openlamt/internal/amt"
 
 // ConfigDevice is the AMT settings and user management part of *amt.Device. Writes read the
 // current state first and change only what differs; see the amt package for risks and guards.
+// Risky writes take an amt.Confirmation (amt.Confirm with the phrase the user typed); without
+// one for the operation and this device they return *amt.RiskyChangeError and write nothing.
 type ConfigDevice interface {
 	Settings() (amt.Settings, error)
-	SetGeneral(amt.GeneralChange) error
-	SetNetwork(c amt.NetworkChange, confirmRisky bool) error
-	SetFeatures(c amt.FeatureChange, confirmRisky bool) error
+	SetGeneral(c amt.GeneralChange, confirm amt.Confirmation) error
+	SetNetwork(c amt.NetworkChange, confirm amt.Confirmation) error
+	SetFeatures(c amt.FeatureChange, confirm amt.Confirmation) error
 	SetConsent(amt.ConsentPolicy) error
-	SetEnvironmentDetection(domains []string, confirmRisky bool) error
+	SetEnvironmentDetection(domains []string, confirm amt.Confirmation) error
 	SyncClock() error
 
 	Users() (amt.UserList, error)
@@ -31,26 +33,29 @@ func (s *Session) Settings() (amt.Settings, error) {
 	return st, nil
 }
 
-// SetGeneral writes host name, domain, ping and dynamic DNS settings.
-func (s *Session) SetGeneral(c amt.GeneralChange) error {
+// SetGeneral writes host name, domain, ping and dynamic DNS settings; name-related changes
+// need a confirmation for amt.OpHostName.
+func (s *Session) SetGeneral(c amt.GeneralChange, confirm amt.Confirmation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return classify(s.dev.SetGeneral(c))
+	return classify(s.dev.SetGeneral(c, confirm))
 }
 
-// SetNetwork writes the wired IPv4 configuration. Without confirmRisky an effective change
-// returns *amt.RiskyChangeError (errors.Is amt.ErrRiskyChange) and nothing is written.
-func (s *Session) SetNetwork(c amt.NetworkChange, confirmRisky bool) error {
+// SetNetwork writes the wired IPv4 configuration. Without a confirmation for amt.OpNetwork an
+// effective change returns *amt.RiskyChangeError (errors.Is amt.ErrRiskyChange) and nothing is
+// written.
+func (s *Session) SetNetwork(c amt.NetworkChange, confirm amt.Confirmation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return classify(s.dev.SetNetwork(c, confirmRisky))
+	return classify(s.dev.SetNetwork(c, confirm))
 }
 
-// SetFeatures switches redirection, SOL, IDE-R and KVM; switching one off needs confirmRisky.
-func (s *Session) SetFeatures(c amt.FeatureChange, confirmRisky bool) error {
+// SetFeatures switches redirection, SOL, IDE-R and KVM; switching one off needs a confirmation
+// for amt.OpFeaturesOff.
+func (s *Session) SetFeatures(c amt.FeatureChange, confirm amt.Confirmation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return classify(s.dev.SetFeatures(c, confirmRisky))
+	return classify(s.dev.SetFeatures(c, confirm))
 }
 
 // SetConsent writes the user consent policy.
@@ -60,11 +65,12 @@ func (s *Session) SetConsent(p amt.ConsentPolicy) error {
 	return classify(s.dev.SetConsent(p))
 }
 
-// SetEnvironmentDetection writes the intranet domain suffixes; a change needs confirmRisky.
-func (s *Session) SetEnvironmentDetection(domains []string, confirmRisky bool) error {
+// SetEnvironmentDetection writes the intranet domain suffixes; a change needs a confirmation for
+// amt.OpEnvironment.
+func (s *Session) SetEnvironmentDetection(domains []string, confirm amt.Confirmation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return classify(s.dev.SetEnvironmentDetection(domains, confirmRisky))
+	return classify(s.dev.SetEnvironmentDetection(domains, confirm))
 }
 
 // SyncClock sets the AMT clock to the local time.

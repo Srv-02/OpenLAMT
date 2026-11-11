@@ -606,13 +606,15 @@ func TestModeSense10Literals(t *testing.T) {
 	}
 }
 
-func TestReadTOC_UnsupportedFormatSendsNothing(t *testing.T) {
-	// The original sends no reply for formats 2..7; the next message proves nothing was sent.
+func TestReadTOC_UnsupportedFormatIsInvalidField(t *testing.T) {
+	// Deviation from the original (no reply): formats 2..7 get CHECK CONDITION 05/24/00.
 	f := establish(t, newImage(4096), fixtureOpts{})
-	f.p.Written(t, cdb(0x43, 0, 2), cdFlags, 0)
-	f.p.Ping(t)
-	if m := f.p.Read(t); m.Cmd != 0x45 || m.Seq != 2 {
-		t.Fatalf("got %x", wire(m))
+	for format := byte(2); format <= 7; format++ {
+		f.p.Written(t, cdb(0x43, 0, format), cdFlags, 0)
+		f.expectEnd(t, check(0xb0, 5, 0x24, 0))
+	}
+	if f.c.Err() != nil {
+		t.Fatal(f.c.Err())
 	}
 }
 

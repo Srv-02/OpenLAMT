@@ -196,8 +196,9 @@ func (c *Client) handleReadTOC(cdb []byte, dev byte, dma bool) error {
 		return c.sendDataToHost(dev, true, []byte{0x00, 0x12, 0x01, 0x01, 0x00, 0x14, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x14, 0xaa, 0x00, 0x00, 0x00, 0x00, 0x00}, dma)
 	}
-	// Other formats (2..7): the original sends no reply at all. Kept as is (spec R1).
-	return nil
+	// Other formats (2..7): deliberate deviation from the original, which sends no reply at all and
+	// leaves the host waiting for a command timeout. Reply CHECK CONDITION 05/24/00 (invalid field in CDB).
+	return c.sendCheckCondition(dev, 0x05, 0x24, 0x00)
 }
 
 func (c *Client) handleGetConfiguration(cdb []byte, dev byte, dma bool) error {

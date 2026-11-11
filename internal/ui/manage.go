@@ -113,7 +113,7 @@ func (s *manageSource[T]) reload() {
 		start := time.Now()
 		v, err := read()
 		took := time.Since(start)
-		fyne.Do(func() { s.done(v, err, took) })
+		s.m.later(func() { s.done(v, err, took) })
 	}()
 }
 
@@ -129,9 +129,6 @@ func (s *manageSource[T]) done(v T, err error, took time.Duration) {
 		s.val, s.err, s.at, s.took = v, nil, s.m.now(), took
 	}
 	s.notify()
-	if s.m.onLoaded != nil {
-		s.m.onLoaded()
-	}
 }
 
 // loaded reports whether a read has succeeded once.
@@ -159,7 +156,9 @@ type manager struct {
 	name   string
 	deps   manageDeps
 
-	hw *manageSource[amt.HardwareInfo]
+	hw     *manageSource[amt.HardwareInfo]
+	events *manageSource[[]logRow]
+	audit  *manageSource[[]logRow]
 
 	pages    []managePage
 	side     *manageSidebar
@@ -170,19 +169,27 @@ type manager struct {
 	now       func() time.Time
 	tickEvery time.Duration // 0: no clock (tests call tick)
 	tickStop  chan struct{}
-	onLoaded  func() // test hook: a result was applied
+	later     func(func()) // fyne.Do; tests apply the results on their own goroutine
 }
 
 func newManager(a fyne.App, parent fyne.Window, sess *session.Session, name string, deps manageDeps) *manager {
-	m := &manager{app: a, parent: parent, sess: sess, name: name, deps: deps, now: time.Now, tickEvery: manageTick}
+	m := &manager{app: a, parent: parent, sess: sess, name: name, deps: deps, now: time.Now, tickEvery: manageTick, later: fyne.Do}
 	if m.deps.host == "" && sess != nil {
 		m.deps.host = sess.Config().Host
 	}
 	m.hw = newManageSource(m, sess.HardwareInfo)
+	m.events = newManageSource(m, func() ([]logRow, error) {
+		e, err := sess.EventLog()
+		return eventRows(e, time.Local), err
+	})
+	m.audit = newManageSource(m, func() ([]logRow, error) {
+		e, err := sess.AuditLog()
+		return auditRows(e, time.Local), err
+	})
 	m.pages = []managePage{
 		{tab: lang.L("Hardware"), title: lang.L("Hardware"), icon: icons.Hardware, build: m.hardwarePane},
-		{tab: lang.L("Events"), title: lang.L("Event log"), icon: icons.EventLog, build: emptyPane},  // task B2
-		{tab: lang.L("Audit"), title: lang.L("Audit log"), icon: icons.AuditLog, build: emptyPane},   // task B2
+		{tab: lang.L("Events"), title: lang.L("Event log"), icon: icons.EventLog, build: m.eventLogPane},
+		{tab: lang.L("Audit"), title: lang.L("Audit log"), icon: icons.AuditLog, build: m.auditLogPane},
 		{tab: lang.L("Settings"), title: lang.L("Settings"), icon: icons.Settings, build: emptyPane}, // task B3
 		{tab: lang.L("Users"), title: lang.L("Users"), icon: icons.Users, build: emptyPane},          // task B4
 	}
@@ -430,8 +437,8 @@ func newManageSidebar(m *manager) *manageSidebar {
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSidePanel, "")
 	edge := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSeparatorDark, "")
 	edge.SetMinSize(fyne.NewSize(1, 1))
-	panel := container.NewStack(bg, container.NewBorder(head, nil, nil, nil, s.view.stack))
-	s.obj = container.New(&manageSizeLayout{w: manageSidebarWidth}, container.NewBorder(nil, nil, edge, nil, panel))
+	panel := container.NewStack(bg, container.New(&columnLayout{fill: 1}, head, s.view.stack))
+	s.obj = container.New(&manageSizeLayout{w: manageSidebarWidth}, container.New(&manageHSplit{fill: 1}, edge, panel))
 	s.view.show(0)
 	return s
 }
@@ -458,6 +465,39 @@ func (l *manageSizeLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	}
 	if l.h > 0 {
 		h = l.h
+	}
+	return fyne.NewSize(w, h)
+}
+
+// manageHSplit lays out its objects left to right at full height without gaps; the object at
+// index fill takes the width left over, the others their minimum width.
+type manageHSplit struct{ fill int }
+
+func (l *manageHSplit) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	rest := size.Width
+	for i, o := range objs {
+		if i != l.fill {
+			rest -= o.MinSize().Width
+		}
+	}
+	x := float32(0)
+	for i, o := range objs {
+		w := o.MinSize().Width
+		if i == l.fill {
+			w = max(0, rest)
+		}
+		o.Move(fyne.NewPos(x, 0))
+		o.Resize(fyne.NewSize(w, size.Height))
+		x += w
+	}
+}
+
+func (l *manageHSplit) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var w, h float32
+	for _, o := range objs {
+		ms := o.MinSize()
+		w += ms.Width
+		h = max(h, ms.Height)
 	}
 	return fyne.NewSize(w, h)
 }
@@ -492,7 +532,7 @@ func newManageWindow(m *manager, page int) *manageWindow {
 	w.sub = newEllipsisText("", 12, style.ColorNameTextSecondary, false)
 	w.sub.shrink = true
 	device := container.New(layout.NewCustomPaddedLayout(4, 16, 8, 8),
-		container.NewBorder(nil, nil, container.NewCenter(w.dot), nil,
+		container.New(&manageHSplit{fill: 1}, container.NewCenter(w.dot),
 			container.New(layout.NewCustomPaddedLayout(0, 0, 10, 0), container.New(layout.NewCustomPaddedVBoxLayout(1), name, w.sub))))
 	items := []fyne.CanvasObject{device}
 	for i, p := range m.pages {
@@ -504,8 +544,8 @@ func newManageWindow(m *manager, page int) *manageWindow {
 	navEdge := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSeparatorDark, "")
 	navEdge.SetMinSize(fyne.NewSize(1, 1))
 	nav := container.New(&manageSizeLayout{w: manageNavWidth}, container.NewStack(navBg,
-		container.NewBorder(nil, nil, nil, navEdge, container.New(layout.NewCustomPaddedLayout(16, 16, 12, 12),
-			container.New(layout.NewCustomPaddedVBoxLayout(4), items...)))))
+		container.New(&manageHSplit{fill: 0}, container.New(layout.NewCustomPaddedLayout(16, 16, 12, 12),
+			container.New(layout.NewCustomPaddedVBoxLayout(4), items...)), navEdge)))
 
 	// page head and page
 	w.title = designText("", 18, "foreground", true)
@@ -513,11 +553,11 @@ func newManageWindow(m *manager, page int) *manageWindow {
 	w.tools = container.NewStack()
 	w.headRow = container.New(&rowLayout{gap: 12, fill: 1}, w.heading, spacer(), w.tools)
 	head := container.New(&manageSizeLayout{h: manageHeadHeight}, container.New(layout.NewCustomPaddedLayout(0, 0, 24, 24), w.headRow))
-	right := container.NewBorder(container.New(layout.NewCustomPaddedVBoxLayout(0), head, hline(style.ColorNameSeparatorDark)), nil, nil, nil, w.view.stack)
+	right := container.New(&columnLayout{fill: 2}, head, hline(style.ColorNameSeparatorDark), w.view.stack)
 	bg := style.BindRect(canvas.NewRectangle(nil), "background", "")
 
 	w.win.SetPadded(false)
-	w.win.SetContent(container.NewStack(bg, container.NewBorder(nil, nil, nav, nil, right)))
+	w.win.SetContent(container.NewStack(bg, container.New(&manageHSplit{fill: 1}, nav, right)))
 	w.win.Resize(fyne.NewSize(1120, 720))
 	w.win.SetOnClosed(func() {
 		w.view.close()

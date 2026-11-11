@@ -237,5 +237,21 @@
   "Read {{.Hours}} h ago": "Vor {{.Hours}} h gelesen",
   "Refresh": "Aktualisieren",
   "Reading…": "Wird gelesen…",
-  "This account is not allowed to read this information on the device.": "Dieses Konto darf diese Informationen auf dem Gerät nicht lesen."
+  "This account is not allowed to read this information on the device.": "Dieses Konto darf diese Informationen auf dem Gerät nicht lesen.",
+  "All": "Alle",
+  "Warning": "Warnung",
+  "Critical": "Kritisch",
+  "Info": "Info",
+  "Time": "Zeit",
+  "Severity": "Schweregrad",
+  "Source": "Quelle",
+  "Description ": "Beschreibung",
+  "Initiator": "Auslöser",
+  "Address": "Adresse",
+  "Event": "Ereignis",
+  "1 entry": "1 Eintrag",
+  "{{.Count}} entries": "{{.Count}} Einträge",
+  "Newest first. Read in {{.Seconds}} s.": "Neueste zuerst. Gelesen in {{.Seconds}} s.",
+  "Local": "Lokal",
+  "KVM default port": "KVM-Standardport"
 }

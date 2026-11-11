@@ -237,5 +237,21 @@
   "Read {{.Hours}} h ago": "Read {{.Hours}} h ago",
   "Refresh": "Refresh",
   "Reading…": "Reading…",
-  "This account is not allowed to read this information on the device.": "This account is not allowed to read this information on the device."
+  "This account is not allowed to read this information on the device.": "This account is not allowed to read this information on the device.",
+  "All": "All",
+  "Warning": "Warning",
+  "Critical": "Critical",
+  "Info": "Info",
+  "Time": "Time",
+  "Severity": "Severity",
+  "Source": "Source",
+  "Description ": "Description ",
+  "Initiator": "Initiator",
+  "Address": "Address",
+  "Event": "Event",
+  "1 entry": "1 entry",
+  "{{.Count}} entries": "{{.Count}} entries",
+  "Newest first. Read in {{.Seconds}} s.": "Newest first. Read in {{.Seconds}} s.",
+  "Local": "Local",
+  "KVM default port": "KVM default port"
 }

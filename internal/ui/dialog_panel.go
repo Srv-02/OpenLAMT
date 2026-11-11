@@ -132,7 +132,9 @@ func showPanel(parent fyne.Window, spec panelSpec, build func(p *panel) []fyne.C
 		img := widgets.NewSymbol(icons.GetStroke(spec.icon, variant, stroke), iconSize)
 		tile := container.NewStack(tileBg, container.NewCenter(img))
 		if spec.tileAbove {
-			content = container.NewVBox(append([]fyne.CanvasObject{container.NewHBox(tile), head}, body...)...)
+			// the tile starts where the text of the labels below starts (they have an inner padding)
+			inset := container.New(layout.NewCustomPaddedLayout(0, 0, theme.InnerPadding(), 0), tile)
+			content = container.NewVBox(append([]fyne.CanvasObject{container.NewHBox(inset), head}, body...)...)
 		} else {
 			content = container.NewBorder(nil, nil, container.NewVBox(tile), nil, col)
 		}

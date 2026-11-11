@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Srv-02/openlamt/internal/amt"
@@ -35,6 +36,10 @@ func TestShowQuestionTileAndButtons(t *testing.T) {
 	title := findLabel(t, w.Canvas().Overlays().Top(), "Turn on media redirection?")
 	if absPos(title).Y <= absPos(tile).Y || absPos(title).X > absPos(tile).X+1 {
 		t.Errorf("title at %v, tile at %v: tile must be above", absPos(title), absPos(tile))
+	}
+	// tile, title text and message start at the same x (the labels have an inner padding)
+	if d := absPos(tile).X - (absPos(title).X + theme.InnerPadding()); d < -0.5 || d > 0.5 {
+		t.Errorf("tile at x %v, title text at x %v", absPos(tile).X, absPos(title).X+theme.InnerPadding())
 	}
 	c.Unfocus()
 	c.OnTypedKey()(ret()) // a question confirms with Enter

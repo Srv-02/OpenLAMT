@@ -763,8 +763,8 @@ func mediaTitle(s string) *ellipsisText {
 	return t
 }
 
-// mediaButton is a 34 px button of the popover (Media.dc.html .btn, .btn-p): bordered and
-// neutral, or the accent button with high; with a symbol, symbol and text start at the left.
+// mediaButton is a 34 px button of the popover (Media.dc.html .btn, .btn-p) with regular text:
+// white and bordered, or the accent button with high; with a symbol, symbol and text start at the left.
 func mediaButton(text string, icon icons.Name, high bool, tapped func()) *widgets.PrimaryButton {
 	var res fyne.Resource
 	if icon != "" {
@@ -772,7 +772,8 @@ func mediaButton(text string, icon icons.Name, high bool, tapped func()) *widget
 	}
 	b := widgets.NewPrimaryButton(text, res, tapped)
 	b.Metrics = &widgets.ButtonMetrics{Height: mediaButtonHeight, Radius: mediaButtonRadius, PaddingH: mediaButtonPad,
-		IconSize: mediaButtonIcon, Gap: mediaButtonGap, TextSize: mediaButtonText, NeutralBorder: style.ColorNameControlBorder}
+		IconSize: mediaButtonIcon, Gap: mediaButtonGap, TextSize: mediaButtonText, Regular: true,
+		Neutral: style.ColorNameField, NeutralBorder: style.ColorNameControlBorder}
 	b.Leading = res != nil
 	if !high {
 		b.Importance = widget.MediumImportance

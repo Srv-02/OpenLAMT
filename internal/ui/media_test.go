@@ -18,6 +18,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/ider/idertest"
 	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/session"
+	"github.com/Srv-02/openlamt/internal/ui/style"
 )
 
 // mediaHarness is a device window whose fake mounts on an idertest server. The statistics
@@ -182,6 +183,10 @@ func TestMediaPopoverNothingMounted(t *testing.T) {
 	}
 	if h.m.ui.iso.Icon() == nil || h.m.ui.folder.Icon() == nil || !h.m.ui.iso.Leading {
 		t.Fatal("buttons need their symbols at the left")
+	}
+	// Media.dc.html .btn: white with a border, regular text
+	if m := h.m.ui.iso.Metrics; m.Neutral != style.ColorNameField || m.NeutralBorder != style.ColorNameControlBorder || !m.Regular {
+		t.Fatalf("button metrics %+v", *m)
 	}
 	btn := fyne.CurrentApp().Driver().AbsolutePositionForObject(h.d.mediaBtn)
 	if card := h.m.pop.card.Position(); card.Y <= btn.Y || card.X > btn.X {

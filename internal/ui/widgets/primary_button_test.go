@@ -146,3 +146,19 @@ func TestPrimaryButtonDisabledSkipsFocus(t *testing.T) {
 		t.Errorf("disabled button got focus: %v", c.Focused())
 	}
 }
+
+// TestPrimaryButtonRegularText: Metrics.Regular draws the text in the regular weight (the
+// bordered buttons of the Media popover, Media.dc.html .btn) and measures it so.
+func TestPrimaryButtonRegularText(t *testing.T) {
+	themedApp(t)
+	b := NewPrimaryButton("Unmount", nil, nil)
+	b.Metrics = &ButtonMetrics{Height: 34, PaddingH: 12, TextSize: 13, Regular: true}
+	test.NewTempWindow(t, b)
+	r := test.WidgetRenderer(b).(*primaryButtonRenderer)
+	if r.text.TextStyle.Bold {
+		t.Fatal("regular text drawn bold")
+	}
+	if w := fyne.MeasureText("Unmount", 13, fyne.TextStyle{}).Width; b.MinSize().Width != 24+w {
+		t.Fatalf("MinSize %v, want 24+%.1f wide", b.MinSize(), w)
+	}
+}

@@ -27,6 +27,8 @@ type ButtonMetrics struct {
 	// the theme's "button" color (white 12 %). NeutralBorder names the token of its 1 px
 	// border (none by default). Tokens, so the button follows the theme variant.
 	Neutral, NeutralBorder fyne.ThemeColorName
+	// Regular draws the text in the regular weight instead of semibold.
+	Regular bool
 }
 
 // PrimaryButton is the accent button with text and an optional symbol, in the design's
@@ -97,6 +99,7 @@ func (b *PrimaryButton) metrics() ButtonMetrics {
 			m.Neutral = o.Neutral
 		}
 		m.NeutralBorder = o.NeutralBorder
+		m.Regular = o.Regular
 	}
 	return m
 }
@@ -156,6 +159,7 @@ func (r *primaryButtonRenderer) hasIcon() bool { return r.b.icon != nil }
 
 func (r *primaryButtonRenderer) MinSize() fyne.Size {
 	m := r.b.metrics()
+	r.text.TextStyle.Bold = !m.Regular
 	w := 2*m.PaddingH + fyne.MeasureText(r.b.Text, m.TextSize, r.text.TextStyle).Width
 	if r.hasIcon() {
 		w += m.Gap + m.IconSize
@@ -230,6 +234,7 @@ func (r *primaryButtonRenderer) Refresh() {
 	r.focus.Refresh()
 	r.text.Text = b.Text
 	r.text.TextSize = m.TextSize
+	r.text.TextStyle.Bold = !m.Regular
 	r.text.Color = fg
 	r.text.Refresh()
 	r.icon.Translucency = 0

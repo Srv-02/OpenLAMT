@@ -19,6 +19,7 @@ const (
 	PowerCycle             // off then on, hard
 	BootToBIOS
 	PowerShutdown // orderly shutdown of the operating system (Off - Soft Graceful)
+	BootToISO     // boot from the mounted IDE-R image (see BootToISO below); keep last, the UI lists actions explicitly
 )
 
 func (a PowerAction) String() string {
@@ -35,6 +36,8 @@ func (a PowerAction) String() string {
 		return "bios"
 	case PowerShutdown:
 		return "shutdown"
+	case BootToISO:
+		return "iso"
 	}
 	return fmt.Sprintf("PowerAction(%d)", int(a))
 }
@@ -67,6 +70,8 @@ func (d *Device) Power(action PowerAction) error {
 		return d.bootToBIOS()
 	case PowerShutdown:
 		return d.requestPowerState(action, power.PowerOffSoftGraceful)
+	case BootToISO:
+		return d.bootToISO()
 	}
 	return fmt.Errorf("unknown power action %d", int(action))
 }

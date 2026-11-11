@@ -11,6 +11,7 @@ import (
 	power "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/power"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
 )
 
@@ -49,7 +50,22 @@ type Fake struct {
 	KVMUser     string
 	KVMPassword string
 
+	// IDE-R: OpenIDER returns IDERErr if set (the caller keeps the image); otherwise it applies the
+	// Consent rules like OpenKVM and dials IDERAddr (an idertest server). NextBootFromISO and
+	// ClearISOBoot return NextBootErr and ClearISOBootErr and are counted (see ISOCalls).
+	IDERErr         error
+	IDERAddr        string
+	IDERUser        string
+	IDERPassword    string
+	NextBootErr     error
+	ClearISOBootErr error
+
+	SOL FakeSOL // Serial-over-LAN, see fake_sol.go
+
 	mu           sync.Mutex
+	iderStarts   []ider.StartMode
+	nextBoots    int
+	clearISOBoot int
 	statusCalls  int
 	statesCalls  int
 	powered      []amt.PowerAction
@@ -203,4 +219,64 @@ func ConnectFake(f *Fake) ConnectFunc {
 		}
 		return f, nil
 	}
+}
+
+// OpenIDER mirrors (*amt.Device).OpenIDER against the fake server (see the IDE-R field comments).
+func (f *Fake) OpenIDER(ctx context.Context, img ider.Image, start ider.StartMode, prompt amt.ConsentPrompt) (*ider.Client, error) {
+	f.enter()
+	defer f.leave()
+	f.mu.Lock()
+	f.iderStarts = append(f.iderStarts, start)
+	f.mu.Unlock()
+	if f.IDERErr != nil {
+		return nil, f.IDERErr
+	}
+	if f.Consent {
+		if prompt == nil {
+			return nil, amt.ErrConsentRequired
+		}
+		code, err := prompt.ConsentCode()
+		if err != nil {
+			return nil, fmt.Errorf("read consent code: %w", err)
+		}
+		if len(strings.TrimSpace(code)) != 6 {
+			return nil, amt.ErrInvalidConsentCode
+		}
+		if strings.TrimSpace(code) != f.ConsentCode {
+			return nil, &amt.ConsentError{Step: "SendOptInCode", ReturnValue: 2}
+		}
+	}
+	return ider.Dial(ctx, ider.Config{Addr: f.IDERAddr, Username: f.IDERUser, Password: f.IDERPassword, Image: img, Start: start})
+}
+
+func (f *Fake) NextBootFromISO() error {
+	f.enter()
+	defer f.leave()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.nextBoots++
+	return f.NextBootErr
+}
+
+func (f *Fake) ClearISOBoot() error {
+	f.enter()
+	defer f.leave()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.clearISOBoot++
+	return f.ClearISOBootErr
+}
+
+// IDERStarts returns the start mode of every OpenIDER call.
+func (f *Fake) IDERStarts() []ider.StartMode {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]ider.StartMode(nil), f.iderStarts...)
+}
+
+// ISOCalls returns the number of NextBootFromISO and ClearISOBoot calls.
+func (f *Fake) ISOCalls() (nextBoot, clear int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.nextBoots, f.clearISOBoot
 }

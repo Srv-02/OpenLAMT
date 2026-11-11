@@ -15,6 +15,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/Srv-02/openlamt/internal/redir"
 )
 
 // Config describes one redirection session; the caller (internal/amt) wires TLS pinning.
@@ -29,8 +31,7 @@ type Config struct {
 }
 
 const (
-	handshakeTimeout = 30 * time.Second // used when ctx has no deadline
-	writeTimeout     = 10 * time.Second
+	writeTimeout = 10 * time.Second
 )
 
 // ErrClosed is the session error after Close.
@@ -63,76 +64,37 @@ type Client struct {
 // _SendRefresh) and starts the read loop. ctx bounds dial and handshakes only; cancelling it
 // aborts a blocked handshake read.
 func Dial(ctx context.Context, cfg Config) (*Client, error) {
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, handshakeTimeout)
-		defer cancel()
-	}
-	dial := cfg.DialContext
-	if dial == nil {
-		dial = (&net.Dialer{}).DialContext
-	}
-	raw, err := dial(ctx, "tcp", cfg.Addr)
-	if err != nil {
-		return nil, err
-	}
-	conn := net.Conn(raw)
-	// The deadline goes on the raw connection; it also aborts blocked TLS reads and writes.
-	stop := context.AfterFunc(ctx, func() { _ = raw.SetDeadline(time.Unix(1, 0)) })
-	fail := func(err error) (*Client, error) {
-		stop()
-		conn.Close()
-		if cerr := ctx.Err(); cerr != nil {
-			return nil, cerr
+	var (
+		w, h int
+		name string
+		dc   = newDataChannel()
+	)
+	rc, err := redir.Dial(ctx, redir.Config{
+		Addr: cfg.Addr, Username: cfg.Username, Password: cfg.Password,
+		TLS: cfg.TLS, DialContext: cfg.DialContext,
+	}, redir.KVM, func(br *bufio.Reader, conn io.Writer) error {
+		if err := kvmStart(br, conn); err != nil {
+			return err
 		}
-		return nil, err
-	}
-
-	if cfg.TLS != nil {
-		tc := cfg.TLS.Clone()
-		if tc.ServerName == "" {
-			if host, _, err := net.SplitHostPort(cfg.Addr); err == nil {
-				tc.ServerName = host
+		var err error
+		if w, h, name, err = rfbHandshake(br, conn, cfg.Quality); err != nil {
+			return err
+		}
+		if cfg.AMTMajor >= 12 {
+			dc.pending = append(dc.pending, presentMessage) // sendKvmData before the ack only queues
+		}
+		if cfg.AMTMajor > 15 {
+			if _, err := conn.Write(kvmExtCmd(4, 0)); err != nil {
+				return err
 			}
 		}
-		tconn := tls.Client(conn, tc)
-		if err := tconn.HandshakeContext(ctx); err != nil {
-			return fail(err)
-		}
-		conn = tconn
-	}
-
-	br := bufio.NewReader(conn)
-	if err := redirectionHandshake(struct {
-		io.Reader
-		io.Writer
-	}{br, conn}, cfg.Username, cfg.Password, nil); err != nil {
-		return fail(err)
-	}
-	w, h, name, err := rfbHandshake(br, conn, cfg.Quality)
+		_, err = conn.Write(framebufferUpdateRequest(true, 0, 0, w, h))
+		return err
+	})
 	if err != nil {
-		return fail(err)
-	}
-	dc := newDataChannel()
-	if cfg.AMTMajor >= 12 {
-		dc.pending = append(dc.pending, presentMessage) // sendKvmData before the ack only queues
-	}
-	if cfg.AMTMajor > 15 {
-		if _, err := conn.Write(kvmExtCmd(4, 0)); err != nil {
-			return fail(err)
-		}
-	}
-	if _, err := conn.Write(framebufferUpdateRequest(true, 0, 0, w, h)); err != nil {
-		return fail(err)
-	}
-	if !stop() { // ctx fired after the handshakes: treat as cancelled
-		conn.Close()
-		return nil, ctx.Err()
-	}
-	if err := raw.SetDeadline(time.Time{}); err != nil {
-		conn.Close()
 		return nil, err
 	}
+	conn, br := rc.Conn, rc.R
 
 	c := &Client{
 		conn: conn, fb: newFramebuffer(w, h), name: name, quality: cfg.Quality, started: time.Now(),

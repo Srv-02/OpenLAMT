@@ -29,7 +29,8 @@ type consoleHarness struct {
 	conChanged chan struct{} // onConsoleChanged: question shown or closed, session opened or ended
 	reads      chan struct{} // every Read call of the terminal loop (readSignal)
 	accepted   []*soltest.Peer
-	gate       *sync.Mutex // see sync
+	gate       *sync.Mutex    // see sync
+	termOut    io.WriteCloser // the terminal's input of the last session; set before its first read
 }
 
 // readSignal reports every Read of the terminal loop on reads before it reads: the first one
@@ -70,8 +71,9 @@ func newConsoleDevice(t *testing.T, solOn bool) *consoleHarness {
 	h.sol = soltest.Start(t, soltest.Options{Username: "admin", Password: "pw"})
 	dev.SOL.Addr, dev.SOL.User, dev.SOL.Password = h.sol.Addr, "admin", "pw"
 	h.d.con.onChanged = func() { h.conChanged <- struct{}{} }
-	h.d.con.run = func(term *terminal.Terminal, c *sol.Client) error {
-		return term.RunWithConnection(c, readSignal{c, h.reads, h.gate})
+	h.d.con.run = func(term *terminal.Terminal, c *sol.Client, out io.WriteCloser) error {
+		h.termOut = out
+		return term.RunWithConnection(out, readSignal{c, h.reads, h.gate})
 	}
 	// Runs before the cleanups of the window and the servers: close the window and wait until
 	// the console and KVM sessions it ends have reported, so no session goroutine touches the
@@ -287,6 +289,44 @@ func TestConsoleTypeClipboardWritesCarriageReturns(t *testing.T) {
 	}
 }
 
+// TestConsoleClipboardIsOneBlockBetweenKeys: Type Clipboard and the terminal's keys share one
+// writer, so a text longer than one SOL message is not split by keys typed meanwhile, and both
+// keep their order.
+func TestConsoleClipboardIsOneBlockBetweenKeys(t *testing.T) {
+	h := newConsoleDevice(t, true)
+	text := strings.Repeat("a", 3000) // three SOL messages
+	h.d.readClipboard = func() string { return text }
+	p := h.open(t)
+	out := h.termOut
+	if _, err := out.Write([]byte("<")); err != nil { // a key before the text
+		t.Fatal(err)
+	}
+	stop, stopped := make(chan struct{}), make(chan struct{})
+	go func() { // keys while the text is sent
+		defer close(stopped)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			_, _ = out.Write([]byte("Z"))
+			time.Sleep(50 * time.Microsecond)
+		}
+	}()
+	test.Tap(h.d.clipBtn)
+	var got []byte
+	for strings.Count(string(got), "a") < len(text) {
+		got = append(got, p.Expect(t, 0x28).Data()...)
+	}
+	close(stop)
+	<-stopped
+	s := string(got)
+	if !strings.HasPrefix(s, "<") || !strings.Contains(s, text) {
+		t.Fatalf("clipboard split or out of order: %d keys inside", strings.Count(strings.Trim(s[1:], "Z"), "Z"))
+	}
+}
+
 func TestConsoleCtrlAltDelConnectsKVMInTheBackground(t *testing.T) {
 	h := newConsoleDevice(t, true)
 	h.open(t)
@@ -378,7 +418,7 @@ func TestMismatchClosesConsole(t *testing.T) {
 
 func TestConsolePanicKeepsTheAppRunning(t *testing.T) {
 	h := newConsoleDevice(t, true)
-	h.d.con.run = func(*terminal.Terminal, *sol.Client) error { panic("parser") }
+	h.d.con.run = func(*terminal.Terminal, *sol.Client, io.WriteCloser) error { panic("parser") }
 	h.accept(t)
 	h.d.viewSwitch.Tap(viewConsole)
 	recv(t, h.conChanged) // opened
@@ -390,8 +430,9 @@ func TestConsolePanicKeepsTheAppRunning(t *testing.T) {
 		t.Fatalf("panic reported as %v, status %q", err, h.d.consoleLine.Text)
 	}
 	// The window keeps working: a new session opens.
-	h.d.con.run = func(term *terminal.Terminal, c *sol.Client) error {
-		return term.RunWithConnection(c, readSignal{c, h.reads, h.gate})
+	h.d.con.run = func(term *terminal.Terminal, c *sol.Client, out io.WriteCloser) error {
+		h.termOut = out
+		return term.RunWithConnection(out, readSignal{c, h.reads, h.gate})
 	}
 	h.accept(t)
 	h.d.viewSwitch.Tap(viewConsole)

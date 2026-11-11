@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -34,26 +35,86 @@ const (
 	consolePadH float32 = 20
 )
 
-// serialConsole is the state of the Console view, only touched on the Fyne thread (writeMu
-// excepted).
+// serialConsole is the state of the Console view, only touched on the Fyne thread.
 type serialConsole struct {
 	busy       bool               // settings read, question or connect in progress
 	cancel     context.CancelFunc // pending OpenSOL (consent prompt) or nil
 	client     *sol.Client        // running session or nil
+	out        *consoleWriter     // all writes to client: the terminal's keys and Type Clipboard
 	term       *terminal.Terminal // terminal of the last session; nil before the first one
 	cadPending bool               // Ctrl+Alt+Del waits for the KVM connect it started
 
-	writeMu sync.Mutex // serialises Type Clipboard writes, so two texts do not interleave
-
-	// run drives the terminal with the session until it ends; tests replace it.
-	run       func(*terminal.Terminal, *sol.Client) error
+	// run drives the terminal with the session until it ends, writing to out; tests replace it.
+	run       func(term *terminal.Terminal, c *sol.Client, out io.WriteCloser) error
 	onChanged func() // test hook: question shown or closed, session opened or ended; nil in production
 }
 
-// runTerminal is serialConsole.run in production: *sol.Client is the terminal's input and
-// output; Read ends with io.EOF, the cause is in Err.
-func runTerminal(term *terminal.Terminal, c *sol.Client) error {
-	return term.RunWithConnection(c, c)
+// runTerminal is serialConsole.run in production: *sol.Client is the terminal's output (Read
+// ends with io.EOF, the cause is in Err), out its input.
+func runTerminal(term *terminal.Terminal, c *sol.Client, out io.WriteCloser) error {
+	return term.RunWithConnection(out, c)
+}
+
+// consoleWriter is the only writer of a console session: sol.Client.Write is not meant for
+// concurrent use, and a text longer than one SOL message (1000 bytes) could otherwise be split
+// by a key the terminal sends meanwhile. Write queues a copy and returns at once, so the Fyne
+// thread (the terminal writes keys from it) never waits for a slow link; one goroutine sends the
+// queue in order, every Write as one block. It stops when the session has ended; a write error
+// ends the session, which consoleEnded reports.
+type consoleWriter struct {
+	c     *sol.Client
+	mu    sync.Mutex
+	queue [][]byte
+	wake  chan struct{}
+}
+
+func newConsoleWriter(c *sol.Client) *consoleWriter {
+	w := &consoleWriter{c: c, wake: make(chan struct{}, 1)}
+	go w.loop()
+	return w
+}
+
+func (w *consoleWriter) Write(p []byte) (int, error) {
+	select {
+	case <-w.c.Done():
+		return 0, w.c.Err()
+	default:
+	}
+	w.mu.Lock()
+	w.queue = append(w.queue, append([]byte(nil), p...))
+	w.mu.Unlock()
+	select {
+	case w.wake <- struct{}{}:
+	default:
+	}
+	return len(p), nil
+}
+
+// Close closes the session (the terminal closes its input when it stops).
+func (w *consoleWriter) Close() error { return w.c.Close() }
+
+func (w *consoleWriter) loop() {
+	for {
+		select {
+		case <-w.c.Done():
+			return
+		case <-w.wake:
+		}
+		for {
+			w.mu.Lock()
+			q := w.queue
+			w.queue = nil
+			w.mu.Unlock()
+			if len(q) == 0 {
+				break
+			}
+			for _, b := range q {
+				if _, err := w.c.Write(b); err != nil {
+					return
+				}
+			}
+		}
+	}
 }
 
 // buildConsole wires the console hooks of the view switch and the toolbar. Called once from
@@ -182,7 +243,8 @@ func (d *DeviceWindow) consoleFailed(err error) {
 // session error; the app keeps running.
 func (d *DeviceWindow) startConsole(c *sol.Client) {
 	term := terminal.New()
-	d.con.term, d.con.client = term, c
+	out := newConsoleWriter(c)
+	d.con.term, d.con.client, d.con.out = term, c, out
 	pad := layout.NewCustomPaddedLayout(consolePadV, consolePadV, consolePadH, consolePadH)
 	d.consoleStage.Objects = []fyne.CanvasObject{
 		container.New(pad, container.NewThemeOverride(term, style.ConsoleTheme{Theme: overrideTheme})),
@@ -192,7 +254,7 @@ func (d *DeviceWindow) startConsole(c *sol.Client) {
 	d.focusConsole()
 	run := d.con.run
 	go func() {
-		err := guardTerminal(run, term, c)
+		err := guardTerminal(run, term, c, out)
 		c.Close() // idempotent; the terminal closes it on a normal end, a panic does not
 		if err == nil {
 			err = c.Err()
@@ -202,14 +264,14 @@ func (d *DeviceWindow) startConsole(c *sol.Client) {
 }
 
 // guardTerminal runs the terminal and turns a panic into an error.
-func guardTerminal(run func(*terminal.Terminal, *sol.Client) error, term *terminal.Terminal, c *sol.Client) (err error) {
+func guardTerminal(run func(*terminal.Terminal, *sol.Client, io.WriteCloser) error, term *terminal.Terminal, c *sol.Client, out io.WriteCloser) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = fmt.Errorf("serial console stopped: %v", r)
 			fyne.LogError("serial console panic\n"+string(debug.Stack()), err)
 		}
 	}()
-	_ = run(term, c) // its only error is that of Close, always nil for *sol.Client
+	_ = run(term, c, out) // its only error is that of Close, always nil for *sol.Client
 	return nil
 }
 
@@ -219,7 +281,7 @@ func (d *DeviceWindow) consoleEnded(c *sol.Client, err error) {
 	if d.con.client != c {
 		return
 	}
-	d.con.client = nil
+	d.con.client, d.con.out = nil, nil
 	if !d.closed {
 		d.setConsoleStatus("")
 		if !d.aborted && err != nil && !errors.Is(err, sol.ErrClosed) && !errors.Is(err, sol.ErrClosedByDevice) {
@@ -247,11 +309,11 @@ func consoleLineEnds(s string) string {
 }
 
 // typeConsoleClipboard is Type Clipboard in the Console view: the clipboard goes to the console
-// as it is, with CR line ends, on a goroutine. Without a session nothing happens; a write error
-// ends the session, which consoleEnded reports.
+// as it is, with CR line ends, as one block behind the keys typed before (consoleWriter).
+// Without a session nothing happens; a write error ends the session, which consoleEnded reports.
 func (d *DeviceWindow) typeConsoleClipboard() {
-	c := d.con.client
-	if c == nil || d.closed {
+	out := d.con.out
+	if out == nil || d.closed {
 		return
 	}
 	read := d.readClipboard
@@ -263,11 +325,7 @@ func (d *DeviceWindow) typeConsoleClipboard() {
 	if text == "" {
 		return
 	}
-	go func() {
-		d.con.writeMu.Lock()
-		defer d.con.writeMu.Unlock()
-		_, _ = c.Write([]byte(text))
-	}()
+	_, _ = out.Write([]byte(text))
 }
 
 // consoleCAD is Ctrl+Alt+Del in the Console view: it goes over KVM. Without a KVM session it

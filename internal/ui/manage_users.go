@@ -137,9 +137,10 @@ type usersPane struct {
 	err      *manageError
 
 	// the dialogs last opened from this view (tests)
-	adminDlg *adminDialog
-	userDlg  *userDialog
-	notSaved *notSavedDialog
+	adminDlg  *adminDialog
+	userDlg   *userDialog
+	deleteDlg *riskDialog
+	notSaved  *notSavedDialog
 }
 
 // usersPane builds the Users page. The data (m.users) is shared by both views and read when

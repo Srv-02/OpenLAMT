@@ -379,7 +379,7 @@ func TestEditUserNotSavedAfterPasswordChange(t *testing.T) {
 	}
 }
 
-func TestEditUserDeleteAndOwnAccountAreNotApproved(t *testing.T) {
+func TestEditOwnAccountIsNotApproved(t *testing.T) {
 	calls := captureUsersNotApproved(t)
 	list := exampleUsers()
 	list.Users[0].Self = true
@@ -388,14 +388,78 @@ func TestEditUserDeleteAndOwnAccountAreNotApproved(t *testing.T) {
 	if p.userDlg != nil || open(h.m.parent) || len(*calls) != 1 {
 		t.Fatalf("own account: dialog %v calls %v", p.userDlg != nil, *calls)
 	}
-	test.Tap(p.table.lines[2].edit)
+}
+
+// Extras.dc.html: "Delete User…" in Edit user asks with a plain text and the checkbox.
+func TestDeleteUserAsksAndRemoves(t *testing.T) {
+	h, p := usersHarness(t, exampleUsers())
+	test.Tap(p.table.lines[1].edit) // helpdesk
 	d := p.userDlg
 	if d.del == nil || d.del.Text != "Delete User…" || d.del.Importance != widget.DangerImportance {
 		t.Fatal("no red Delete User… button")
 	}
 	test.Tap(d.del)
-	if len(*calls) != 2 || h.dev.ConfigWrites() != nil || !open(h.m.parent) {
-		t.Fatalf("delete: calls %v writes %v", *calls, h.dev.ConfigWrites())
+	c := p.deleteDlg
+	if c == nil {
+		t.Fatal("no confirmation")
+	}
+	top := h.m.parent.Canvas().Overlays().Top()
+	findLabel(t, top, "Delete user “helpdesk”?")
+	if !hasRichText(t, top, "The user can no longer sign in to “Lab”. This cannot be undone.", false) || c.warnBox != nil ||
+		c.action.Text != "Delete User" || c.check.Text != "I understand the risk" {
+		t.Errorf("text, warning box %v, button %q", c.warnBox != nil, c.action.Text)
+	}
+	if !c.action.Disabled() {
+		t.Fatal("Delete User enabled before the box is ticked")
+	}
+	test.Tap(c.check)
+	test.Tap(c.action)
+	if open(h.m.parent) {
+		t.Fatal("the edit dialog stayed open")
+	}
+	h.wait(t)
+	h.wait(t)
+	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"RemoveUser"}) {
+		t.Fatalf("writes %v", got)
+	}
+	for _, u := range h.dev.Cfg.Users.Users {
+		if u.Name == "helpdesk" {
+			t.Fatal("helpdesk still there")
+		}
+	}
+	if len(p.table.lines) != 4 || p.table.lines[1].row.name == "helpdesk" {
+		t.Errorf("table not reloaded: %d lines", len(p.table.lines))
+	}
+}
+
+func TestDeleteUserCancelReturnsToEdit(t *testing.T) {
+	h, p := usersHarness(t, exampleUsers())
+	test.Tap(p.table.lines[1].edit)
+	d := p.userDlg
+	test.Tap(d.del)
+	p.deleteDlg.Dismiss()
+	if !open(h.m.parent) || h.m.parent.Canvas().Overlays().Top() == nil || h.dev.ConfigWrites() != nil {
+		t.Fatalf("cancel: edit open %v writes %v", open(h.m.parent), h.dev.ConfigWrites())
+	}
+	findLabel(t, h.m.parent.Canvas().Overlays().Top(), "Edit user")
+	d.Dismiss()
+	if open(h.m.parent) {
+		t.Error("still a dialog open")
+	}
+}
+
+func TestDeleteUserErrorUsesTheErrorDialog(t *testing.T) {
+	h, p := usersHarness(t, exampleUsers())
+	h.dev.Cfg.WriteErr = errors.New("example failure")
+	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.userDlg.del)
+	test.Tap(p.deleteDlg.check)
+	test.Tap(p.deleteDlg.action)
+	h.wait(t)
+	h.wait(t)
+	findLabel(t, h.m.parent.Canvas().Overlays().Top(), "Something went wrong")
+	if len(p.table.lines) != 5 {
+		t.Errorf("table %d lines", len(p.table.lines))
 	}
 }
 

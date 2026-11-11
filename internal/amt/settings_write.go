@@ -254,10 +254,20 @@ func maskBits(s string) int {
 }
 
 // Validate checks the resulting static configuration; with DHCP or IP sync nothing is checked.
+// Leaving DHCP or IP sync requires IPAddress, SubnetMask and Gateway in the change ("" for no
+// gateway): the values read under DHCP are a lease, possibly without gateway, and silently
+// keeping them as static configuration can make the device unreachable from other subnets.
 func (c NetworkChange) Validate(cur NetworkSettings) error {
 	n := c.Apply(cur)
 	if !n.static() {
 		return nil
+	}
+	if !cur.static() {
+		for field, v := range map[string]*string{"IPAddress": c.IPAddress, "SubnetMask": c.SubnetMask, "Gateway": c.Gateway} {
+			if v == nil {
+				return invalid(field, "required when switching from DHCP or IP sync to a static address")
+			}
+		}
 	}
 	ip, ok := parseIPv4(n.IPAddress)
 	if !ok {
@@ -280,8 +290,8 @@ func (c NetworkChange) Validate(cur NetworkSettings) error {
 	}
 	if n.Gateway != "" {
 		gw, ok := parseIPv4(n.Gateway)
-		if !ok || !prefix.Contains(gw) {
-			return invalid("Gateway", "an IPv4 address in the subnet of IPAddress")
+		if !ok || !prefix.Contains(gw) || gw == ip || gw == prefix.Addr() {
+			return invalid("Gateway", "another IPv4 address in the subnet of IPAddress")
 		}
 	}
 	for field, v := range map[string]string{"PrimaryDNS": n.PrimaryDNS, "SecondaryDNS": n.SecondaryDNS} {
@@ -382,6 +392,9 @@ func rscReturnValue(xmlOutput string) (int, bool) {
 
 // SetFeatures switches the redirection listener, SOL, IDE-R and KVM in MeshCommander's order:
 // RequestStateChange of SOL/IDE-R, RequestStateChange of the KVM SAP, Put of the listener.
+// The steps are not atomic: after an error earlier steps may have been applied, so the caller
+// reads Settings again. The same holds for every write after a transport error, because the
+// WS-Man client resends a request after a connection reset.
 func (d *Device) SetFeatures(c FeatureChange, confirmRisky bool) error {
 	const op = "set features"
 	redir, err := d.redirectionObject()
@@ -393,7 +406,7 @@ func (d *Device) SetFeatures(c FeatureChange, confirmRisky bool) error {
 		return writeError(op, err)
 	}
 	cur := featuresFrom(redir, kvm)
-	if c.KVM != nil && !cur.KVMAvailable {
+	if c.KVM != nil && *c.KVM && !cur.KVMAvailable {
 		return fmt.Errorf("%s: KVM: %w", op, ErrNotModifiable)
 	}
 	n := c.Apply(cur)

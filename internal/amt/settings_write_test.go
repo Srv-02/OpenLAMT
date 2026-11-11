@@ -209,6 +209,8 @@ func TestSetNetworkValidation(t *testing.T) {
 		"bad DNS":             {DHCP: ptr(false), PrimaryDNS: ptr("dns.example.com")},
 		"network address":     {DHCP: ptr(false), IPAddress: ptr("192.0.2.0")},
 		"broadcast address":   {DHCP: ptr(false), IPAddress: ptr("192.0.2.255")},
+		"gateway is own IP":   {DHCP: ptr(false), Gateway: ptr("192.0.2.10")},
+		"gateway is network":  {DHCP: ptr(false), Gateway: ptr("192.0.2.0")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := c.Validate(cur); !errors.Is(err, ErrInvalidValue) {
@@ -451,4 +453,37 @@ func TestGeneralChangeApply(t *testing.T) {
 	if got != want {
 		t.Errorf("Apply = %+v", got)
 	}
+}
+
+func TestSetNetworkLeavingDHCPNeedsExplicitAddresses(t *testing.T) {
+	cur := NetworkSettings{Available: true, DHCP: true, IPAddress: "192.0.2.10", SubnetMask: "255.255.255.0"}
+	for name, c := range map[string]NetworkChange{
+		"lease kept":      {DHCP: ptr(false)},
+		"gateway missing": {DHCP: ptr(false), IPAddress: ptr("192.0.2.10"), SubnetMask: ptr("255.255.255.0")},
+		"mask missing":    {DHCP: ptr(false), IPAddress: ptr("192.0.2.10"), Gateway: ptr("192.0.2.1")},
+	} {
+		var ve *ValidationError
+		if err := c.Validate(cur); !errors.As(err, &ve) {
+			t.Errorf("%s: err = %v", name, err)
+		}
+	}
+	noGateway := NetworkChange{DHCP: ptr(false), IPAddress: ptr("192.0.2.10"), SubnetMask: ptr("255.255.255.0"), Gateway: ptr("")}
+	if err := noGateway.Validate(cur); err != nil {
+		t.Errorf("explicitly no gateway: %v", err)
+	}
+	d, f := cfgDevice(writeSeq())
+	if err := d.SetNetwork(NetworkChange{DHCP: ptr(false)}, true); !errors.Is(err, ErrInvalidValue) {
+		t.Errorf("SetNetwork err = %v", err)
+	}
+	assertNoWrites(t, f)
+}
+
+func TestSetFeaturesKVMOffWithoutKVMIsNoChange(t *testing.T) {
+	seq := writeSeq()
+	seq["Get|CIM_KVMRedirectionSAP"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
+	d, f := cfgDevice(seq)
+	if err := d.SetFeatures(FeatureChange{Redirection: ptr(true), SOL: ptr(true), IDER: ptr(true), KVM: ptr(false)}, false); err != nil {
+		t.Fatal(err)
+	}
+	assertNoWrites(t, f)
 }

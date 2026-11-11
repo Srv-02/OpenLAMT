@@ -96,13 +96,20 @@ func (f *Fake) SetNetwork(c amt.NetworkChange, confirmRisky bool) error {
 			return false, &amt.RiskyChangeError{Fields: risky}
 		}
 		return risky != nil, nil
-	}, func() { *n = c.Apply(*n) })
+	}, func() {
+		next := c.Apply(*n)
+		if next.DHCP || next.IPSync { // the device drops address fields in these modes
+			next.IPAddress, next.SubnetMask, next.Gateway, next.PrimaryDNS, next.SecondaryDNS =
+				n.IPAddress, n.SubnetMask, n.Gateway, n.PrimaryDNS, n.SecondaryDNS
+		}
+		*n = next
+	})
 }
 
 func (f *Fake) SetFeatures(c amt.FeatureChange, confirmRisky bool) error {
 	cur := &f.Cfg.Settings.Features
 	return f.cfgWrite("SetFeatures", func() (bool, error) {
-		if c.KVM != nil && !cur.KVMAvailable {
+		if c.KVM != nil && *c.KVM && !cur.KVMAvailable {
 			return false, amt.ErrNotModifiable
 		}
 		if c.Apply(*cur) == *cur {

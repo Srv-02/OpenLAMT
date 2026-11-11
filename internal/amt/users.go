@@ -105,12 +105,13 @@ const (
 	maxUserPages        = 16
 )
 
-// Validate checks the spec without device access. Password rules as in MeshCommander and the
+// Validate checks the spec without device access. Names: 1–16 printable ASCII characters (AMT
+// SDK limit). Password rules as in MeshCommander and the
 // AMT SDK: 8–32 ASCII characters with upper and lower case letters, a digit and a special
 // character other than ':', ',' and '"'. AMT only receives a hash and cannot check them.
 func (u UserSpec) Validate() error {
-	if u.Name == "" {
-		return invalid("Name", "required")
+	if u.Name == "" || len(u.Name) > 16 {
+		return invalid("Name", "1 to 16 characters")
 	}
 	if strings.HasPrefix(u.Name, systemAccountPrefix) {
 		return invalid("Name", `must not start with "$$" (reserved for system accounts)`)
@@ -240,6 +241,10 @@ func (d *Device) userEntry(h int) (User, error) {
 func (d *Device) userEnabled(h int) (enabled, known bool, err error) {
 	r, err := d.msgs.AMT.AuthorizationService.GetACLEnabledState(h)
 	if err != nil {
+		// MeshCommander tolerates faults of this call ("AMT will just freak out on this call")
+		if isMissingClass(err) {
+			return false, false, nil
+		}
 		return false, false, err
 	}
 	var me *MethodError

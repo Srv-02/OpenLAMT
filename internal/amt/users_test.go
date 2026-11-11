@@ -177,12 +177,16 @@ func TestUsersErrors(t *testing.T) {
 }
 
 func TestUserSpecValidate(t *testing.T) {
+	if err := (UserSpec{Name: strings.Repeat("a", 16), Password: "Secret-Pass1", Realms: []Realm{2}}).Validate(); err != nil {
+		t.Errorf("16 characters are valid: %v", err)
+	}
 	ok := UserSpec{Name: "user9", Password: "Secret-Pass1", Access: AccessNetwork, Realms: []Realm{RealmRedirection}}
 	if err := ok.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	for name, mod := range map[string]func(*UserSpec){
 		"empty name":         func(u *UserSpec) { u.Name = "" },
+		"name of 17":         func(u *UserSpec) { u.Name = strings.Repeat("a", 17) },
 		"system prefix":      func(u *UserSpec) { u.Name = "$$x" },
 		"colon in name":      func(u *UserSpec) { u.Name = "a:b" },
 		"space in name":      func(u *UserSpec) { u.Name = "a b" },
@@ -332,5 +336,32 @@ func TestRealmNames(t *testing.T) {
 	}
 	if len(AssignableRealms) != 21 {
 		t.Errorf("%d assignable realms", len(AssignableRealms))
+	}
+}
+
+// faultWSMan answers GetAclEnabledState with a SOAP fault, everything else like userWSMan.
+type faultWSMan struct {
+	*userWSMan
+	fault error
+}
+
+func (f *faultWSMan) Post(msg string) ([]byte, error) {
+	if strings.HasPrefix(routeKey(msg), "GetAclEnabledState|") {
+		return nil, f.fault
+	}
+	return f.userWSMan.Post(msg)
+}
+
+func TestUsersToleratesEnabledStateFault(t *testing.T) {
+	_, u := userDevice()
+	d := newDevice(&faultWSMan{userWSMan: u, fault: faultErr(t, "unreachable_fault.xml")}, "")
+	d.cfg.Username = "admin"
+	l, err := d.Users()
+	if err != nil || len(l.Users) != 4 || l.Users[1].EnabledKnown {
+		t.Errorf("users %+v, err %v", l.Users, err)
+	}
+	d = newDevice(&faultWSMan{userWSMan: u, fault: faultErr(t, "access_denied_fault.xml")}, "")
+	if _, err := d.Users(); !errors.Is(err, ErrAccessDenied) {
+		t.Errorf("access denied: %v", err)
 	}
 }

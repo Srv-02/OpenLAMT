@@ -14,6 +14,10 @@ import (
 
 func ptr[T any](v T) *T { return &v }
 
+func staticChange() amt.NetworkChange {
+	return amt.NetworkChange{DHCP: ptr(false), IPAddress: ptr("192.0.2.10"), SubnetMask: ptr("255.255.255.0"), Gateway: ptr("192.0.2.1")}
+}
+
 func configFake() *Fake {
 	return &Fake{Cfg: FakeConfig{
 		Settings: amt.Settings{
@@ -63,7 +67,7 @@ func TestSessionConfigClassifiesErrors(t *testing.T) {
 	}
 	writes := map[string]func() error{
 		"SetGeneral":              func() error { return s.SetGeneral(amt.GeneralChange{HostName: ptr("x")}) },
-		"SetNetwork":              func() error { return s.SetNetwork(amt.NetworkChange{DHCP: ptr(false)}, true) },
+		"SetNetwork":              func() error { return s.SetNetwork(staticChange(), true) },
 		"SetFeatures":             func() error { return s.SetFeatures(amt.FeatureChange{SOL: ptr(false)}, true) },
 		"SetConsent":              func() error { return s.SetConsent(amt.ConsentAll) },
 		"SetEnvironmentDetection": func() error { return s.SetEnvironmentDetection([]string{"a.example.com"}, true) },
@@ -91,7 +95,7 @@ func TestSessionConfigClassifiesErrors(t *testing.T) {
 func TestSessionRiskyChangeNeedsConfirmation(t *testing.T) {
 	dev := configFake()
 	s := openInfoSession(t, dev)
-	static := amt.NetworkChange{DHCP: ptr(false), Gateway: ptr("192.0.2.1")}
+	static := staticChange()
 
 	err := s.SetNetwork(static, false)
 	var re *amt.RiskyChangeError
@@ -201,5 +205,18 @@ func TestSessionConfigCallsAreSerialized(t *testing.T) {
 	wg.Wait()
 	if dev.MaxBusy() != 1 {
 		t.Fatalf("max concurrent device calls = %d", dev.MaxBusy())
+	}
+}
+
+func TestFakeNetworkDHCPKeepsLeaseAddresses(t *testing.T) {
+	dev := configFake()
+	dev.Cfg.Settings.Network = amt.NetworkSettings{Available: true, IPAddress: "192.0.2.10", SubnetMask: "255.255.255.0", Gateway: "192.0.2.1"}
+	s := openInfoSession(t, dev)
+	if err := s.SetNetwork(amt.NetworkChange{DHCP: ptr(true), IPAddress: ptr("192.0.2.99")}, true); err != nil {
+		t.Fatal(err)
+	}
+	st, _ := s.Settings()
+	if !st.Network.DHCP || st.Network.IPAddress != "192.0.2.10" {
+		t.Errorf("network %+v", st.Network)
 	}
 }

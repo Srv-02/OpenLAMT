@@ -2,10 +2,15 @@ package ui
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/test"
+
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/session"
 )
 
 func TestFormatLogTime(t *testing.T) {
@@ -103,5 +108,64 @@ func TestFilterLogRows(t *testing.T) {
 	// the audit log has no severity: a level filter matches nothing
 	if got := filterLogRows(auditRows(exampleAudit(), time.UTC), int(amt.SeverityInfo), "", nil); len(got) != 0 {
 		t.Fatalf("audit with level: %v", got)
+	}
+}
+
+func TestFormatLogTimeShort(t *testing.T) {
+	at := time.Date(2026, 11, 9, 22, 47, 15, 0, time.UTC)
+	if got := formatLogTimeShort(at, time.FixedZone("CET", 3600)); got != "Nov 09 23:47" {
+		t.Errorf("got %q", got)
+	}
+	if got := formatLogTimeShort(time.Time{}, time.UTC); got != "" {
+		t.Errorf("zero time: %q", got)
+	}
+}
+
+// In the 400 px sidebar the time is short and the last column (Description, Event) is the
+// widest; the full time stays in the row for the window and the filter.
+func TestLogSidebarGivesTheLastColumnTheMostRoom(t *testing.T) {
+	englishUI(t)
+	events := append(exampleEvents(), amt.EventLogEntry{Time: time.Date(2026, 5, 30, 20, 0, 0, 0, time.Local),
+		Severity: amt.SeverityWarning, Source: "Watchdog", Description: "Agent heartbeat timeout"})
+	h := newManageHarness(t, &session.Fake{FP: fp, HW: exampleHW(), Events: events, Audit: exampleAudit()})
+	h.m.parent.SetContent(h.m.Sidebar())
+	h.m.parent.Resize(fyne.NewSize(manageSidebarWidth, 800))
+	h.wait(t) // hardware
+	for _, tab := range []int{1, 2} {
+		h.m.side.tabs.Tap(tab)
+		h.wait(t)
+		var lines []*logLine
+		walk(h.m.side.view.panes[tab].impl.(*logPane).list, func(o fyne.CanvasObject) {
+			if l, ok := o.(*logLine); ok && l.row != nil {
+				lines = append(lines, l)
+			}
+		})
+		if len(lines) == 0 {
+			t.Fatalf("tab %d: no log line", tab)
+		}
+		line := lines[0]
+		r := test.WidgetRenderer(line).(*logLineRenderer)
+		want := formatLogTimeShort(exampleEvents()[0].Time, time.Local)
+		if tab == 2 {
+			want = formatLogTimeShort(exampleAudit()[0].Time, time.Local)
+		}
+		if r.texts[0].Text != want || !strings.Contains(line.Text(0), ", 2026 ") {
+			t.Errorf("tab %d: time %q (row %q), want %q", tab, r.texts[0].Text, line.Text(0), want)
+		}
+		last := line.Size().Width - line.widths[0] - line.widths[1] - line.widths[2]
+		for i, w := range line.widths {
+			if last <= w {
+				t.Errorf("tab %d: last column %v wide, column %d %v", tab, last, i, w)
+			}
+		}
+		// the short time, the severity "Warning" with its dot and the sources fit uncut
+		for _, l := range lines {
+			lr := test.WidgetRenderer(l).(*logLineRenderer)
+			for i := 0; i < 3; i++ {
+				if strings.HasSuffix(lr.texts[i].Text, "…") {
+					t.Errorf("tab %d: column %d cut: %q", tab, i, lr.texts[i].Text)
+				}
+			}
+		}
 	}
 }

@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"strings"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 // logRow is one line of the event or audit log table, already formatted.
 type logRow struct {
 	cells  [4]string
+	short  string // the time in the sidebar (formatLogTimeShort)
 	sev    amt.Severity
 	hasSev bool   // the second column is a severity with a dot (event log)
 	search string // lower-case text of all cells, for the filter
@@ -31,12 +33,39 @@ func newLogRow(cells [4]string, sev amt.Severity, hasSev bool) logRow {
 	return logRow{cells: cells, sev: sev, hasSev: hasSev, search: strings.ToLower(strings.Join(cells[:], "\x00"))}
 }
 
+// newTimedLogRow is a log row whose first column is the time at.
+func newTimedLogRow(at time.Time, loc *time.Location, rest [3]string, sev amt.Severity, hasSev bool) logRow {
+	r := newLogRow([4]string{formatLogTime(at, loc), rest[0], rest[1], rest[2]}, sev, hasSev)
+	r.short = formatLogTimeShort(at, loc)
+	return r
+}
+
 // formatLogTime is a log time in loc as in WindowB.dc.html: "Nov 11, 2026 16:41:52".
 func formatLogTime(t time.Time, loc *time.Location) string {
 	if t.IsZero() {
 		return ""
 	}
 	return t.In(loc).Format("Jan 02, 2006 15:04:05")
+}
+
+// formatLogTimeShort is the time in the 400 px sidebar, without year and seconds, so the
+// description keeps most of the width: "Nov 11 16:41". The window shows the full time.
+func formatLogTimeShort(t time.Time, loc *time.Location) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.In(loc).Format("Jan 02 15:04")
+}
+
+// logShortTimeWidth is the width of the time column in the sidebar: the widest short time of
+// any month at the sidebar's 12 px, plus the cell padding.
+func logShortTimeWidth() float32 {
+	var w float32
+	for m := time.January; m <= time.December; m++ {
+		s := time.Date(2026, m, 20, 20, 0, 0, 0, time.UTC).Format("Jan 02 15:04")
+		w = max(w, fyne.MeasureText(s, 12, fyne.TextStyle{}).Width)
+	}
+	return float32(math.Ceil(float64(w))) + 2*8 + 2
 }
 
 // severityText is the caption of a severity: Info, Warning, Critical.
@@ -65,7 +94,7 @@ func severityColor(s amt.Severity) fyne.ThemeColorName {
 func eventRows(entries []amt.EventLogEntry, loc *time.Location) []logRow {
 	out := make([]logRow, len(entries))
 	for i, e := range entries {
-		out[i] = newLogRow([4]string{formatLogTime(e.Time, loc), severityText(e.Severity), e.Source, e.Description}, e.Severity, true)
+		out[i] = newTimedLogRow(e.Time, loc, [3]string{severityText(e.Severity), e.Source, e.Description}, e.Severity, true)
 	}
 	return out
 }
@@ -90,7 +119,7 @@ func auditInitiator(e amt.AuditLogEntry) string {
 func auditRows(entries []amt.AuditLogEntry, loc *time.Location) []logRow {
 	out := make([]logRow, len(entries))
 	for i, e := range entries {
-		out[i] = newLogRow([4]string{formatLogTime(e.Time, loc), auditInitiator(e), e.Address, joinDot(e.Event, e.Details)}, 0, false)
+		out[i] = newTimedLogRow(e.Time, loc, [3]string{auditInitiator(e), e.Address, joinDot(e.Event, e.Details)}, 0, false)
 	}
 	return out
 }
@@ -132,7 +161,7 @@ func descriptionText() string { return strings.TrimSpace(lang.L("Description "))
 type logSpec struct {
 	columns [4]string
 	widths  [3]float32 // width of the first three columns in the window; the last takes the rest
-	compact [3]float32 // the same in the sidebar
+	compact [3]float32 // the same in the sidebar, with the short time: the last column is the widest
 	chips   bool       // filter chips All, Warning, Critical
 	src     *manageSource[[]logRow]
 }
@@ -141,7 +170,7 @@ func (m *manager) eventLogPane(compact bool) *managePane {
 	return m.logPane(logSpec{
 		columns: [4]string{lang.L("Time"), lang.L("Severity"), lang.L("Source"), descriptionText()},
 		widths:  [3]float32{170, 110, 110},
-		compact: [3]float32{150, 78, 54},
+		compact: [3]float32{logShortTimeWidth(), 78, 76},
 		chips:   true,
 		src:     m.events,
 	}, compact)
@@ -151,7 +180,7 @@ func (m *manager) auditLogPane(compact bool) *managePane {
 	return m.logPane(logSpec{
 		columns: [4]string{lang.L("Time"), lang.L("Initiator"), lang.L("Address"), lang.L("Event")},
 		widths:  [3]float32{170, 160, 150},
-		compact: [3]float32{150, 68, 68},
+		compact: [3]float32{logShortTimeWidth(), 68, 80},
 		src:     m.audit,
 	}, compact)
 }
@@ -414,6 +443,9 @@ func (r *logLineRenderer) Layout(size fyne.Size) {
 		full := ""
 		if l.row != nil {
 			full = l.row.cells[i]
+			if i == 0 && l.compact && l.row.short != "" {
+				full = l.row.short
+			}
 		}
 		t.Text = ellipsize(full, ts, st, max(0, room))
 		tsz := fyne.MeasureText(t.Text, ts, st)

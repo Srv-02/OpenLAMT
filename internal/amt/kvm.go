@@ -105,9 +105,9 @@ func (d *Device) EnableKVM() error {
 // Otherwise it starts opt-in when needed, asks the prompt and sends the six digit code.
 func (d *Device) UserConsent(prompt ConsentPrompt) error { return d.userConsent(prompt, false) }
 
-// userConsent is UserConsent for KVM (forIDER false) or IDE-R. IDE-R needs consent only when
-// OptInRequired is All (0xFFFFFFFF), not when it is limited to KVM.
-func (d *Device) userConsent(prompt ConsentPrompt, forIDER bool) error {
+// userConsent is UserConsent for KVM (allOnly false) or IDE-R and SOL (allOnly true), which need
+// consent only when OptInRequired is All (0xFFFFFFFF), not when it is limited to KVM.
+func (d *Device) userConsent(prompt ConsentPrompt, allOnly bool) error {
 	svc, err := d.msgs.IPS.OptInService.Get()
 	if err != nil {
 		return fmt.Errorf("get opt-in service: %w", err)
@@ -117,7 +117,7 @@ func (d *Device) userConsent(prompt ConsentPrompt, forIDER bool) error {
 		return fmt.Errorf("get opt-in service: %w: IPS_OptInService", ErrIncompleteResponse)
 	}
 	if cur.OptInRequired == uint32(optin.OptInRequiredNone) ||
-		(forIDER && cur.OptInRequired != uint32(optin.OptInRequiredAll)) ||
+		(allOnly && cur.OptInRequired != uint32(optin.OptInRequiredAll)) ||
 		cur.OptInState == int(optin.Received) || cur.OptInState == int(optin.InSession) {
 		return nil
 	}

@@ -52,18 +52,26 @@ func (d *Device) EnableIDER() error {
 	default:
 		return fmt.Errorf("enable ider: unexpected redirection service state %d", int(cur.EnabledState))
 	}
+	return d.requestRedirectionState("enable ider", want, func(rv int) error {
+		return &IDERError{Step: "RedirectionService.RequestStateChange", ReturnValue: rv}
+	})
+}
+
+// requestRedirectionState sends AMT_RedirectionService.RequestStateChange(want). A ReturnValue
+// != 0 becomes rvErr(rv); op prefixes the other errors.
+func (d *Device) requestRedirectionState(op string, want redirection.RequestedState, rvErr func(rv int) error) error {
 	resp, err := d.msgs.AMT.RedirectionService.RequestStateChange(want)
 	// The library returns its own err for ReturnValue != 0; read the output first to keep the value.
 	if resp.Message != nil && strings.Contains(resp.XMLOutput, "RequestStateChange_OUTPUT") {
 		if rv := int(resp.Body.RequestStateChange_OUTPUT.ReturnValue); rv != 0 {
-			return &IDERError{Step: "RedirectionService.RequestStateChange", ReturnValue: rv}
+			return rvErr(rv)
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("enable ider: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
 	}
 	if resp.Message == nil || !strings.Contains(resp.XMLOutput, "RequestStateChange_OUTPUT") {
-		return fmt.Errorf("enable ider: %w: RequestStateChange_OUTPUT", ErrIncompleteResponse)
+		return fmt.Errorf("%s: %w: RequestStateChange_OUTPUT", op, ErrIncompleteResponse)
 	}
 	return nil
 }

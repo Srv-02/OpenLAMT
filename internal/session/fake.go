@@ -49,6 +49,8 @@ type Fake struct {
 	NextBootErr     error
 	ClearISOBootErr error
 
+	SOL FakeSOL // Serial-over-LAN, see fake_sol.go
+
 	mu           sync.Mutex
 	iderStarts   []ider.StartMode
 	nextBoots    int

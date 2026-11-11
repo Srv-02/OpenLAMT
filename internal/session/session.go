@@ -13,6 +13,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
+	"github.com/Srv-02/openlamt/internal/sol"
 )
 
 // Device is the part of *amt.Device that the GUI uses.
@@ -25,6 +26,7 @@ type Device interface {
 	OpenIDER(ctx context.Context, img ider.Image, start ider.StartMode, prompt amt.ConsentPrompt) (*ider.Client, error)
 	NextBootFromISO() error
 	ClearISOBoot() error
+	OpenSOL(ctx context.Context, prompt amt.ConsentPrompt) (*sol.Client, error)
 }
 
 var _ Device = (*amt.Device)(nil)

@@ -327,3 +327,51 @@ func TestErrorTextContrast(t *testing.T) {
 		t.Errorf("the red fill must stay %s in dark", got)
 	}
 }
+
+// TestDeviceManagementTokens pins the light values of the device management mockups
+// (Main, WindowB, Settings, Dialogs, Danger .dc.html); the dark ones are derived and only have
+// to exist and differ from the light ones.
+func TestDeviceManagementTokens(t *testing.T) {
+	want := map[fyne.ThemeColorName]string{
+		ColorNameSegment:          "#EDEDF0FF",
+		ColorNameSegmentActive:    "#FFFFFFFF",
+		ColorNameSegmentShadow:    "#00000024", // rgba(0,0,0,.14)
+		ColorNameAccentText:       "#0A64D6FF",
+		ColorNameAccentTint:       "#E8F1FEFF",
+		ColorNameSidePanel:        "#FBFBFCFF",
+		ColorNameTableHeader:      "#F7F7F8FF",
+		ColorNameControlBorder:    "#D9D9DEFF",
+		ColorNameControlText:      "#3A3A3CFF",
+		ColorNameChipActive:       "#1C1C1EFF",
+		ColorNameChipActiveText:   "#FFFFFFFF",
+		ColorNameSeverityInfo:     "#6E6E73FF",
+		ColorNameSeverityWarning:  "#C75300FF",
+		ColorNameSeverityCritical: "#C2001AFF",
+		ColorNameDanger:           "#C2001AFF",
+		ColorNameDangerDisabled:   "#EBC2C8FF",
+		ColorNameDangerSurface:    "#FDE8EAFF",
+		ColorNameDangerZoneBorder: "#E9A3ADFF",
+		ColorNameDangerBoxBorder:  "#F0B8C0FF",
+		ColorNameDangerZoneText:   "#A3001AFF",
+		ColorNameDangerBoxText:    "#7A0014FF",
+		ColorNameWarningSurface:   "#FFF1E5FF",
+		ColorNameWarningBorder:    "#F3CFAEFF",
+		ColorNameWarningText:      "#6B2C00FF",
+		ColorNameWarningIcon:      "#9A3F00FF",
+		ColorNameFilterClear:      "#C7C7CCFF",
+		ColorNameCodeBackground:   "#F2F2F4FF",
+	}
+	for name, w := range want {
+		if got := hex(ColorFor(name, theme.VariantLight)); got != w {
+			t.Errorf("%s light = %s, want %s", name, got, w)
+		}
+		d, ok := darkColors[name]
+		if !ok {
+			t.Errorf("%s missing in the dark table", name)
+			continue
+		}
+		if hex(d) == w {
+			t.Errorf("%s: dark equals light", name)
+		}
+	}
+}

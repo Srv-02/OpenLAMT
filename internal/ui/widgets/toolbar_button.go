@@ -31,7 +31,7 @@ const (
 // ToolbarButton is an item of the session toolbar: a symbol above a caption.
 //
 // States: normal, hover, open (menu shown: pressed background, white symbol), active (toggled,
-// e.g. KVM connected: accent symbol on a light background) and disabled (35 % opacity).
+// e.g. Manage open: accent text and symbol on the accent tint, Main.dc.html .tb.on) and disabled (35 % opacity).
 // Optional: a chevron for menu buttons, a status dot on the symbol (Power), and a badge text
 // instead of the symbol (Quality "HQ"). Space and Return trigger it when focused.
 type ToolbarButton struct {
@@ -142,7 +142,9 @@ func (b *ToolbarButton) background() color.Color {
 		return color.Transparent
 	case b.open:
 		return style.Color("pressed")
-	case b.active, b.hovered, b.focused:
+	case b.active:
+		return style.Color(style.ColorNameAccentTint)
+	case b.hovered, b.focused:
 		return style.Color(style.ColorNameActive)
 	}
 	return color.Transparent
@@ -152,7 +154,7 @@ func (b *ToolbarButton) background() color.Color {
 func (b *ToolbarButton) iconVariant() icons.Variant {
 	switch {
 	case b.active && !b.Disabled():
-		return icons.Accent
+		return icons.AccentText
 	case b.open:
 		return icons.MenuOpen
 	}
@@ -255,7 +257,10 @@ func (r *toolbarButtonRenderer) Refresh() {
 	bar := style.Color(style.ColorNameToolbar)
 	fg := icons.Color(b.iconVariant())
 	capColor := style.Color(style.ColorNameTextSecondary)
-	if b.open || b.active {
+	switch {
+	case b.active:
+		capColor = style.Color(style.ColorNameAccentText)
+	case b.open:
 		capColor = style.Color(style.ColorNameToolbarIcon)
 	}
 	var badgeColor color.Color = fg

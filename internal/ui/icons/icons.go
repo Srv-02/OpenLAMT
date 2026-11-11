@@ -1,5 +1,5 @@
 // Package icons holds OpenLAMT's UI symbols (24 px grid, 1.7 stroke, issue #44) as Fyne
-// resources: 23 stroked ones and the two filled ones (heart, star) of the About dialog.
+// resources: 33 stroked ones and the two filled ones (heart, star) of the About dialog.
 //
 // Fyne recolors only the fill of themed SVGs, not the stroke these symbols are drawn with, so
 // each symbol is served as a static resource with the stroke color already set: one per
@@ -64,6 +64,20 @@ const (
 	Clear        Name = "clear"
 )
 
+// Stroked symbols of the device management design (Main.dc.html toolbar, WindowB.dc.html
+// navigation, Media.dc.html, Dialogs.dc.html and Danger.dc.html).
+const (
+	Console  Name = "console"   // SOL text console, KVM|Console segment
+	Media    Name = "media"     // disc: toolbar Media, "Mount ISO file…"
+	Folder   Name = "folder"    // "Mount folder as ISO…"
+	Manage   Name = "manage"    // window with a sidebar: toolbar Manage
+	Hardware Name = "hardware"  // chip: navigation Hardware
+	EventLog Name = "event-log" // navigation Event log
+	AuditLog Name = "audit-log" // shield: navigation Audit log
+	Users    Name = "users"     // navigation Users
+	Warning  Name = "warning"   // triangle: orange and red warning boxes, orange question tile
+)
+
 // Filled symbols (no stroke): the file's fill is recolored like the stroke of the others.
 // Their color is fixed, see HeartPink and StarYellow; Get and Render ignore the stroke width.
 const (
@@ -74,7 +88,8 @@ const (
 // All lists every symbol, in the order of HANDOFF.md.
 var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, Fullscreen, Settings,
 	Server, Search, Lock, Eye, Edit, Duplicate, Delete, Add, Connect, Key, ChevronDown,
-	Coffee, ExternalLink, Info, Clear}
+	Coffee, ExternalLink, Info, Clear,
+	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}
@@ -96,6 +111,12 @@ const (
 	Danger     Variant = "danger"     // #FF6961 confirm dialog tile
 	Link       Variant = "link"       // #4DA3FF hyperlinks (About dialog)
 	LinkHover  Variant = "link-hover" // #7DBDFF hyperlink under the pointer
+
+	// Device management design (light values from the mockups, dark ones derived).
+	AccentText  Variant = "accent-text"  // #4DA3FF active segment, toggled toolbar item, info question tile
+	WarningIcon Variant = "warning-icon" // #FF9F0A orange question tile
+	WarningText Variant = "warning-text" // #FFC78A triangle in the orange warning box
+	DangerText  Variant = "danger-text"  // #FF8A80 triangle in the red warning box
 )
 
 // Fill colors of the filled symbols (Heart, Star); not part of Variants.
@@ -117,29 +138,39 @@ var variantColors = map[Variant]string{
 	Danger:     "#FF6961",
 	Link:       "#4DA3FF",
 	LinkHover:  "#7DBDFF",
-	HeartPink:  "#FF6482",
-	StarYellow: "#FFD60A",
+	// derived for the dark variant
+	AccentText:  "#4DA3FF",
+	WarningIcon: "#FF9F0A",
+	WarningText: "#FFC78A",
+	DangerText:  "#FF8A80",
+	HeartPink:   "#FF6482",
+	StarYellow:  "#FFD60A",
 }
 
 // lightColors is the light table (issue #51); same roles as variantColors.
 var lightColors = map[Variant]string{
-	Foreground: "#1D1D1F",
-	Toolbar:    "#1D1D1F",
-	Muted:      "#48484A",
-	Secondary:  "#636366",
-	Disabled:   "#AEAEB2",
-	Accent:     "#007AFF",
-	White:      "#FFFFFF",
-	MenuOpen:   "#1D1D1F",
-	Danger:     "#FF3B30",
-	Link:       "#0066CC",
-	LinkHover:  "#004C99",
-	HeartPink:  "#FF2D55",
-	StarYellow: "#F5B400",
+	Foreground:  "#1D1D1F",
+	Toolbar:     "#1D1D1F",
+	Muted:       "#48484A",
+	Secondary:   "#636366",
+	Disabled:    "#AEAEB2",
+	Accent:      "#007AFF",
+	White:       "#FFFFFF",
+	MenuOpen:    "#1D1D1F",
+	Danger:      "#FF3B30",
+	Link:        "#0066CC",
+	LinkHover:   "#004C99",
+	AccentText:  "#0A64D6",
+	WarningIcon: "#9A3F00",
+	WarningText: "#6B2C00",
+	DangerText:  "#7A0014",
+	HeartPink:   "#FF2D55",
+	StarYellow:  "#F5B400",
 }
 
 // Variants lists every Variant.
-var Variants = []Variant{Foreground, Toolbar, Muted, Secondary, Disabled, Accent, White, MenuOpen, Danger, Link, LinkHover}
+var Variants = []Variant{Foreground, Toolbar, Muted, Secondary, Disabled, Accent, White, MenuOpen, Danger, Link, LinkHover,
+	AccentText, WarningIcon, WarningText, DangerText}
 
 // table returns the color table of the current theme variant.
 func table(light bool) map[Variant]string {

@@ -85,8 +85,9 @@ func TestToolbarButton(t *testing.T) {
 	}
 
 	b.SetActive(true)
-	if r.icon.Resource() != icons.Get(icons.KVM, icons.Accent) || !same(r.bg.FillColor, style.Color(style.ColorNameActive)) {
-		t.Error("active: symbol not accent or background missing")
+	if r.icon.Resource() != icons.Get(icons.KVM, icons.AccentText) || !same(r.bg.FillColor, style.Color(style.ColorNameAccentTint)) ||
+		!same(r.caption.Color, style.Color(style.ColorNameAccentText)) {
+		t.Error("active: symbol or caption not accent text, or background not the accent tint (Main.dc.html .tb.on)")
 	}
 	b.SetActive(false)
 	b.SetOpen(true)

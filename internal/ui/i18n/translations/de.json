@@ -213,5 +213,8 @@
   "Shutdown…": "Herunterfahren …",
   "Shut down {{.Name}}?": "{{.Name}} herunterfahren?",
   "The operating system is shut down in an orderly way, then the machine switches off. Unsaved data in open programs can be lost.": "Das Betriebssystem wird geordnet heruntergefahren, danach schaltet sich das Gerät aus. Ungespeicherte Daten in offenen Programmen können verloren gehen.",
-  "Shut Down": "Herunterfahren"
+  "Shut Down": "Herunterfahren",
+  "Filter": "Filter",
+  "I understand the risk": "Ich verstehe das Risiko",
+  "Type {{.Phrase}} to confirm": "Gib zur Bestätigung {{.Phrase}} ein"
 }

@@ -30,8 +30,9 @@ type ButtonMetrics struct {
 }
 
 // PrimaryButton is the accent button with text and an optional symbol, in the design's
-// measurements. Importance is HighImportance (accent) or anything else (neutral, e.g. the
-// Cancel state of the Connect KVM button). The symbol is a resource of package icons, drawn
+// measurements. Importance is HighImportance (accent), DangerImportance (the full red button of
+// Danger.dc.html and the danger zone: white semibold text, light red while disabled) or
+// anything else (neutral, e.g. the Cancel state of the Connect KVM button). The symbol is a resource of package icons, drawn
 // by Symbol with the stroke it was requested with (the design uses 2).
 type PrimaryButton struct {
 	widget.DisableableWidget
@@ -194,7 +195,14 @@ func (r *primaryButtonRenderer) Refresh() {
 	if high {
 		fill, fg = style.Color("primary"), style.Color(style.ColorNameWhite)
 	}
-	if b.Disabled() {
+	danger := b.Importance == widget.DangerImportance
+	if danger {
+		fill, fg = style.Color(style.ColorNameDanger), style.Color(style.ColorNameWhite)
+	}
+	switch {
+	case b.Disabled() && danger:
+		fill = style.Color(style.ColorNameDangerDisabled)
+	case b.Disabled():
 		fill, fg = style.Color("disabledButton"), style.Color("disabled")
 	}
 	for _, o := range []*canvas.Rectangle{r.bg, r.over, r.focus} {
@@ -202,7 +210,7 @@ func (r *primaryButtonRenderer) Refresh() {
 	}
 	r.bg.FillColor = fill
 	r.bg.StrokeColor, r.bg.StrokeWidth = color.Transparent, 0
-	if !high && m.NeutralBorder != "" && !b.Disabled() {
+	if !high && !danger && m.NeutralBorder != "" && !b.Disabled() {
 		r.bg.StrokeColor, r.bg.StrokeWidth = style.Color(m.NeutralBorder), 1
 	}
 	r.bg.Refresh()

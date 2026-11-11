@@ -213,5 +213,8 @@
   "Shutdown…": "Shutdown…",
   "Shut down {{.Name}}?": "Shut down {{.Name}}?",
   "The operating system is shut down in an orderly way, then the machine switches off. Unsaved data in open programs can be lost.": "The operating system is shut down in an orderly way, then the machine switches off. Unsaved data in open programs can be lost.",
-  "Shut Down": "Shut Down"
+  "Shut Down": "Shut Down",
+  "Filter": "Filter",
+  "I understand the risk": "I understand the risk",
+  "Type {{.Phrase}} to confirm": "Type {{.Phrase}} to confirm"
 }

@@ -202,6 +202,26 @@ func TestDataBeforeFirstReadIsKept(t *testing.T) {
 	}
 }
 
+func TestDial_OutputBeforeStartReplyIsBounded(t *testing.T) {
+	srv := soltest.Start(t, soltest.Options{Username: "admin", Password: "pw"})
+	chunk := bytes.Repeat([]byte{'x'}, 60000)
+	go func() {
+		p := srv.Accept(t)
+		p.Expect(t, 0x20)
+		// Output beyond maxPending before START_SOL_REPLY: nothing reads it during Dial.
+		for i := 0; i <= maxPending/len(chunk)+1; i++ {
+			if _, err := p.Conn().Write(p.DataMsg(chunk)); err != nil {
+				return
+			}
+		}
+		_, _ = p.Conn().Write(p.StartReplyMsg(0))
+	}()
+	_, err := Dial(context.Background(), cfg(srv))
+	if !errors.Is(err, errProtocol) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 // TestReplayedCapture feeds a reconstructed device capture: reply, port report, a Linux getty
 // banner with escape sequences and CP437/UTF-8 bytes, heartbeats, all coalesced in one write and
 // then split byte by byte. The client must deliver exactly the data bytes in order.
@@ -402,8 +422,8 @@ func TestCloseWithoutReplyTimesOut(t *testing.T) {
 	c, p := start(t)
 	t0 := time.Now()
 	c.Close()
-	if d := time.Since(t0); d > 2*time.Second {
-		t.Fatalf("close took %s", d)
+	if d := time.Since(t0); d < closeTimeout || d > 10*closeTimeout {
+		t.Fatalf("close took %s, want the goodbye wait of about %s", d, closeTimeout)
 	}
 	p.Expect(t, 0x22)
 	if !errors.Is(c.Err(), ErrClosed) {
@@ -449,11 +469,14 @@ func TestBackpressure(t *testing.T) {
 		close(sent)
 	}()
 	// The loop stops reading at maxPending; the rest waits in the socket buffers.
-	time.Sleep(200 * time.Millisecond)
-	c.mu.Lock()
-	pending := len(c.pending)
-	c.mu.Unlock()
-	if pending > maxPending+len(chunk) {
+	pendingLen := func() int { c.mu.Lock(); defer c.mu.Unlock(); return len(c.pending) }
+	for t0 := time.Now(); pendingLen() < maxPending-len(chunk); time.Sleep(10 * time.Millisecond) {
+		if time.Since(t0) > 5*time.Second {
+			t.Fatalf("buffer never filled: %d", pendingLen())
+		}
+	}
+	time.Sleep(50 * time.Millisecond)
+	if pending := pendingLen(); pending > maxPending+len(chunk) {
 		t.Fatalf("pending %d", pending)
 	}
 	total := 0
@@ -533,4 +556,35 @@ func selfSigned(t *testing.T) (tls.Certificate, *x509.CertPool) {
 	pool := x509.NewCertPool()
 	pool.AddCert(leaf)
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leaf}, pool
+}
+
+func TestWriteErrorThenCloseKeepsCause(t *testing.T) {
+	c, _ := start(t)
+	boom := errors.New("boom")
+	c.fail(boom)
+	c.Close()
+	if !errors.Is(c.Err(), boom) {
+		t.Fatalf("err = %v", c.Err())
+	}
+	if _, err := c.Write([]byte("x")); !errors.Is(err, boom) {
+		t.Fatalf("write err = %v", err)
+	}
+}
+
+func TestNoDataAfterEndSOL(t *testing.T) {
+	// A Write or heartbeat that passed its own check before Close must not go out after END_SOL.
+	c, _ := start(t)
+	c.mu.Lock()
+	c.closing = true
+	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.closing = false // let the cleanup Close run its normal path
+		c.mu.Unlock()
+	}()
+	for _, cmd := range []byte{cmdDataToHost, cmdHeartbeat} {
+		if err := c.send(writeTimeout, cmd); !errors.Is(err, ErrClosed) {
+			t.Fatalf("0x%02x: err = %v", cmd, err)
+		}
+	}
 }

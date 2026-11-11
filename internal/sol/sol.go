@@ -111,13 +111,12 @@ type Client struct {
 	active bool // start reply seen; Dial goroutine, then loop goroutine only
 
 	mu      sync.Mutex
-	cond    *sync.Cond // signals pending, closing, failErr and ended changes
+	cond    *sync.Cond // signals pending, closing, failErr and err changes
 	pending []byte
 	status  HostStatus
 	closing bool
 	failErr error // first write or keepalive error, ends the session
-	ended   bool  // the loop has finished
-	err     error
+	err     error // set when the loop has finished
 	done    chan struct{}
 }
 
@@ -134,7 +133,7 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c.conn, c.raw, c.br, c.w = rc.Conn, rc.Raw, rc.R, rc.Conn
+	c.conn, c.raw = rc.Conn, rc.Raw // start already set br and w
 	go c.run()
 	go c.keepalive(keepaliveInterval)
 	return c, nil
@@ -152,9 +151,6 @@ func (c *Client) start(r *bufio.Reader, w io.Writer) error {
 	}
 	for !c.active {
 		if err := c.handle(false); err != nil {
-			if errors.Is(err, errEndReply) {
-				return ErrClosedByDevice
-			}
 			return err
 		}
 	}
@@ -176,6 +172,17 @@ func (c *Client) send(timeout time.Duration, cmd byte, payload ...[]byte) error 
 	}
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
+	// Checked under the write mutex: nothing follows END_SOL, and a send that passed its own
+	// closing check earlier cannot reset the short deadline Close set.
+	c.mu.Lock()
+	closing := c.closing
+	c.mu.Unlock()
+	if closing {
+		if cmd != cmdEnd {
+			return ErrClosed
+		}
+		timeout = min(timeout, closeTimeout)
+	}
 	c.outSeq++
 	binary.LittleEndian.PutUint32(buf[4:], c.outSeq)
 	return c.writeLocked(timeout, buf)
@@ -188,9 +195,6 @@ func (c *Client) writeLocked(timeout time.Duration, b []byte) error {
 	_, err := c.w.Write(b)
 	return err
 }
-
-// errEndReply is handle's signal for END_SOL_REPLY.
-var errEndReply = errors.New("sol: end reply")
 
 // handle reads and processes one message. wait is false during Dial: received output is then
 // buffered without the maxPending limit, as nothing reads it yet.
@@ -234,7 +238,9 @@ func (c *Client) handle(wait bool) error {
 		if _, err := io.ReadFull(c.br, data); err != nil {
 			return err
 		}
-		c.deliver(data, wait)
+		if err := c.deliver(data, wait); err != nil {
+			return err
+		}
 	case cmdHeartbeat, cmdPing, cmdPong: // :457-460; 0x24/0x25 per amtterm, nothing to do
 		if _, err := c.br.Discard(headerLen - 1); err != nil {
 			return err
@@ -247,7 +253,7 @@ func (c *Client) handle(wait bool) error {
 		c.wmu.Lock()
 		_ = c.writeLocked(closeTimeout, []byte{cmdEndRedirection, 0, 0, 0})
 		c.wmu.Unlock()
-		return errEndReply
+		return ErrClosedByDevice // finish turns it into ErrClosed after Close
 	default: // :473-480: unknown command stops the session
 		return fmt.Errorf("%w: unknown command 0x%02x", errProtocol, cmd)
 	}
@@ -256,30 +262,32 @@ func (c *Client) handle(wait bool) error {
 
 // deliver appends host output for Read. With wait it blocks while maxPending bytes are
 // unread (backpressure: the loop stops reading the socket); it never blocks once Close started
-// or the session failed, and drops the data after Close.
-func (c *Client) deliver(data []byte, wait bool) {
+// or the session failed, and drops the data after Close. Without wait (during Dial, when nothing
+// reads yet) more than maxPending unread bytes are a protocol error instead of unbounded memory.
+func (c *Client) deliver(data []byte, wait bool) error {
 	if len(data) == 0 {
-		return
+		return nil
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if !wait && len(c.pending)+len(data) > maxPending {
+		return fmt.Errorf("%w: more than %d bytes of output before the session start", errProtocol, maxPending)
+	}
 	for wait && len(c.pending) >= maxPending && !c.closing && c.failErr == nil {
 		c.cond.Wait()
 	}
 	if c.closing {
-		return
+		return nil
 	}
 	c.pending = append(c.pending, data...)
 	c.cond.Broadcast()
+	return nil
 }
 
 // run is the read loop; it ends the session on the first error.
 func (c *Client) run() {
 	for {
 		if err := c.handle(true); err != nil {
-			if errors.Is(err, errEndReply) {
-				err = ErrClosedByDevice
-			}
 			c.finish(err)
 			return
 		}
@@ -321,22 +329,28 @@ func (c *Client) fail(err error) {
 	_ = c.raw.SetDeadline(time.Unix(1, 0))
 }
 
-// finish records the session error (ErrClosed after Close, else a recorded write error, else
-// err), closes the connection, wakes Read and closes Done. Only the read loop calls it.
+// finish records the session error (a recorded write error first, else ErrClosed after Close,
+// else err), closes the connection, wakes Read and closes Done. Only the read loop calls it.
 func (c *Client) finish(err error) {
 	c.mu.Lock()
 	switch {
-	case c.closing:
-		err = ErrClosed
 	case c.failErr != nil:
 		err = c.failErr
+	case c.closing:
+		err = ErrClosed
 	}
-	c.err, c.ended = err, true
+	c.err = err
 	c.cond.Broadcast()
 	c.mu.Unlock()
-	_ = c.raw.SetDeadline(time.Unix(1, 0))
-	c.conn.Close()
+	c.abort()
 	close(c.done)
+}
+
+// abort closes the raw connection. tls.Conn.Close would first send close_notify with its own
+// 5 s write deadline, which blocks when the peer stopped reading.
+func (c *Client) abort() {
+	_ = c.raw.SetDeadline(time.Unix(1, 0))
+	_ = c.raw.Close()
 }
 
 // Read returns host output. It blocks until output is available; after the session ended (by
@@ -349,7 +363,7 @@ func (c *Client) Read(p []byte) (int, error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	for len(c.pending) == 0 && !c.ended && !c.closing {
+	for len(c.pending) == 0 && c.err == nil && !c.closing {
 		c.cond.Wait()
 	}
 	if len(c.pending) == 0 {
@@ -394,12 +408,12 @@ func (c *Client) writeErr() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	switch {
-	case c.closing:
-		return ErrClosed
-	case c.err != nil:
-		return c.err
 	case c.failErr != nil:
 		return c.failErr
+	case c.err != nil:
+		return c.err
+	case c.closing:
+		return ErrClosed
 	}
 	return nil
 }
@@ -429,26 +443,28 @@ func (c *Client) Status() HostStatus {
 // 2 s, so do not call it from the UI thread.
 func (c *Client) Close() error {
 	c.mu.Lock()
-	if c.closing || c.ended {
+	if c.closing || c.err != nil {
 		c.mu.Unlock()
 		<-c.done
 		return nil
 	}
 	c.closing = true
-	c.cond.Broadcast() // wake Read and a loop waiting in deliver
+	broken := c.failErr != nil // a failed write may have left half a frame on the wire
+	c.cond.Broadcast()         // wake Read and a loop waiting in deliver
 	c.mu.Unlock()
 
-	// A Write blocked in the socket would hold the write mutex: shorten its deadline first.
-	_ = c.raw.SetWriteDeadline(time.Now().Add(closeTimeout))
-	if err := c.send(closeTimeout, cmdEnd); err == nil {
-		select {
-		case <-c.done:
-			return nil
-		case <-time.After(closeTimeout):
+	if !broken {
+		// A Write blocked in the socket would hold the write mutex: shorten its deadline first.
+		_ = c.raw.SetWriteDeadline(time.Now().Add(closeTimeout))
+		if err := c.send(closeTimeout, cmdEnd); err == nil {
+			select {
+			case <-c.done:
+				return nil
+			case <-time.After(closeTimeout):
+			}
 		}
 	}
-	_ = c.raw.SetDeadline(time.Unix(1, 0))
-	c.conn.Close()
+	c.abort()
 	<-c.done
 	return nil
 }

@@ -391,5 +391,13 @@
   "{{.Count}} entries": "{{.Count}} entries",
   "Newest first. Read in {{.Seconds}} s.": "Newest first. Read in {{.Seconds}} s.",
   "Local": "Local",
-  "KVM default port": "KVM default port"
+  "KVM default port": "KVM default port",
+  "Raw data": "Raw data",
+  "Raw IDs": "Raw IDs",
+  "Sensor type 0x{{.Sensor}} · offset 0x{{.Offset}} · data {{.Data}}": "Sensor type 0x{{.Sensor}} · offset 0x{{.Offset}} · data {{.Data}}",
+  "digest user": "digest user",
+  "Application": "Application",
+  "Application {{.App}} · event {{.Event}}": "Application {{.App}} · event {{.Event}}",
+  "Details": "Details",
+  "{{.Log}} · entry {{.N}} of {{.Count}}": "{{.Log}} · entry {{.N}} of {{.Count}}"
 }

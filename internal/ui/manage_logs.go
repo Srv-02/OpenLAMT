@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"slices"
 	"strings"
 	"time"
 
@@ -27,6 +28,7 @@ type logRow struct {
 	sev    amt.Severity
 	hasSev bool   // the second column is a severity with a dot (event log)
 	search string // lower-case text of all cells, for the filter
+	detail logDetail
 }
 
 func newLogRow(cells [4]string, sev amt.Severity, hasSev bool) logRow {
@@ -95,6 +97,7 @@ func eventRows(entries []amt.EventLogEntry, loc *time.Location) []logRow {
 	out := make([]logRow, len(entries))
 	for i, e := range entries {
 		out[i] = newTimedLogRow(e.Time, loc, [3]string{severityText(e.Severity), e.Source, e.Description}, e.Severity, true)
+		out[i].detail = eventDetail(e, loc)
 	}
 	return out
 }
@@ -120,6 +123,7 @@ func auditRows(entries []amt.AuditLogEntry, loc *time.Location) []logRow {
 	out := make([]logRow, len(entries))
 	for i, e := range entries {
 		out[i] = newTimedLogRow(e.Time, loc, [3]string{auditInitiator(e), e.Address, joinDot(e.Event, e.Details)}, 0, false)
+		out[i].detail = auditDetail(e, loc)
 	}
 	return out
 }
@@ -159,6 +163,7 @@ func descriptionText() string { return strings.TrimSpace(lang.L("Description "))
 
 // logSpec describes a log page.
 type logSpec struct {
+	name    string // "Event log" or "Audit log", in the detail dialog
 	columns [4]string
 	widths  [3]float32 // width of the first three columns in the window; the last takes the rest
 	compact [3]float32 // the same in the sidebar, with the short time: the last column is the widest
@@ -168,6 +173,7 @@ type logSpec struct {
 
 func (m *manager) eventLogPane(compact bool) *managePane {
 	return m.logPane(logSpec{
+		name:    lang.L("Event log"),
 		columns: [4]string{lang.L("Time"), lang.L("Severity"), lang.L("Source"), descriptionText()},
 		widths:  [3]float32{170, 110, 110},
 		compact: [3]float32{logShortTimeWidth(), 78, 76},
@@ -178,6 +184,7 @@ func (m *manager) eventLogPane(compact bool) *managePane {
 
 func (m *manager) auditLogPane(compact bool) *managePane {
 	return m.logPane(logSpec{
+		name:    lang.L("Audit log"),
 		columns: [4]string{lang.L("Time"), lang.L("Initiator"), lang.L("Address"), lang.L("Event")},
 		widths:  [3]float32{170, 160, 150},
 		compact: [3]float32{logShortTimeWidth(), 68, 80},
@@ -199,6 +206,7 @@ type logPane struct {
 	note    *canvas.Text
 	err     *manageError
 	list    *widget.List
+	detail  *logDetailDialog // open detail dialog or nil
 }
 
 // logPane builds an event or audit log page (WindowB.dc.html): in the window the page head
@@ -218,7 +226,17 @@ func (m *manager) logPane(spec logSpec, compact bool) *managePane {
 				o.(*logLine).set(&p.rows[p.shown[id]])
 			}
 		})
-	p.list.OnSelected = func(id widget.ListItemID) { p.list.Unselect(id) } // rows are read-only
+	// A click on a row opens its details (LogDetail.dc.html); the row does not stay selected.
+	p.list.OnSelected = func(id widget.ListItemID) {
+		p.list.Unselect(id)
+		if id >= 0 && id < len(p.shown) {
+			w := m.parent
+			if !compact && m.win != nil {
+				w = m.win.win
+			}
+			p.detail = showLogDetail(w, spec.name, p.rows, slices.Clone(p.shown), id)
+		}
+	}
 
 	header := newLogLine(widths, compact, true)
 	header.set(&logRow{cells: spec.columns})

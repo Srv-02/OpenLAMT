@@ -23,13 +23,16 @@ func TestAccountChangeValidate(t *testing.T) {
 	if err := (AccountChange{Password: "Secret-Pass1"}).Validate(); err != nil {
 		t.Errorf("password only: %v", err)
 	}
+	if err := (AccountChange{Password: `Se:cr,et"Pass1`}).Validate(); err != nil {
+		t.Errorf(`password with : , ": %v`, err)
+	}
 	for name, c := range map[string]AccountChange{
-		"weak password":  {Password: "secret"},
-		"no password":    {Name: "newadmin"},
-		"system prefix":  {Name: "$$admin", Password: "Secret-Pass1"},
-		"name too long":  {Name: strings.Repeat("a", 17), Password: "Secret-Pass1"},
-		"comma in name":  {Name: "a,b", Password: "Secret-Pass1"},
-		"password colon": {Password: "Secret:Pass1"},
+		"weak password": {Password: "secret"},
+		"no password":   {Name: "newadmin"},
+		"system prefix": {Name: "$$admin", Password: "Secret-Pass1"},
+		"name too long": {Name: strings.Repeat("a", 17), Password: "Secret-Pass1"},
+		"comma in name": {Name: "a,b", Password: "Secret-Pass1"},
+		"colon in name": {Name: "a:b", Password: "Secret-Pass1"},
 	} {
 		if err := c.Validate(); !errors.Is(err, ErrInvalidValue) {
 			t.Errorf("%s: %v", name, err)

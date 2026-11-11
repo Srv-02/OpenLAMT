@@ -108,9 +108,10 @@ const (
 )
 
 // Validate checks the spec without device access. Names: 1–16 printable ASCII characters (AMT
-// SDK limit). Password rules as in MeshCommander and the
-// AMT SDK: 8–32 ASCII characters with upper and lower case letters, a digit and a special
-// character other than ':', ',' and '"'. AMT only receives a hash and cannot check them.
+// SDK limit). Passwords: 8–32 printable ASCII characters with upper and lower case letters, a
+// digit and a special character. Unlike MeshCommander and the AMT SDK, ':', ',' and '"' are
+// allowed (Michael's decision; a rejection by AMT comes back as an error). AMT only receives a
+// hash and cannot check the rules.
 func (u UserSpec) Validate() error {
 	if err := validateName(u.Name); err != nil {
 		return err
@@ -157,8 +158,8 @@ func validatePassword(p string) error {
 	var upper, lower, digit, special bool
 	for _, r := range p {
 		switch {
-		case r < ' ' || r > '~' || r == ':' || r == ',' || r == '"':
-			return invalid("Password", `printable ASCII without : , and "`)
+		case r < ' ' || r > '~':
+			return invalid("Password", "printable ASCII characters only")
 		case r >= 'A' && r <= 'Z':
 			upper = true
 		case r >= 'a' && r <= 'z':

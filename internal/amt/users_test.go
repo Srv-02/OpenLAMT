@@ -189,6 +189,15 @@ func TestUserSpecValidate(t *testing.T) {
 	if err := ok.Validate(); err != nil {
 		t.Fatal(err)
 	}
+	// Michael's decision: : , and " are allowed in passwords (AMT reports an error if it rejects
+	// one); each of them also counts as the special character.
+	for _, pw := range []string{"Secret:Pass1", "Secret,Pass1", `Secret"Pass1`} {
+		u := ok
+		u.Password = pw
+		if err := u.Validate(); err != nil {
+			t.Errorf("%q: %v", pw, err)
+		}
+	}
 	for name, mod := range map[string]func(*UserSpec){
 		"empty name":         func(u *UserSpec) { u.Name = "" },
 		"name of 17":         func(u *UserSpec) { u.Name = strings.Repeat("a", 17) },
@@ -202,8 +211,8 @@ func TestUserSpecValidate(t *testing.T) {
 		"no lower":           func(u *UserSpec) { u.Password = "SECRET-PASS1" },
 		"no digit":           func(u *UserSpec) { u.Password = "Secret-Pass" },
 		"no special":         func(u *UserSpec) { u.Password = "SecretPass1" },
-		"only colon special": func(u *UserSpec) { u.Password = "Secret:Pass1" },
-		"quote in password":  func(u *UserSpec) { u.Password = `Secret"Pass1` },
+		"non-ASCII password": func(u *UserSpec) { u.Password = "Secret-Päss1" },
+		"control character":  func(u *UserSpec) { u.Password = "Secret-Pass1\t" },
 		"no realm":           func(u *UserSpec) { u.Realms = nil },
 		"reserved realm":     func(u *UserSpec) { u.Realms = []Realm{1} },
 		"unknown access":     func(u *UserSpec) { u.Access = 3 },

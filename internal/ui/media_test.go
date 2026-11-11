@@ -811,3 +811,37 @@ func TestUnmountWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
 		t.Fatalf("NextBootFromISO %d, ClearISOBoot %d", n, cl)
 	}
 }
+
+// TestClosingThePopoverKeepsTheQuestionAboveIt: closing the popover (as a KVM resume does
+// through closeMenus) while "Turn on media redirection?" is shown above it keeps the question;
+// Esc (Cancel) still closes the image.
+func TestClosingThePopoverKeepsTheQuestionAboveIt(t *testing.T) {
+	dev := &session.Fake{}
+	h := newMediaDevice(t, dev)
+	dev.Cfg.Settings.Features.IDER = false
+	dir := sourceFolder(t)
+	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
+	h.openPopover(t)
+	test.Tap(h.m.ui.folder)
+	h.wait(t, "settings")
+	q := h.m.askIDER
+	if q == nil || h.m.pop == nil {
+		t.Fatal("no question over the popover")
+	}
+	h.d.closeMenus()
+	if h.m.pop != nil {
+		t.Fatal("popover still open")
+	}
+	h.question(t, "Turn on media redirection?")
+	if q.done || !q.pop.Visible() || len(h.d.win.Canvas().Overlays().List()) != 1 {
+		t.Fatal("the question went with the popover")
+	}
+	if f := h.d.win.Canvas().Focused(); f != nil {
+		f.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	} else {
+		h.d.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	}
+	if h.m.askIDER != nil || h.m.phase != mediaIdle || len(cachedISOs(t)) != 0 {
+		t.Fatalf("Cancel: phase %d images %v", h.m.phase, cachedISOs(t))
+	}
+}

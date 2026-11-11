@@ -965,12 +965,36 @@ func (p *mediaPopover) showAt(pos fyne.Position) {
 }
 
 // Dismiss closes the popover and calls onDismiss; nothing happens if it is not shown.
+// removeOverlay removes o from the overlays of c and keeps the overlays above it (a question,
+// the consent prompt or an error dialog shown while the popover was open): Fyne's
+// OverlayStack.Remove drops everything above the removed one, without the dialogs' callbacks.
+// The focus stays where it was.
+func removeOverlay(c fyne.Canvas, o fyne.CanvasObject) {
+	ov := c.Overlays()
+	list := ov.List()
+	var above []fyne.CanvasObject
+	for i, x := range list {
+		if x == o {
+			above = append(above, list[i+1:]...)
+			break
+		}
+	}
+	focused := c.Focused()
+	ov.Remove(o)
+	for _, x := range above {
+		ov.Add(x)
+	}
+	if len(above) > 0 && focused != nil {
+		c.Focus(focused)
+	}
+}
+
 func (p *mediaPopover) Dismiss() {
 	if !p.shown {
 		return
 	}
 	p.shown = false
-	p.canvas.Overlays().Remove(p)
+	removeOverlay(p.canvas, p)
 	if p.onDismiss != nil {
 		p.onDismiss()
 	}

@@ -385,3 +385,22 @@ func TestUsersToleratesEnabledStateFault(t *testing.T) {
 		t.Errorf("access denied: %v", err)
 	}
 }
+
+func TestExportedValidators(t *testing.T) {
+	if err := ValidateUserName("operator"); err != nil {
+		t.Errorf("name: %v", err)
+	}
+	for _, n := range []string{"", "$$sys", "a b", strings.Repeat("a", 17)} {
+		if err := ValidateUserName(n); !errors.Is(err, ErrInvalidValue) {
+			t.Errorf("name %q: %v", n, err)
+		}
+	}
+	if err := ValidatePassword(`Se:cr,et"Pass1`); err != nil {
+		t.Errorf("password: %v", err)
+	}
+	for _, p := range []string{"Sh1!", "nouppercase1!", "NoDigits!!", "NoSpecial12"} {
+		if err := ValidatePassword(p); !errors.Is(err, ErrInvalidValue) {
+			t.Errorf("password %q accepted: %v", p, err)
+		}
+	}
+}

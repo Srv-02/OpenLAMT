@@ -73,8 +73,9 @@ func ConfirmPhrase(op Operation, host string) string {
 }
 
 // Confirmation is the proof that the user typed the phrase for one operation on one device.
-// Its fields are unexported: outside this package a valid value only comes from Confirm, and the
-// zero value confirms nothing. Create it right before the call it confirms.
+// Its fields are unexported: outside this package a valid value only comes from Confirm or
+// ConfirmChecked, and the zero value confirms nothing. Create it right before the call it
+// confirms.
 type Confirmation struct {
 	op   Operation
 	host string
@@ -88,6 +89,17 @@ func Confirm(op Operation, host, typed string) (Confirmation, error) {
 	}
 	phrase, typed := ConfirmPhrase(op, host), strings.TrimSpace(typed)
 	if phrase == ConfirmWord && typed != phrase || phrase != ConfirmWord && !strings.EqualFold(typed, phrase) {
+		return Confirmation{}, ErrConfirmationMismatch
+	}
+	return Confirmation{op: op, host: normHost(host)}, nil
+}
+
+// ConfirmChecked is the confirmation for the orange level: the user ticked the checkbox
+// "I understand the risk" instead of typing a phrase. It only confirms SeverityHigh operations
+// and only when checked is true; every other case, including the more severe operations that
+// need the typed host (Confirm), returns ErrConfirmationMismatch.
+func ConfirmChecked(op Operation, host string, checked bool) (Confirmation, error) {
+	if !checked || RiskOf(op).Severity != SeverityHigh {
 		return Confirmation{}, ErrConfirmationMismatch
 	}
 	return Confirmation{op: op, host: normHost(host)}, nil

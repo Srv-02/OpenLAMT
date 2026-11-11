@@ -113,10 +113,10 @@ const (
 // allowed (Michael's decision; a rejection by AMT comes back as an error). AMT only receives a
 // hash and cannot check the rules.
 func (u UserSpec) Validate() error {
-	if err := validateName(u.Name); err != nil {
+	if err := ValidateUserName(u.Name); err != nil {
 		return err
 	}
-	if err := validatePassword(u.Password); err != nil {
+	if err := ValidatePassword(u.Password); err != nil {
 		return err
 	}
 	if u.Access < AccessLocal || u.Access > AccessLocalAndNetwork {
@@ -133,9 +133,10 @@ func (u UserSpec) Validate() error {
 	return nil
 }
 
-// validateName checks a digest user name: 1–16 printable ASCII characters without spaces and
-// without : , " < > &, not starting with "$$".
-func validateName(name string) error {
+// ValidateUserName checks a digest user name: 1–16 printable ASCII characters without spaces and
+// without : , " < > &, not starting with "$$". It needs no device; the UI uses it to check input
+// while it is typed. Errors wrap ErrInvalidValue.
+func ValidateUserName(name string) error {
 	if name == "" || len(name) > 16 {
 		return invalid("Name", "1 to 16 characters")
 	}
@@ -150,8 +151,9 @@ func validateName(name string) error {
 	return nil
 }
 
-// validatePassword checks the AMT strong password rule (see UserSpec.Validate).
-func validatePassword(p string) error {
+// ValidatePassword checks the AMT strong password rule (see UserSpec.Validate). It needs no
+// device; the UI uses it to check input while it is typed. Errors wrap ErrInvalidValue.
+func ValidatePassword(p string) error {
 	if len(p) < 8 || len(p) > 32 {
 		return invalid("Password", "8 to 32 characters")
 	}

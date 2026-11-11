@@ -18,11 +18,11 @@ type AccountChange struct {
 // Validate checks the change without device access: name and password rules of UserSpec.
 func (c AccountChange) Validate() error {
 	if c.Name != "" {
-		if err := validateName(c.Name); err != nil {
+		if err := ValidateUserName(c.Name); err != nil {
 			return err
 		}
 	}
-	return validatePassword(c.Password)
+	return ValidatePassword(c.Password)
 }
 
 // LoginChange describes an account change the device accepted.

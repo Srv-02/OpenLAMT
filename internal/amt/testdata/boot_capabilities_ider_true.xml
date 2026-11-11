@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:h="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/AMT_BootCapabilities">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/AMT_BootCapabilities/GetResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000004</b:MessageID>
+        <c:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/AMT_BootCapabilities</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <h:AMT_BootCapabilities>
+            <h:BIOSSetup>true</h:BIOSSetup>
+            <h:ElementName>Intel(r) AMT Boot Capabilities</h:ElementName>
+            <h:IDER>true</h:IDER>
+            <h:InstanceID>Intel(r) AMT:BootCapabilities 0</h:InstanceID>
+            <h:SOL>true</h:SOL>
+        </h:AMT_BootCapabilities>
+    </a:Body>
+</a:Envelope>

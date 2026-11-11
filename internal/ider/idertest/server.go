@@ -114,6 +114,20 @@ func (s *Server) Accept(t *testing.T) *Peer {
 	}
 }
 
+// AcceptSession accepts a connection and plays the device side of a successful ider.Dial:
+// it reads OPEN_SESSION, replies (buffers 8192, protocol 0), reads the register toggle and
+// answers STATUS_DATA type 3 with value 1. Run it in its own goroutine while the client dials,
+// or after Dial started in one; it blocks until the sequence is done.
+func (s *Server) AcceptSession(t *testing.T) *Peer {
+	t.Helper()
+	p := s.Accept(t)
+	p.Read(t)
+	p.OpenSessionReply(t, 8192, 8192, 0)
+	p.Read(t)
+	p.StatusData(t, 3, 1)
+	return p
+}
+
 // Msg is one message received from the client.
 type Msg struct {
 	Cmd, Attr byte

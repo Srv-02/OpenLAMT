@@ -43,15 +43,15 @@ func (e *KVMError) Error() string {
 	return fmt.Sprintf("kvm %s failed: device returned ReturnValue %d", e.Step, e.ReturnValue)
 }
 
-// EnableKVM makes the redirection listener and the KVM SAP available, writing only when needed.
-func (d *Device) EnableKVM() error {
+// ensureListener reads AMT_RedirectionService and enables the redirection listener when needed.
+func (d *Device) ensureListener() (redirection.RedirectionResponse, error) {
 	rs, err := d.msgs.AMT.RedirectionService.Get()
 	if err != nil {
-		return fmt.Errorf("get redirection service: %w", err)
+		return redirection.RedirectionResponse{}, fmt.Errorf("get redirection service: %w", err)
 	}
 	cur := rs.Body.GetAndPutResponse
 	if cur.Name == "" {
-		return fmt.Errorf("get redirection service: %w: AMT_RedirectionService", ErrIncompleteResponse)
+		return cur, fmt.Errorf("get redirection service: %w: AMT_RedirectionService", ErrIncompleteResponse)
 	}
 	if !cur.ListenerEnabled {
 		_, err := d.msgs.AMT.RedirectionService.Put(&redirection.RedirectionRequest{
@@ -65,8 +65,16 @@ func (d *Device) EnableKVM() error {
 			SystemName:              cur.SystemName,
 		})
 		if err != nil {
-			return fmt.Errorf("enable redirection listener: %w", err)
+			return cur, fmt.Errorf("enable redirection listener: %w", err)
 		}
+	}
+	return cur, nil
+}
+
+// EnableKVM makes the redirection listener and the KVM SAP available, writing only when needed.
+func (d *Device) EnableKVM() error {
+	if _, err := d.ensureListener(); err != nil {
+		return err
 	}
 
 	sap, err := d.msgs.CIM.KVMRedirectionSAP.Get()
@@ -95,7 +103,11 @@ func (d *Device) EnableKVM() error {
 
 // UserConsent reads IPS_OptInService. With OptInRequired 0 or OptInState 3/4 it returns nil.
 // Otherwise it starts opt-in when needed, asks the prompt and sends the six digit code.
-func (d *Device) UserConsent(prompt ConsentPrompt) error {
+func (d *Device) UserConsent(prompt ConsentPrompt) error { return d.userConsent(prompt, false) }
+
+// userConsent is UserConsent for KVM (forIDER false) or IDE-R. IDE-R needs consent only when
+// OptInRequired is All (0xFFFFFFFF), not when it is limited to KVM.
+func (d *Device) userConsent(prompt ConsentPrompt, forIDER bool) error {
 	svc, err := d.msgs.IPS.OptInService.Get()
 	if err != nil {
 		return fmt.Errorf("get opt-in service: %w", err)
@@ -105,6 +117,7 @@ func (d *Device) UserConsent(prompt ConsentPrompt) error {
 		return fmt.Errorf("get opt-in service: %w: IPS_OptInService", ErrIncompleteResponse)
 	}
 	if cur.OptInRequired == uint32(optin.OptInRequiredNone) ||
+		(forIDER && cur.OptInRequired != uint32(optin.OptInRequiredAll)) ||
 		cur.OptInState == int(optin.Received) || cur.OptInState == int(optin.InSession) {
 		return nil
 	}

@@ -11,6 +11,7 @@ import (
 	power "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/power"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
 )
 
@@ -21,6 +22,9 @@ type Device interface {
 	PowerStates() ([]power.PowerState, error)
 	Fingerprint() string
 	OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.ConsentPrompt) (*kvm.Client, error)
+	OpenIDER(ctx context.Context, img ider.Image, start ider.StartMode, prompt amt.ConsentPrompt) (*ider.Client, error)
+	NextBootFromISO() error
+	ClearISOBoot() error
 }
 
 var _ Device = (*amt.Device)(nil)
@@ -126,4 +130,32 @@ func (s *Session) OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.C
 		return nil, classify(err)
 	}
 	return c, nil
+}
+
+// OpenIDER mounts img via IDE-R like OpenKVM opens KVM: the mutex is held during the WS-Man
+// steps and the consent prompt; the returned client has its own socket and is used without the
+// session afterwards. Image ownership passes to the client only on success; on error the caller
+// still owns img.
+func (s *Session) OpenIDER(ctx context.Context, img ider.Image, start ider.StartMode, prompt amt.ConsentPrompt) (*ider.Client, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.dev.OpenIDER(ctx, img, start, prompt)
+	if err != nil {
+		return nil, classify(err)
+	}
+	return c, nil
+}
+
+// NextBootFromISO sets the IDE-R boot option without a power command (see amt.Device.NextBootFromISO).
+func (s *Session) NextBootFromISO() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return classify(s.dev.NextBootFromISO())
+}
+
+// ClearISOBoot switches the IDE-R boot option off again (see amt.Device.ClearISOBoot).
+func (s *Session) ClearISOBoot() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return classify(s.dev.ClearISOBoot())
 }

@@ -9,8 +9,8 @@ var allOps = []Operation{OpHostName, OpFeaturesOff, OpOwnAccount, OpAdminAccount
 
 func TestRiskOfEveryOperation(t *testing.T) {
 	want := map[Operation]RiskSeverity{
-		OpHostName: SeverityHigh, OpFeaturesOff: SeverityHigh, OpOwnAccount: SeverityHigh,
-		OpAdminAccount: SeverityLockout, OpNetwork: SeverityLockout, OpEnvironment: SeverityLockout, OpTLS: SeverityLockout,
+		OpHostName: SeverityHigh, OpFeaturesOff: SeverityHigh, OpOwnAccount: SeverityHigh, OpTLS: SeverityHigh,
+		OpAdminAccount: SeverityLockout, OpNetwork: SeverityLockout, OpEnvironment: SeverityLockout,
 		OpDisableNetwork: SeverityIrreversibleRemotely,
 	}
 	seen := map[string]bool{}
@@ -57,6 +57,13 @@ func TestConfirmAcceptsOnlyThePhrase(t *testing.T) {
 	if _, err := Confirm(OpNetwork, host, "CONFIRM"); !errors.Is(err, ErrConfirmationMismatch) {
 		t.Errorf("CONFIRM for a lockout operation: %v", err)
 	}
+	// A TLS change is the orange level (Michael, 11.11.2026): CONFIRM or the checkbox, not the host.
+	if c, err := ConfirmChecked(OpTLS, host, true); err != nil || !c.Allows(OpTLS, host) {
+		t.Errorf("TLS with the checkbox: %v", err)
+	}
+	if _, err := Confirm(OpTLS, host, host); !errors.Is(err, ErrConfirmationMismatch) {
+		t.Errorf("TLS with the typed host: %v", err)
+	}
 	c, err = Confirm(OpHostName, host, "CONFIRM")
 	if err != nil || !c.Allows(OpHostName, "DEVICE.example.com") {
 		t.Fatalf("CONFIRM: %v", err)
@@ -78,7 +85,7 @@ func TestConfirmAcceptsOnlyThePhrase(t *testing.T) {
 }
 
 func TestRiskyChangeErrorCarriesRisk(t *testing.T) {
-	err := error(&RiskyChangeError{Op: OpTLS, Fields: []string{RiskTLS}})
+	err := error(&RiskyChangeError{Op: OpNetwork, Fields: []string{RiskNetwork}})
 	var re *RiskyChangeError
 	if !errors.As(err, &re) || !errors.Is(err, ErrRiskyChange) || re.Risk().Severity != SeverityLockout {
 		t.Fatalf("%v", err)

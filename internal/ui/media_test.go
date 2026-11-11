@@ -845,3 +845,19 @@ func TestClosingThePopoverKeepsTheQuestionAboveIt(t *testing.T) {
 		t.Fatalf("Cancel: phase %d images %v", h.m.phase, cachedISOs(t))
 	}
 }
+
+// TestEscClosesThePopoverAfterTheCheckbox: the checkbox takes the focus when tapped; Esc still
+// closes the popover.
+func TestEscClosesThePopoverAfterTheCheckbox(t *testing.T) {
+	h := newMediaDevice(t, &session.Fake{})
+	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
+	h.tapCheck(t)
+	f := h.d.win.Canvas().Focused()
+	if f == nil {
+		t.Fatal("nothing focused after the tap")
+	}
+	f.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if h.m.pop != nil {
+		t.Fatal("Esc did not close the popover")
+	}
+}

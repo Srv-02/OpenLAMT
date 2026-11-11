@@ -126,7 +126,7 @@ type mediaControls struct {
 	hint, progress, stats                 *widget.RichText
 	bar                                   *mediaBar
 	size                                  *ellipsisText
-	check                                 *widget.Check
+	check                                 *dialogCheck
 }
 
 func newMediaPanel(d *DeviceWindow) *mediaPanel {
@@ -777,7 +777,16 @@ func (m *mediaPanel) render() {
 		dot := widgets.NewStatusDot(widgets.DotOn, mediaDotSize)
 		head := container.New(&mediaHeadLayout{gap: mediaButtonGap}, dot, m.ui.title, m.ui.size)
 		m.ui.stats = mutedText("")
-		m.ui.check = widget.NewCheck(lang.L("Boot from this ISO on the next start"), nil)
+		// widget.Check takes the focus when tapped and handles only Space: Esc closes the popover.
+		m.ui.check = &dialogCheck{onKey: func(k *fyne.KeyEvent) bool {
+			if k.Name != fyne.KeyEscape {
+				return false
+			}
+			m.dismiss()
+			return true
+		}}
+		m.ui.check.Text = lang.L("Boot from this ISO on the next start")
+		m.ui.check.ExtendBaseWidget(m.ui.check)
 		m.ui.check.SetChecked(m.bootNext)
 		m.ui.check.OnChanged = m.setBootNext
 		m.ui.unmount = mediaButton(lang.L("Unmount"), "", false, m.unmount)

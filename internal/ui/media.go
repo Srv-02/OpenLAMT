@@ -103,7 +103,7 @@ type mediaPanel struct {
 	rate     rateMeter
 	stopTick func()
 
-	askIDER  *panel // "Turn on media redirection?" while shown; it owns the image then
+	askIDER  *panel // "Enable media redirection?" while shown; it owns the image then
 	closeAsk *panel // "An ISO is still mounted" while shown
 
 	pop     *mediaPopover // open popover or nil
@@ -318,7 +318,7 @@ func (m *mediaPanel) progressFunc(ctx context.Context) func(done, total int64) {
 	}
 }
 
-// prepared runs when the image is open or built; it reads whether IDE-R is turned on.
+// prepared runs when the image is open or built; it reads whether IDE-R is enabled.
 func (m *mediaPanel) prepared(ctx context.Context, img ider.Image, info *mkiso.Info, err error) {
 	defer m.event("prepared")
 	if !m.current(ctx) { // cancelled: BuildTemp removed its partial file itself
@@ -363,9 +363,9 @@ func (m *mediaPanel) settingsRead(ctx context.Context, img ider.Image, on bool, 
 	}
 	m.d.releaseKeys()
 	args := map[string]any{"Name": m.d.name}
-	p := showQuestion(m.d.win, icons.Media, toneInfo, lang.L("Turn on media redirection?"),
-		lang.L("Media redirection (IDE-R) is turned off on “{{.Name}}”. Turn it on to mount ISO files and folders on this device? The setting stays on until you turn it off in Settings.", args),
-		lang.L("Cancel"), lang.L("Turn On"), func() {
+	p := showQuestion(m.d.win, icons.Media, toneInfo, lang.L("Enable media redirection?"),
+		lang.L("Media redirection (IDE-R) is disabled on “{{.Name}}”. Enable it to mount ISO files and folders on this device? The setting stays enabled until you disable it in Settings.", args),
+		lang.L("Cancel"), lang.L("Enable"), func() {
 			m.askIDER = nil
 			m.open(ctx, img)
 		})

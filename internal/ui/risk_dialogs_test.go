@@ -20,9 +20,9 @@ const riskHost = "device.example.com"
 func TestShowQuestionTileAndButtons(t *testing.T) {
 	w, c := panelHarness(t)
 	ran := 0
-	p := showQuestion(w, icons.Media, toneInfo, "Turn on media redirection?", "Media redirection (IDE-R) is turned off.",
-		"Cancel", "Turn On", func() { ran++ })
-	if got := texts(panelButtons(w.Canvas().Overlays().Top())); got != "Cancel|Turn On" {
+	p := showQuestion(w, icons.Media, toneInfo, "Enable media redirection?", "Media redirection (IDE-R) is disabled.",
+		"Cancel", "Enable", func() { ran++ })
+	if got := texts(panelButtons(w.Canvas().Overlays().Top())); got != "Cancel|Enable" {
 		t.Fatalf("buttons %q", got)
 	}
 	if p.action.Importance != widget.HighImportance {
@@ -33,7 +33,7 @@ func TestShowQuestionTileAndButtons(t *testing.T) {
 		t.Errorf("info tile %v radius %v fill %v", tile.Size(), tile.CornerRadius, tile.FillColor)
 	}
 	// the tile sits above the title (Dialogs.dc.html), not left of it
-	title := findLabel(t, w.Canvas().Overlays().Top(), "Turn on media redirection?")
+	title := findLabel(t, w.Canvas().Overlays().Top(), "Enable media redirection?")
 	if absPos(title).Y <= absPos(tile).Y || absPos(title).X > absPos(tile).X+1 {
 		t.Errorf("title at %v, tile at %v: tile must be above", absPos(title), absPos(tile))
 	}

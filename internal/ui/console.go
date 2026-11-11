@@ -23,9 +23,9 @@ import (
 
 // The Console view (Console.dc.html, issue #1): the serial console of the host over Serial over
 // LAN in a terminal widget (github.com/fyne-io/terminal). The first switch to the view connects;
-// after the session has ended, selecting Console again connects anew. If SOL is turned off on
-// the device, the window asks first (Dialogs.dc.html, "Turn on Serial over LAN?"); OpenSOL turns
-// it on. Consent works as for KVM. The session closes with the window; there is no Disconnect.
+// after the session has ended, selecting Console again connects anew. If SOL is disabled on
+// the device, the window asks first (Dialogs.dc.html, "Enable Serial over LAN?"); OpenSOL enables
+// it. Consent works as for KVM. The session closes with the window; there is no Disconnect.
 // Ctrl+Alt+Del of the toolbar goes over KVM, connecting it in the background if needed; Type
 // Clipboard writes the clipboard to the console.
 
@@ -167,7 +167,7 @@ func (d *DeviceWindow) connectConsole() {
 	}()
 }
 
-// consoleSettingsRead asks to turn on SOL if it is off and opens the session otherwise.
+// consoleSettingsRead asks to enable SOL if it is disabled and opens the session otherwise.
 func (d *DeviceWindow) consoleSettingsRead(st amt.Settings, err error) {
 	switch {
 	case d.closed || d.aborted:
@@ -177,10 +177,10 @@ func (d *DeviceWindow) consoleSettingsRead(st amt.Settings, err error) {
 		d.consoleFailed(err)
 	case !st.Features.SOL:
 		d.releaseKeys()
-		p := showQuestion(d.win, icons.Console, toneInfo, lang.L("Turn on Serial over LAN?"),
-			lang.L("Serial over LAN (SOL) is turned off on “{{.Name}}”. Turn it on to open the text console of this device? The setting stays on until you turn it off in Settings.",
+		p := showQuestion(d.win, icons.Console, toneInfo, lang.L("Enable Serial over LAN?"),
+			lang.L("Serial over LAN (SOL) is disabled on “{{.Name}}”. Enable it to open the text console of this device? The setting stays enabled until you disable it in Settings.",
 				map[string]any{"Name": d.name}),
-			lang.L("Cancel"), lang.L("Turn On"), d.openConsole)
+			lang.L("Cancel"), lang.L("Enable"), d.openConsole)
 		p.spec.onCancel = func() { // the view stays on the empty console
 			d.con.busy = false
 			d.consoleChanged()
@@ -191,7 +191,7 @@ func (d *DeviceWindow) consoleSettingsRead(st amt.Settings, err error) {
 	}
 }
 
-// openConsole opens the session on a goroutine (amt.OpenSOL turns SOL on); the consent dialog
+// openConsole opens the session on a goroutine (amt.OpenSOL enables SOL); the consent dialog
 // blocks that goroutine as for KVM.
 func (d *DeviceWindow) openConsole() {
 	if d.closed || d.aborted {

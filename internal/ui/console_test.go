@@ -205,7 +205,7 @@ func TestConsoleOpensWhenSOLIsOn(t *testing.T) {
 	}
 }
 
-func TestConsoleAsksToTurnOnSOL(t *testing.T) {
+func TestConsoleAsksToEnableSOL(t *testing.T) {
 	h := newConsoleDevice(t, false)
 	h.d.viewSwitch.Tap(viewConsole)
 	recv(t, h.conChanged) // the question
@@ -213,10 +213,10 @@ func TestConsoleAsksToTurnOnSOL(t *testing.T) {
 	if top == nil {
 		t.Fatal("no question")
 	}
-	findLabel(t, top, "Turn on Serial over LAN?")
-	findLabel(t, top, "Serial over LAN (SOL) is turned off on “Büro”. Turn it on to open the text console of this device? The setting stays on until you turn it off in Settings.")
+	findLabel(t, top, "Enable Serial over LAN?")
+	findLabel(t, top, "Serial over LAN (SOL) is disabled on “Büro”. Enable it to open the text console of this device? The setting stays enabled until you disable it in Settings.")
 	bs := panelButtons(top)
-	if got := texts(bs); got != "Cancel|Turn On" {
+	if got := texts(bs); got != "Cancel|Enable" {
 		t.Fatalf("buttons %q", got)
 	}
 	test.Tap(bs[0]) // Cancel: nothing opens, the view stays on an empty Console
@@ -229,10 +229,10 @@ func TestConsoleAsksToTurnOnSOL(t *testing.T) {
 	h.d.viewSwitch.Tap(viewConsole) // the selected segment asks again
 	recv(t, h.conChanged)
 	h.accept(t)
-	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[1]) // Turn On
+	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[1]) // Enable
 	recv(t, h.conChanged)
 	if h.dev.SOL.Calls() != 1 || h.d.con.client == nil || h.d.consoleLine.Text != "Console connected" {
-		t.Fatalf("turn on: calls %d, client %v", h.dev.SOL.Calls(), h.d.con.client != nil)
+		t.Fatalf("enable: calls %d, client %v", h.dev.SOL.Calls(), h.d.con.client != nil)
 	}
 	recv(t, h.reads)
 	h.peer(t)

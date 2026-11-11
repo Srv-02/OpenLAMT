@@ -157,7 +157,7 @@ func TestKVMOpenErrorsAreShown(t *testing.T) {
 	h := newKVMDevice(t, dev, kvmtest.Options{})
 	tapKVM(h.d)
 	recv(t, h.changed)
-	if err := <-h.errs; !strings.Contains(describe(err), "refused to turn on KVM (return value 2)") {
+	if err := <-h.errs; !strings.Contains(describe(err), "refused to enable KVM (return value 2)") {
 		t.Fatalf("err %v", err)
 	}
 	if h.d.kvmClient != nil || !h.d.kvmToggleEnabled() || h.d.kvmOn() || h.d.quality.Disabled() {

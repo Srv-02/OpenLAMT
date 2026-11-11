@@ -38,7 +38,7 @@ type tileTone int
 
 const (
 	toneDanger  tileTone = iota // red tile, red symbol (delete, power, quit)
-	toneInfo                    // blue tile, accent symbol (Dialogs.dc.html: turn on IDE-R or SOL, restart from ISO)
+	toneInfo                    // blue tile, accent symbol (Dialogs.dc.html: enable IDE-R or SOL, restart from ISO)
 	toneWarning                 // orange tile, orange symbol (Dialogs.dc.html: an ISO is still mounted)
 )
 

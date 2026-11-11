@@ -170,13 +170,13 @@ func TestUIBuildShots(t *testing.T) {
 	h.mediaEvent("unmounted")
 	md.dismiss()
 
-	// 31, 40: SOL is off; after Turn On the Console view with some output of the server.
+	// 31, 40: SOL is off; after Enable the Console view with some output of the server.
 	h.dev.Cfg.Settings.Features.SOL = false
 	h.d.viewSwitch.Tap(viewConsole)
 	recv(t, h.conChanged) // the question
 	h.shot("31-dialog-sol-on.png", h.d.win)
 	go func() { h.solPeers <- h.sol.AcceptSession(t) }()
-	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[1]) // Turn On
+	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[1]) // Enable
 	recv(t, h.conChanged)
 	if h.d.con.client == nil {
 		t.Fatalf("console not connected: %d errors", len(h.errs))

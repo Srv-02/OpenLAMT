@@ -267,9 +267,9 @@ func TestMediaMountISOShowsStatistics(t *testing.T) {
 	}
 }
 
-// TestMediaTurnOnRedirection: with IDE-R off the window asks first; Cancel deletes the built
-// image without mounting, Turn On mounts (OpenIDER turns IDE-R on).
-func TestMediaTurnOnRedirection(t *testing.T) {
+// TestMediaEnableRedirection: with IDE-R off the window asks first; Cancel deletes the built
+// image without mounting, Enable mounts (OpenIDER enables IDE-R).
+func TestMediaEnableRedirection(t *testing.T) {
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
 	dev.Cfg.Settings.Features.IDER = false
@@ -279,9 +279,9 @@ func TestMediaTurnOnRedirection(t *testing.T) {
 	h.openPopover(t)
 	test.Tap(h.m.ui.folder)
 	h.wait(t, "settings")
-	bs := h.question(t, "Turn on media redirection?")
-	if texts(bs) != lang.L("Cancel")+"|Turn On" ||
-		labelText(h.d.win, "Media redirection (IDE-R) is turned off on “Büro”. Turn it on to mount ISO files and folders on this device?") == "" {
+	bs := h.question(t, "Enable media redirection?")
+	if texts(bs) != lang.L("Cancel")+"|Enable" ||
+		labelText(h.d.win, "Media redirection (IDE-R) is disabled on “Büro”. Enable it to mount ISO files and folders on this device?") == "" {
 		t.Fatalf("buttons %q", texts(bs))
 	}
 	if len(cachedISOs(t)) != 1 || h.m.phase != mediaPreparing {
@@ -301,11 +301,11 @@ func TestMediaTurnOnRedirection(t *testing.T) {
 	h.openPopover(t)
 	test.Tap(h.m.ui.folder)
 	h.wait(t, "settings")
-	test.Tap(h.question(t, "Turn on media redirection?")[1])
+	test.Tap(h.question(t, "Enable media redirection?")[1])
 	h.wait(t, "opened")
 	<-h.peers
 	if h.m.phase != mediaMounted || h.m.ui.title.Text != "firmware-tools" || len(dev.IDERStarts()) != 1 {
-		t.Fatalf("Turn On: phase %d title %q", h.m.phase, h.m.ui.title.Text)
+		t.Fatalf("Enable: phase %d title %q", h.m.phase, h.m.ui.title.Text)
 	}
 	if len(h.errs) != 0 {
 		t.Fatalf("errors: %v", <-h.errs)
@@ -813,7 +813,7 @@ func TestUnmountWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
 }
 
 // TestClosingThePopoverKeepsTheQuestionAboveIt: closing the popover (as a KVM resume does
-// through closeMenus) while "Turn on media redirection?" is shown above it keeps the question;
+// through closeMenus) while "Enable media redirection?" is shown above it keeps the question;
 // Esc (Cancel) still closes the image.
 func TestClosingThePopoverKeepsTheQuestionAboveIt(t *testing.T) {
 	dev := &session.Fake{}
@@ -832,7 +832,7 @@ func TestClosingThePopoverKeepsTheQuestionAboveIt(t *testing.T) {
 	if h.m.pop != nil {
 		t.Fatal("popover still open")
 	}
-	h.question(t, "Turn on media redirection?")
+	h.question(t, "Enable media redirection?")
 	if q.done || !q.pop.Visible() || len(h.d.win.Canvas().Overlays().List()) != 1 {
 		t.Fatal("the question went with the popover")
 	}

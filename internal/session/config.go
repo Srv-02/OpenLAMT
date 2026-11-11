@@ -16,6 +16,7 @@ type ConfigDevice interface {
 	SyncClock() error
 	TLSCertificates() ([]amt.Certificate, error)
 	SetTLS(c amt.TLSChange, confirm amt.Confirmation) error
+	DisableAMTNetwork(confirm amt.Confirmation) error
 
 	Users() (amt.UserList, error)
 	AddUser(amt.UserSpec) (handle int, err error)
@@ -74,6 +75,15 @@ func (s *Session) SetEnvironmentDetection(domains []string, confirm amt.Confirma
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return classify(s.dev.SetEnvironmentDetection(domains, confirm))
+}
+
+// DisableAMTNetwork switches AMT off on the network; it needs a confirmation for
+// amt.OpDisableNetwork. Afterwards the device is unreachable for this and every other session;
+// only MEBx at the device switches it on again.
+func (s *Session) DisableAMTNetwork(confirm amt.Confirmation) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return classify(s.dev.DisableAMTNetwork(confirm))
 }
 
 // SyncClock sets the AMT clock to the local time.

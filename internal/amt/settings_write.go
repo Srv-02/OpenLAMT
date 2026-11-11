@@ -606,3 +606,27 @@ func (d *Device) SyncClock() error {
 	}
 	return nil
 }
+
+// DisableAMTNetwork switches AMT off on the network (AMT_GeneralSettings.AMTNetworkEnabled 0).
+// Afterwards nobody reaches AMT over the network, OpenLAMT included; only MEBx at the device
+// switches it on again. It needs confirm for OpDisableNetwork. AMT may drop the connection
+// before it answers, so an error after the Put does not prove that nothing changed. Already off:
+// nothing is written.
+func (d *Device) DisableAMTNetwork(confirm Confirmation) error {
+	const op = "disable AMT network"
+	if err := d.confirmed(confirm, OpDisableNetwork, RiskAMTNetwork); err != nil {
+		return err
+	}
+	o, err := d.generalObject()
+	if err != nil {
+		return writeError(op, err)
+	}
+	if !o.has("AMTNetworkEnabled") {
+		return fmt.Errorf("%s: %w", op, ErrNotModifiable)
+	}
+	if o.integer("AMTNetworkEnabled") == 0 {
+		return nil
+	}
+	o.set("AMTNetworkEnabled", "0")
+	return writeError(op, d.putObject(o, nil))
+}

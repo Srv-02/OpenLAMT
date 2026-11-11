@@ -163,6 +163,24 @@ func TestSessionHostNameAndConfirmationBinding(t *testing.T) {
 	}
 }
 
+func TestSessionDisableAMTNetwork(t *testing.T) {
+	dev := configFake()
+	dev.Cfg.Settings.General.NetworkEnabled = true
+	s := openInfoSession(t, dev)
+	if err := s.DisableAMTNetwork(conf(amt.OpTLS)); !errors.Is(err, amt.ErrRiskyChange) {
+		t.Fatalf("other confirmation: %v", err)
+	}
+	if err := s.DisableAMTNetwork(conf(amt.OpDisableNetwork)); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := s.Settings(); st.General.NetworkEnabled {
+		t.Error("network still enabled")
+	}
+	if err := s.DisableAMTNetwork(conf(amt.OpDisableNetwork)); err != nil || !slices.Equal(dev.ConfigWrites(), []string{"DisableAMTNetwork"}) {
+		t.Errorf("second call: %v, writes %v", err, dev.ConfigWrites())
+	}
+}
+
 func TestSessionConfigNoChangeWritesNothing(t *testing.T) {
 	dev := configFake()
 	s := openInfoSession(t, dev)

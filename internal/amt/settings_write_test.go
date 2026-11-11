@@ -549,3 +549,50 @@ func TestSetFeaturesKVMOffWithoutKVMIsNoChange(t *testing.T) {
 	}
 	assertNoWrites(t, f)
 }
+
+func TestDisableAMTNetwork(t *testing.T) {
+	for _, conf := range []Confirmation{{}, confirmed(OpNetwork), {op: OpDisableNetwork, host: "other.example.com"}} {
+		d, f := cfgDevice(writeSeq())
+		err := d.DisableAMTNetwork(conf)
+		var re *RiskyChangeError
+		if !errors.As(err, &re) || re.Op != OpDisableNetwork || re.Risk().Severity != SeverityIrreversibleRemotely {
+			t.Fatalf("err = %v", err)
+		}
+		if len(f.requests) != 0 {
+			t.Errorf("%d requests before confirmation", len(f.requests))
+		}
+	}
+
+	d, f := cfgDevice(writeSeq())
+	if err := d.DisableAMTNetwork(confirmed(OpDisableNetwork)); err != nil {
+		t.Fatal(err)
+	}
+	body := onePut(t, f, "Put|AMT_GeneralSettings")
+	assertContains(t, body, "<h:AMTNetworkEnabled>0</h:AMTNetworkEnabled>", "<h:HostName>amt-test</h:HostName>",
+		"<h:PingResponseEnabled>true</h:PingResponseEnabled>", "<h:SharedFQDN>false</h:SharedFQDN>")
+	if n := propCount(body); n != 25 {
+		t.Errorf("Put has %d properties, want all 25 that were read", n)
+	}
+
+	seq := writeSeq()
+	seq["Get|AMT_GeneralSettings"] = []cfgResp{{body: withProp(t, "cfg_general_get.xml", "AMTNetworkEnabled", "0")}}
+	d, f = cfgDevice(seq)
+	if err := d.DisableAMTNetwork(confirmed(OpDisableNetwork)); err != nil {
+		t.Fatal(err)
+	}
+	assertNoWrites(t, f)
+
+	seq["Get|AMT_GeneralSettings"] = []cfgResp{{body: withProp(t, "cfg_general_get.xml", "AMTNetworkEnabled", "-")}}
+	d, f = cfgDevice(seq)
+	if err := d.DisableAMTNetwork(confirmed(OpDisableNetwork)); !errors.Is(err, ErrNotModifiable) {
+		t.Errorf("missing property: %v", err)
+	}
+	assertNoWrites(t, f)
+
+	seq = writeSeq()
+	seq["Put|AMT_GeneralSettings"] = []cfgResp{{err: faultErr(t, "access_denied_fault.xml")}}
+	d, _ = cfgDevice(seq)
+	if err := d.DisableAMTNetwork(confirmed(OpDisableNetwork)); !errors.Is(err, ErrAccessDenied) {
+		t.Errorf("denied: %v", err)
+	}
+}

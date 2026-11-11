@@ -374,3 +374,14 @@ func (f *Fake) SetTLS(c amt.TLSChange, confirm amt.Confirmation) error {
 		}
 	})
 }
+
+// DisableAMTNetwork checks the confirmation like *amt.Device and clears General.NetworkEnabled.
+func (f *Fake) DisableAMTNetwork(confirm amt.Confirmation) error {
+	g := &f.Cfg.Settings.General
+	return f.cfgWrite("DisableAMTNetwork", func() (bool, error) {
+		if err := f.confirmed(confirm, amt.OpDisableNetwork, []string{amt.RiskAMTNetwork}); err != nil {
+			return false, err
+		}
+		return g.NetworkEnabled, nil
+	}, func() { g.NetworkEnabled = false })
+}

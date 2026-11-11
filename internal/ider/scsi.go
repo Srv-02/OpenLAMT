@@ -57,7 +57,8 @@ func (c *Client) sendDataToHost(dev byte, completed bool, data []byte, dma bool)
 }
 
 // mediaBlocks is the number of 2048-byte blocks of the CD; the last block may be a partial
-// sector that is padded with zeros. Floppy: no medium, 0.
+// sector that is padded with zeros. Floppy: no medium, 0, so floppy reads answer GOOD without
+// data as in the original.
 func (c *Client) mediaBlocks(dev byte) uint64 {
 	if dev == deviceFlopp {
 		return 0
@@ -65,19 +66,60 @@ func (c *Client) mediaBlocks(dev byte) uint64 {
 	return uint64((c.size + sectorSize - 1) / sectorSize)
 }
 
-// handleFloppy answers commands for the floppy drive (0xA0), which never has a medium (ISO only).
-// Deliberate deviation from the original (ui-toolkit and MeshCommander with floppy == null): it
-// reports GOOD for TEST_UNIT_READY, for reads (without any data) and for several other commands,
-// so the drive looks ready but delivers nothing. A Linux host then reset the drive in a loop
-// (about 2.5 RESET_OCCURRED per second, each right after a floppy READ_CAPACITY). Here every
-// medium command gets CHECK CONDITION NOT READY / MEDIUM NOT PRESENT (02/3A/00); only START_STOP
-// and ALLOW_MEDIUM_REMOVAL succeed, and GET_EVENT_STATUS_NOTIFICATION reports "no medium".
-func (c *Client) handleFloppy(cdb []byte) error {
-	switch cdb[0] {
-	case 0x1b, 0x1e: // START_STOP, ALLOW_MEDIUM_REMOVAL
-		return c.sendGood(deviceFlopp)
+// Deliberate deviation from the original for every Data-In command a host sends on attach: the
+// reply is GOOD (with data where the command expects some), never CHECK CONDITION. Over USB-R a
+// Data-In command answered with CHECK CONDITION makes the host reset the IDE-R device, which
+// then repeats the same command (MeshCommander issues #19 and #51). Measured against a Linux
+// host with an ISO mounted: about 300 resets per minute when the empty floppy answered
+// READ_CAPACITY, READ_FORMAT_CAPACITIES and reads with NOT READY / MEDIUM NOT PRESENT, and only
+// the 2 resets at attach within 120 s with the replies below. So:
+//   - the floppy (0xA0) has no medium and answers like the original with floppy == null (GOOD,
+//     reads without data), except READ_CAPACITY and READ_FORMAT_CAPACITIES, which the original
+//     answers with CHECK CONDITION: here GOOD with an empty capacity ("no media present");
+//   - the CD (0xB0) answers READ_DISC_INFO and READ_TRACK_INFO with a finalized single-session,
+//     single-track data disc instead of the original's CHECK CONDITION 05/20/00.
+
+// floppyCapacity is the READ_CAPACITY reply of the empty floppy: last LBA 0, block length 512.
+var floppyCapacity = []byte{0, 0, 0, 0, 0, 0, 0x02, 0x00}
+
+// floppyFormatCapacities is the READ_FORMAT_CAPACITIES reply of the empty floppy: one current
+// capacity descriptor with 0 blocks, descriptor type 3 (no media present), block length 512.
+var floppyFormatCapacities = []byte{0, 0, 0, 8, 0, 0, 0, 0, 0x03, 0x00, 0x02, 0x00}
+
+// allocTrunc cuts a reply to the allocation length of the CDB; 0 means no limit.
+func allocTrunc(r []byte, alloc int) []byte {
+	if alloc > 0 && alloc < len(r) {
+		return r[:alloc]
 	}
-	return c.sendCheckCondition(deviceFlopp, 0x02, 0x3a, 0x00)
+	return r
+}
+
+// discInfo is the READ_DISC_INFO reply (MMC standard disc information, 34 bytes): a finalized
+// disc with one complete session and one track.
+func discInfo() []byte {
+	r := make([]byte, 34)
+	r[1] = 0x20 // data length
+	r[2] = 0x0e // last session complete, disc finalized
+	r[3] = 1    // first track
+	r[4] = 1    // number of sessions
+	r[5] = 1    // first track in last session
+	r[6] = 1    // last track in last session
+	return r
+}
+
+// trackInfo is the READ_TRACK_INFO reply (MMC track information, 36 bytes) for the single data
+// track; it is the same for every requested track or address.
+func (c *Client) trackInfo(dev byte) []byte {
+	blocks := uint32(c.mediaBlocks(dev))
+	r := make([]byte, 36)
+	r[1] = 0x22                                          // data length
+	r[2] = 1                                             // track number
+	r[3] = 1                                             // session number
+	r[5] = 0x04                                          // track mode: data, recorded uninterrupted
+	r[6] = 0x01                                          // data mode 1
+	binary.BigEndian.PutUint32(r[24:], blocks)           // track size
+	binary.BigEndian.PutUint32(r[28:], max(blocks, 1)-1) // last recorded address
+	return r
 }
 
 // handleWritten processes COMMAND_WRITTEN (IDERDataProcessor.ts:152-166); b is the body without
@@ -93,12 +135,12 @@ func (c *Client) handleWritten(b []byte) error {
 
 // handleSCSI dispatches one CDB (IDERDataProcessor.ts handleSCSI). dma is featureRegister & 1.
 func (c *Client) handleSCSI(cdb []byte, dev byte, dma bool, flags byte) error {
-	if dev == deviceFlopp && cdb[0] != 0x4a { // GET_EVENT_STATUS_NOTIFICATION reports "no medium" below
-		return c.handleFloppy(cdb)
-	}
 	cd := dev == deviceCD
 	switch cdb[0] {
 	case 0x00: // TEST_UNIT_READY, :215-243
+		if !cd {
+			return c.sendGood(dev) // TS good 02/3A/00: no floppy
+		}
 		if !c.cdReady {
 			c.cdReady = true
 			return c.sendGood(dev) // TS good 06/28/00 (unit attention): GOOD on the wire
@@ -115,6 +157,9 @@ func (c *Client) handleSCSI(cdb []byte, dev byte, dma bool, flags byte) error {
 		return c.sendGood(dev) // TS good 02/3A/00
 	case 0x1a: // MODE_SENSE_6, :271-304
 		if cdb[2] == 0x3f && cdb[3] == 0 {
+			if !cd {
+				return c.sendGood(dev) // TS good 02/3A/00: no floppy
+			}
 			return c.sendDataToHost(dev, true, []byte{0, 0x05, 0x80, 0}, dma)
 		}
 		return c.sendGood(dev) // TS good 05/24/00
@@ -123,12 +168,18 @@ func (c *Client) handleSCSI(cdb []byte, dev byte, dma bool, flags byte) error {
 	case 0x1e: // ALLOW_MEDIUM_REMOVAL, :317-329
 		return c.sendGood(dev) // TS good (02/3A/00 for the floppy)
 	case 0x23: // READ_FORMAT_CAPACITIES, :332-360
-		if !cd || c.size == 0 {
+		if !cd { // deliberate deviation, see above: the original sends TS check 05/24/00
+			return c.sendDataToHost(dev, true, allocTrunc(floppyFormatCapacities, int(binary.BigEndian.Uint16(cdb[7:]))), dma)
+		}
+		if c.size == 0 {
 			return c.sendCheckCondition(dev, 0x05, 0x24, 0x00) // TS check
 		}
 		return c.sendDataToHost(dev, true, []byte{0, 0, 0, 8, 0x00, 0x00, 0x0b, 0x40, 0x02, 0x00, 0x02, 0x00}, dma)
 	case 0x25: // READ_CAPACITY, :363-395
-		if !cd || c.size == 0 {
+		if !cd { // deliberate deviation, see above: the original sends TS check 02/3A/00
+			return c.sendDataToHost(dev, true, floppyCapacity, dma)
+		}
+		if c.size == 0 {
 			return c.sendCheckCondition(dev, 0x02, 0x3a, 0x00) // TS check
 		}
 		last := uint32(c.mediaBlocks(dev) - 1)
@@ -162,7 +213,17 @@ func (c *Client) handleSCSI(cdb []byte, dev byte, dma bool, flags byte) error {
 		return c.send(cmdCommandEnd, true, false, make([]byte, 12),
 			[]byte{0x87, 0x50, 0x03, 0x00, 0x00, 0x00, 0xb0, 0x51, 0x05, 0x20, 0x00})
 	case 0x51: // READ_DISC_INFO, :570-574
-		return c.sendCheckCondition(dev, 0x05, 0x20, 0x00) // TS check
+		if !cd {
+			return c.sendCheckCondition(dev, 0x05, 0x20, 0x00) // TS check
+		}
+		// Deliberate deviation, see above: the original sends TS check 05/20/00.
+		return c.sendDataToHost(dev, true, allocTrunc(discInfo(), int(binary.BigEndian.Uint16(cdb[7:]))), dma)
+	case 0x52: // READ_TRACK_INFO: not in the original (unknown opcode, TS check 05/20/00)
+		if !cd {
+			return c.sendCheckCondition(dev, 0x05, 0x20, 0x00)
+		}
+		// Deliberate deviation, see above.
+		return c.sendDataToHost(dev, true, allocTrunc(c.trackInfo(dev), int(binary.BigEndian.Uint16(cdb[7:]))), dma)
 	case 0x55: // MODE_SELECT_10, :577-581
 		return c.sendGood(dev) // TS good 05/20/00
 	case 0x5a: // MODE_SENSE_10, :584-657

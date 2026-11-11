@@ -90,7 +90,7 @@ func TestConsoleViewControls(t *testing.T) {
 		t.Fatal("Console view: only Quality may be disabled")
 	}
 	if !d.fullBtn.Disabled() {
-		t.Fatal("Full Screen follows the KVM session in both views")
+		t.Fatal("Full Screen needs the session of the shown view")
 	}
 	test.Tap(d.cadBtn)
 	test.Tap(d.clipBtn)
@@ -127,8 +127,8 @@ func TestKVMSegmentReselectAndViews(t *testing.T) {
 	if h.d.kvmClient == nil || h.d.kvmLine.Text != "KVM connected" {
 		t.Fatal("KVM must stay connected in the Console view")
 	}
-	if !h.d.quality.Disabled() || h.d.cadBtn.Disabled() || h.d.fullBtn.Disabled() {
-		t.Fatal("Console view controls while KVM runs")
+	if !h.d.quality.Disabled() || h.d.cadBtn.Disabled() || !h.d.fullBtn.Disabled() {
+		t.Fatal("Console view controls while KVM runs (Full Screen needs a console session)")
 	}
 	if h.d.win.Canvas().Focused() == h.d.view {
 		t.Fatal("the hidden KVM view keeps the focus")

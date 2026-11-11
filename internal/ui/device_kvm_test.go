@@ -284,9 +284,11 @@ func TestCtrlAltDelAndFullScreen(t *testing.T) {
 	if !h.d.win.FullScreen() || !h.d.fullScreen {
 		t.Fatal("not full screen")
 	}
-	stack, ok := h.d.win.Content().(*fyne.Container)
-	if !ok || len(stack.Objects) != 2 || stack.Objects[0] != h.d.view || stack.Objects[1] != h.d.barLayer {
+	if !fullScreenShows(h.d, h.d.kvmStage) || h.d.consolePane.Visible() || !containsObject(h.d.kvmArea, h.d.view) {
 		t.Fatalf("full screen content %T", h.d.win.Content())
+	}
+	if h.d.barSwitch.Selected() != viewKVM || h.d.barSwitch.Disabled() {
+		t.Fatal("the full screen bar must offer the view switch")
 	}
 	if h.d.bar.Position().Y != 0 || h.d.bar.Size().Width <= 0 || h.d.win.Canvas().Focused() != h.d.view {
 		t.Fatalf("bar at %v size %v", h.d.bar.Position(), h.d.bar.Size())

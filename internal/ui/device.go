@@ -93,6 +93,8 @@ type DeviceWindow struct {
 	// Views, Media and Manage (device_views.go), only touched on the Fyne thread.
 	toolbarItems         *fyne.Container    // the toolbar buttons and dividers, in order
 	viewSwitch           *widgets.Segmented // KVM | Console
+	barSwitch            *widgets.Segmented // KVM | Console in the full screen bar, follows viewSwitch
+	stage                *fyne.Container    // kvmStage and consolePane in the window; empty in full screen
 	consoleView          bool               // the Console view is shown (consoleActive)
 	kvmStage             fyne.CanvasObject  // letterbox, KVM view and empty state
 	consolePane          fyne.CanvasObject  // dark background and consoleStage

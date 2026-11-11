@@ -142,7 +142,7 @@ func (d *DeviceWindow) consoleSelected() {
 
 // focusConsole gives the keyboard to the terminal while the Console view is shown.
 func (d *DeviceWindow) focusConsole() {
-	if d.con.term != nil && d.consoleView && !d.fullScreen && !d.closed {
+	if d.con.term != nil && d.consoleView && !d.closed {
 		d.win.Canvas().Focus(d.con.term)
 	}
 }
@@ -251,6 +251,7 @@ func (d *DeviceWindow) startConsole(c *sol.Client) {
 	}
 	d.consoleStage.Refresh()
 	d.setConsoleStatus(lang.L("Console connected"))
+	d.setKVMControls() // Full Screen of the Console view
 	d.focusConsole()
 	run := d.con.run
 	go func() {
@@ -284,6 +285,10 @@ func (d *DeviceWindow) consoleEnded(c *sol.Client, err error) {
 	d.con.client, d.con.out = nil, nil
 	if !d.closed {
 		d.setConsoleStatus("")
+		if d.consoleView {
+			d.setFullScreen(false)
+		}
+		d.setKVMControls()
 		if !d.aborted && err != nil && !errors.Is(err, sol.ErrClosed) && !errors.Is(err, sol.ErrClosedByDevice) {
 			d.onError(err)
 		}

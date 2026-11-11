@@ -84,9 +84,9 @@ func (d *DeviceWindow) buildKVM() {
 	d.kvmArea = container.NewStack(d.view)
 
 	d.exitFullBtn = widgets.NewToolbarButton(icons.Fullscreen, lang.L("Exit Full Screen"), func() { d.setFullScreen(false) })
-	d.barCad = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.ctrlAltDel)
-	d.barClip = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.typeClipboard)
-	d.bar = newDragBar(d.exitFullBtn, d.barCad, d.barClip)
+	d.barCad = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.toolbarCtrlAltDel)
+	d.barClip = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.toolbarTypeClipboard)
+	d.bar = newDragBar(d.barSwitch, d.exitFullBtn, d.barCad, d.barClip)
 	d.barLayer = d.bar.layer()
 	d.onTypeClipboard = d.startTyping
 	d.view.onInput = d.touchIdle
@@ -97,11 +97,11 @@ func (d *DeviceWindow) buildKVM() {
 // setKVMControls enables the controls for the current state: the view switch is locked only
 // after an abort (the selected KVM segment connects or disconnects, kvmToggleEnabled); the
 // quality can be changed in the KVM view except while a connect or reconnect is pending (a
-// running session reconnects with it, switchQuality); full screen and Ctrl+Alt+Del need a
-// session; "Type clipboard" additionally needs its hook (set in buildKVM). In the Console view
-// Ctrl+Alt+Del and Type Clipboard of the toolbar go to the console and stay enabled; the full
-// screen bar always belongs to KVM. Manage follows syncManageBtn. Status bar and empty state
-// follow.
+// running session reconnects with it, switchQuality); full screen needs the session of the
+// shown view (fullScreenAllowed); Ctrl+Alt+Del needs a session; "Type clipboard" additionally
+// needs its hook (set in buildKVM). In the Console view Ctrl+Alt+Del and Type Clipboard go to
+// the console and stay enabled. The full screen bar mirrors the toolbar. Manage follows
+// syncManageBtn. Status bar and empty state follow.
 func (d *DeviceWindow) setKVMControls() {
 	connected := d.kvmClient != nil || d.kvmReconnecting // a reconnect keeps the controls as they are
 	console := d.consoleView
@@ -113,13 +113,14 @@ func (d *DeviceWindow) setKVMControls() {
 		}
 	}
 	enable(d.viewSwitch, true)
+	enable(d.barSwitch, true)
 	enable(d.mediaBtn, true)
 	enable(d.quality, !console && !d.kvmBusy && !d.kvmReconnecting)
-	enable(d.fullBtn, connected)
+	enable(d.fullBtn, d.fullScreenAllowed())
 	enable(d.cadBtn, connected || console)
-	enable(d.barCad, connected)
+	enable(d.barCad, connected || console)
 	enable(d.clipBtn, (connected && d.onTypeClipboard != nil) || console)
-	enable(d.barClip, connected && d.onTypeClipboard != nil)
+	enable(d.barClip, (connected && d.onTypeClipboard != nil) || console)
 	d.syncManageBtn()
 	d.refreshKVMLine()
 	d.refreshEmptyState()
@@ -527,7 +528,9 @@ func (d *DeviceWindow) endKVM(err error) {
 		return
 	}
 	d.view.detach()
-	d.setFullScreen(false)
+	if !d.consoleView { // full screen of the Console view stays
+		d.setFullScreen(false)
+	}
 	idle := d.idleExpired
 	d.idleExpired = 0
 	switch {
@@ -605,22 +608,36 @@ func (d *DeviceWindow) typeClipboard() {
 	}
 }
 
-// setFullScreen shows only the view with the drag bar on top (every key goes to the remote,
-// so the bar is the way back), or restores the normal content.
+// fullScreenAllowed reports whether Full Screen may start: the shown view needs its session.
+func (d *DeviceWindow) fullScreenAllowed() bool {
+	if d.consoleView {
+		return d.con.client != nil
+	}
+	return d.kvmClient != nil
+}
+
+// setFullScreen shows only the stages with the drag bar on top (every key goes to the remote,
+// so the bar is the way back), or restores the normal content. The bar's switch changes the
+// view in full screen as the toolbar's does in the window.
 func (d *DeviceWindow) setFullScreen(on bool) {
-	if on == d.fullScreen || (on && d.kvmClient == nil) {
+	if on == d.fullScreen || (on && !d.fullScreenAllowed()) {
 		return
 	}
 	d.fullScreen = on
 	if on {
-		d.kvmArea.Remove(d.view)
-		d.win.SetContent(container.NewStack(d.view, d.barLayer))
+		d.stage.RemoveAll()
+		d.win.SetContent(container.NewStack(d.kvmStage, d.consolePane, d.barLayer))
 		d.win.SetFullScreen(true)
 		d.bar.recentre()
 	} else {
 		d.win.SetFullScreen(false)
 		d.win.SetContent(d.content)
-		d.kvmArea.Add(d.view)
+		d.stage.Objects = []fyne.CanvasObject{d.kvmStage, d.consolePane}
+		d.stage.Refresh()
 	}
-	d.focusView()
+	if d.consoleView {
+		d.focusConsole()
+	} else {
+		d.focusView()
+	}
 }

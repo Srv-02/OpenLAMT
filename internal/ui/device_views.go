@@ -30,11 +30,16 @@ const manageWidth float32 = 400
 // buildViewControls creates the view switch and the Media and Manage buttons. Called once from
 // NewDeviceWindow before buildKVM, whose setKVMControls already sets their states.
 func (d *DeviceWindow) buildViewControls() {
-	d.viewSwitch = widgets.NewSegmented(widgets.SegmentedToolbar, []widgets.SegmentOption{
-		{Icon: icons.KVM, Label: "KVM"},
-		{Icon: icons.Console, Label: lang.L("Console")},
-	}, func(i int) { d.setConsoleView(i == viewConsole) })
-	d.viewSwitch.OnReselected = d.viewReselected
+	newSwitch := func() *widgets.Segmented {
+		s := widgets.NewSegmented(widgets.SegmentedToolbar, []widgets.SegmentOption{
+			{Icon: icons.KVM, Label: "KVM"},
+			{Icon: icons.Console, Label: lang.L("Console")},
+		}, func(i int) { d.setConsoleView(i == viewConsole) })
+		s.OnReselected = d.viewReselected
+		return s
+	}
+	d.viewSwitch = newSwitch()
+	d.barSwitch = newSwitch() // the same switch in the full screen bar
 	d.mediaBtn = widgets.NewToolbarButton(icons.Media, lang.L("Media"), func() {
 		if d.onMedia != nil {
 			d.onMedia()
@@ -44,7 +49,8 @@ func (d *DeviceWindow) buildViewControls() {
 }
 
 // buildStage returns the stack of the KVM stage (letterbox, view, empty state) and the Console
-// stage (dark background, consoleStage); only one of them is visible.
+// stage (dark background, consoleStage); only one of them is visible. Full screen moves both
+// into its own content (setFullScreen).
 func (d *DeviceWindow) buildStage() fyne.CanvasObject {
 	letterbox := style.BindRect(canvas.NewRectangle(nil), style.ColorNameLetterbox, "")
 	d.kvmStage = container.NewStack(letterbox, d.kvmArea, d.buildEmptyState())
@@ -52,7 +58,8 @@ func (d *DeviceWindow) buildStage() fyne.CanvasObject {
 	d.consoleStage = container.NewStack()
 	d.consolePane = container.NewStack(bg, d.consoleStage)
 	d.consolePane.Hide()
-	return container.NewStack(d.kvmStage, d.consolePane)
+	d.stage = container.NewStack(d.kvmStage, d.consolePane)
+	return d.stage
 }
 
 // buildManagePane returns the sidebar right of the stage: a 1 px line on its left and the slot
@@ -70,9 +77,10 @@ func (d *DeviceWindow) buildManagePane() fyne.CanvasObject {
 // consoleActive reports whether the Console view is shown.
 func (d *DeviceWindow) consoleActive() bool { return d.consoleView }
 
-// setConsoleView shows the Console view (on) or the KVM view. Sessions stay as they are: a
-// running KVM session goes on behind the Console view. The hidden KVM view gives up the focus
-// (FocusLost releases held keys); back in the KVM view it gets it again.
+// setConsoleView shows the Console view (on) or the KVM view, in the window or in full screen
+// (both switches follow). Sessions stay as they are: a running KVM session goes on behind the
+// Console view. The hidden KVM view gives up the focus (FocusLost releases held keys); back in
+// the KVM view it gets it again.
 func (d *DeviceWindow) setConsoleView(on bool) {
 	if on == d.consoleView {
 		return
@@ -80,6 +88,7 @@ func (d *DeviceWindow) setConsoleView(on bool) {
 	d.consoleView = on
 	if on {
 		d.viewSwitch.SetSelected(viewConsole)
+		d.barSwitch.SetSelected(viewConsole)
 		if d.qualityPopup != nil {
 			d.qualityPopup.Dismiss()
 		}
@@ -90,6 +99,7 @@ func (d *DeviceWindow) setConsoleView(on bool) {
 		}
 	} else {
 		d.viewSwitch.SetSelected(viewKVM)
+		d.barSwitch.SetSelected(viewKVM)
 		d.blurConsole()
 		d.consolePane.Hide()
 		d.kvmStage.Show()
@@ -131,16 +141,16 @@ func (d *DeviceWindow) kvmToggleEnabled() bool {
 	return !d.aborted && (d.kvmClient != nil || d.kvmReconnecting || d.kvmBusy || !d.poweredOff())
 }
 
-// focusView gives the keyboard to the KVM view while a session runs and the view is shown (KVM
-// view or full screen); the Console view keeps its own focus.
+// focusView gives the keyboard to the KVM view while a session runs and the KVM view is shown
+// (in the window or in full screen); the Console view keeps its own focus.
 func (d *DeviceWindow) focusView() {
-	if d.kvmClient != nil && (d.fullScreen || !d.consoleView) {
+	if d.kvmClient != nil && !d.consoleView {
 		d.win.Canvas().Focus(d.view)
 	}
 }
 
-// toolbarCtrlAltDel is Ctrl+Alt+Del of the toolbar: the console hook in the Console view, the
-// KVM session otherwise. The full screen bar always sends over KVM (ctrlAltDel).
+// toolbarCtrlAltDel is Ctrl+Alt+Del of the toolbar and the full screen bar: the console hook in
+// the Console view, the KVM session otherwise.
 func (d *DeviceWindow) toolbarCtrlAltDel() {
 	if d.consoleView {
 		if d.consoleCtrlAltDel != nil {
@@ -151,7 +161,8 @@ func (d *DeviceWindow) toolbarCtrlAltDel() {
 	d.ctrlAltDel()
 }
 
-// toolbarTypeClipboard is Type Clipboard of the toolbar: the console hook in the Console view,
+// toolbarTypeClipboard is Type Clipboard of the toolbar and the full screen bar: the console
+// hook in the Console view,
 // unless a KVM typing job runs (the button then reads "Stop typing" and stops it).
 func (d *DeviceWindow) toolbarTypeClipboard() {
 	if d.consoleView && d.typing == nil {

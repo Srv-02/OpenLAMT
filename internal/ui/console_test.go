@@ -451,3 +451,79 @@ func TestConsoleLineEnds(t *testing.T) {
 		}
 	}
 }
+
+// fullScreenShows reports whether the full screen content holds o, shown, with the bar on top.
+func fullScreenShows(d *DeviceWindow, o fyne.CanvasObject) bool {
+	stack, ok := d.win.Content().(*fyne.Container)
+	return ok && d.win.FullScreen() && d.fullScreen && stack != d.content && containsObject(stack, o) && o.Visible() &&
+		len(stack.Objects) > 0 && stack.Objects[len(stack.Objects)-1] == d.barLayer
+}
+
+// TestConsoleFullScreen: Full Screen in the Console view shows the console; the KVM|Console
+// switch of the full screen bar changes the view in full screen; Exit Full Screen restores the
+// window in the view last chosen; the end of the console session leaves full screen.
+func TestConsoleFullScreen(t *testing.T) {
+	h := newConsoleDevice(t, true)
+	p := h.open(t)
+	if h.d.fullBtn.Disabled() {
+		t.Fatal("Full Screen disabled with a console session")
+	}
+	test.Tap(h.d.fullBtn)
+	if !fullScreenShows(h.d, h.d.consolePane) || h.d.kvmStage.Visible() {
+		t.Fatalf("console not in full screen: content %T", h.d.win.Content())
+	}
+	if h.d.barSwitch.Selected() != viewConsole || h.d.win.Canvas().Focused() != h.d.con.term {
+		t.Fatalf("bar switch %d, terminal focused %v", h.d.barSwitch.Selected(), h.d.win.Canvas().Focused() == h.d.con.term)
+	}
+
+	// Type Clipboard of the bar types into the console.
+	h.d.readClipboard = func() string { return "x" }
+	test.Tap(h.d.barClip)
+	if got := p.Expect(t, 0x28).Data(); string(got) != "x" {
+		t.Fatalf("bar Type Clipboard sent %q", got)
+	}
+
+	h.d.barSwitch.Tap(viewKVM) // the KVM view in full screen
+	if h.d.consoleActive() || h.d.viewSwitch.Selected() != viewKVM || !fullScreenShows(h.d, h.d.kvmStage) || h.d.consolePane.Visible() {
+		t.Fatalf("KVM in full screen: console %v, toolbar switch %d", h.d.consoleActive(), h.d.viewSwitch.Selected())
+	}
+	if h.d.win.Canvas().Focused() == h.d.con.term {
+		t.Fatal("the hidden terminal kept the focus")
+	}
+	h.d.barSwitch.Tap(viewConsole) // and back
+	if !h.d.consoleActive() || h.d.viewSwitch.Selected() != viewConsole || !fullScreenShows(h.d, h.d.consolePane) ||
+		h.d.win.Canvas().Focused() != h.d.con.term || h.dev.SOL.Calls() != 1 {
+		t.Fatalf("console in full screen again: calls %d", h.dev.SOL.Calls())
+	}
+
+	test.Tap(h.d.exitFullBtn)
+	if h.d.win.FullScreen() || h.d.fullScreen || h.d.win.Content() != h.d.content || !h.d.consoleActive() {
+		t.Fatal("normal content not restored")
+	}
+	if !containsObject(h.d.stage, h.d.consolePane) || !containsObject(h.d.stage, h.d.kvmStage) || !h.d.consolePane.Visible() ||
+		h.d.win.Canvas().Focused() != h.d.con.term {
+		t.Fatal("stages not back in the window")
+	}
+
+	test.Tap(h.d.fullBtn)
+	h.sync()
+	p.EndReply(t) // the device ends the session: full screen ends with it
+	h.waitEnded(t)
+	if h.d.win.FullScreen() || h.d.win.Content() != h.d.content || !h.d.consoleActive() || !h.d.fullBtn.Disabled() {
+		t.Fatalf("after the end: full screen %v, Full Screen enabled %v", h.d.win.FullScreen(), !h.d.fullBtn.Disabled())
+	}
+}
+
+// TestKVMEndKeepsConsoleFullScreen: the end of the KVM session leaves full screen only while
+// the KVM view is shown.
+func TestKVMEndKeepsConsoleFullScreen(t *testing.T) {
+	h := newConsoleDevice(t, true)
+	h.connect(t, true)
+	h.open(t)
+	test.Tap(h.d.fullBtn)
+	h.d.disconnectKVM()
+	recv(t, h.changed)
+	if !fullScreenShows(h.d, h.d.consolePane) || h.d.kvmClient != nil {
+		t.Fatal("console full screen left when KVM ended")
+	}
+}

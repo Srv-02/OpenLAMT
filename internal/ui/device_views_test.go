@@ -19,6 +19,21 @@ import (
 // KVM like the former KVM button, in the Console view it only switches the view.
 func tapKVM(d *DeviceWindow) { d.viewSwitch.Tap(viewKVM) }
 
+// viewsOnly keeps the work that the Console view and the Manage sidebar start in the background
+// out of tests of the views alone: no console connect (console_test.go tests it) and no results
+// or clock of device management (device_manage_test.go). That work runs on its own goroutines,
+// where the test driver runs fyne.Do inline, so it would lay out the SOL question or the
+// hardware page while the test goroutine goes on with the window. Fyne keeps the theme of every
+// ThemeOverride layout in one global stack, so two layouts at once can read a nil theme and
+// panic; the full screen content holds ThemeOverrides since it shows both stages.
+func viewsOnly(d *DeviceWindow) {
+	d.onConsoleSelected = nil
+	d.onManager = func(m *manager) {
+		m.tickEvery = 0
+		m.later = func(func()) {} // the read results are dropped
+	}
+}
+
 func newOnDevice(t *testing.T) *DeviceWindow {
 	t.Helper()
 	englishUI(t)
@@ -130,11 +145,15 @@ func TestConsoleViewControls(t *testing.T) {
 // session stays open in the Console view, which disables Quality and leaves the focus alone.
 func TestKVMSegmentReselectAndViews(t *testing.T) {
 	h := newKVMDevice(t, &sessionFake{}, kvmtest.Options{})
+	viewsOnly(h.d)
 	h.connect(t, true) // taps the selected KVM segment
 	if !h.d.kvmOn() || h.d.win.Canvas().Focused() != h.d.view {
 		t.Fatal("not connected or view not focused")
 	}
 	h.d.viewSwitch.Tap(viewConsole)
+	if h.d.con.busy {
+		t.Fatal("a console connect runs beside the test goroutine")
+	}
 	if h.d.kvmClient == nil || h.d.kvmLine.Text != "KVM connected" {
 		t.Fatal("KVM must stay connected in the Console view")
 	}
@@ -284,6 +303,7 @@ func TestViewSwitchLockedWhileOff(t *testing.T) {
 	if d.kvmBusy {
 		t.Fatal("reselect connected a device that is off")
 	}
+	viewsOnly(d)
 	d.viewSwitch.Tap(viewConsole) // the view still switches
 	if !d.consoleActive() {
 		t.Fatal("view switch locked while off")

@@ -13,7 +13,9 @@ import (
 // window and all device windows therefore route their close intercept here. The requests are
 // collected and judged one event later (fyne.Do queues behind the running pass): a batch that
 // contains the main window is a quit (Cmd+Q, menu, closing the main window), anything else is
-// the user closing single device windows, which stays as it was, without a question.
+// the user closing single device windows, which close without a question unless an ISO is
+// mounted on them (DeviceWindow.requestClose). Quitting closes every device window, and closing
+// unmounts its ISO.
 
 // requestClose is the close intercept of the main window and of every device window.
 func (s *StartWindow) requestClose(w fyne.Window) {
@@ -34,7 +36,7 @@ func (s *StartWindow) flushCloseRequests() {
 	}
 	if !quit {
 		for _, w := range reqs {
-			w.Close()
+			s.closeWindow(w)
 		}
 		return
 	}
@@ -53,6 +55,18 @@ func (s *StartWindow) flushCloseRequests() {
 		s.quitAsking = false
 		s.quitApp()
 	}, func() { s.quitAsking = false })
+}
+
+// closeWindow closes a window the user closed on its own; a device window asks first while an
+// ISO is mounted on it.
+func (s *StartWindow) closeWindow(w fyne.Window) {
+	for _, d := range s.open {
+		if d.win == w {
+			d.requestClose(w.Close)
+			return
+		}
+	}
+	w.Close()
 }
 
 // kvmSessions counts the device windows with a connected, connecting or reconnecting KVM session.

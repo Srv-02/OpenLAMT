@@ -41,7 +41,10 @@ type PrimaryButton struct {
 	Importance widget.Importance
 	// IconTrailing puts the symbol after the text (Connect); otherwise before it.
 	IconTrailing bool
-	OnTapped     func()
+	// Leading starts symbol and text at the left padding instead of centring them (the
+	// full-width buttons of the Media popover).
+	Leading  bool
+	OnTapped func()
 	// OnEscape, if set, runs on Esc while the button has the focus (a dialog closes).
 	OnEscape func()
 	// Metrics changes the measures; nil keeps the 36 px button of the manager and the toolbar.
@@ -172,6 +175,9 @@ func (r *primaryButtonRenderer) Layout(size fyne.Size) {
 		content += m.Gap + m.IconSize
 	}
 	x := (size.Width - content) / 2
+	if r.b.Leading {
+		x = m.PaddingH
+	}
 	textPos := fyne.NewPos(x, (size.Height-r.text.MinSize().Height)/2)
 	iconPos := fyne.NewPos(x, (size.Height-m.IconSize)/2)
 	if r.hasIcon() {

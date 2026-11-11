@@ -101,6 +101,7 @@ type DeviceWindow struct {
 	consoleTypeClipboard func()             // toolbar Type Clipboard in the Console view; nil = nothing
 	mediaBtn, manageBtn  *widgets.ToolbarButton
 	onMedia              func()                   // Media button; nil = nothing
+	media                *mediaPanel              // Media popover and IDE-R session (media.go)
 	body                 *fyne.Container          // stage and sidebar
 	managePane           fyne.CanvasObject        // sidebar with its left line; hidden while closed
 	manageSlot           *fyne.Container          // content of the sidebar, manageWidth wide
@@ -173,8 +174,8 @@ func (s *statusText) SetText(t string) {
 	}
 }
 
-// powerOrder is the order of the Power menu; separators follow PowerOff and BootToBIOS.
-var powerOrder = []amt.PowerAction{amt.PowerOn, amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.PowerShutdown}
+// powerOrder is the order of the Power menu; separators follow PowerOff and BootToISO.
+var powerOrder = []amt.PowerAction{amt.PowerOn, amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.BootToISO, amt.PowerShutdown}
 
 // powerStateText is the power state in the status bar.
 func powerStateText(ps models.PowerState) string {
@@ -208,6 +209,8 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	d.onError = d.showErrorDialog
 	d.confirm = d.confirmDialog
 	d.kvmStatus.changed = d.refreshKVMLine
+	d.media = newMediaPanel(d)
+	d.onMedia = d.media.toggle
 
 	d.buildViewControls()
 	d.buildConsole()
@@ -221,6 +224,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	d.win.SetPadded(false) // toolbar and status bar reach the window edges, as in the design
 	d.win.SetContent(d.content)
 	d.win.Resize(fyne.NewSize(1120, 760))
+	d.win.SetCloseIntercept(func() { d.requestClose(d.win.Close) }) // the start window routes it through its quit guard
 	d.win.SetOnClosed(func() {
 		// Without a session, connect or reconnect in flight nothing touches the view any more;
 		// otherwise kvmOpened or endKVM frees it once that event has arrived.
@@ -238,12 +242,15 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	return d
 }
 
-// shutdown stops the poller and then drops the idle WS-Man sockets. Off the Fyne thread, because
+// shutdown stops the poller, unmounts a mounted image (clearing its boot option unless the
+// session was aborted) and then drops the idle WS-Man sockets. Off the Fyne thread, because
 // Stop waits for a running status read; the order matters, so a read cannot re-pool a socket
-// after Close. The session is not used afterwards (KVM keeps its own connection).
+// after Close. The session is not used after Close (KVM keeps its own connection).
 func (d *DeviceWindow) shutdown() {
+	unmount := d.media.release(!d.aborted)
 	go func() {
 		d.poller.Stop()
+		unmount()
 		d.sess.Close()
 	}()
 }
@@ -330,6 +337,10 @@ func (d *DeviceWindow) abort(err error) {
 
 func (d *DeviceWindow) run(action amt.PowerAction) {
 	if !d.powerAllowed(action) {
+		return
+	}
+	if action == amt.BootToISO { // asks with its own question (media.go)
+		d.media.askBoot()
 		return
 	}
 	if action.Destructive() && !d.onlyPowersOn(action) {
@@ -433,12 +444,15 @@ func (d *DeviceWindow) setPowerBusy(busy bool) {
 // powerAllowed reports whether the Power menu offers action in the current state. Unknown
 // state (failed read) offers everything, as before the redesign. Shutdown also needs the device
 // to list Off - Soft Graceful (12), which AMT does only while LMS runs; unknown power states
-// (not read yet or failed) lock it.
+// (not read yet or failed) lock it. Boot from ISO needs a mounted image.
 func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 	if d.aborted || d.powerBusy {
 		return false
 	}
 	if action == amt.PowerShutdown && !d.canShutdown {
+		return false
+	}
+	if action == amt.BootToISO && !d.media.mounted() {
 		return false
 	}
 	if !d.powerKnown {
@@ -448,7 +462,7 @@ func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 	case d.powerState == models.PowerStateOn:
 		return action != amt.PowerOn
 	case isOff(d.powerState):
-		return action == amt.PowerOn || action == amt.BootToBIOS // BootToBIOS powers on a machine that is off
+		return action == amt.PowerOn || action == amt.BootToBIOS || action == amt.BootToISO // both power on a machine that is off
 	}
 	return true // sleeping, hibernating or a state without a name: every action applies
 }

@@ -27,30 +27,36 @@ import (
 // uiShotSize is the window size of the mockups (Main.dc.html and the others).
 var uiShotSize = fyne.NewSize(1280, 800)
 
-// uiShotPage is one device management page to render: the file name and what makes the page
-// show (setup may be nil). Settings and Users get one line each once they are built.
+// uiShotPage is one device management page to render: the file name, the window size (zero:
+// uiShotSize) and what makes the page show (setup may be nil).
 type uiShotPage struct {
 	file  string
 	page  int // index in manager.pages
+	size  fyne.Size
 	setup func(p *managePane)
 }
 
 // uiShotSidebar are the sidebar pages, uiShotWindow the pages of the window of their own.
 var (
 	uiShotSidebar = []uiShotPage{
-		{"01-device-sidebar-hardware.png", 0, nil},
-		{"02-device-sidebar-events.png", 1, nil},
-		{"03-device-sidebar-audit.png", 2, nil},
+		{"01-device-sidebar-hardware.png", 0, fyne.Size{}, nil},
+		{"02-device-sidebar-events.png", 1, fyne.Size{}, nil},
+		{"03-device-sidebar-audit.png", 2, fyne.Size{}, nil},
+		{"04-device-sidebar-settings.png", 3, fyne.Size{}, nil},
+		{"05-device-sidebar-users.png", 4, fyne.Size{}, nil},
 	}
 	uiShotWindow = []uiShotPage{
-		{"10-window-hardware.png", 0, nil},
-		{"11-window-events.png", 1, func(p *managePane) { p.impl.(*logPane).filter.SetText("boot") }},
-		{"12-window-audit.png", 2, nil},
+		{"10-window-hardware.png", 0, fyne.Size{}, nil},
+		{"11-window-events.png", 1, fyne.Size{}, func(p *managePane) { p.impl.(*logPane).filter.SetText("boot") }},
+		{"12-window-audit.png", 2, fyne.Size{}, nil},
+		{"13-window-settings.png", 3, fyne.NewSize(1280, 880), nil}, // high enough for the Danger zone
+		{"14-window-users.png", 4, fyne.Size{}, nil},
 	}
 )
 
-// TestUIBuildShots renders the device window with device management, Media, the questions of
-// Media and Console and the Console view, light, English, at the mockups' 1280 x 800, into
+// TestUIBuildShots renders the device window with device management (also Settings at 1280 x 880,
+// so the Danger zone shows), the dialogs of Settings and Users, Media, the questions of Media
+// and Console and the Console view, light, English, at the mockups' 1280 x 800, into
 // $OPENLAMT_UI_SHOTS for review against the mockups (issues #1 and #3). Skipped without the
 // variable. The device is a session.Fake with kvmtest, idertest and soltest servers and made-up
 // data only. Run:
@@ -85,8 +91,12 @@ func TestUIBuildShots(t *testing.T) {
 	test.Tap(m.side.popOut)
 	w := m.win
 	scaleWindow(w.win)
-	w.win.Resize(uiShotSize)
 	for _, p := range uiShotWindow {
+		size := p.size
+		if size.IsZero() {
+			size = uiShotSize
+		}
+		w.win.Resize(size)
 		w.showPage(p.page)
 		h.settle()
 		if p.setup != nil {
@@ -95,6 +105,8 @@ func TestUIBuildShots(t *testing.T) {
 		h.readAgo(m)
 		h.shot(p.file, w.win)
 	}
+	w.win.Resize(uiShotSize)
+	h.manageDialogs(w)
 	w.win.Close()
 
 	// 20, 21, 30: Media with nothing mounted; a folder ISO being built; IDE-R is off.
@@ -237,13 +249,13 @@ func newUIShots(t *testing.T, dir string) *uiShots {
 	h.ider = idertest.Start(t, idertest.Options{Username: "admin", Password: "pw"})
 	h.sol = soltest.Start(t, soltest.Options{Username: "admin", Password: "pw"})
 	on := amt.Status{PowerState: models.PowerStateOn, AMTVersion: "16.1.25", ControlMode: amt.ControlModeAdmin}
-	h.dev = &session.Fake{St: on, FP: fp, HW: uiShotHardware(), Events: uiShotEvents(), Audit: uiShotAudit(),
+	h.dev = &session.Fake{St: on, FP: certFP, HW: uiShotHardware(), Events: uiShotEvents(), Audit: uiShotAudit(),
 		KVMAddr: kvmSrv.Addr, KVMUser: "admin", KVMPassword: "pw",
 		IDERAddr: h.ider.Addr, IDERUser: "admin", IDERPassword: "pw"}
 	h.dev.SOL.Addr, h.dev.SOL.User, h.dev.SOL.Password = h.sol.Addr, "admin", "pw"
-	h.dev.Cfg.Settings.Features.IDER, h.dev.Cfg.Settings.Features.SOL = true, true
+	h.dev.Cfg.Settings, h.dev.Cfg.Certificates, h.dev.Cfg.Users = exampleSettings(), exampleCerts(), uiShotUsers()
 
-	cfg := amt.Config{Host: "192.0.2.10", Username: "admin", UseTLS: true, Fingerprint: fp}
+	cfg := amt.Config{Host: "192.0.2.10", Username: "admin", UseTLS: true, Fingerprint: certFP}
 	sess, st, err := session.Open(context.Background(), cfg, nil, session.ConnectFake(h.dev))
 	if err != nil {
 		t.Fatal(err)
@@ -291,6 +303,77 @@ func newUIShots(t *testing.T, dir string) *uiShots {
 		t.Fatalf("KVM not connected: %d errors", len(h.errs))
 	}
 	return h
+}
+
+// manageDialogs renders the dialogs of Settings and Users on the window of its own w (34–39,
+// 41, 42) in the states of Danger.dc.html and Forms.dc.html.
+func (h *uiShots) manageDialogs(w *manageWindow) {
+	host := h.d.sess.Config().Host
+	w.showPage(3)
+	h.settle()
+	sp := w.view.panes[3].impl.(*settingsPane)
+
+	// 34: orange, the box ticked
+	sp.host.SetText("lab01")
+	sp.host.OnSubmitted(sp.host.Text)
+	test.Tap(sp.dialog.check)
+	w.win.Canvas().Unfocus() // the resting state: no focus ring around the ticked box
+	h.shot("34-dialog-host-name.png", w.win)
+	sp.dialog.Dismiss()
+
+	// 35: red, the address typed correctly
+	test.Tap(sp.turnOff)
+	sp.dialog.entry.SetText(host)
+	h.shot("35-dialog-turn-off-amt.png", w.win)
+	sp.dialog.Dismiss()
+
+	// 39: Static chosen, the address typed
+	sp.address.Tap(1)
+	sp.dialog.entry.SetText(host)
+	h.shot("39-dialog-network.png", w.win)
+	sp.dialog.Dismiss()
+
+	// 41: the certificates are read first; nothing chosen yet
+	test.Tap(sp.change)
+	h.settle()
+	h.shot("41-dialog-tls.png", w.win)
+	sp.dialog.Dismiss()
+
+	w.showPage(4)
+	h.settle()
+	up := w.view.panes[4].impl.(*usersPane)
+
+	// 36: the address one digit short while typing: the button stays disabled, the field red
+	test.Tap(up.table.lines[0].edit)
+	ad := up.adminDlg
+	ad.pw.SetText(newPassword)
+	ad.repeat.SetText(newPassword)
+	ad.entry.SetText(host[:len(host)-1])
+	h.shot("36-dialog-admin-account.png", w.win)
+	ad.Dismiss()
+
+	// 37: Add user as in Forms.dc.html
+	test.Tap(up.add)
+	a := up.userDlg
+	a.name.SetText("helpdesk")
+	a.pw.SetText(newPassword)
+	a.repeat.SetText(newPassword)
+	for _, i := range []int{0, 1, 2} { // Power control; KVM, media, console; Hardware
+		test.Tap(a.checks[i])
+	}
+	w.win.Canvas().Unfocus()
+	h.shot("37-dialog-add-user.png", w.win)
+	a.Dismiss()
+
+	// 38: Edit user "helpdesk"
+	test.Tap(up.table.lines[1].edit)
+	h.shot("38-dialog-edit-user.png", w.win)
+	up.userDlg.Dismiss()
+
+	// 42
+	ns := showNotSavedDialog(w.win, h.d.name, newPassword)
+	h.shot("42-dialog-password-not-saved.png", w.win)
+	ns.Dismiss()
 }
 
 // settle applies the read results of device management until none arrives for a moment.
@@ -403,6 +486,18 @@ func uiShotEvents() []amt.EventLogEntry {
 			Source: "BIOS", Description: older[i%len(older)]})
 	}
 	return e
+}
+
+// uiShotUsers are the accounts of Users.dc.html: the signed-in admin, helpdesk, the disabled
+// monitor and the system account.
+func uiShotUsers() amt.UserList {
+	return amt.UserList{Admin: "admin", Users: []amt.User{
+		{Handle: 1, Name: "helpdesk", Access: amt.AccessNetwork, Enabled: true, EnabledKnown: true,
+			Realms: []amt.Realm{amt.RealmRemoteControl, amt.RealmRedirection}},
+		{Handle: 2, Name: "monitor", Access: amt.AccessNetwork, EnabledKnown: true,
+			Realms: []amt.Realm{amt.RealmEventLogReader, amt.RealmHardwareAsset}},
+		{Handle: 3, Name: "$$OsAdmin", Access: amt.AccessLocal, System: true, Realms: []amt.Realm{amt.RealmLocalUN}},
+	}}
 }
 
 // uiShotAudit is a made-up audit log.

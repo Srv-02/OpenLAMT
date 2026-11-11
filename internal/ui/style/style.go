@@ -88,6 +88,8 @@ const (
 	ColorNameDangerBoxBorder  fyne.ThemeColorName = "openlamt-danger-box-border"  // #F0B8C0 red warning box border
 	ColorNameDangerZoneText   fyne.ThemeColorName = "openlamt-danger-zone-text"   // #A3001A danger zone heading and text
 	ColorNameDangerBoxText    fyne.ThemeColorName = "openlamt-danger-box-text"    // #7A0014 red warning box text
+	ColorNameSignedInSurface  fyne.ThemeColorName = "openlamt-signed-in-surface"  // #FFF5F6 Edit button of the signed-in account (Users.dc.html)
+	ColorNameSignedInBorder   fyne.ThemeColorName = "openlamt-signed-in-border"   // #E7B3BA its border; its text is ColorNameDangerZoneText
 	ColorNameWarningSurface   fyne.ThemeColorName = "openlamt-warning-surface"    // #FFF1E5 orange warning box, orange question tile
 	ColorNameWarningBorder    fyne.ThemeColorName = "openlamt-warning-border"     // #F3CFAE orange warning box border
 	ColorNameWarningText      fyne.ThemeColorName = "openlamt-warning-text"       // #6B2C00 orange warning box text
@@ -253,6 +255,8 @@ var darkColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameDangerBoxBorder:  color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.35)},
 	ColorNameDangerZoneText:   rgb(0xFF6961),
 	ColorNameDangerBoxText:    rgb(0xFF8A80),
+	ColorNameSignedInSurface:  color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.08)},
+	ColorNameSignedInBorder:   color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.40)},
 	ColorNameWarningSurface:   color.NRGBA{R: 0xFF, G: 0x9F, B: 0x0A, A: alpha(0.12)},
 	ColorNameWarningBorder:    color.NRGBA{R: 0xFF, G: 0x9F, B: 0x0A, A: alpha(0.40)},
 	ColorNameWarningText:      rgb(0xFFC78A),
@@ -360,6 +364,8 @@ var lightColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameDangerBoxBorder:  rgb(0xF0B8C0),
 	ColorNameDangerZoneText:   rgb(0xA3001A),
 	ColorNameDangerBoxText:    rgb(0x7A0014),
+	ColorNameSignedInSurface:  rgb(0xFFF5F6),
+	ColorNameSignedInBorder:   rgb(0xE7B3BA),
 	ColorNameWarningSurface:   rgb(0xFFF1E5),
 	ColorNameWarningBorder:    rgb(0xF3CFAE),
 	ColorNameWarningText:      rgb(0x6B2C00),

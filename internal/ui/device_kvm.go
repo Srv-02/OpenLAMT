@@ -100,7 +100,8 @@ func (d *DeviceWindow) buildKVM() {
 // running session reconnects with it, switchQuality); full screen and Ctrl+Alt+Del need a
 // session; "Type clipboard" additionally needs its hook (set in buildKVM). In the Console view
 // Ctrl+Alt+Del and Type Clipboard of the toolbar go to the console and stay enabled; the full
-// screen bar always belongs to KVM. Status bar and empty state follow.
+// screen bar always belongs to KVM. Manage follows syncManageBtn. Status bar and empty state
+// follow.
 func (d *DeviceWindow) setKVMControls() {
 	connected := d.kvmClient != nil || d.kvmReconnecting // a reconnect keeps the controls as they are
 	console := d.consoleView
@@ -119,6 +120,7 @@ func (d *DeviceWindow) setKVMControls() {
 	enable(d.barCad, connected)
 	enable(d.clipBtn, (connected && d.onTypeClipboard != nil) || console)
 	enable(d.barClip, connected && d.onTypeClipboard != nil)
+	d.syncManageBtn()
 	d.refreshKVMLine()
 	d.refreshEmptyState()
 }

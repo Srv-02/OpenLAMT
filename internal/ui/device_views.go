@@ -188,7 +188,18 @@ func (d *DeviceWindow) setManageOpen(open bool) {
 		d.managePane.Hide()
 	}
 	d.manageBtn.SetActive(open)
+	d.syncManageBtn()
 	d.body.Refresh()
+}
+
+// syncManageBtn locks Manage after an abort, so it does not open device management on the dead
+// session; a sidebar that is open then stays closable until it is closed.
+func (d *DeviceWindow) syncManageBtn() {
+	if d.aborted && !d.manageOpen() {
+		d.manageBtn.Disable()
+	} else {
+		d.manageBtn.Enable()
+	}
 }
 
 // setMediaStatus shows text ("ISO mounted · 18.2 MB/s") in the accent color before TLS in the

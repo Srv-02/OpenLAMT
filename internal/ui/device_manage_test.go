@@ -167,6 +167,40 @@ func TestMismatchClosesManagement(t *testing.T) {
 	}
 }
 
+// TestAbortLocksClosedManage: after a certificate mismatch, Manage does not open device
+// management on the dead session; an open sidebar stays closable and then Manage is locked too.
+func TestAbortLocksClosedManage(t *testing.T) {
+	mm := &amt.FingerprintMismatchError{Host: "device.example.com", Expected: fp, Actual: strings.Repeat("cd", 32)}
+
+	h := newManageDevice(t, &session.Fake{HW: exampleHW()})
+	h.d.apply(amt.Status{}, mm)
+	<-h.errs
+	if !h.d.manageBtn.Disabled() {
+		t.Fatal("Manage enabled after the abort")
+	}
+	test.Tap(h.d.manageBtn)
+	if h.d.manager != nil || h.d.manageOpen() {
+		t.Fatal("Manage opened device management on the aborted session")
+	}
+
+	h2 := newManageDevice(t, &session.Fake{HW: exampleHW()})
+	test.Tap(h2.d.manageBtn)
+	h2.wait(t)
+	h2.d.apply(amt.Status{}, mm)
+	<-h2.errs
+	if h2.d.manageBtn.Disabled() || !h2.d.manageOpen() {
+		t.Fatalf("open sidebar: Manage disabled %v, open %v", h2.d.manageBtn.Disabled(), h2.d.manageOpen())
+	}
+	test.Tap(h2.d.manageBtn)
+	if h2.d.manageOpen() || !h2.d.manageBtn.Disabled() {
+		t.Fatalf("after closing: open %v, Manage disabled %v", h2.d.manageOpen(), h2.d.manageBtn.Disabled())
+	}
+	test.Tap(h2.d.manageBtn)
+	if h2.d.manageOpen() {
+		t.Fatal("the closed sidebar opened again after the abort")
+	}
+}
+
 // TestDeviceWindowGetsLoginStore: the start window hands its favorites manager to the device
 // window, which passes it to device management.
 func TestDeviceWindowGetsLoginStore(t *testing.T) {

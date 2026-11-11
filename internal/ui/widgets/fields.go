@@ -104,7 +104,8 @@ func NewFilterField(changed func(string)) *FilterField {
 	icon := NewSymbol(icons.GetStroke(icons.Search, icons.Secondary, 2), filterIconSize)
 	lead := container.New(layout.NewCustomPaddedLayout(0, 0, filterPadH, 0), container.NewCenter(icon))
 	right := container.New(layout.NewCustomPaddedLayout(0, 0, 0, filterPadH-3), container.NewCenter(f.clear))
-	f.content = container.NewStack(bg, container.NewBorder(nil, nil, lead, right, container.NewThemeOverride(f.Entry, fieldTheme{})))
+	entry := container.New(middleLayout{}, container.NewThemeOverride(f.Entry, fieldTheme{}))
+	f.content = container.NewStack(bg, container.NewBorder(nil, nil, lead, right, entry))
 	f.ExtendBaseWidget(f)
 	return f
 }
@@ -122,6 +123,26 @@ func (f *FilterField) syncClear() { setVisible(f.clear, f.Entry.Text != "") }
 
 func (f *FilterField) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(f.content)
+}
+
+// middleLayout gives its objects the full width and their own height, in the vertical middle:
+// Fyne draws an entry's text at the top of the entry, so a taller entry looks too high.
+type middleLayout struct{}
+
+func (middleLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	for _, o := range objs {
+		h := min(size.Height, o.MinSize().Height)
+		o.Move(fyne.NewPos(0, (size.Height-h)/2))
+		o.Resize(fyne.NewSize(size.Width, h))
+	}
+}
+
+func (middleLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	var s fyne.Size
+	for _, o := range objs {
+		s = s.Max(o.MinSize())
+	}
+	return s
 }
 
 // clearButton is the round gray clear button of the filter field.

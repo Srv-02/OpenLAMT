@@ -543,6 +543,58 @@ func TestMediaSessionEndedByDevice(t *testing.T) {
 	}
 }
 
+// TestMediaButtonActiveWhileMounted: the Media button shows the active accent exactly while an
+// image is mounted: not while idle or while a folder ISO is built, and no longer after Unmount
+// or after the device ended the session.
+func TestMediaButtonActiveWhileMounted(t *testing.T) {
+	dev := &session.Fake{}
+	h := newMediaDevice(t, dev)
+	want := func(step string, on bool) {
+		t.Helper()
+		if h.d.mediaBtn.Active() != on {
+			t.Fatalf("%s: Media active %v, want %v (phase %d)", step, !on, on, h.m.phase)
+		}
+	}
+	want("idle", false)
+
+	dir := sourceFolder(t)
+	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
+	progressed, release := make(chan struct{}), make(chan struct{})
+	first := true
+	h.m.onBuildProgress = func(done, total int64) {
+		if first {
+			first = false
+			progressed <- struct{}{}
+			<-release
+		}
+	}
+	h.tapItem(t, itemFolder)
+	<-progressed
+	want("building", false)
+	h.tapItem(t, itemCancel)
+	close(release)
+	h.wait(t, "prepared")
+	want("cancelled", false)
+
+	iso := writeISO(t, "alpine-standard.iso", 8192)
+	h.mountISO(t, iso)
+	want("mounted", true)
+	h.tick()
+	want("reading", true)
+	h.tapItem(t, itemUnmount)
+	want("unmounted", false)
+	h.wait(t, "unmounted")
+
+	p := h.mountISO(t, iso)
+	want("mounted again", true)
+	p.Close(t)
+	h.wait(t, "ended")
+	want("ended by the device", false)
+	if err := <-h.errs; !errors.Is(err, ider.ErrClosedByDevice) {
+		t.Fatalf("reported %v", err)
+	}
+}
+
 // TestBootFromISOFollowsMount: "Boot from ISO…" sits between Reboot to BIOS and the separator
 // before Shutdown and is enabled only while an ISO is mounted, also on a device that is off.
 func TestBootFromISOFollowsMount(t *testing.T) {

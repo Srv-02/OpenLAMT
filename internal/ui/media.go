@@ -28,8 +28,9 @@ import (
 // preparing shows the name, for a folder ISO the build progress, and Cancel; mounted shows the
 // name and the read rate, "Boot from ISO on next start" with a check mark, "Restart from ISO…"
 // and Unmount. The image is mounted over IDE-R as a read-only CD drive. While it is mounted the
-// status bar reads "ISO mounted · x MB/s" and the Power menu offers "Boot from ISO…". Closing the
-// window with an image mounted (or being prepared) asks first.
+// Media button is active (accent, like Manage open), the status bar reads "ISO mounted · x MB/s"
+// and the Power menu offers "Boot from ISO…". Closing the window with an image mounted (or being
+// prepared) asks first.
 
 // mediaDialogSize is the size of the file and folder dialogs.
 var mediaDialogSize = fyne.NewSize(800, 540)
@@ -169,6 +170,7 @@ func (m *mediaPanel) reset() {
 	m.done, m.total = 0, 0
 	m.bootNext, m.bootBusy, m.bootDone = false, false, nil
 	m.rate = rateMeter{}
+	m.d.mediaBtn.SetActive(false)
 	m.d.setMediaStatus("")
 	m.d.updatePowerItems()
 	m.render()
@@ -427,6 +429,7 @@ func (m *mediaPanel) opened(ctx context.Context, c *ider.Client, err error) {
 	}
 	mt := &mediaMount{c: c}
 	m.phase, m.mount = mediaMounted, mt
+	m.d.mediaBtn.SetActive(true) // the accent of a toggled toolbar item, like Manage open
 	m.rate = rateMeter{}
 	m.stopTick = m.ticker(m.tick)
 	go func() {

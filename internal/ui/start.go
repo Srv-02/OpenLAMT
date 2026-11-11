@@ -147,7 +147,8 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 	s.buildDetail()
 	s.win.SetPadded(false) // sidebar and detail pane reach the window edges, as in the design
 	s.win.SetContent(container.New(sidebarLayout{}, s.buildSidebar(), s.detail))
-	s.win.Resize(fyne.NewSize(1000, 660))
+	// 760 like the device window: the settings dialog (700) fits without scrolling.
+	s.win.Resize(fyne.NewSize(1000, 760))
 	// Master window: closing it quits the app, so a TrustPrompt dialog still open on it cannot
 	// keep the process alive (the connector goroutine waits for the answer). Device windows are
 	// closed first (the glfw driver runs onClosed before it quits) so that every KVM session

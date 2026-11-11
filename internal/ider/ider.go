@@ -127,10 +127,21 @@ const (
 	regsToggle = 3 // Constants.ts:5
 )
 
-// readTimeout is 3 x the 20 s heartbeat we ask for in OPEN_SESSION; AMT sends 0x4B messages
-// when idle (to be confirmed on a device, spec R5). Renewed for every received message, applies
-// to reads only. A variable so tests can shorten it.
+// readTimeout is 3 x the 20 s heartbeat we ask for in OPEN_SESSION. Renewed for every received
+// message, including AMT's PONG to our keepalive ping, so it only fires when AMT stays silent for
+// a full minute; it then ends the session with a deadline error (never io.EOF). Applies to reads
+// only. A variable so tests can shorten it.
 var readTimeout = 60 * time.Second
+
+// keepaliveInterval is the period of the client's KEEPALIVEPING (0x44) from the OPEN_SESSION
+// reply until the session ends. A host that does not poll the drive (UEFI firmware, unlike a running
+// OS) otherwise leaves the session without client traffic, and AMT closed it on the device after
+// about a minute. MeshCommander and MeshCentral carry this timer commented out since their first
+// commit, with a 5 s period and no reason given (amt-ider-ws-0.0.1.js:103,
+// amt/amt-ider-module.js:142, agents/modules_meshcmd/amt-ider.js:89); ui-toolkit has none.
+// AMT answers with KEEPALIVEPONG (0x45), which also renews readTimeout. A variable so tests can
+// shorten it.
+var keepaliveInterval = 2 * time.Second
 
 // toggleTimeout is how long Dial waits for STATUS_DATA type 3 after the toggle (spec R6).
 var toggleTimeout = 5 * time.Second
@@ -180,12 +191,17 @@ type Client struct {
 	reads     atomic.Int64
 	lastRead  atomic.Int64 // unix nanoseconds, 0 = never
 
-	closing  atomic.Bool
-	mu       sync.Mutex
-	err      error
-	imgErr   error
-	done     chan struct{}
-	finished bool
+	closing atomic.Bool
+	mu      sync.Mutex
+	err     error
+	imgErr  error
+	done    chan struct{}
+
+	pingStop  chan struct{} // closed by stopPinger; nil until the OPEN_SESSION reply
+	pingDone  chan struct{} // closed when the ping goroutine has returned
+	pingOnce  sync.Once
+	pingsSent atomic.Int64
+	finished  bool
 }
 
 // Dial connects, authenticates, opens the IDE-R session (OPEN_SESSION 0x40, rx_timeout 30000,
@@ -209,11 +225,14 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 		TLS: cfg.TLS, DialContext: cfg.DialContext,
 	}, redir.IDER, c.open)
 	if err != nil {
+		c.stopPinger()
 		return nil, err
 	}
 	// After the authentication success there is no further redirection-layer command: the IDE-R
 	// messages start right away (AMTRedirector.ts:417-421), the client sends OPEN_SESSION first.
+	c.wmu.Lock() // the ping goroutine may already be sending
 	c.conn, c.raw, c.br, c.w = rc.Conn, rc.Raw, rc.R, rc.Conn
+	c.wmu.Unlock()
 	c.started = time.Now()
 	go c.run()
 	return c, nil
@@ -414,7 +433,42 @@ func (c *Client) handleOpenSession(b []byte) error {
 	}
 	c.readBuf = readbfr
 	c.opened = true
+	c.startPinger()
 	return c.sendToggle()
+}
+
+// startPinger starts the KEEPALIVEPING timer once (see keepaliveInterval). Pings go through send,
+// so they take the write mutex and never interleave with a data reply.
+func (c *Client) startPinger() {
+	if c.pingStop != nil {
+		return
+	}
+	c.pingStop, c.pingDone = make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(c.pingDone)
+		t := time.NewTicker(keepaliveInterval)
+		defer t.Stop()
+		for {
+			select {
+			case <-c.pingStop:
+				return
+			case <-t.C:
+			}
+			if err := c.send(cmdPing, false, false); err != nil {
+				return // a broken connection ends the session through the read loop
+			}
+			c.pingsSent.Add(1)
+		}
+	}()
+}
+
+// stopPinger stops the ping goroutine and waits for it; safe without a started pinger and twice.
+func (c *Client) stopPinger() {
+	if c.pingStop == nil {
+		return
+	}
+	c.pingOnce.Do(func() { close(c.pingStop) })
+	<-c.pingDone
 }
 
 func (c *Client) handleStatusData(b []byte) error {
@@ -466,6 +520,7 @@ func (c *Client) finish(err error) {
 	c.mu.Unlock()
 	_ = c.raw.SetDeadline(time.Unix(1, 0))
 	c.conn.Close()
+	c.stopPinger() // after the past deadline, so a ping blocked in Write returns at once
 	imgErr := c.img.Close()
 	c.mu.Lock()
 	c.imgErr = imgErr

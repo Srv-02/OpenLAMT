@@ -95,10 +95,11 @@ type mediaPanel struct {
 	done, total int64       // folder build progress in bytes
 	info        *mkiso.Info // the folder ISO is built
 
-	mount    *mediaMount // the running session while mounted
-	size     int64       // image size in bytes
-	bootNext bool        // "Boot from this ISO on the next start" is ticked
-	bootBusy bool        // NextBootFromISO or ClearISOBoot of the checkbox runs
+	mount    *mediaMount   // the running session while mounted
+	size     int64         // image size in bytes
+	bootNext bool          // "Boot from this ISO on the next start" is ticked
+	bootBusy bool          // NextBootFromISO or ClearISOBoot of the checkbox runs
+	bootDone chan struct{} // closed when that call returned; set while bootBusy
 	rate     rateMeter
 	stopTick func()
 
@@ -194,7 +195,7 @@ func (m *mediaPanel) reset() {
 	m.phase, m.ctx, m.cancel, m.stopTick = mediaIdle, nil, nil, nil
 	m.mount, m.info, m.size = nil, nil, 0
 	m.done, m.total = 0, 0
-	m.bootNext, m.bootBusy = false, false
+	m.bootNext, m.bootBusy, m.bootDone = false, false, nil
 	m.rate = rateMeter{}
 	m.d.setMediaStatus("")
 	m.d.updatePowerItems()
@@ -458,10 +459,11 @@ func (m *mediaPanel) ended(mt *mediaMount) {
 	if m.mount != mt {
 		return
 	}
-	err, boot := mt.c.Err(), m.bootNext
+	err := mt.c.Err()
+	boot, after := m.bootToClear()
 	m.reset()
 	if boot {
-		m.clearBoot()
+		m.clearBoot(after)
 	}
 	if !errors.Is(err, ider.ErrClosed) {
 		m.report(err)
@@ -474,7 +476,8 @@ func (m *mediaPanel) unmount() {
 	if m.phase != mediaMounted {
 		return
 	}
-	mt, boot := m.mount, m.bootNext
+	mt := m.mount
+	boot, after := m.bootToClear()
 	mt.detached.Store(true)
 	m.reset()
 	sess := m.d.sess
@@ -484,6 +487,7 @@ func (m *mediaPanel) unmount() {
 		mt.c.Close()
 		var err error
 		if boot {
+			waitBoot(after)
 			err = sess.ClearISOBoot()
 		}
 		fyne.Do(func() {
@@ -506,7 +510,9 @@ func (m *mediaPanel) release(clearBoot bool) func() {
 		m.askIDER = nil
 		q.Dismiss() // closes the image
 	}
-	mt, boot := m.mount, m.bootNext && clearBoot
+	mt := m.mount
+	boot, after := m.bootToClear()
+	boot = boot && clearBoot
 	if mt != nil {
 		mt.detached.Store(true)
 	}
@@ -518,6 +524,7 @@ func (m *mediaPanel) release(clearBoot bool) func() {
 	return func() {
 		mt.c.Close()
 		if boot {
+			waitBoot(after)
 			_ = sess.ClearISOBoot()
 		}
 	}
@@ -531,7 +538,8 @@ func (m *mediaPanel) setBootNext(on bool) {
 	if m.syncing || m.phase != mediaMounted || m.bootBusy || on == m.bootNext {
 		return
 	}
-	m.bootNext, m.bootBusy = on, true
+	done := make(chan struct{})
+	m.bootNext, m.bootBusy, m.bootDone = on, true, done
 	m.syncCheck()
 	mt, sess, hook := m.mount, m.d.sess, m.beforeBoot
 	go func() {
@@ -544,16 +552,16 @@ func (m *mediaPanel) setBootNext(on bool) {
 		} else {
 			err = sess.ClearISOBoot()
 		}
+		close(done)
 		fyne.Do(func() { m.bootSet(mt, on, err) })
 	}()
 }
 
+// bootSet ends a change of the checkbox. After an unmount (or a closed window) meanwhile, the
+// unmount has cleared the option after this call (bootToClear), so only the error is left.
 func (m *mediaPanel) bootSet(mt *mediaMount, on bool, err error) {
 	defer m.event("boot")
-	if m.mount != mt { // unmounted meanwhile: the image is gone, the option must not stay set
-		if on && err == nil && !m.d.closed {
-			m.clearBoot()
-		}
+	if m.mount != mt {
 		m.report(err)
 		return
 	}
@@ -565,11 +573,30 @@ func (m *mediaPanel) bootSet(mt *mediaMount, on bool, err error) {
 	m.report(err)
 }
 
-// clearBoot clears the IDE-R boot option off the Fyne thread.
-func (m *mediaPanel) clearBoot() {
+// bootToClear reports whether ending the mount must clear the boot option: it is set, or a
+// change of the checkbox still runs (it may set it after a clear sent now). after is closed when
+// that change returned; the clear has to wait for it (waitBoot). Call before reset.
+func (m *mediaPanel) bootToClear() (boot bool, after <-chan struct{}) {
+	if m.bootBusy {
+		return true, m.bootDone
+	}
+	return m.bootNext, nil
+}
+
+// waitBoot waits for a running change of the checkbox (bootToClear); off the Fyne thread.
+func waitBoot(after <-chan struct{}) {
+	if after != nil {
+		<-after
+	}
+}
+
+// clearBoot clears the IDE-R boot option off the Fyne thread, after the change of the checkbox
+// that after belongs to (nil for none).
+func (m *mediaPanel) clearBoot(after <-chan struct{}) {
 	sess := m.d.sess
 	done := m.d.exitWork.add()
 	go func() {
+		waitBoot(after)
 		err := sess.ClearISOBoot()
 		done()
 		fyne.Do(func() {

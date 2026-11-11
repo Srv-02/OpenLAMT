@@ -735,3 +735,79 @@ func TestExitWaitsForACancelledFolderBuild(t *testing.T) {
 		t.Fatalf("images %v", cachedISOs(t))
 	}
 }
+
+// TestCloseWhileSettingTheBootOptionClearsItAfterwards: the window closes while "Boot from this
+// ISO on the next start" is still being set; the boot option is cleared after it was set, not
+// before, so it does not stay set without the image.
+func TestCloseWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
+	dev := &session.Fake{}
+	h := newMediaDevice(t, dev)
+	h.d.exitWork = &pendingWork{}
+	clearsAtBoot := make(chan int, 1)
+	h.m.beforeBoot = func() {
+		<-h.bootGo
+		_, cl := dev.ISOCalls()
+		clearsAtBoot <- cl
+	}
+	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
+	c := h.m.mount.c
+	test.Tap(h.m.ui.check) // NextBootFromISO waits for bootGo
+	interceptOf(h.d.win)()
+	test.Tap(h.question(t, "An ISO is still mounted")[1])
+	recv(t, h.closed)
+	select {
+	case <-c.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("ISO not unmounted")
+	}
+	// Give an early ClearISOBoot of the shutdown the time to run.
+	for end := time.Now().Add(100 * time.Millisecond); time.Now().Before(end); time.Sleep(2 * time.Millisecond) {
+		if _, cl := dev.ISOCalls(); cl != 0 {
+			break
+		}
+	}
+	h.bootGo <- struct{}{}
+	if cl := <-clearsAtBoot; cl != 0 {
+		t.Fatalf("ClearISOBoot ran before NextBootFromISO (%d)", cl)
+	}
+	if !h.d.exitWork.wait(5 * time.Second) {
+		t.Fatal("unmounting did not finish")
+	}
+	if n, cl := dev.ISOCalls(); n != 1 || cl != 1 {
+		t.Fatalf("NextBootFromISO %d, ClearISOBoot %d", n, cl)
+	}
+}
+
+// TestUnmountWhileSettingTheBootOptionClearsItAfterwards: the same for Unmount.
+func TestUnmountWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
+	dev := &session.Fake{}
+	h := newMediaDevice(t, dev)
+	clearsAtBoot := make(chan int, 1)
+	h.m.beforeBoot = func() {
+		<-h.bootGo
+		_, cl := dev.ISOCalls()
+		clearsAtBoot <- cl
+	}
+	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
+	c := h.m.mount.c
+	test.Tap(h.m.ui.check)
+	test.Tap(h.m.ui.unmount)
+	select {
+	case <-c.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("ISO not unmounted")
+	}
+	for end := time.Now().Add(100 * time.Millisecond); time.Now().Before(end); time.Sleep(2 * time.Millisecond) {
+		if _, cl := dev.ISOCalls(); cl != 0 {
+			break
+		}
+	}
+	h.bootGo <- struct{}{}
+	if cl := <-clearsAtBoot; cl != 0 {
+		t.Fatalf("ClearISOBoot ran before NextBootFromISO (%d)", cl)
+	}
+	h.wait(t, "unmounted")
+	if n, cl := dev.ISOCalls(); n != 1 || cl != 1 || len(h.errs) != 0 {
+		t.Fatalf("NextBootFromISO %d, ClearISOBoot %d", n, cl)
+	}
+}

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope" xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing">
+    <a:Header>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/08/addressing/fault</b:Action>
+    </a:Header>
+    <a:Body>
+        <a:Fault>
+            <a:Code>
+                <a:Value>a:Sender</a:Value>
+                <a:Subcode><a:Value>b:DestinationUnreachable</a:Value></a:Subcode>
+            </a:Code>
+            <a:Reason><a:Text xml:lang="en-US">No route can be determined to reach the destination role defined by the WSAddressing To.</a:Text></a:Reason>
+            <a:Detail></a:Detail>
+        </a:Fault>
+    </a:Body>
+</a:Envelope>

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:g="http://schemas.xmlsoap.org/ws/2004/09/enumeration"
+    xmlns:h="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BIOSElement">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000001</b:MessageID>
+        <c:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_BIOSElement</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <g:PullResponse>
+            <g:Items>
+                <h:CIM_BIOSElement>
+                    <h:Manufacturer>Backup Corp</h:Manufacturer>
+                    <h:Version>OLD0001</h:Version>
+                    <h:PrimaryBIOS>false</h:PrimaryBIOS>
+                </h:CIM_BIOSElement>
+                <h:CIM_BIOSElement>
+                    <h:Manufacturer>Example Corp</h:Manufacturer>
+                    <h:Version>EXB10001</h:Version>
+                    <h:PrimaryBIOS>true</h:PrimaryBIOS>
+                    <h:ReleaseDate>
+                        <h:Datetime>2026-01-15T00:00:00Z</h:Datetime>
+                    </h:ReleaseDate>
+                </h:CIM_BIOSElement>
+            </g:Items>
+            <g:EndOfSequence></g:EndOfSequence>
+        </g:PullResponse>
+    </a:Body>
+</a:Envelope>

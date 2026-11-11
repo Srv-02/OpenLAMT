@@ -399,11 +399,11 @@ func settingsGroup(title string, c fyne.ThemeColorName, card fyne.CanvasObject) 
 }
 
 // settingsButton is the white bordered button of a row ("Sync Now", "Change…"): radius 7,
-// padding 4 x 12, 13 px.
+// padding 4 x 12, 13 px regular.
 func settingsButton(text string, tapped func()) *widgets.PrimaryButton {
 	b := widgets.NewPrimaryButton(text, nil, tapped)
 	b.Importance = widget.MediumImportance
-	b.Metrics = &widgets.ButtonMetrics{Height: 26, Radius: 7, PaddingH: 12, TextSize: 13,
+	b.Metrics = &widgets.ButtonMetrics{Height: 26, Radius: 7, PaddingH: 12, TextSize: 13, Regular: true,
 		Neutral: style.ColorNameField, NeutralBorder: style.ColorNameControlBorder}
 	return b
 }

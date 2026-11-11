@@ -194,7 +194,7 @@ func newManager(a fyne.App, parent fyne.Window, sess *session.Session, name stri
 		{tab: lang.L("Hardware"), title: lang.L("Hardware"), icon: icons.Hardware, build: m.hardwarePane},
 		{tab: lang.L("Events"), title: lang.L("Event log"), icon: icons.EventLog, build: m.eventLogPane},
 		{tab: lang.L("Audit"), title: lang.L("Audit log"), icon: icons.AuditLog, build: m.auditLogPane},
-		{tab: lang.L("Settings"), title: lang.L("Settings"), icon: icons.Settings, build: m.settingsPane},
+		{tab: lang.L("Settings"), title: lang.L("Settings"), icon: icons.DeviceSettings, build: m.settingsPane},
 		{tab: lang.L("Users"), title: lang.L("Users"), icon: icons.Users, build: m.usersPane},
 	}
 	return m
@@ -733,11 +733,12 @@ func (e *manageError) set(err error) {
 // Text returns the shown text.
 func (e *manageError) Text() string { return e.label.Text }
 
-// newManageButton is the white bordered button of the page heads ("Refresh", WindowB.dc.html).
+// newManageButton is the white bordered button of the page heads ("Refresh", WindowB.dc.html;
+// "+ Add user", Users.dc.html), 13 px regular like the mockups.
 func newManageButton(text string, tapped func()) *widgets.PrimaryButton {
 	b := widgets.NewPrimaryButton(text, nil, tapped)
 	b.Importance = widget.MediumImportance
-	b.Metrics = &widgets.ButtonMetrics{Height: 30, Radius: 8, PaddingH: 12, TextSize: 13,
+	b.Metrics = &widgets.ButtonMetrics{Height: 30, Radius: 8, PaddingH: 12, TextSize: 13, Regular: true,
 		Neutral: style.ColorNameField, NeutralBorder: style.ColorNameControlBorder}
 	return b
 }

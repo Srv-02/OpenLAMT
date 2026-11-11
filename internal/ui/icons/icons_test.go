@@ -23,8 +23,8 @@ func TestAllSymbolsEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 35 || len(All) != 33 || len(Filled) != 2 {
-		t.Fatalf("%d files, %d stroked, %d filled; want 35, 33, 2", len(entries), len(All), len(Filled))
+	if len(entries) != 36 || len(All) != 34 || len(Filled) != 2 {
+		t.Fatalf("%d files, %d stroked, %d filled; want 36, 34, 2", len(entries), len(All), len(Filled))
 	}
 	for _, n := range Filled {
 		b, err := files.ReadFile("svg/" + string(n) + ".svg")
@@ -199,7 +199,7 @@ func TestRenderFollowsThemeVariant(t *testing.T) {
 // TestDeviceManagementSymbols pins the symbols and stroke colors of the device management design
 // (Main.dc.html, WindowB.dc.html, Media.dc.html, Dialogs.dc.html, Danger.dc.html).
 func TestDeviceManagementSymbols(t *testing.T) {
-	for _, n := range []Name{Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning} {
+	for _, n := range []Name{Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings} {
 		if !slices.Contains(All, n) {
 			t.Errorf("%s missing in All", n)
 		}

@@ -76,6 +76,8 @@ const (
 	AuditLog Name = "audit-log" // shield: navigation Audit log
 	Users    Name = "users"     // navigation Users
 	Warning  Name = "warning"   // triangle: orange and red warning boxes, orange question tile
+
+	DeviceSettings Name = "device-settings" // navigation Settings (Settings.dc.html)
 )
 
 // Filled symbols (no stroke): the file's fill is recolored like the stroke of the others.
@@ -89,7 +91,7 @@ const (
 var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, Fullscreen, Settings,
 	Server, Search, Lock, Eye, Edit, Duplicate, Delete, Add, Connect, Key, ChevronDown,
 	Coffee, ExternalLink, Info, Clear,
-	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning}
+	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}

@@ -221,7 +221,7 @@ func cellSeg(text string, c fyne.ThemeColorName, s fyne.ThemeSizeName, bold bool
 func newUserEditButton(compact, signedIn bool, tapped func()) *widgets.PrimaryButton {
 	b := widgets.NewPrimaryButton(lang.L("Edit"), nil, tapped)
 	b.Importance = widget.MediumImportance
-	m := &widgets.ButtonMetrics{Height: 28, Radius: 8, PaddingH: 12, TextSize: 13,
+	m := &widgets.ButtonMetrics{Height: 28, Radius: 8, PaddingH: 12, TextSize: 13, Regular: true,
 		Neutral: style.ColorNameField, NeutralBorder: style.ColorNameControlBorder}
 	if compact {
 		m.Height, m.PaddingH, m.TextSize = 26, 10, 12

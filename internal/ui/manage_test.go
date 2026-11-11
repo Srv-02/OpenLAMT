@@ -14,6 +14,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/session"
 	"github.com/Srv-02/openlamt/internal/ui/style"
+	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
 // manageHarness is a manager on a session.Fake with made-up data.
@@ -380,5 +381,21 @@ func TestDescribeManage(t *testing.T) {
 	}
 	if got, want := describeManage(errors.New("boom")), describe(errors.New("boom")); got != want {
 		t.Fatal(got)
+	}
+}
+
+// The white buttons of the pages draw their text in the regular weight like the mockups
+// (WindowB.dc.html Refresh, Settings.dc.html Sync Now and Change…, Users.dc.html Edit and
+// + Add user); only Turn Off… is semibold.
+func TestManageButtonsRegularText(t *testing.T) {
+	for name, b := range map[string]*widgets.PrimaryButton{
+		"Refresh":   newManageButton("Refresh", nil),
+		"Sync Now":  settingsButton("Sync Now", nil),
+		"Edit":      newUserEditButton(false, false, nil),
+		"Edit self": newUserEditButton(true, true, nil),
+	} {
+		if !b.Metrics.Regular {
+			t.Errorf("%s is semibold", name)
+		}
 	}
 }

@@ -83,6 +83,19 @@ func TestEventLog(t *testing.T) {
 	}
 }
 
+func TestEventLogUnspecifiedSource(t *testing.T) {
+	for _, entity := range []uint8{0, 2} {
+		d, _ := eventDevice(getRecordsXML(0, eventRecord(1767225600, 15, 0, 0, entity, [8]byte{0, 1})), nil)
+		got, err := d.EventLog()
+		if err != nil || len(got) != 1 {
+			t.Fatalf("entity %d: %v %v", entity, got, err)
+		}
+		if got[0].Source != "" {
+			t.Errorf("entity %d: source %q, want empty", entity, got[0].Source)
+		}
+	}
+}
+
 func TestEventLogSeverity(t *testing.T) {
 	tests := []struct {
 		raw  uint8

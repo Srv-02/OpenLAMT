@@ -104,10 +104,15 @@ func xmlOf(m *client.Message) string {
 	return m.XMLOutput
 }
 
-// hwClass enumerates one CIM class. A missing class (SOAP fault) yields no items and no error,
+// hwClass enumerates one CIM class. A missing class (SOAP fault on Enumerate) yields no items and no error,
 // AccessDenied yields ErrAccessDenied, everything else aborts with the class name.
 func hwClass[T any](class string, enum func() (string, error), pull func(string) ([]T, string, error)) ([]T, error) {
-	items, err := enumeratePull(enum, pull)
+	enumFailed := false
+	items, err := enumeratePull(func() (string, error) {
+		ctx, err := enum()
+		enumFailed = err != nil
+		return ctx, err
+	}, pull)
 	if err == nil {
 		return items, nil
 	}
@@ -115,7 +120,7 @@ func hwClass[T any](class string, enum func() (string, error), pull func(string)
 		return nil, denied
 	}
 	var amtErr *amterror.AMTError
-	if errors.As(err, &amtErr) {
+	if enumFailed && errors.As(err, &amtErr) {
 		return nil, nil
 	}
 	return nil, fmt.Errorf("hardware info: %s: %w", class, err)

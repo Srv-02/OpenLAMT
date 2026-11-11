@@ -71,12 +71,15 @@ func (d *Device) readAuditPage(start int) (auditPage, error) {
 	var env struct {
 		Total       int      `xml:"Body>ReadRecords_OUTPUT>TotalRecordCount"`
 		Records     []string `xml:"Body>ReadRecords_OUTPUT>EventRecords"`
-		ReturnValue int      `xml:"Body>ReadRecords_OUTPUT>ReturnValue"`
+		ReturnValue *int     `xml:"Body>ReadRecords_OUTPUT>ReturnValue"`
 	}
 	if err := xml.Unmarshal(cp.body, &env); err != nil {
 		return auditPage{}, fmt.Errorf("%w: unreadable response: %v", ErrIncompleteResponse, err)
 	}
-	return auditPage{Total: env.Total, Records: env.Records, ReturnValue: env.ReturnValue}, nil
+	if env.ReturnValue == nil {
+		return auditPage{}, fmt.Errorf("%w: no ReadRecords output", ErrIncompleteResponse)
+	}
+	return auditPage{Total: env.Total, Records: env.Records, ReturnValue: *env.ReturnValue}, nil
 }
 
 // AuditLog reads all audit log records page by page (AMT returns up to 120 per request) and

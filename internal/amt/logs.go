@@ -78,10 +78,14 @@ func (d *Device) EventLog() ([]EventLogEntry, error) {
 			continue
 		}
 		raw, refined := out.RawEventData[i], out.RefinedEventData[i]
+		source := refined.Entity
+		if source == "Unspecified" || source == "Unknown" {
+			source = ""
+		}
 		e := EventLogEntry{
 			Time:        refined.TimeStamp.UTC(),
 			Severity:    severityFromIPMI(raw.EventSeverity),
-			Source:      refined.Entity,
+			Source:      source,
 			Description: refined.Description,
 			SensorType:  refined.EventSensorType,
 			EventOffset: refined.EventOffset,

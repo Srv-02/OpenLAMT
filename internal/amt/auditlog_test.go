@@ -254,7 +254,8 @@ func TestParseAuditRecord(t *testing.T) {
 	}{
 		{"digest", digest, AuditLogEntry{Time: ts, AppID: 16, App: "Security Admin Events", Event: "AMT Provisioning Started", Initiator: "user1", Address: "192.0.2.10", Details: "Intel AMT transitioned to setup mode."}},
 		{"local and ::1", local, AuditLogEntry{Time: ts, AppID: 16, App: "Security Admin Events", Event: "AMT Provisioning Started", InitiatorType: 2, Address: "::1", Details: "Intel AMT transitioned to setup mode."}},
-		{"kvm default port", kvm, AuditLogEntry{Time: ts, AppID: 29, App: "Keyboard Video Mouse Events", Event: "KVM Opt-In Enabled", InitiatorType: 3, Details: auditlog.GetAuditLogExtendedDataString(29, 0, "")}},
+		{"kvm default port", kvm, AuditLogEntry{Time: ts, AppID: 29, App: "Keyboard Video Mouse Events", Event: "KVM Opt-In Enabled", InitiatorType: 3, Details: "User consent for a KVM session is now required."}},
+		{"known app, unknown event id", auditRecord(16, 99, 2, nil, auditBase, "", nil), AuditLogEntry{Time: ts, AppID: 16, App: "Security Admin Events", EventID: 99, InitiatorType: 2}},
 		{"kerberos", kerb, AuditLogEntry{Time: ts, AppID: 16, App: "Security Admin Events", Event: "AMT Provisioning Started", InitiatorType: 1, Initiator: "S-1-5-21-1000-2000-3000", Details: "Intel AMT transitioned to setup mode."}},
 		{"unknown ids", auditRecord(99, 7, 2, nil, auditBase, "", nil), AuditLogEntry{Time: ts, AppID: 99, EventID: 7, InitiatorType: 2}},
 		{"empty", nil, AuditLogEntry{}},
@@ -276,5 +277,13 @@ func TestParseAuditRecord(t *testing.T) {
 				t.Errorf("got  %+v\nwant %+v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestAuditLogMissingReadRecordsOutput(t *testing.T) {
+	body := []byte(`<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"><a:Body></a:Body></a:Envelope>`)
+	d, _ := auditDevice(func(string) ([]byte, error) { return body, nil })
+	if _, err := d.AuditLog(); !errors.Is(err, ErrIncompleteResponse) {
+		t.Fatalf("got %v", err)
 	}
 }

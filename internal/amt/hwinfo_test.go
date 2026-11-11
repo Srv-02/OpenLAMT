@@ -142,6 +142,16 @@ func TestHardwareInfoClassMissing(t *testing.T) {
 	}
 }
 
+func TestHardwareInfoPullFaultIsAbort(t *testing.T) {
+	seq := hwSeq()
+	seq["Pull|CIM_Chip"] = []seqResp{{file: "hw_chip_pull_1.xml"}, {err: faultErr(t, "unreachable_fault.xml")}}
+	d, _ := hwDevice(seq)
+	_, err := d.HardwareInfo()
+	if err == nil || !strings.Contains(err.Error(), "CIM_Chip") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestHardwareInfoAccessDenied(t *testing.T) {
 	seq := hwSeq()
 	seq["Enumerate|CIM_Chassis"] = []seqResp{{err: faultErr(t, "access_denied_fault.xml")}}

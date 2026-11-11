@@ -35,6 +35,9 @@ type Fake struct {
 	Audit     []amt.AuditLogEntry
 	AuditErr  error
 
+	// AMT settings and users: see FakeConfig (fake_config.go).
+	Cfg FakeConfig
+
 	// KVM: OpenKVM returns KVMErr if set; otherwise, with Consent set, it asks the prompt and
 	// accepts only ConsentCode (another code is a ConsentError on SendOptInCode); then it dials
 	// KVMAddr (a kvmtest server) with KVMUser and KVMPassword, or fails with ErrConsentRequired

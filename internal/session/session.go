@@ -20,6 +20,7 @@ type Device interface {
 	HardwareInfo() (amt.HardwareInfo, error)
 	EventLog() ([]amt.EventLogEntry, error)
 	AuditLog() ([]amt.AuditLogEntry, error)
+	ConfigDevice
 	Power(amt.PowerAction) error
 	PowerStates() ([]power.PowerState, error)
 	Fingerprint() string

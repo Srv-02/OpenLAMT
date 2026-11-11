@@ -112,6 +112,37 @@ func (c GeneralChange) Validate() error {
 	return nil
 }
 
+// Apply returns the settings the change leads to (for previews and fakes; SetGeneral works
+// on the device's object).
+func (c GeneralChange) Apply(cur GeneralSettings) GeneralSettings {
+	n := cur
+	if c.HostName != nil {
+		n.HostName = *c.HostName
+	}
+	if c.DomainName != nil {
+		n.DomainName = *c.DomainName
+	}
+	if c.SharedFQDN != nil {
+		n.SharedFQDN = *c.SharedFQDN
+	}
+	if c.PingResponse != nil {
+		n.PingResponse = *c.PingResponse
+	}
+	if c.RMCPPingResponse != nil {
+		n.RMCPPingResponse = *c.RMCPPingResponse
+	}
+	if c.DynamicDNS != nil {
+		n.DynamicDNS = *c.DynamicDNS
+	}
+	if c.DDNSIntervalMinutes != nil {
+		n.DDNSIntervalMinutes = *c.DDNSIntervalMinutes
+	}
+	if c.DDNSTTLSeconds != nil {
+		n.DDNSTTLSeconds = *c.DDNSTTLSeconds
+	}
+	return n
+}
+
 // SetGeneral writes host name, domain, ping response and dynamic DNS settings.
 func (d *Device) SetGeneral(c GeneralChange) error {
 	const op = "set general settings"

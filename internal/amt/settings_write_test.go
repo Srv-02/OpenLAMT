@@ -441,3 +441,14 @@ func TestSyncClock(t *testing.T) {
 	}
 	assertNoWrites(t, f)
 }
+
+func TestGeneralChangeApply(t *testing.T) {
+	cur := GeneralSettings{HostName: "a", DomainName: "example.com", PingResponse: true, DynamicDNS: DDNSByDHCPServer, DDNSTTLSeconds: 900}
+	got := GeneralChange{HostName: ptr("b"), PingResponse: ptr(false), RMCPPingResponse: ptr(true), SharedFQDN: ptr(true),
+		DynamicDNS: ptr(DDNSClient), DDNSIntervalMinutes: ptr(60), DomainName: ptr("")}.Apply(cur)
+	want := GeneralSettings{HostName: "b", SharedFQDN: true, RMCPPingResponse: true, DynamicDNS: DDNSClient,
+		DDNSIntervalMinutes: 60, DDNSTTLSeconds: 900}
+	if got != want {
+		t.Errorf("Apply = %+v", got)
+	}
+}

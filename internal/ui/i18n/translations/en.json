@@ -219,5 +219,9 @@
   "Type {{.Phrase}} to confirm": "Type {{.Phrase}} to confirm",
   "Console": "Console",
   "Manage": "Manage",
-  "Media": "Media"
+  "Media": "Media",
+  "Turn on Serial over LAN?": "Turn on Serial over LAN?",
+  "Serial over LAN (SOL) is turned off on “{{.Name}}”. Turn it on to open the text console of this device? The setting stays on until you turn it off in Settings.": "Serial over LAN (SOL) is turned off on “{{.Name}}”. Turn it on to open the text console of this device? The setting stays on until you turn it off in Settings.",
+  "Turn On": "Turn On",
+  "Console connected": "Console connected"
 }

@@ -88,6 +88,7 @@ func (d *DeviceWindow) setConsoleView(on bool) {
 		}
 	} else {
 		d.viewSwitch.SetSelected(viewKVM)
+		d.blurConsole()
 		d.consolePane.Hide()
 		d.kvmStage.Show()
 	}

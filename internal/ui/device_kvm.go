@@ -311,6 +311,7 @@ func (d *DeviceWindow) kvmOpened(c *kvm.Client, err error) {
 		} else if d.wake != nil {
 			go d.wake(c, wakeRepeat) // read here on the UI thread, not in the goroutine
 		}
+		d.sendPendingCAD() // Ctrl+Alt+Del of the Console view that started this connect
 		if d.onKVMChanged != nil {
 			d.onKVMChanged()
 		}
@@ -332,6 +333,7 @@ func (d *DeviceWindow) kvmOpened(c *kvm.Client, err error) {
 	if d.closed {
 		d.view.free() // a connect cancelled by closing the window: nothing uses the view any more
 	}
+	d.con.cadPending = false // the console's Ctrl+Alt+Del had no session to go to
 	d.setKVMControls()
 	if d.onKVMChanged != nil {
 		d.onKVMChanged()
@@ -489,6 +491,7 @@ func (d *DeviceWindow) kvmReopened(ctx context.Context, c *kvm.Client, err error
 	case err == nil && !cancelled:
 		d.kvmClient = c
 		d.view.bind(c, false) // the last image stays until the first frame
+		d.sendPendingCAD()
 		if d.onKVMChanged != nil {
 			d.onKVMChanged()
 		}
@@ -512,6 +515,7 @@ func (d *DeviceWindow) kvmReopened(ctx context.Context, c *kvm.Client, err error
 // endKVM finishes a session that is over (no reconnect): view, full screen, status, controls.
 func (d *DeviceWindow) endKVM(err error) {
 	d.stopIdle()
+	d.con.cadPending = false
 	d.closeTyping() // also when the server ended the session; nothing left to type into
 	if d.closed {   // the window is gone: no widget work, only the state
 		d.view.free() // the frame loop has ended (kvmEnded) or never ran (reconnect, cancel)

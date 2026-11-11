@@ -108,6 +108,7 @@ type DeviceWindow struct {
 	manageBuilt          bool                     // manageContent was called
 	mediaLine            *ellipsisText            // "ISO mounted · …" in the status bar; hidden while empty
 	consoleLine          *ellipsisText            // "Console connected" in the status bar; hidden while empty
+	con                  serialConsole            // the serial console of the Console view (console.go)
 
 	// Keyboard menu (device_keyboard.go), only touched on the Fyne thread.
 	keyboardMenu    *fyne.Menu
@@ -209,6 +210,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	d.kvmStatus.changed = d.refreshKVMLine
 
 	d.buildViewControls()
+	d.buildConsole()
 	d.buildKVM()
 	d.content = d.buildContent()
 	d.poller = session.NewPoller(sess, settings.PollInterval(), func(st amt.Status, err error) {
@@ -227,6 +229,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 		d.forgetResume()
 		d.shutdown()
 		d.release()
+		d.closeConsole()
 		d.disconnectKVM() // last: kvmEnded then only clears state (closed window)
 		if idle {
 			d.view.free()
@@ -321,6 +324,7 @@ func (d *DeviceWindow) abort(err error) {
 	if !d.closed {
 		d.onError(err)
 	}
+	d.closeConsole()
 	d.disconnectKVM() // last: the frame loop reports kvmEnded on the Fyne thread afterwards
 }
 

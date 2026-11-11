@@ -242,7 +242,7 @@ func TestLightColorsDifferFromDark(t *testing.T) {
 	same := map[fyne.ThemeColorName]bool{ // identical in both tables on purpose
 		theme.ColorNameError: true, theme.ColorNamePlaceHolder: true, theme.ColorNameInputBackground: true,
 		theme.ColorNameForegroundOnError: true, theme.ColorNameForegroundOnPrimary: true,
-		ColorNameWhite: true, ColorNameConsole: true,
+		ColorNameWhite: true, ColorNameConsole: true, ColorNameConsoleText: true,
 	}
 	for n, d := range darkColors {
 		if same[n] {
@@ -372,6 +372,25 @@ func TestDeviceManagementTokens(t *testing.T) {
 		}
 		if hex(d) == w {
 			t.Errorf("%s: dark equals light", name)
+		}
+	}
+}
+
+// TestConsoleTheme: the serial console draws #D7DAE0 text on #0B0D10 in both variants
+// (Console.dc.html); the wrapper maps Fyne's foreground and background to these tokens.
+func TestConsoleTheme(t *testing.T) {
+	t.Cleanup(func() { SetVariant(theme.VariantDark) })
+	for _, v := range []fyne.ThemeVariant{theme.VariantDark, theme.VariantLight} {
+		SetVariant(v)
+		th := ConsoleTheme{Theme{}}
+		if got := hex(th.Color(theme.ColorNameForeground, v)); got != "#D7DAE0FF" {
+			t.Errorf("variant %d: console text = %s", v, got)
+		}
+		if got := hex(th.Color(theme.ColorNameBackground, v)); got != "#0B0D10FF" {
+			t.Errorf("variant %d: console background = %s", v, got)
+		}
+		if got, want := hex(th.Color(theme.ColorNamePrimary, v)), hex(Color(theme.ColorNamePrimary)); got != want {
+			t.Errorf("variant %d: other colors must pass through, primary = %s, want %s", v, got, want)
 		}
 	}
 }

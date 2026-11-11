@@ -20,7 +20,8 @@ type FakeConfig struct {
 	Users       amt.UserList
 	UsersErr    error
 	// Certificates is the certificate store; SetTLS with a new certificate moves the TLS mark
-	// and sets the fake's FP to the certificate's fingerprint, as the device switches its pin.
+	// and, in a TLS session, sets the fake's FP to the certificate's fingerprint, as the device
+	// switches its pin.
 	Certificates []amt.Certificate
 	CertsErr     error
 	WriteErr     error
@@ -367,7 +368,7 @@ func (f *Fake) SetTLS(c amt.TLSChange, confirm amt.Confirmation) error {
 			for i := range f.Cfg.Certificates {
 				cert := &f.Cfg.Certificates[i]
 				cert.TLS = cert.ID == *c.Certificate
-				if cert.TLS {
+				if cert.TLS && len(f.configs) > 0 && f.configs[len(f.configs)-1].UseTLS { // as the device: a plain session has no pin
 					f.FP = cert.Fingerprint
 				}
 			}

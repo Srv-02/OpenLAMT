@@ -153,21 +153,29 @@ func TestChangeLoginKeychainFailures(t *testing.T) {
 
 func TestChangeFingerprint(t *testing.T) {
 	m, keys := seeded(t)
-	if err := m.ChangeFingerprint("device.example.com", "admin", fp2); err != nil {
+	const fp3 = "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef"
+	m.Upsert(Favorite{Host: "device.example.com", Username: "operator"})
+	keys.SetFingerprint("device.example.com", "operator", fp)
+	m.Upsert(Favorite{Host: "device.example.com", Username: "auditor"})
+	keys.SetFingerprint("device.example.com", "auditor", fp3)          // pinned another certificate
+	m.Upsert(Favorite{Host: "device.example.com", Username: "viewer"}) // no pin
+	if err := m.ChangeFingerprint("device.example.com", "admin", fp, fp2); err != nil {
 		t.Fatal(err)
 	}
-	if got, _ := keys.GetFingerprint("device.example.com", "admin"); got != fp2 {
-		t.Errorf("pin %q", got)
+	for user, want := range map[string]string{"admin": fp2, "operator": fp2, "auditor": fp3} {
+		if got, _ := keys.GetFingerprint("device.example.com", user); got != want {
+			t.Errorf("%s: pin %q", user, got)
+		}
 	}
-	if err := m.ChangeFingerprint("other.example.com", "admin", fp2); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := keys.GetFingerprint("other.example.com", "admin"); !errors.Is(err, keychain.ErrNotFound) {
+	if _, err := keys.GetFingerprint("device.example.com", "viewer"); !errors.Is(err, keychain.ErrNotFound) {
 		t.Errorf("no stored pin, nothing to replace: %v", err)
+	}
+	if err := m.ChangeFingerprint("other.example.com", "admin", fp, fp2); err != nil {
+		t.Fatal(err)
 	}
 	m2, _ := flakySeeded(t, "SetFingerprint")
 	var ke *KeychainError
-	if err := m2.ChangeFingerprint("device.example.com", "admin", fp2); !errors.As(err, &ke) {
+	if err := m2.ChangeFingerprint("device.example.com", "admin", fp, fp2); !errors.As(err, &ke) {
 		t.Errorf("err = %v", err)
 	}
 }

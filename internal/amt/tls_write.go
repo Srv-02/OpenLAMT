@@ -40,8 +40,31 @@ const (
 )
 
 // tlsSettleDelay is the pause after CommitChanges: AMT restarts its TLS listener (MeshCommander
-// waits 2 s before the next request). Replaced in tests.
-var tlsSettleDelay = 2 * time.Second
+// waits 2 s before the next request). tlsProbeWindow bounds the test handshakes after a commit
+// without answer. Replaced in tests.
+var (
+	tlsSettleDelay = 2 * time.Second
+	tlsProbeWindow = 15 * time.Second
+)
+
+// ErrCertificateUncertain: CommitChanges of a certificate change got no answer, and within
+// tlsProbeWindow no handshake presented the new certificate. The concrete error is
+// *CertificateUncertainError; the connection keeps the old pin.
+var ErrCertificateUncertain = errors.New("unknown whether the device switched its TLS certificate")
+
+// CertificateUncertainError carries the fingerprint the device presents if the change was
+// applied, so the UI can compare it instead of asking for blind trust on the next connection.
+type CertificateUncertainError struct {
+	Fingerprint string
+	Err         error
+}
+
+func (e *CertificateUncertainError) Error() string {
+	return fmt.Sprintf("%v (expected fingerprint %s): %v", ErrCertificateUncertain, FormatFingerprint(e.Fingerprint), e.Err)
+}
+
+func (e *CertificateUncertainError) Is(target error) bool { return target == ErrCertificateUncertain }
+func (e *CertificateUncertainError) Unwrap() error        { return e.Err }
 
 // keyMatches reports whether a key pair's DERKey (base64; PKCS#1 RSAPublicKey on older AMT,
 // SubjectPublicKeyInfo on newer ones) is the public key of cert.
@@ -292,8 +315,10 @@ func commitOutput(xmlOutput string) error {
 //
 // A new certificate changes the pin of this connection: the device switches to the fingerprint
 // of the chosen certificate, which it read through the pinned connection (Fingerprint returns it;
-// the session stores it). If the answer to CommitChanges is lost, a fresh TLS handshake that
-// presents exactly that certificate counts as applied.
+// the session stores it). The same holds for a binding an earlier failed call left staged, which
+// this commit activates. If the answer to CommitChanges is lost, a fresh TLS handshake that
+// presents exactly that certificate within tlsProbeWindow counts as applied; otherwise
+// *CertificateUncertainError names the fingerprint to expect.
 func (d *Device) SetTLS(c TLSChange, confirm Confirmation) error {
 	const op = "set TLS"
 	if err := c.Validate(); err != nil {
@@ -304,11 +329,9 @@ func (d *Device) SetTLS(c TLSChange, confirm Confirmation) error {
 		return writeError(op, err)
 	}
 	cur := tlsFrom(objs)
-	var certs []Certificate
-	if c.Certificate != nil || c.Apply(cur).Remote.MutualAuth {
-		if certs, err = d.TLSCertificates(); err != nil {
-			return err
-		}
+	certs, err := d.TLSCertificates()
+	if err != nil {
+		return err
 	}
 	fields, err := c.Check(cur, certs)
 	if err != nil || fields == nil {
@@ -324,13 +347,21 @@ func (d *Device) SetTLS(c TLSChange, confirm Confirmation) error {
 			return err
 		}
 	}
+	// the certificate AMT presents after the commit: the chosen one, else the bound one (an
+	// earlier call may have left a binding staged that this commit activates)
 	newPin := ""
+	if i := slices.IndexFunc(certs, func(x Certificate) bool { return x.TLS }); i >= 0 {
+		newPin = certs[i].Fingerprint
+	}
 	if slices.Contains(fields, RiskTLSCertificate) {
 		i := slices.IndexFunc(certs, func(x Certificate) bool { return x.ID == *c.Certificate })
 		newPin = certs[i].Fingerprint
 		if err := d.bindTLSCertificate(*c.Certificate); err != nil {
 			return writeError(op, err)
 		}
+	}
+	if !d.cfg.UseTLS || newPin == d.fingerprint {
+		newPin = ""
 	}
 	for _, o := range objs {
 		local := strings.Contains(o.str("InstanceID"), "LMS")
@@ -360,10 +391,15 @@ func (d *Device) SetTLS(c TLSChange, confirm Confirmation) error {
 		}
 	}
 	if err != nil && !d.presents(newPin) {
+		if newPin != "" {
+			return &CertificateUncertainError{Fingerprint: newPin, Err: writeError(op, err)}
+		}
 		return writeError(op, err)
 	}
-	if newPin != "" && d.cfg.UseTLS {
-		d.relogin(d.cfg, newPin)
+	if newPin != "" {
+		cfg := d.cfg
+		cfg.Fingerprint = newPin
+		d.relogin(cfg, newPin)
 	}
 	time.Sleep(tlsSettleDelay)
 	return nil
@@ -389,9 +425,18 @@ func (d *Device) presents(pin string) bool {
 	if pin == "" || !d.cfg.UseTLS || d.transport == nil { // no transport: a test client, no network
 		return false
 	}
-	time.Sleep(tlsSettleDelay)
-	ctx, cancel := context.WithTimeout(context.Background(), ConnectTimeout)
-	defer cancel()
-	fp, err := fetchFingerprint(ctx, d.cfg.Address(), d.cfg.dialContext)
-	return err == nil && fp == pin
+	deadline := time.Now().Add(tlsProbeWindow)
+	for {
+		time.Sleep(tlsSettleDelay)
+		ctx, cancel := context.WithTimeout(context.Background(), ConnectTimeout)
+		fp, err := fetchFingerprint(ctx, d.cfg.Address(), d.cfg.dialContext)
+		cancel()
+		if err == nil && fp == pin {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(time.Second)
+	}
 }

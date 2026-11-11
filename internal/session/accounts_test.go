@@ -25,8 +25,8 @@ func (r *recordingStore) ChangeLogin(host, oldUser, newUser, newPassword string)
 	return r.err
 }
 
-func (r *recordingStore) ChangeFingerprint(host, user, fp string) error {
-	r.pins = append(r.pins, host+"|"+user+"|"+fp)
+func (r *recordingStore) ChangeFingerprint(host, user, oldFP, newFP string) error {
+	r.pins = append(r.pins, host+"|"+user+"|"+oldFP+"|"+newFP)
 	return r.err
 }
 
@@ -60,6 +60,18 @@ func TestSessionAdminAccountOwnLogin(t *testing.T) {
 	}
 	if l, _ := s.Users(); l.Admin != "newadmin" {
 		t.Errorf("admin %q", l.Admin)
+	}
+}
+
+func TestSessionAdminAccountKeepsSavedSpelling(t *testing.T) {
+	dev := configFake()
+	s := openAs(t, dev, "ADMIN", "Old-Secret1") // AMT accepts the name in another case
+	store := &recordingStore{}
+	if err := s.SetAdminAccount(amt.AccountChange{Password: "New-Secret2"}, conf(amt.OpAdminAccount), store); err != nil {
+		t.Fatal(err)
+	}
+	if want := "device.example.com|ADMIN|admin|New-Secret2"; len(store.logins) != 1 || store.logins[0] != want {
+		t.Errorf("the saved entry is keyed by the session's spelling: %v", store.logins)
 	}
 }
 
@@ -215,7 +227,7 @@ func TestSessionSetTLSCertificateMovesPin(t *testing.T) {
 	if s.Fingerprint() != pinB || s.Config().Fingerprint != pinB {
 		t.Errorf("session pin %q", s.Fingerprint())
 	}
-	if want := "device.example.com|admin|" + pinB; len(store.pins) != 1 || store.pins[0] != want {
+	if want := "device.example.com|admin|" + pinA + "|" + pinB; len(store.pins) != 1 || store.pins[0] != want {
 		t.Errorf("store %v", store.pins)
 	}
 	certs, _ := s.TLSCertificates()
@@ -253,5 +265,34 @@ func TestSessionSetTLSPinNotSaved(t *testing.T) {
 	}
 	if s.Fingerprint() != pinB {
 		t.Error("the device switched: the session must use the new pin anyway")
+	}
+}
+
+func TestSessionSetTLSPlainSessionHasNoPin(t *testing.T) {
+	dev := tlsFake()
+	dev.FP = ""
+	s := openAs(t, dev, "admin", "Secret-Pass1")
+	store := &recordingStore{}
+	if err := s.SetTLS(amt.TLSChange{Certificate: ptr("cert-b")}, conf(amt.OpTLS), store); err != nil {
+		t.Fatal(err)
+	}
+	if s.Fingerprint() != "" || len(store.pins) != 0 {
+		t.Errorf("plain session: pin %q, store %v", s.Fingerprint(), store.pins)
+	}
+}
+
+func TestSessionSetTLSUncertainKeepsType(t *testing.T) {
+	dev := tlsFake()
+	libErr := fmt.Errorf("%w: %v\n%v", errors.New("wsman.Client post received"), "401 Unauthorized", "<html>secret body</html>")
+	dev.Cfg.WriteErr = &amt.CertificateUncertainError{Fingerprint: pinB, Err: libErr}
+	s := openTLS(t, dev)
+	store := &recordingStore{}
+	err := s.SetTLS(amt.TLSChange{Certificate: ptr("cert-b")}, conf(amt.OpTLS), store)
+	var ce *amt.CertificateUncertainError
+	if !errors.As(err, &ce) || ce.Fingerprint != pinB || strings.Contains(err.Error(), "secret body") {
+		t.Fatalf("err = %v", err)
+	}
+	if s.Fingerprint() != pinA || len(store.pins) != 0 {
+		t.Error("an uncertain change must keep and not store the pin")
 	}
 }

@@ -12,8 +12,9 @@ import (
 type LoginStore interface {
 	// ChangeLogin follows an accepted change of account oldUser on host to newUser/newPassword.
 	ChangeLogin(host, oldUser, newUser, newPassword string) error
-	// ChangeFingerprint replaces the stored pin of host/user after a certificate change.
-	ChangeFingerprint(host, user, fingerprint string) error
+	// ChangeFingerprint replaces the pin oldFP by newFP for every login saved for host (user
+	// and the favorites of host) after a certificate change.
+	ChangeFingerprint(host, user, oldFP, newFP string) error
 }
 
 // ErrNotSaved: the device accepted the change and the session already uses it, but storing it
@@ -43,8 +44,8 @@ func (e *NotSavedError) Unwrap() error        { return e.Err }
 // login and the UI must keep the new password.
 func (s *Session) SetAdminAccount(c amt.AccountChange, confirm amt.Confirmation, store LoginStore) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	res, err := s.dev.SetAdminAccount(c, confirm)
+	s.mu.Unlock()
 	if err != nil {
 		return classify(err)
 	}
@@ -56,8 +57,8 @@ func (s *Session) SetAdminAccount(c amt.AccountChange, confirm amt.Confirmation,
 // login. Saving and errors as SetAdminAccount.
 func (s *Session) UpdateUser(handle int, u amt.UserSpec, confirm amt.Confirmation, store LoginStore) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	res, err := s.dev.UpdateUser(handle, u, confirm)
+	s.mu.Unlock()
 	if err != nil {
 		return classify(err)
 	}
@@ -65,18 +66,20 @@ func (s *Session) UpdateUser(handle int, u amt.UserSpec, confirm amt.Confirmatio
 }
 
 // loginChanged takes over the new login of the session's own account and lets store follow
-// the change. Call it under s.mu.
+// the change. It runs outside s.mu, so a keychain prompt does not stall the status polling.
 func (s *Session) loginChanged(res amt.LoginChange, password string, store LoginStore) error {
 	s.cfgMu.Lock()
-	host := s.cfg.Host
+	host, old := s.cfg.Host, res.OldUsername
 	if res.Self {
+		// saved entries carry the name the user logged in with, which AMT may spell differently
+		old = s.cfg.Username
 		s.cfg.Username, s.cfg.Password = res.Username, password
 	}
 	s.cfgMu.Unlock()
 	if store == nil {
 		return nil
 	}
-	if err := store.ChangeLogin(host, res.OldUsername, res.Username, password); err != nil {
+	if err := store.ChangeLogin(host, old, res.Username, password); err != nil {
 		return &NotSavedError{Username: res.Username, Password: password, Err: err}
 	}
 	return nil
@@ -95,15 +98,18 @@ func (s *Session) TLSCertificates() ([]amt.Certificate, error) {
 
 // SetTLS changes the TLS certificate and settings; it needs a confirmation for amt.OpTLS. A new
 // certificate changes the pin: the session takes the fingerprint the device switched to
-// (Config and Fingerprint return it) and store replaces a saved pin of this login. A failure of
+// (Config and Fingerprint return it) and store replaces the old pin of every login saved for
+// this host. A commit without answer returns *amt.CertificateUncertainError with the
+// fingerprint to expect. A failure of
 // store returns *NotSavedError with the new fingerprint; the change on the device stands.
 func (s *Session) SetTLS(c amt.TLSChange, confirm amt.Confirmation, store LoginStore) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	err := s.dev.SetTLS(c, confirm)
 	fp := s.dev.Fingerprint()
+	s.mu.Unlock()
 	s.cfgMu.Lock()
-	changed := fp != "" && fp != s.cfg.Fingerprint
+	old := s.cfg.Fingerprint
+	changed := fp != "" && fp != old
 	if changed {
 		s.cfg.Fingerprint = fp
 	}
@@ -113,7 +119,7 @@ func (s *Session) SetTLS(c amt.TLSChange, confirm amt.Confirmation, store LoginS
 		return classify(err)
 	}
 	if changed && store != nil {
-		if err := store.ChangeFingerprint(host, user, fp); err != nil {
+		if err := store.ChangeFingerprint(host, user, old, fp); err != nil {
 			return &NotSavedError{Username: user, Fingerprint: fp, Err: err}
 		}
 	}

@@ -26,7 +26,7 @@ import (
 	"time"
 )
 
-func init() { tlsSettleDelay = 0 }
+func init() { tlsSettleDelay, tlsProbeWindow = 0, 0 }
 
 // testCert is a generated certificate of the fake certificate store.
 type testCert struct {
@@ -250,6 +250,19 @@ func TestSetTLSPlainSessionKeepsPin(t *testing.T) {
 	}
 }
 
+func TestSetTLSActivatesStagedBinding(t *testing.T) {
+	seq := tlsSeq(t, false) // an earlier failed call left certB bound but not committed
+	seq["Pull|AMT_TLSCredentialContext"] = []cfgResp{{body: pullBody(classTLSCredContext, bindingItem(certB.id))}}
+	d, f := tlsDevice(t, seq)
+	if err := d.SetTLS(TLSChange{LocalEnabled: ptr(true)}, confirmed(OpTLS)); err != nil {
+		t.Fatal(err)
+	}
+	onePut(t, f, "CommitChanges|AMT_SetupAndConfigurationService")
+	if d.Fingerprint() != fingerprintOf(certB.der) || d.cfg.Fingerprint != fingerprintOf(certB.der) {
+		t.Error("the commit activates the staged certificate: the pin must follow")
+	}
+}
+
 func TestSetTLSMutualAuth(t *testing.T) {
 	fixedNow(t, time.Unix(1767225600, 0))
 	d, f := tlsDevice(t, tlsSeq(t, true))
@@ -338,8 +351,15 @@ func TestSetTLSCommitErrors(t *testing.T) {
 
 	seq["CommitChanges|AMT_SetupAndConfigurationService"] = []cfgResp{{err: errors.New("connection reset by peer")}}
 	d, _ = tlsDevice(t, seq)
-	if err := d.SetTLS(TLSChange{Certificate: ptr(certB.id)}, confirmed(OpTLS)); err == nil || d.Fingerprint() != fingerprintOf(certA.der) {
+	err := d.SetTLS(TLSChange{Certificate: ptr(certB.id)}, confirmed(OpTLS))
+	var ce *CertificateUncertainError
+	if !errors.As(err, &ce) || ce.Fingerprint != fingerprintOf(certB.der) || d.Fingerprint() != fingerprintOf(certA.der) {
 		t.Fatalf("commit without answer and without proof: %v, pin changed %v", err, d.Fingerprint() != fingerprintOf(certA.der))
+	}
+	seq["CommitChanges|AMT_SetupAndConfigurationService"] = []cfgResp{{err: errors.New("connection reset by peer")}}
+	d, _ = tlsDevice(t, seq)
+	if err := d.SetTLS(TLSChange{LocalEnabled: ptr(true)}, confirmed(OpTLS)); err == nil || errors.Is(err, ErrCertificateUncertain) {
+		t.Errorf("settings commit without answer: %v", err)
 	}
 
 	seq = tlsSeq(t, false)
@@ -469,7 +489,7 @@ func TestSetTLSCertificateNotCommitted(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := d.SetTLS(TLSChange{Certificate: ptr(certB.id)}, confirmed(OpTLS)); err == nil || d.Fingerprint() != fingerprintOf(certA.der) {
+		if err := d.SetTLS(TLSChange{Certificate: ptr(certB.id)}, confirmed(OpTLS)); !errors.Is(err, ErrCertificateUncertain) || d.Fingerprint() != fingerprintOf(certA.der) {
 			t.Fatalf("%s: unproven commit: %v, pin switched %v", name, err, d.Fingerprint() != fingerprintOf(certA.der))
 		}
 	}

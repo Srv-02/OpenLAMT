@@ -3,6 +3,7 @@ package favorites
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/Srv-02/openlamt/internal/keychain"
@@ -289,17 +290,31 @@ func (m *Manager) ChangeLogin(host, oldUser, newUser, newPassword string) error 
 	return keychainErr(errs...)
 }
 
-// ChangeFingerprint replaces the stored pin of host/user after a certificate change the device
-// accepted. Without a stored pin nothing is written (the next connection asks again).
-func (m *Manager) ChangeFingerprint(host, user, fp string) error {
+// ChangeFingerprint follows a certificate change the device accepted: every pin oldFP stored
+// for host/user or for a favorite of host is replaced by newFP. Other pins (another certificate)
+// and logins without a stored pin stay as they are (the next connection asks again).
+func (m *Manager) ChangeFingerprint(host, user, oldFP, newFP string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	_, err := m.keys.GetFingerprint(host, user)
-	if errors.Is(err, keychain.ErrNotFound) {
-		return nil
+	list, err := m.store.Load()
+	if err != nil {
+		return err
 	}
-	if err == nil {
-		err = m.keys.SetFingerprint(host, user, fp)
+	users := []string{user}
+	for _, f := range list {
+		if f.Host == host && !slices.Contains(users, f.Username) {
+			users = append(users, f.Username)
+		}
 	}
-	return keychainErr(err)
+	var errs []error
+	for _, u := range users {
+		pin, err := m.keys.GetFingerprint(host, u)
+		switch {
+		case err == nil && pin == oldFP:
+			errs = append(errs, m.keys.SetFingerprint(host, u, newFP))
+		case err != nil && !errors.Is(err, keychain.ErrNotFound):
+			errs = append(errs, err)
+		}
+	}
+	return keychainErr(errs...)
 }

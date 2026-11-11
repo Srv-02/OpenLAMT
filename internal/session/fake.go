@@ -204,12 +204,13 @@ func ConnectFake(f *Fake) ConnectFunc {
 	return func(_ context.Context, cfg amt.Config, prompt amt.TrustPrompt) (Device, error) {
 		f.mu.Lock()
 		f.configs = append(f.configs, cfg)
+		fp := f.FP
 		f.mu.Unlock()
 		if cfg.UseTLS && strings.TrimSpace(cfg.Fingerprint) == "" {
 			if prompt == nil {
 				return nil, amt.ErrTrustDeclined
 			}
-			ok, err := prompt.ConfirmFingerprint(cfg.Host, f.FP)
+			ok, err := prompt.ConfirmFingerprint(cfg.Host, fp)
 			if err != nil {
 				return nil, err
 			}

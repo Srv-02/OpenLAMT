@@ -75,7 +75,8 @@ func Open(ctx context.Context, cfg amt.Config, prompt amt.TrustPrompt, connect C
 }
 
 // classify maps the WS-Man client's 401 error to ErrAuth; everything else passes through.
-// An *amt.CredentialsUncertainError keeps its type; only its cause is classified.
+// *amt.CredentialsUncertainError and *amt.CertificateUncertainError keep their type; only their
+// cause is classified.
 func classify(err error) error {
 	if err == nil {
 		return nil
@@ -84,6 +85,12 @@ func classify(err error) error {
 	if errors.As(err, &ue) {
 		c := *ue
 		c.Err = classify(ue.Err)
+		return &c
+	}
+	var ce *amt.CertificateUncertainError
+	if errors.As(err, &ce) {
+		c := *ce
+		c.Err = classify(ce.Err)
 		return &c
 	}
 	msg := err.Error()
@@ -100,8 +107,11 @@ func classify(err error) error {
 }
 
 // Close releases idle connections of a session that is no longer used (e.g. an attempt the
-// user cancelled). Devices without idle connections ignore it.
+// user cancelled). Devices without idle connections ignore it. It waits for a running device
+// call, so call it off the Fyne thread when the session may be busy.
 func (s *Session) Close() {
+	s.mu.Lock() // an account or certificate change may be replacing the device's transport
+	defer s.mu.Unlock()
 	if c, ok := s.dev.(interface{ CloseIdleConnections() }); ok {
 		c.CloseIdleConnections()
 	}

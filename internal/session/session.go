@@ -17,6 +17,9 @@ import (
 // Device is the part of *amt.Device that the GUI uses.
 type Device interface {
 	Status() (amt.Status, error)
+	HardwareInfo() (amt.HardwareInfo, error)
+	EventLog() ([]amt.EventLogEntry, error)
+	AuditLog() ([]amt.AuditLogEntry, error)
 	Power(amt.PowerAction) error
 	PowerStates() ([]power.PowerState, error)
 	Fingerprint() string

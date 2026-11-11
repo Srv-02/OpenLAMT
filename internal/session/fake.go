@@ -27,6 +27,14 @@ type Fake struct {
 	States    []power.PowerState
 	StatesErr error
 
+	// Device information: returned by HardwareInfo, EventLog and AuditLog unless the error is set.
+	HW        amt.HardwareInfo
+	HWErr     error
+	Events    []amt.EventLogEntry
+	EventsErr error
+	Audit     []amt.AuditLogEntry
+	AuditErr  error
+
 	// KVM: OpenKVM returns KVMErr if set; otherwise, with Consent set, it asks the prompt and
 	// accepts only ConsentCode (another code is a ConsentError on SendOptInCode); then it dials
 	// KVMAddr (a kvmtest server) with KVMUser and KVMPassword, or fails with ErrConsentRequired

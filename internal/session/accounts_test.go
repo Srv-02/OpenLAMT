@@ -171,3 +171,87 @@ func TestSessionAdminAccountWithFavoritesManager(t *testing.T) {
 		t.Errorf("pin %q", got)
 	}
 }
+
+const (
+	pinA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	pinB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+)
+
+func tlsFake() *Fake {
+	dev := configFake()
+	dev.FP = pinA
+	dev.Cfg.Settings.TLS = amt.TLSSettings{
+		Remote: amt.TLSInterface{Available: true, Enabled: true},
+		Local:  amt.TLSInterface{Available: true},
+	}
+	dev.Cfg.Certificates = []amt.Certificate{
+		{ID: "cert-a", Fingerprint: pinA, HasPrivateKey: true, TLS: true},
+		{ID: "cert-b", Fingerprint: pinB, HasPrivateKey: true},
+		{ID: "root", Fingerprint: pinB, TrustedRoot: true},
+	}
+	return dev
+}
+
+func openTLS(t *testing.T, dev *Fake) *Session {
+	t.Helper()
+	s, _, err := Open(context.Background(), amt.Config{Host: "device.example.com", Username: "admin", Password: "Secret-Pass1", UseTLS: true, Fingerprint: pinA}, nil, ConnectFake(dev))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestSessionSetTLSCertificateMovesPin(t *testing.T) {
+	dev := tlsFake()
+	s := openTLS(t, dev)
+	store := &recordingStore{}
+	change := amt.TLSChange{Certificate: ptr("cert-b")}
+	if err := s.SetTLS(change, amt.Confirmation{}, store); !errors.Is(err, amt.ErrRiskyChange) {
+		t.Fatalf("unconfirmed: %v", err)
+	}
+	if err := s.SetTLS(change, conf(amt.OpTLS), store); err != nil {
+		t.Fatal(err)
+	}
+	if s.Fingerprint() != pinB || s.Config().Fingerprint != pinB {
+		t.Errorf("session pin %q", s.Fingerprint())
+	}
+	if want := "device.example.com|admin|" + pinB; len(store.pins) != 1 || store.pins[0] != want {
+		t.Errorf("store %v", store.pins)
+	}
+	certs, _ := s.TLSCertificates()
+	if certs[0].TLS || !certs[1].TLS {
+		t.Errorf("certificates %+v", certs)
+	}
+}
+
+func TestSessionSetTLSSettingsKeepPin(t *testing.T) {
+	dev := tlsFake()
+	s := openTLS(t, dev)
+	store := &recordingStore{}
+	if err := s.SetTLS(amt.TLSChange{LocalEnabled: ptr(true)}, conf(amt.OpTLS), store); err != nil {
+		t.Fatal(err)
+	}
+	if s.Fingerprint() != pinA || len(store.pins) != 0 {
+		t.Errorf("pin %q, store %v", s.Fingerprint(), store.pins)
+	}
+	if st, _ := s.Settings(); !st.TLS.Local.Enabled {
+		t.Error("local TLS not switched")
+	}
+	if err := s.SetTLS(amt.TLSChange{Certificate: ptr("root")}, conf(amt.OpTLS), store); !errors.Is(err, amt.ErrInvalidValue) {
+		t.Errorf("trusted root as server certificate: %v", err)
+	}
+}
+
+func TestSessionSetTLSPinNotSaved(t *testing.T) {
+	dev := tlsFake()
+	s := openTLS(t, dev)
+	store := &recordingStore{err: errors.New("keychain locked")}
+	err := s.SetTLS(amt.TLSChange{Certificate: ptr("cert-b")}, conf(amt.OpTLS), store)
+	var ns *NotSavedError
+	if !errors.As(err, &ns) || ns.Fingerprint != pinB || ns.Password != "" || ns.Username != "admin" {
+		t.Fatalf("err = %#v", err)
+	}
+	if s.Fingerprint() != pinB {
+		t.Error("the device switched: the session must use the new pin anyway")
+	}
+}

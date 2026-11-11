@@ -81,3 +81,41 @@ func (s *Session) loginChanged(res amt.LoginChange, password string, store Login
 	}
 	return nil
 }
+
+// TLSCertificates reads the AMT certificate store; Usable entries can become the TLS certificate.
+func (s *Session) TLSCertificates() ([]amt.Certificate, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.dev.TLSCertificates()
+	if err != nil {
+		return nil, classify(err)
+	}
+	return c, nil
+}
+
+// SetTLS changes the TLS certificate and settings; it needs a confirmation for amt.OpTLS. A new
+// certificate changes the pin: the session takes the fingerprint the device switched to
+// (Config and Fingerprint return it) and store replaces a saved pin of this login. A failure of
+// store returns *NotSavedError with the new fingerprint; the change on the device stands.
+func (s *Session) SetTLS(c amt.TLSChange, confirm amt.Confirmation, store LoginStore) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	err := s.dev.SetTLS(c, confirm)
+	fp := s.dev.Fingerprint()
+	s.cfgMu.Lock()
+	changed := fp != "" && fp != s.cfg.Fingerprint
+	if changed {
+		s.cfg.Fingerprint = fp
+	}
+	host, user := s.cfg.Host, s.cfg.Username
+	s.cfgMu.Unlock()
+	if err != nil {
+		return classify(err)
+	}
+	if changed && store != nil {
+		if err := store.ChangeFingerprint(host, user, fp); err != nil {
+			return &NotSavedError{Username: user, Fingerprint: fp, Err: err}
+		}
+	}
+	return nil
+}

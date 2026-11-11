@@ -131,7 +131,7 @@ func (f *Fake) SetPowerStates(states []power.PowerState, err error) {
 // StatesCalls is the number of PowerStates calls.
 func (f *Fake) StatesCalls() int { f.mu.Lock(); defer f.mu.Unlock(); return f.statesCalls }
 
-func (f *Fake) Fingerprint() string { return f.FP }
+func (f *Fake) Fingerprint() string { f.mu.Lock(); defer f.mu.Unlock(); return f.FP }
 
 // CloseIdleConnections counts the calls (see IdleClosed).
 func (f *Fake) CloseIdleConnections() { f.idleClosed.Add(1) }

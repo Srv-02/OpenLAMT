@@ -19,8 +19,12 @@ type FakeConfig struct {
 	SettingsErr error
 	Users       amt.UserList
 	UsersErr    error
-	WriteErr    error
-	Writes      []string
+	// Certificates is the certificate store; SetTLS with a new certificate moves the TLS mark
+	// and sets the fake's FP to the certificate's fingerprint, as the device switches its pin.
+	Certificates []amt.Certificate
+	CertsErr     error
+	WriteErr     error
+	Writes       []string
 }
 
 func (f *Fake) cfgRead(fn func()) {
@@ -333,4 +337,40 @@ func (f *Fake) SetUserEnabled(h int, enabled bool) error {
 		u := f.Cfg.Users.Users[i]
 		return !u.EnabledKnown || u.Enabled != enabled, nil
 	}, func() { f.Cfg.Users.Users[i].Enabled, f.Cfg.Users.Users[i].EnabledKnown = enabled, true })
+}
+
+func (f *Fake) TLSCertificates() ([]amt.Certificate, error) {
+	var out []amt.Certificate
+	var err error
+	f.cfgRead(func() {
+		if f.Cfg.CertsErr != nil {
+			err = f.Cfg.CertsErr
+			return
+		}
+		out = slices.Clone(f.Cfg.Certificates)
+	})
+	return out, err
+}
+
+func (f *Fake) SetTLS(c amt.TLSChange, confirm amt.Confirmation) error {
+	t := &f.Cfg.Settings.TLS
+	var fields []string
+	return f.cfgWrite("SetTLS", func() (bool, error) {
+		var err error
+		if fields, err = c.Check(*t, f.Cfg.Certificates); err != nil || fields == nil {
+			return false, err
+		}
+		return true, f.confirmed(confirm, amt.OpTLS, fields)
+	}, func() {
+		*t = c.Apply(*t)
+		if slices.Contains(fields, amt.RiskTLSCertificate) {
+			for i := range f.Cfg.Certificates {
+				cert := &f.Cfg.Certificates[i]
+				cert.TLS = cert.ID == *c.Certificate
+				if cert.TLS {
+					f.FP = cert.Fingerprint
+				}
+			}
+		}
+	})
 }

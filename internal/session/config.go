@@ -14,6 +14,8 @@ type ConfigDevice interface {
 	SetConsent(amt.ConsentPolicy) error
 	SetEnvironmentDetection(domains []string, confirm amt.Confirmation) error
 	SyncClock() error
+	TLSCertificates() ([]amt.Certificate, error)
+	SetTLS(c amt.TLSChange, confirm amt.Confirmation) error
 
 	Users() (amt.UserList, error)
 	AddUser(amt.UserSpec) (handle int, err error)

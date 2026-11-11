@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -288,6 +289,27 @@ func TestFsckFat(t *testing.T) {
 	}
 }
 
+// requireNames skips the test unless dir holds exactly the entries names. A conflict test needs
+// two names the file system keeps apart: a case-insensitive one (APFS, NTFS) stores "A.txt" and
+// "a.TXT" as one file, and on NTFS "a:b" names a stream of the file "a".
+func requireNames(t *testing.T, dir string, names ...string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := make([]string, len(entries))
+	for i, e := range entries {
+		got[i] = e.Name()
+	}
+	want := slices.Clone(names)
+	slices.Sort(got)
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Skipf("the file system cannot keep the names %q apart (found %q)", names, got)
+	}
+}
+
 func TestErrors(t *testing.T) {
 	asPath := func(t *testing.T, err error) *PathError {
 		t.Helper()
@@ -310,6 +332,7 @@ func TestErrors(t *testing.T) {
 	t.Run("conflict case", func(t *testing.T) {
 		src := t.TempDir()
 		writeTree(t, src, []spec{{disk: "d/A.txt", data: []byte("1")}, {disk: "d/a.TXT", data: []byte("2")}})
+		requireNames(t, filepath.Join(src, "d"), "A.txt", "a.TXT")
 		_, _, err := buildToFile(t, src, Options{})
 		if !errors.Is(err, ErrNameConflict) {
 			t.Fatalf("err = %v", err)
@@ -321,6 +344,7 @@ func TestErrors(t *testing.T) {
 	t.Run("conflict sanitized", func(t *testing.T) {
 		src := t.TempDir()
 		writeTree(t, src, []spec{{disk: "a:b", data: []byte("1")}, {disk: "a_b", data: []byte("2")}})
+		requireNames(t, src, "a:b", "a_b")
 		_, _, err := buildToFile(t, src, Options{})
 		if !errors.Is(err, ErrNameConflict) {
 			t.Fatalf("err = %v", err)

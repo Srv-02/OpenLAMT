@@ -26,7 +26,8 @@ const (
 	SegmentedText
 	// SegmentedTabs are the tabs of the device management sidebar (Main.dc.html .tab): segments
 	// of equal width over the full width, 12 px text, track radius 9 with 3 px padding, segments
-	// radius 7 and 6 px high padding.
+	// radius 7 and 6 px high padding. Where equal widths do not fit the longest caption (German),
+	// the segments share the width in proportion to their captions.
 	SegmentedTabs
 )
 
@@ -190,17 +191,46 @@ func (s *Segmented) contentSize(o SegmentOption) fyne.Size {
 func (s *Segmented) segmentWidths() []float32 {
 	g := s.style.geometry()
 	out := make([]float32, len(s.options))
-	var widest float32
 	for i, o := range s.options {
 		out[i] = max(g.minSeg, s.contentSize(o).Width+2*g.padH)
-		widest = max(widest, out[i])
-	}
-	if s.style == SegmentedTabs {
-		for i := range out {
-			out[i] = widest
-		}
 	}
 	return out
+}
+
+// frame is the width of the track padding and the gaps between the segments.
+func (s *Segmented) frame() float32 {
+	g := s.style.geometry()
+	return 2*g.pad + g.gap*float32(max(0, len(s.options)-1))
+}
+
+// layoutWidths returns the width of every segment at the current size: the extra width shared
+// equally; tabs of equal width while the widest caption fits, else in proportion to their
+// captions.
+func (s *Segmented) layoutWidths() []float32 {
+	widths := s.segmentWidths()
+	room := s.Size().Width - s.frame()
+	var sum, widest float32
+	for _, w := range widths {
+		sum += w
+		widest = max(widest, w)
+	}
+	n := float32(max(1, len(widths)))
+	switch {
+	case s.style == SegmentedTabs && widest*n <= room:
+		for i := range widths {
+			widths[i] = room / n
+		}
+	case s.style == SegmentedTabs && sum > 0:
+		for i, w := range widths {
+			widths[i] = max(0, room) * w / sum
+		}
+	default:
+		extra := max(0, room-sum) / n
+		for i := range widths {
+			widths[i] += extra
+		}
+	}
+	return widths
 }
 
 // trackHeight is the height of the track.
@@ -217,28 +247,25 @@ func (s *Segmented) trackHeight() float32 {
 }
 
 func (s *Segmented) minSize() fyne.Size {
-	g := s.style.geometry()
-	w := 2*g.pad + g.gap*float32(max(0, len(s.options)-1))
+	w := s.frame()
 	for _, sw := range s.segmentWidths() {
 		w += sw
 	}
 	return fyne.NewSize(w, s.trackHeight())
 }
 
-// segmentBounds returns the rectangle of segment i for the current size: the extra width is
-// shared equally, so tabs get the same width over the full width.
+// segmentBounds returns the rectangle of segment i for the current size (layoutWidths).
 func (s *Segmented) segmentBounds(i int) segBounds {
 	g := s.style.geometry()
 	size := s.Size()
-	widths := s.segmentWidths()
-	extra := max(0, size.Width-s.minSize().Width) / float32(max(1, len(widths)))
+	widths := s.layoutWidths()
 	th := s.trackHeight()
 	top := (max(size.Height, th)-th)/2 + g.pad
 	x := g.pad
 	for j := 0; j < i; j++ {
-		x += widths[j] + extra + g.gap
+		x += widths[j] + g.gap
 	}
-	return segBounds{fyne.NewPos(x, top), fyne.NewSize(widths[i]+extra, th-2*g.pad)}
+	return segBounds{fyne.NewPos(x, top), fyne.NewSize(widths[i], th-2*g.pad)}
 }
 
 func (s *Segmented) CreateRenderer() fyne.WidgetRenderer {

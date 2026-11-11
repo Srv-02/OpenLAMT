@@ -83,9 +83,18 @@ type orangeSpec struct {
 	host               string // Session.Config().Host
 	title, warning     string
 	oldValue, newValue string // optional line "old → new" with the new value in semibold; both empty for none
-	button             string
-	onConfirm          func(amt.Confirmation) // runs after the dialog closed through the button
-	onCancel           func()                 // may be nil
+	// danger draws the red warning box with the semibold warningBold before warning (Forms.dc.html
+	// "Change TLS certificate"); otherwise the box is orange and warningBold is ignored.
+	danger      bool
+	warningBold string
+	// extra builds content shown between the warning and the checkbox; it calls d.Revalidate
+	// when it changes. May be nil.
+	extra func(d *riskDialog) []fyne.CanvasObject
+	// ready is the extra condition for the button; nil means none.
+	ready     func() bool
+	button    string
+	onConfirm func(amt.Confirmation) // runs after the dialog closed through the button
+	onCancel  func()                 // may be nil
 }
 
 // showOrangeConfirm shows an orange confirmation. The button stays disabled until the checkbox
@@ -98,6 +107,9 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 	d.panel = showPanel(parent, panelSpec{
 		danger: true, redButton: true, title: s.title, action: s.button, cancel: lang.L("Cancel"),
 		onAction: func() {
+			if s.ready != nil && !s.ready() {
+				return
+			}
 			if c, err := confirmation(); err == nil && s.onConfirm != nil {
 				s.onConfirm(c)
 			}
@@ -105,13 +117,20 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 		onCancel: s.onCancel,
 	}, func(p *panel) []fyne.CanvasObject {
 		d.panel = p
+		bold := ""
+		if s.danger {
+			bold = s.warningBold
+		}
 		var box fyne.CanvasObject
-		box, d.warnBox = warningBox(false, "", s.warning)
+		box, d.warnBox = warningBox(s.danger, bold, s.warning)
 		body := []fyne.CanvasObject{box}
 		if s.oldValue != "" || s.newValue != "" {
 			body = append(body, richLine(
 				textSeg(s.oldValue+" → ", style.ColorNameControlText, false),
 				textSeg(s.newValue, theme.ColorNameForeground, true)))
+		}
+		if s.extra != nil {
+			body = append(body, s.extra(d)...)
 		}
 		d.check = p.newCheck(lang.L("I understand the risk"), false)
 		d.check.OnChanged = func(bool) { d.Revalidate() }
@@ -119,7 +138,7 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 	})
 	d.validate = func() {
 		_, err := confirmation()
-		d.setEnabled(err == nil)
+		d.setEnabled(err == nil && (s.ready == nil || s.ready()))
 	}
 	d.Revalidate()
 	return d

@@ -16,7 +16,7 @@ const (
 	OpAdminAccount   Operation = "AdminAccount"      // name or password of the AMT admin account
 	OpNetwork        Operation = "Network"           // IPv4 configuration of the wired port
 	OpEnvironment    Operation = "Environment"       // environment detection domains
-	OpTLS            Operation = "TLS"               // TLS certificate and settings
+	OpTLS            Operation = "TLS"               // TLS certificate and settings; SeverityHigh: the session follows the new pin
 	OpDisableNetwork Operation = "DisableAMTNetwork" // AMTNetworkEnabled off
 )
 
@@ -45,10 +45,10 @@ var risks = map[Operation]Risk{
 	OpHostName:       {OpHostName, SeverityHigh, "risk.host_name"},
 	OpFeaturesOff:    {OpFeaturesOff, SeverityHigh, "risk.features_off"},
 	OpOwnAccount:     {OpOwnAccount, SeverityHigh, "risk.own_account"},
+	OpTLS:            {OpTLS, SeverityHigh, "risk.tls"},
 	OpAdminAccount:   {OpAdminAccount, SeverityLockout, "risk.admin_account"},
 	OpNetwork:        {OpNetwork, SeverityLockout, "risk.network"},
 	OpEnvironment:    {OpEnvironment, SeverityLockout, "risk.environment_detection"},
-	OpTLS:            {OpTLS, SeverityLockout, "risk.tls"},
 	OpDisableNetwork: {OpDisableNetwork, SeverityIrreversibleRemotely, "risk.disable_amt_network"},
 }
 

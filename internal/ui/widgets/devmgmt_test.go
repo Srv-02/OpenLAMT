@@ -84,6 +84,37 @@ func TestSegmentedTabsShareTheWidth(t *testing.T) {
 	}
 }
 
+// Tabs whose equal widths do not fit (German "Einstellungen" in the 368 px sidebar) share the
+// width in proportion to their captions instead of running over.
+func TestSegmentedTabsFitLongCaptions(t *testing.T) {
+	themedApp(t)
+	labels := []string{"Hardware", "Ereignisse", "Audit", "Einstellungen", "Benutzer"}
+	s := NewSegmented(SegmentedTabs, TextOptions(labels...), nil)
+	test.NewTempWindow(t, s)
+	if s.MinSize().Width > 368 {
+		t.Fatalf("min width %v does not fit the sidebar", s.MinSize().Width)
+	}
+	s.Resize(fyne.NewSize(368, s.MinSize().Height))
+	g := SegmentedTabs.geometry()
+	end := float32(0)
+	for i, l := range labels {
+		b := s.segmentBounds(i)
+		if text := fyne.MeasureText(l, g.textSize, fyne.TextStyle{}).Width + 2*g.padH; b.size.Width < text-0.5 {
+			t.Errorf("%s: segment %v narrower than its caption %v", l, b.size.Width, text)
+		}
+		if b.pos.X < end-0.5 {
+			t.Errorf("%s overlaps the segment before it", l)
+		}
+		end = b.pos.X + b.size.Width
+	}
+	if end < 368-3-0.5 || end > 368-3+0.5 {
+		t.Errorf("segments end at %v, want 365", end)
+	}
+	if a, b := s.segmentBounds(3).size.Width, s.segmentBounds(2).size.Width; a <= b {
+		t.Errorf("Einstellungen %v not wider than Audit %v", a, b)
+	}
+}
+
 func TestSegmentedTextIsCompact(t *testing.T) {
 	themedApp(t)
 	s := NewSegmented(SegmentedText, TextOptions("None", "KVM only", "All"), nil)
@@ -151,6 +182,25 @@ func TestFilterFieldClearButtonOnlyWithText(t *testing.T) {
 	cr := test.WidgetRenderer(f.clear).(*clearButtonRenderer)
 	if cr.circle.Size() != fyne.NewSquareSize(16) || !same(cr.circle.FillColor, style.Color(style.ColorNameFilterClear)) {
 		t.Errorf("clear circle %v %v", cr.circle.Size(), cr.circle.FillColor)
+	}
+}
+
+// The entry of the filter field sits in the vertical middle of the 30 px frame, so text and
+// placeholder line up with the magnifier.
+func TestFilterFieldCentersTheText(t *testing.T) {
+	themedApp(t)
+	f := NewFilterField(nil)
+	test.NewTempWindow(t, f)
+	f.Resize(fyne.NewSize(200, 30))
+	d := fyne.CurrentApp().Driver()
+	top := d.AbsolutePositionForObject(f.Entry).Y - d.AbsolutePositionForObject(f).Y
+	bottom := f.Size().Height - top - f.Entry.Size().Height
+	// Fyne draws the text at the top of a taller entry: the entry keeps its own height
+	if h := f.Entry.Size().Height; h != f.Entry.MinSize().Height {
+		t.Errorf("entry %v high, its text needs %v", h, f.Entry.MinSize().Height)
+	}
+	if diff := top - bottom; diff < -0.5 || diff > 0.5 {
+		t.Errorf("entry %v from the top, %v from the bottom", top, bottom)
 	}
 }
 

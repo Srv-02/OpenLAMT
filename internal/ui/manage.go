@@ -160,10 +160,13 @@ type manager struct {
 	events *manageSource[[]logRow]
 	audit  *manageSource[[]logRow]
 
+	settings *settingsData
+
 	pages    []managePage
 	side     *manageSidebar
 	win      *manageWindow // open window or nil
 	onPopOut func()
+	users    *manageSource[amt.UserList] // created by the first Users pane
 	closed   bool
 
 	now       func() time.Time
@@ -186,18 +189,16 @@ func newManager(a fyne.App, parent fyne.Window, sess *session.Session, name stri
 		e, err := sess.AuditLog()
 		return auditRows(e, time.Local), err
 	})
+	m.settings = newSettingsData(m)
 	m.pages = []managePage{
 		{tab: lang.L("Hardware"), title: lang.L("Hardware"), icon: icons.Hardware, build: m.hardwarePane},
 		{tab: lang.L("Events"), title: lang.L("Event log"), icon: icons.EventLog, build: m.eventLogPane},
 		{tab: lang.L("Audit"), title: lang.L("Audit log"), icon: icons.AuditLog, build: m.auditLogPane},
-		{tab: lang.L("Settings"), title: lang.L("Settings"), icon: icons.Settings, build: emptyPane}, // task B3
-		{tab: lang.L("Users"), title: lang.L("Users"), icon: icons.Users, build: emptyPane},          // task B4
+		{tab: lang.L("Settings"), title: lang.L("Settings"), icon: icons.Settings, build: m.settingsPane},
+		{tab: lang.L("Users"), title: lang.L("Users"), icon: icons.Users, build: m.usersPane},
 	}
 	return m
 }
-
-// emptyPane is the placeholder of a page that is not built yet.
-func emptyPane(bool) *managePane { return &managePane{body: container.NewStack()} }
 
 // status returns the device window's last status read.
 func (m *manager) status() (amt.Status, bool) {

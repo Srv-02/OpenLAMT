@@ -51,7 +51,9 @@ func TestManageShots(t *testing.T) {
 	audit := exampleAudit()
 	audit = append(audit, amt.AuditLogEntry{Time: time.Date(2026, 11, 9, 8, 0, 0, 0, time.UTC), InitiatorType: 1,
 		Initiator: "S-1-5-21-1111111111-2222222222-3333333333-1001", Address: "2001:db8::1", Event: "KVM Session Started"})
-	h := newManageHarness(t, &session.Fake{FP: fp, HW: exampleHW(), Events: events, Audit: audit})
+	dev := &session.Fake{FP: certFP, HW: exampleHW(), Events: events, Audit: audit}
+	dev.Cfg.Settings, dev.Cfg.Certificates = exampleSettings(), exampleCerts()
+	h := newManageHarness(t, dev)
 	switchVariant(h.a, theme.VariantLight)
 	h.m.now = func() time.Time { return h.m.hw.at.Add(12 * time.Second) }
 
@@ -66,7 +68,7 @@ func TestManageShots(t *testing.T) {
 	shot("manage-sidebar-hardware.png", device)
 	for i, name := range []string{"events", "audit", "settings", "users"} {
 		h.m.side.tabs.Tap(i + 1)
-		if i < 2 {
+		if i < 3 { // events, audit, settings read their data
 			h.wait(t)
 		}
 		shot("manage-sidebar-"+name+".png", device)

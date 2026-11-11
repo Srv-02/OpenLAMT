@@ -29,6 +29,9 @@ type ButtonMetrics struct {
 	Neutral, NeutralBorder fyne.ThemeColorName
 	// Regular draws the text in the regular weight instead of semibold.
 	Regular bool
+	// NeutralText names the token of the text of a button that is not HighImportance or
+	// DangerImportance; the default is "foreground" (the light red Edit of the signed-in user).
+	NeutralText fyne.ThemeColorName
 }
 
 // PrimaryButton is the accent button with text and an optional symbol, in the design's
@@ -100,6 +103,7 @@ func (b *PrimaryButton) metrics() ButtonMetrics {
 		}
 		m.NeutralBorder = o.NeutralBorder
 		m.Regular = o.Regular
+		m.NeutralText = o.NeutralText
 	}
 	return m
 }
@@ -202,6 +206,9 @@ func (r *primaryButtonRenderer) Refresh() {
 	m := b.metrics()
 	high := b.Importance == widget.HighImportance
 	fill, fg := style.Color(m.Neutral), style.Color("foreground")
+	if m.NeutralText != "" {
+		fg = style.Color(m.NeutralText)
+	}
 	if high {
 		fill, fg = style.Color("primary"), style.Color(style.ColorNameWhite)
 	}

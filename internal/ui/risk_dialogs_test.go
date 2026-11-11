@@ -319,3 +319,49 @@ func same(a, b color.Color) bool {
 	br, bg, bb, ba := b.RGBA()
 	return ar == br && ag == bg && ab == bb && aa == ba
 }
+
+// Extras.dc.html: a plain text instead of the warning box; without an operation the checkbox
+// alone enables the button (deleting a user needs no amt.Confirmation).
+func TestOrangeConfirmPlainTextWithoutOperation(t *testing.T) {
+	w, _ := panelHarness(t)
+	confirmed := 0
+	d := showOrangeConfirm(w, orangeSpec{title: "Delete user “helpdesk”?", text: "The user can no longer sign in.",
+		button: "Delete User", onConfirm: func(amt.Confirmation) { confirmed++ }})
+	if d.warnBox != nil {
+		t.Error("a warning box in the plain variant")
+	}
+	if !hasRichText(t, d.frame, "The user can no longer sign in.", false) {
+		t.Error("text missing")
+	}
+	if !d.action.Disabled() {
+		t.Fatal("button enabled before the box is ticked")
+	}
+	test.Tap(d.check)
+	if d.action.Disabled() {
+		t.Fatal("button disabled after the box was ticked")
+	}
+	test.Tap(d.action)
+	if confirmed != 1 || open(w) {
+		t.Fatalf("confirmed %d open %v", confirmed, open(w))
+	}
+}
+
+// HostEnv.dc.html "Change host name": the field is above the warning box and has the focus.
+func TestOrangeConfirmLeadAboveTheWarning(t *testing.T) {
+	w, c := panelHarness(t)
+	var field *dialogEntry
+	d := showOrangeConfirm(w, orangeSpec{op: amt.OpHostName, host: riskHost, title: "Change host name",
+		warning: "With Dynamic DNS, the device may no longer be found under its current name.",
+		lead: func(d *riskDialog) []fyne.CanvasObject {
+			field = d.newEntry(false)
+			d.focus = field
+			return []fyne.CanvasObject{field}
+		},
+		button: "Change Name"})
+	if field == nil || absPos(field).Y >= absPos(d.warnBox).Y {
+		t.Fatalf("field not above the warning box")
+	}
+	if c.Focused() != field {
+		t.Error("the field has no focus")
+	}
+}

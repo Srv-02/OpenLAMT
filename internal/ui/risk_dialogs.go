@@ -23,9 +23,10 @@ import (
 //
 //   - showQuestion (Dialogs.dc.html): a tinted symbol tile above the title, a text, a secondary
 //     button and the blue main button; Enter confirms.
-//   - showOrangeConfirm (Danger.dc.html, right): an orange warning box, an optional "old → new"
-//     line and the checkbox "I understand the risk"; the red button stays disabled until it is
-//     ticked and hands amt.ConfirmChecked's confirmation to onConfirm.
+//   - showOrangeConfirm (Danger.dc.html, right): an orange warning box (or a plain text,
+//     Extras.dc.html), an optional "old → new" line and the checkbox "I understand the risk"; the
+//     red button stays disabled until it is ticked and hands amt.ConfirmChecked's confirmation to
+//     onConfirm.
 //   - showRedConfirm (Danger.dc.html, left and middle): a red warning box, optional fields and
 //     "Type <phrase> to confirm"; the red button stays disabled until amt.Confirm accepts the
 //     typed text and the extra condition holds.
@@ -81,14 +82,23 @@ func (d *riskDialog) setEnabled(ok bool) {
 
 // orangeSpec describes an orange confirmation (SeverityHigh operations).
 type orangeSpec struct {
-	op                 amt.Operation
-	host               string // Session.Config().Host
-	title, warning     string
+	// op is the operation amt.ConfirmChecked confirms. Empty: the change needs no
+	// amt.Confirmation (deleting a user); the checkbox alone enables the button and onConfirm gets
+	// the zero Confirmation.
+	op             amt.Operation
+	host           string // Session.Config().Host
+	title, warning string
+	// text is a plain paragraph in place of the warning box (Extras.dc.html); used when warning
+	// is empty.
+	text               string
 	oldValue, newValue string // optional line "old → new" with the new value in semibold; both empty for none
 	// danger draws the red warning box with the semibold warningBold before warning (Forms.dc.html
 	// "Change TLS certificate"); otherwise the box is orange and warningBold is ignored.
 	danger      bool
 	warningBold string
+	// lead builds content shown above the warning (the field of "Change host name",
+	// HostEnv.dc.html); it calls d.Revalidate when it changes. May be nil.
+	lead func(d *riskDialog) []fyne.CanvasObject
 	// extra builds content shown between the warning and the checkbox; it calls d.Revalidate
 	// when it changes. May be nil.
 	extra func(d *riskDialog) []fyne.CanvasObject
@@ -104,7 +114,14 @@ type orangeSpec struct {
 func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 	d := &riskDialog{}
 	confirmation := func() (amt.Confirmation, error) {
-		return amt.ConfirmChecked(s.op, s.host, d.check != nil && d.check.Checked)
+		checked := d.check != nil && d.check.Checked
+		if s.op == "" {
+			if !checked {
+				return amt.Confirmation{}, amt.ErrConfirmationMismatch
+			}
+			return amt.Confirmation{}, nil
+		}
+		return amt.ConfirmChecked(s.op, s.host, checked)
 	}
 	d.panel = showPanel(parent, panelSpec{
 		danger: true, redButton: true, flush: true, title: s.title, action: s.button, cancel: lang.L("Cancel"),
@@ -119,13 +136,21 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 		onCancel: s.onCancel,
 	}, func(p *panel) []fyne.CanvasObject {
 		d.panel = p
-		bold := ""
-		if s.danger {
-			bold = s.warningBold
+		var body []fyne.CanvasObject
+		if s.lead != nil {
+			body = append(body, s.lead(d)...)
 		}
-		var box fyne.CanvasObject
-		box, d.warnBox = warningBox(s.danger, bold, s.warning)
-		body := []fyne.CanvasObject{box}
+		if s.warning == "" && s.text != "" {
+			body = append(body, flushText(richLine(textSeg(s.text, style.ColorNameControlText, false))))
+		} else {
+			bold := ""
+			if s.danger {
+				bold = s.warningBold
+			}
+			var box fyne.CanvasObject
+			box, d.warnBox = warningBox(s.danger, bold, s.warning)
+			body = append(body, box)
+		}
 		if s.oldValue != "" || s.newValue != "" {
 			body = append(body, flushText(richLine(
 				textSeg(s.oldValue+" → ", style.ColorNameControlText, false),

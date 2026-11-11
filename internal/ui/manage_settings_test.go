@@ -13,6 +13,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/session"
 	"github.com/Srv-02/openlamt/internal/ui/style"
+	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
 // Made-up settings and certificates (example.com, 192.0.2.0/24).
@@ -21,10 +22,11 @@ func exampleSettings() amt.Settings {
 		General: amt.GeneralSettings{HostName: "labserver", DomainName: "example.com", PingResponse: true, NetworkEnabled: true},
 		Network: amt.NetworkSettings{Available: true, DHCP: true, IPAddress: "192.0.2.10", SubnetMask: "255.255.255.0",
 			Gateway: "192.0.2.1", PrimaryDNS: "192.0.2.53"},
-		Features: amt.Features{Redirection: true, KVM: true, KVMAvailable: true, IDER: true},
-		Consent:  amt.ConsentSettings{Available: true, Policy: amt.ConsentKVM, CanModify: true},
-		TLS:      amt.TLSSettings{Remote: amt.TLSInterface{Available: true, Enabled: true}},
-		Clock:    amt.ClockInfo{Available: true, Offset: -15 * time.Second},
+		Features:    amt.Features{Redirection: true, KVM: true, KVMAvailable: true, IDER: true},
+		Consent:     amt.ConsentSettings{Available: true, Policy: amt.ConsentKVM, CanModify: true},
+		TLS:         amt.TLSSettings{Remote: amt.TLSInterface{Available: true, Enabled: true}},
+		Clock:       amt.ClockInfo{Available: true, Offset: -15 * time.Second},
+		Environment: amt.EnvironmentDetection{Available: true, Domains: []string{"example.com", "corp.example.com"}},
 	}
 }
 
@@ -70,17 +72,13 @@ func (h *manageHarness) written(t *testing.T) {
 	h.wait(t)
 }
 
-func catchNotApproved(t *testing.T) *[]string {
-	var got []string
-	notApprovedHook = func(what string) { got = append(got, what) }
-	t.Cleanup(func() { notApprovedHook = nil })
-	return &got
-}
-
 func TestSettingsPageShowsTheValues(t *testing.T) {
 	_, p := settingsHarness(t, nil)
-	if p.host.Text != "labserver" || p.domain.Text != "example.com" || !p.ping.Checked() || p.ddns.Checked() {
-		t.Errorf("general: %q %q ping %v ddns %v", p.host.Text, p.domain.Text, p.ping.Checked(), p.ddns.Checked())
+	if p.hostText.Text != "labserver" || p.domainText.Text != "example.com" || !p.ping.Checked() || p.ddns.Checked() {
+		t.Errorf("general: %q %q ping %v ddns %v", p.hostText.Text, p.domainText.Text, p.ping.Checked(), p.ddns.Checked())
+	}
+	if !p.envBox.Visible() || p.envValue() != "example.com, corp.example.com" || !hasText(p.envBox, "Intranet domains") {
+		t.Errorf("environment detection: shown %v value %q", p.envBox.Visible(), p.envValue())
 	}
 	if p.address.Selected() != 0 || p.ipText.Text != "192.0.2.10 / 24 · gateway 192.0.2.1" || !p.networkBox.Visible() {
 		t.Errorf("network: %d %q", p.address.Selected(), p.ipText.Text)
@@ -91,8 +89,8 @@ func TestSettingsPageShowsTheValues(t *testing.T) {
 	if p.clockText.Text != "15 s behind" || p.tlsText.Text != "SHA-256 4F:2A:…:9C" {
 		t.Errorf("clock %q tls %q", p.clockText.Text, p.tlsText.Text)
 	}
-	if p.host.MinSize().Width != 220 || p.err.box.Visible() {
-		t.Errorf("host field %v, error %q", p.host.MinSize(), p.err.Text())
+	if p.err.box.Visible() {
+		t.Errorf("error %q", p.err.Text())
 	}
 }
 
@@ -101,9 +99,11 @@ func TestSettingsPageHidesWhatTheDeviceLacks(t *testing.T) {
 		f.Cfg.Settings.Network.Available = false
 		f.Cfg.Settings.Features.KVMAvailable = false
 		f.Cfg.Settings.Consent.CanModify = false
+		f.Cfg.Settings.Environment.Available = false
 	})
-	if p.networkBox.Visible() || p.kvmRow.visibleRow() || !p.consent.Disabled() {
-		t.Errorf("network %v kvm %v consent disabled %v", p.networkBox.Visible(), p.kvmRow.visibleRow(), p.consent.Disabled())
+	if p.networkBox.Visible() || p.kvmRow.visibleRow() || !p.consent.Disabled() || p.envBox.Visible() {
+		t.Errorf("network %v kvm %v consent disabled %v environment %v", p.networkBox.Visible(), p.kvmRow.visibleRow(),
+			p.consent.Disabled(), p.envBox.Visible())
 	}
 }
 
@@ -134,7 +134,7 @@ func TestSettingsFormats(t *testing.T) {
 func TestSettingsPingWritesAtOnce(t *testing.T) {
 	h, p := settingsHarness(t, nil)
 	test.Tap(p.ping)
-	if !p.ping.Disabled() || !p.host.Disabled() || !p.turnOff.Disabled() {
+	if !p.ping.Disabled() || !p.changeHost.Disabled() || !p.changeEnv.Disabled() || !p.turnOff.Disabled() {
 		t.Fatal("the page is not locked while writing")
 	}
 	h.written(t)
@@ -146,24 +146,39 @@ func TestSettingsPingWritesAtOnce(t *testing.T) {
 	}
 }
 
-func TestSettingsHostNameAsksOrange(t *testing.T) {
+func TestSettingsHostNameDialog(t *testing.T) {
 	h, p := settingsHarness(t, nil)
-	c := h.m.parent.Canvas()
-	c.Focus(p.host)
-	p.host.SetText("lab01")
-	p.host.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
-	d := p.dialog
-	if d == nil || !open(h.m.parent) || d.check == nil {
-		t.Fatal("Enter did not open the orange confirmation")
+	test.Tap(p.changeHost)
+	d, f := p.dialog, p.nameField
+	if d == nil || f == nil || !open(h.m.parent) || d.check == nil {
+		t.Fatal("Change… did not open the orange dialog")
 	}
-	if !hasRichText(t, d.frame, "labserver.example.com → ", false) || !hasRichText(t, d.frame, "lab01.example.com", true) {
-		t.Error("detail line labserver.example.com → lab01.example.com missing")
+	top := h.m.parent.Canvas().Overlays().Top()
+	findLabel(t, top, "Change host name")
+	if !hasText(top, "New host name") || f.Text != "labserver" || d.action.Text != "Change Name" || h.m.parent.Canvas().Focused() != f {
+		t.Errorf("field %q button %q focus %v", f.Text, d.action.Text, h.m.parent.Canvas().Focused() == f)
 	}
-	if p.host.Text != "lab01" {
-		t.Errorf("the field lost the new name while asking: %q", p.host.Text)
+	if !hasRichText(t, top, "With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them.", false) ||
+		!same(d.warnBox.FillColor, style.Color(style.ColorNameWarningSurface)) {
+		t.Error("orange warning box")
 	}
+	if absPos(f).Y >= absPos(d.warnBox).Y {
+		t.Error("the field is not above the warning")
+	}
+	test.Tap(d.check)
+	for _, bad := range []string{"labserver", "", "  ", "not a host!"} {
+		f.SetText(bad)
+		if !d.action.Disabled() {
+			t.Errorf("enabled with %q", bad)
+		}
+	}
+	f.SetText("lab01")
+	if d.action.Disabled() {
+		t.Fatal("disabled with a new valid name and the box ticked")
+	}
+	test.Tap(d.check)
 	if !d.action.Disabled() {
-		t.Fatal("button enabled before the checkbox")
+		t.Fatal("enabled without the box")
 	}
 	test.Tap(d.check)
 	test.Tap(d.action)
@@ -171,46 +186,48 @@ func TestSettingsHostNameAsksOrange(t *testing.T) {
 	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetGeneral"}) || h.dev.Cfg.Settings.General.HostName != "lab01" {
 		t.Fatalf("writes %v host %q (the fake checks the confirmation)", got, h.dev.Cfg.Settings.General.HostName)
 	}
-	if p.host.Text != "lab01" {
-		t.Errorf("after the write: %q", p.host.Text)
+	if p.hostText.Text != "lab01" || p.domainText.Text != "example.com" {
+		t.Errorf("after the write: %q %q", p.hostText.Text, p.domainText.Text)
 	}
 }
 
-func TestSettingsDomainUsesTheNameDialogAndCancelReverts(t *testing.T) {
+func TestSettingsDomainDialog(t *testing.T) {
 	h, p := settingsHarness(t, nil)
-	h.m.parent.Canvas().Focus(p.domain)
-	p.domain.SetText("example.org")
-	p.domain.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
-	d := p.dialog
-	if d == nil || !hasRichText(t, d.frame, "labserver.example.org", true) {
-		t.Fatal("the domain does not ask with the full name")
+	test.Tap(p.changeDomain)
+	d, f := p.dialog, p.nameField
+	top := h.m.parent.Canvas().Overlays().Top()
+	findLabel(t, top, "Change domain")
+	if !hasText(top, "New domain") || f.Text != "example.com" || d.action.Text != "Change Domain" {
+		t.Fatalf("field %q button %q", f.Text, d.action.Text)
 	}
 	d.Dismiss()
-	if p.domain.Text != "example.com" || len(h.dev.ConfigWrites()) != 0 {
-		t.Errorf("cancel: %q writes %v", p.domain.Text, h.dev.ConfigWrites())
+	if len(h.dev.ConfigWrites()) != 0 || p.domainText.Text != "example.com" {
+		t.Fatalf("cancel: writes %v", h.dev.ConfigWrites())
+	}
+	test.Tap(p.changeDomain)
+	d, f = p.dialog, p.nameField
+	f.SetText("example.org")
+	test.Tap(d.check)
+	test.Tap(d.action)
+	h.written(t)
+	g := h.dev.Cfg.Settings.General
+	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetGeneral"}) || g.DomainName != "example.org" || g.HostName != "labserver" {
+		t.Fatalf("writes %v general %+v", got, g)
+	}
+	if p.domainText.Text != "example.org" {
+		t.Errorf("page %q", p.domainText.Text)
 	}
 }
 
-func TestSettingsNameRevertsWithoutEnter(t *testing.T) {
-	h, p := settingsHarness(t, nil)
-	c := h.m.parent.Canvas()
-	c.Focus(p.host)
-	p.host.SetText("lab02")
-	p.host.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
-	if p.host.Text != "labserver" || open(h.m.parent) {
-		t.Errorf("Esc: %q dialog %v", p.host.Text, open(h.m.parent))
-	}
-	c.Focus(p.host)
-	p.host.SetText("lab03")
-	c.Unfocus()
-	if p.host.Text != "labserver" {
-		t.Errorf("focus lost: %q", p.host.Text)
-	}
-	c.Focus(p.host)
-	p.host.SetText("not a host!")
-	p.host.TypedKey(&fyne.KeyEvent{Name: fyne.KeyReturn})
-	if open(h.m.parent) || p.host.Text != "labserver" || !p.err.box.Visible() {
-		t.Errorf("invalid name: dialog %v text %q error %v", open(h.m.parent), p.host.Text, p.err.box.Visible())
+func TestSettingsNameWriteErrorKeepsTheDeviceValue(t *testing.T) {
+	h, p := settingsHarness(t, func(f *session.Fake) { f.Cfg.WriteErr = amt.ErrNotModifiable })
+	test.Tap(p.changeHost)
+	p.nameField.SetText("lab01")
+	test.Tap(p.dialog.check)
+	test.Tap(p.dialog.action)
+	h.written(t)
+	if p.hostText.Text != "labserver" || !p.err.box.Visible() || p.changeHost.Disabled() {
+		t.Errorf("host %q error %v button disabled %v", p.hostText.Text, p.err.box.Visible(), p.changeHost.Disabled())
 	}
 }
 
@@ -268,21 +285,125 @@ func TestSettingsNetworkDialog(t *testing.T) {
 
 func TestSettingsFeatures(t *testing.T) {
 	h, p := settingsHarness(t, nil)
-	asked := catchNotApproved(t)
 	test.Tap(p.sol)
 	h.written(t)
-	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetFeatures"}) || !h.dev.Cfg.Settings.Features.SOL || !p.sol.Checked() {
+	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetFeatures"}) || !h.dev.Cfg.Settings.Features.SOL || !p.sol.Checked() || open(h.m.parent) {
 		t.Fatalf("SOL on: writes %v", got)
-	}
-	test.Tap(p.kvm)
-	test.Tap(p.ddns)
-	if !p.kvm.Checked() || p.ddns.Checked() || len(h.dev.ConfigWrites()) != 1 || len(*asked) != 2 || p.kvm.Disabled() {
-		t.Errorf("off without design: kvm %v ddns %v writes %v asked %v", p.kvm.Checked(), p.ddns.Checked(), h.dev.ConfigWrites(), *asked)
 	}
 	p.consent.Tap(2)
 	h.written(t)
 	if h.dev.Cfg.Settings.Consent.Policy != amt.ConsentAll || p.consent.Selected() != 2 {
 		t.Errorf("consent %v page %d", h.dev.Cfg.Settings.Consent.Policy, p.consent.Selected())
+	}
+}
+
+// Extras.dc.html: disabling KVM, IDE-R or SOL asks with a plain text and the checkbox.
+func TestSettingsDisableFeatureAsks(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		sw          func(*settingsPane) *widgets.Switch
+		title, text string
+		on          func(amt.Features) bool
+	}{
+		{"KVM", func(p *settingsPane) *widgets.Switch { return p.kvm }, "Disable KVM on “Lab”?",
+			"Open KVM sessions end right away. You can enable KVM again in Settings.", func(f amt.Features) bool { return f.KVM }},
+		{"IDE-R", func(p *settingsPane) *widgets.Switch { return p.ider }, "Disable media redirection (IDE-R) on “Lab”?",
+			"Open media redirection (IDE-R) sessions end right away. You can enable media redirection again in Settings.",
+			func(f amt.Features) bool { return f.IDER }},
+		{"SOL", func(p *settingsPane) *widgets.Switch { return p.sol }, "Disable Serial over LAN (SOL) on “Lab”?",
+			"Open Serial over LAN (SOL) sessions end right away. You can enable Serial over LAN again in Settings.",
+			func(f amt.Features) bool { return f.SOL }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, p := settingsHarness(t, func(f *session.Fake) { f.Cfg.Settings.Features.SOL = true })
+			s := c.sw(p)
+			test.Tap(s)
+			d := p.dialog
+			if d == nil || !open(h.m.parent) || !s.Checked() || len(h.dev.ConfigWrites()) != 0 {
+				t.Fatalf("no dialog, or switched off before the confirmation: checked %v writes %v", s.Checked(), h.dev.ConfigWrites())
+			}
+			top := h.m.parent.Canvas().Overlays().Top()
+			findLabel(t, top, c.title)
+			if !hasRichText(t, top, c.text, false) || d.warnBox != nil || d.action.Text != "Disable" {
+				t.Errorf("text, warning box %v, button %q", d.warnBox != nil, d.action.Text)
+			}
+			if !d.action.Disabled() {
+				t.Fatal("button enabled before the box is ticked")
+			}
+			d.Dismiss()
+			if !s.Checked() || len(h.dev.ConfigWrites()) != 0 {
+				t.Fatal("cancel changed something")
+			}
+			test.Tap(s)
+			test.Tap(p.dialog.check)
+			test.Tap(p.dialog.action)
+			h.written(t)
+			if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetFeatures"}) || c.on(h.dev.Cfg.Settings.Features) || s.Checked() {
+				t.Fatalf("writes %v checked %v (the fake checks the confirmation)", got, s.Checked())
+			}
+		})
+	}
+}
+
+func TestSettingsDisableFeatureErrorPutsTheSwitchBack(t *testing.T) {
+	h, p := settingsHarness(t, func(f *session.Fake) { f.Cfg.WriteErr = amt.ErrNotModifiable })
+	test.Tap(p.kvm)
+	test.Tap(p.dialog.check)
+	test.Tap(p.dialog.action)
+	h.written(t)
+	if !p.kvm.Checked() || !p.err.box.Visible() || p.kvm.Disabled() {
+		t.Errorf("kvm %v error %v disabled %v", p.kvm.Checked(), p.err.box.Visible(), p.kvm.Disabled())
+	}
+}
+
+func TestSettingsDynamicDNS(t *testing.T) {
+	h, p := settingsHarness(t, nil)
+	test.Tap(p.ddns)
+	d := p.dialog
+	if d == nil || p.ddns.Checked() || len(h.dev.ConfigWrites()) != 0 {
+		t.Fatal("no dialog, or switched before the confirmation")
+	}
+	top := h.m.parent.Canvas().Overlays().Top()
+	findLabel(t, top, "Enable Dynamic DNS?")
+	if !hasRichText(t, top, "AMT registers its own host name in DNS. The device may then be reachable under a different name than in your favorites.", false) ||
+		d.action.Text != "Enable" || !d.action.Disabled() {
+		t.Fatalf("text or button %q", d.action.Text)
+	}
+	test.Tap(d.check)
+	test.Tap(d.action)
+	h.written(t)
+	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetGeneral"}) || h.dev.Cfg.Settings.General.DynamicDNS != amt.DDNSClient || !p.ddns.Checked() {
+		t.Fatalf("writes %v mode %v", got, h.dev.Cfg.Settings.General.DynamicDNS)
+	}
+
+	test.Tap(p.ddns)
+	top = h.m.parent.Canvas().Overlays().Top()
+	findLabel(t, top, "Disable Dynamic DNS?")
+	if !hasRichText(t, top, "The device's host name is no longer registered in DNS. Favorites that use this name may stop working.", false) ||
+		p.dialog.action.Text != "Disable" {
+		t.Fatalf("button %q", p.dialog.action.Text)
+	}
+	test.Tap(p.dialog.check)
+	test.Tap(p.dialog.action)
+	h.written(t)
+	if h.dev.Cfg.Settings.General.DynamicDNS != amt.DDNSOff || p.ddns.Checked() {
+		t.Fatalf("mode %v", h.dev.Cfg.Settings.General.DynamicDNS)
+	}
+}
+
+// DDNS by the DHCP server counts as on: the switch shows it, switching off turns it off.
+func TestSettingsDynamicDNSByDHCPServerIsOn(t *testing.T) {
+	h, p := settingsHarness(t, func(f *session.Fake) { f.Cfg.Settings.General.DynamicDNS = amt.DDNSByDHCPServer })
+	if !p.ddns.Checked() {
+		t.Fatal("DDNS by the DHCP server shown as off")
+	}
+	test.Tap(p.ddns)
+	findLabel(t, h.m.parent.Canvas().Overlays().Top(), "Disable Dynamic DNS?")
+	test.Tap(p.dialog.check)
+	test.Tap(p.dialog.action)
+	h.written(t)
+	if h.dev.Cfg.Settings.General.DynamicDNS != amt.DDNSOff {
+		t.Fatalf("mode %v", h.dev.Cfg.Settings.General.DynamicDNS)
 	}
 }
 

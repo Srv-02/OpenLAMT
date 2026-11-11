@@ -19,7 +19,8 @@ import (
 )
 
 // The dialogs of the Users page: the admin account (Danger.dc.html, left), Add user and Edit
-// user (Forms.dc.html, left) and "New password not saved" (Forms.dc.html, middle). Every write
+// user (Forms.dc.html, left), "Delete user" (Extras.dc.html) and "New password not saved"
+// (Forms.dc.html, middle). Every write
 // runs off the Fyne thread and reads the user list again afterwards.
 
 // passwordHint is the rule below the password fields.
@@ -250,8 +251,7 @@ func (m *manager) showUserDialog(v *usersPane, u *amt.User) *userDialog {
 			d.enabled.SetChecked(u.Enabled)
 			d.enabled.OnChanged = func(bool) { d.validate() }
 			d.enabled.OnEscape = p.Dismiss
-			// TODO(design): the confirmation before a user is deleted has no approved design.
-			d.del = p.newButton(lang.L("Delete User…"), func() { usersNotApproved("delete user") })
+			d.del = p.newButton(lang.L("Delete User…"), func() { m.confirmDeleteUser(v, d) })
 			d.del.Importance = widget.DangerImportance
 			p.extras = []fyne.CanvasObject{container.NewThemeOverride(d.del, dangerButtonTheme{overrideTheme})}
 			objs = append(objs, container.New(&rowLayout{gap: 8, fill: 1},
@@ -264,6 +264,32 @@ func (m *manager) showUserDialog(v *usersPane, u *amt.User) *userDialog {
 	})
 	d.validate()
 	return d
+}
+
+// confirmDeleteUser asks before the account of the Edit dialog d is deleted (Extras.dc.html):
+// plain text and the checkbox. The question opens above d; Cancel returns to d, Delete User
+// closes d as well, removes the account and reads the user list again.
+func (m *manager) confirmDeleteUser(v *usersPane, d *userDialog) {
+	u := d.edit
+	name := u.Name
+	if name == "" {
+		name = u.KerberosSID
+	}
+	v.deleteDlg = showOrangeConfirm(v.window(), orangeSpec{
+		title:  lang.L("Delete user “{{.User}}”?", map[string]any{"User": name}),
+		text:   lang.L("The user can no longer sign in to “{{.Name}}”. This cannot be undone.", map[string]any{"Name": m.name}),
+		button: lang.L("Delete User"),
+		onConfirm: func(amt.Confirmation) {
+			d.Dismiss()
+			h := u.Handle
+			m.usersWrite(v, func() (string, []error) {
+				if err := m.sess.RemoveUser(h); err != nil {
+					return "", []error{err}
+				}
+				return "", nil
+			})
+		},
+	})
 }
 
 // accessValue is the selected access permission.

@@ -16,37 +16,102 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
-// The confirmations of the Settings page: host name and domain (orange, Danger.dc.html right),
-// network settings (red, Forms.dc.html middle), TLS certificate (orange with the red warning box,
-// Forms.dc.html right) and turning off AMT (red, Danger.dc.html middle).
+// The confirmations of the Settings page: host name and domain (orange, HostEnv.dc.html),
+// Dynamic DNS and disabling KVM, IDE-R or SOL (orange with a plain text, Extras.dc.html),
+// environment detection (red, HostEnv.dc.html, manage_settings_env.go), network settings (red,
+// Forms.dc.html middle), TLS certificate (orange with the red warning box, Forms.dc.html right)
+// and turning off AMT (red, Danger.dc.html middle).
 
-// confirmName asks before a new host name or domain is written. Both change the device's name, so
-// the domain uses the host name dialog with the full name before and after.
-func (p *settingsPane) confirmName(host, domain *string) {
-	entry := p.host
-	if domain != nil {
-		entry = p.domain
-	}
-	change := amt.GeneralChange{HostName: host, DomainName: domain}
-	if err := change.Validate(); err != nil {
-		entry.release(true)
-		p.d.fail(err)
-		p.d.src.notify()
-		return
-	}
+// openName opens "Change host name" or, for domain, "Change domain": the field holds the device's
+// value; the button needs the box ticked and a new, valid, non-empty value.
+func (p *settingsPane) openName(domain bool) {
 	cur := p.d.src.val.General
-	next := change.Apply(cur)
+	title, label, button, value := lang.L("Change host name"), lang.L("New host name"), lang.L("Change Name"), cur.HostName
+	if domain {
+		title, label, button, value = lang.L("Change domain"), lang.L("New domain"), lang.L("Change Domain"), cur.DomainName
+	}
+	var field *dialogEntry
+	change := func() amt.GeneralChange {
+		v := strings.TrimSpace(field.Text)
+		if domain {
+			return amt.GeneralChange{DomainName: &v}
+		}
+		return amt.GeneralChange{HostName: &v}
+	}
 	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
-		op: amt.OpHostName, host: p.m.confirmHost(),
-		title:    lang.L("Change the host name?"),
-		warning:  lang.L("With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them."),
-		oldValue: fqdn(cur.HostName, cur.DomainName), newValue: fqdn(next.HostName, next.DomainName),
-		button: lang.L("Change Name"),
-		onConfirm: func(c amt.Confirmation) {
-			entry.release(false)
-			p.d.write(func() error { return p.m.sess.SetGeneral(change, c) }, true)
+		op: amt.OpHostName, host: p.m.confirmHost(), title: title,
+		warning: lang.L("With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them."),
+		lead: func(d *riskDialog) []fyne.CanvasObject {
+			field = d.newEntry(false)
+			field.SetText(value)
+			field.OnChanged = func(string) { d.Revalidate() }
+			d.focus = field
+			return []fyne.CanvasObject{formField(label, framedEntry(field))}
 		},
-		onCancel: func() { entry.release(true) },
+		ready: func() bool {
+			v := strings.TrimSpace(field.Text)
+			return v != "" && v != value && change().Validate() == nil
+		},
+		button: button,
+		onConfirm: func(c amt.Confirmation) {
+			ch := change()
+			p.d.write(func() error { return p.m.sess.SetGeneral(ch, c) }, true)
+		},
+	})
+	p.nameField = field
+}
+
+// confirmDDNS asks before Dynamic DNS is switched on (the AMT client registers the name,
+// DDNSClient) or off (also DDNS by the DHCP server ends).
+func (p *settingsPane) confirmDDNS(on bool) {
+	mode := amt.DDNSOff
+	title, text, button := lang.L("Disable Dynamic DNS?"),
+		lang.L("The device's host name is no longer registered in DNS. Favorites that use this name may stop working."),
+		lang.L("Disable")
+	if on {
+		mode = amt.DDNSClient
+		title, text, button = lang.L("Enable Dynamic DNS?"),
+			lang.L("AMT registers its own host name in DNS. The device may then be reachable under a different name than in your favorites."),
+			lang.L("Enable")
+	}
+	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
+		op: amt.OpHostName, host: p.m.confirmHost(), title: title, text: text, button: button,
+		onConfirm: func(c amt.Confirmation) {
+			p.d.write(func() error { return p.m.sess.SetGeneral(amt.GeneralChange{DynamicDNS: &mode}, c) }, true)
+		},
+	})
+}
+
+// feature is a redirection service of the Remote features group.
+type feature int
+
+const (
+	featureKVM feature = iota
+	featureIDER
+	featureSOL
+)
+
+// confirmFeatureOff asks before KVM, IDE-R or SOL is disabled (Extras.dc.html; IDE-R and SOL use
+// the KVM dialog with the names of their rows).
+func (p *settingsPane) confirmFeatureOff(f feature, change amt.FeatureChange) {
+	args := map[string]any{"Name": p.m.name}
+	var title, text string
+	switch f {
+	case featureKVM:
+		title = lang.L("Disable KVM on “{{.Name}}”?", args)
+		text = lang.L("Open KVM sessions end right away. You can enable KVM again in Settings.")
+	case featureIDER:
+		title = lang.L("Disable media redirection (IDE-R) on “{{.Name}}”?", args)
+		text = lang.L("Open media redirection (IDE-R) sessions end right away. You can enable media redirection again in Settings.")
+	case featureSOL:
+		title = lang.L("Disable Serial over LAN (SOL) on “{{.Name}}”?", args)
+		text = lang.L("Open Serial over LAN (SOL) sessions end right away. You can enable Serial over LAN again in Settings.")
+	}
+	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
+		op: amt.OpFeaturesOff, host: p.m.confirmHost(), title: title, text: text, button: lang.L("Disable"),
+		onConfirm: func(c amt.Confirmation) {
+			p.d.write(func() error { return p.m.sess.SetFeatures(change, c) }, true)
+		},
 	})
 }
 

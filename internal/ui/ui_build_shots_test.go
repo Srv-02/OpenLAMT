@@ -49,12 +49,12 @@ var (
 		{"10-window-hardware.png", 0, fyne.Size{}, nil},
 		{"11-window-events.png", 1, fyne.Size{}, func(p *managePane) { p.impl.(*logPane).filter.SetText("boot") }},
 		{"12-window-audit.png", 2, fyne.Size{}, nil},
-		{"13-window-settings.png", 3, fyne.NewSize(1280, 880), nil}, // high enough for the Danger zone
+		{"13-window-settings.png", 3, fyne.NewSize(1280, 960), nil}, // high enough for the Danger zone
 		{"14-window-users.png", 4, fyne.Size{}, nil},
 	}
 )
 
-// TestUIBuildShots renders the device window with device management (also Settings at 1280 x 880,
+// TestUIBuildShots renders the device window with device management (also Settings at 1280 x 960,
 // so the Danger zone shows), the dialogs of Settings and Users, Media, the questions of Media
 // and Console and the Console view, light, English, at the mockups' 1280 x 800, into
 // $OPENLAMT_UI_SHOTS for review against the mockups (issues #1 and #3). Skipped without the
@@ -312,20 +312,39 @@ func newUIShots(t *testing.T, dir string) *uiShots {
 	return h
 }
 
-// manageDialogs renders the dialogs of Settings and Users on the window of its own w (34–39,
-// 41, 42) in the states of Danger.dc.html and Forms.dc.html.
+// manageDialogs renders the dialogs of Settings and Users on the window of its own w (35–39,
+// 41, 42, 46–50) in the states of Danger.dc.html, Forms.dc.html, Extras.dc.html and HostEnv.dc.html.
 func (h *uiShots) manageDialogs(w *manageWindow) {
 	host := h.d.sess.Config().Host
 	w.showPage(3)
 	h.settle()
 	sp := w.view.panes[3].impl.(*settingsPane)
 
-	// 34: orange, the box ticked
-	sp.host.SetText("lab01")
-	sp.host.OnSubmitted(sp.host.Text)
+	// 49 (was 34): orange with the field above the warning, the box ticked (HostEnv.dc.html)
+	test.Tap(sp.changeHost)
+	sp.nameField.SetText("lab01")
 	test.Tap(sp.dialog.check)
 	w.win.Canvas().Unfocus() // the resting state: no focus ring around the ticked box
-	h.shot("34-dialog-host-name.png", w.win)
+	h.shot("49-dialog-change-host-name.png", w.win)
+	sp.dialog.Dismiss()
+
+	// 46, 47: plain text with the box ticked (Extras.dc.html)
+	test.Tap(sp.kvm)
+	test.Tap(sp.dialog.check)
+	w.win.Canvas().Unfocus()
+	h.shot("46-dialog-disable-kvm.png", w.win)
+	sp.dialog.Dismiss()
+	test.Tap(sp.ddns)
+	test.Tap(sp.dialog.check)
+	w.win.Canvas().Unfocus()
+	h.shot("47-dialog-enable-ddns.png", w.win)
+	sp.dialog.Dismiss()
+
+	// 50: the two domains of the design and the address typed (HostEnv.dc.html)
+	test.Tap(sp.changeEnv)
+	sp.dialog.entry.SetText(host)
+	w.win.Canvas().Unfocus()
+	h.shot("50-dialog-environment.png", w.win)
 	sp.dialog.Dismiss()
 
 	// 35: red, the address typed correctly
@@ -372,9 +391,14 @@ func (h *uiShots) manageDialogs(w *manageWindow) {
 	h.shot("37-dialog-add-user.png", w.win)
 	a.Dismiss()
 
-	// 38: Edit user "helpdesk"
+	// 38: Edit user "helpdesk"; 48: its "Delete User…" with the box ticked (Extras.dc.html)
 	test.Tap(up.table.lines[1].edit)
 	h.shot("38-dialog-edit-user.png", w.win)
+	test.Tap(up.userDlg.del)
+	test.Tap(up.deleteDlg.check)
+	w.win.Canvas().Unfocus()
+	h.shot("48-dialog-delete-user.png", w.win)
+	up.deleteDlg.Dismiss()
 	up.userDlg.Dismiss()
 
 	// 42

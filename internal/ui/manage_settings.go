@@ -19,10 +19,11 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
-// The Settings page of device management (Settings.dc.html): one column over the full width with
-// the groups General, Network, Remote features, Clock and TLS and the Danger zone. Harmless
-// changes are written at once, risky ones after an orange or red confirmation
-// (manage_settings_dialogs.go). Every write locks the page and reads the settings again.
+// The Settings page of device management (Settings.dc.html, HostEnv.dc.html): one column over the
+// full width with the groups General, Environment detection, Network, Remote features, Clock and
+// TLS and the Danger zone. Harmless changes are written at once, risky ones after an orange or red
+// confirmation (manage_settings_dialogs.go). Every write locks the page and reads the settings
+// again.
 
 // settingsData is the settings of one device and the write in progress, shared by the sidebar and
 // the window. Only touched on the Fyne thread.
@@ -99,42 +100,52 @@ type settingsPane struct {
 	compact bool
 	pane    *managePane
 
-	err                                           *manageError
-	general, network, features, clockTLS          *settingsCard
-	generalBox, networkBox, featuresBox, clockBox fyne.CanvasObject
-	host, domain                                  *settingsEntry
-	ping, ddns, kvm, ider, sol                    *widgets.Switch
-	address, consent                              *widgets.Segmented
-	ipText, clockText, tlsText                    *canvas.Text
-	sync, change, turnOff                         *widgets.PrimaryButton
-	ipRow, kvmRow, clockRow, tlsRow               *settingsRowRef
-	applying                                      bool // render sets values: the callbacks do nothing
-	dialog                                        *riskDialog
-	netForm                                       *networkForm
-	tlsForm                                       *tlsForm
+	err                                                   *manageError
+	general, env, network, features, clockTLS             *settingsCard
+	generalBox, envBox, networkBox, featuresBox, clockBox fyne.CanvasObject
+	hostText, domainText                                  *canvas.Text
+	envLines                                              *fyne.Container // the intranet domains, wrapped
+	ping, ddns, kvm, ider, sol                            *widgets.Switch
+	address, consent                                      *widgets.Segmented
+	ipText, clockText, tlsText                            *canvas.Text
+	changeHost, changeDomain, changeEnv                   *widgets.PrimaryButton
+	sync, change, turnOff                                 *widgets.PrimaryButton
+	ipRow, kvmRow, clockRow, tlsRow                       *settingsRowRef
+	applying                                              bool // render sets values: the callbacks do nothing
+	dialog                                                *riskDialog
+	nameField                                             *dialogEntry // "New host name" or "New domain"
+	envForm                                               *envForm
+	netForm                                               *networkForm
+	tlsForm                                               *tlsForm
 }
 
 // settingsPane builds the Settings page.
 func (m *manager) settingsPane(compact bool) *managePane {
 	p := &settingsPane{m: m, d: m.settings, compact: compact, err: newManageError()}
 
-	p.host = newSettingsEntry(func(v string) { p.confirmName(&v, nil) })
-	p.domain = newSettingsEntry(func(v string) { p.confirmName(nil, &v) })
+	p.hostText = designText("", 13, theme.ColorNameForeground, false)
+	p.domainText = designText("", 13, theme.ColorNameForeground, false)
+	p.changeHost = settingsButton(lang.L("Change…"), func() { p.openName(false) })
+	p.changeDomain = settingsButton(lang.L("Change…"), func() { p.openName(true) })
 	p.ping = p.newSwitch(func(on bool) {
 		p.d.write(func() error {
 			return m.sess.SetGeneral(amt.GeneralChange{PingResponse: &on}, amt.Confirmation{})
 		}, true)
 	})
 	p.ddns = p.newSwitch(func(on bool) {
-		// TODO(design): the orange confirmation for Dynamic DNS has no approved text yet.
-		notApproved("confirmation for Dynamic DNS")
-		p.setSwitch(p.ddns, !on)
+		p.setSwitch(p.ddns, !on) // the device's value until the change is confirmed and written
+		p.confirmDDNS(on)
 	})
 	p.general = newSettingsCard(
-		amtSettingsRow(lang.L("Host name"), p.host.obj),
-		amtSettingsRow(lang.L("Domain"), p.domain.obj),
+		amtSettingsRow(lang.L("Host name"), container.New(&rowLayout{gap: 12, fill: -1}, p.hostText, p.changeHost)),
+		amtSettingsRow(lang.L("Domain"), container.New(&rowLayout{gap: 12, fill: -1}, p.domainText, p.changeDomain)),
 		amtSettingsRow(lang.L("Respond to ping"), p.ping),
 		amtSettingsRow(lang.L("Dynamic DNS"), p.ddns))
+
+	p.envLines = container.New(layout.NewCustomPaddedVBoxLayout(0))
+	p.changeEnv = settingsButton(lang.L("Change…"), p.openEnvironment)
+	p.env = newSettingsCard(amtSettingsRow(lang.L("Intranet domains"),
+		container.New(&rowLayout{gap: 12, fill: -1}, p.envLines, p.changeEnv)))
 
 	p.address = widgets.NewSegmented(widgets.SegmentedText, widgets.TextOptions(lang.L("DHCP"), lang.L("Static")), nil)
 	p.address.OnChanged = p.openNetwork
@@ -144,9 +155,9 @@ func (m *manager) settingsPane(compact bool) *managePane {
 	p.network = newSettingsCard(amtSettingsRow(lang.L("Address"), p.address), ip)
 	p.ipRow = p.network.ref(1)
 
-	p.kvm = p.newFeatureSwitch("KVM", func(on bool) amt.FeatureChange { return amt.FeatureChange{KVM: &on} })
-	p.ider = p.newFeatureSwitch("media redirection", func(on bool) amt.FeatureChange { return amt.FeatureChange{IDER: &on} })
-	p.sol = p.newFeatureSwitch("Serial over LAN", func(on bool) amt.FeatureChange { return amt.FeatureChange{SOL: &on} })
+	p.kvm = p.newFeatureSwitch(featureKVM, func(on bool) amt.FeatureChange { return amt.FeatureChange{KVM: &on} })
+	p.ider = p.newFeatureSwitch(featureIDER, func(on bool) amt.FeatureChange { return amt.FeatureChange{IDER: &on} })
+	p.sol = p.newFeatureSwitch(featureSOL, func(on bool) amt.FeatureChange { return amt.FeatureChange{SOL: &on} })
 	p.consent = widgets.NewSegmented(widgets.SegmentedText,
 		widgets.TextOptions(lang.L("None"), lang.L("KVM only"), lang.L("All")), nil)
 	p.consent.OnChanged = func(i int) {
@@ -176,11 +187,12 @@ func (m *manager) settingsPane(compact bool) *managePane {
 	p.turnOff.Metrics = &widgets.ButtonMetrics{Height: 30, Radius: 7, PaddingH: 16, TextSize: 13}
 
 	p.generalBox = settingsGroup(lang.L("General"), style.ColorNameTextSecondary, p.general.box)
+	p.envBox = settingsGroup(lang.L("Environment detection"), style.ColorNameTextSecondary, p.env.box)
 	p.networkBox = settingsGroup(lang.L("Network"), style.ColorNameTextSecondary, p.network.box)
 	p.featuresBox = settingsGroup(lang.L("Remote features"), style.ColorNameTextSecondary, p.features.box)
 	p.clockBox = settingsGroup(lang.L("Clock and TLS"), style.ColorNameTextSecondary, p.clockTLS.box)
 	danger := settingsGroup(lang.L("Danger zone"), style.ColorNameDangerZoneText, p.dangerCard())
-	groups := container.New(layout.NewCustomPaddedVBoxLayout(18), p.generalBox, p.networkBox, p.featuresBox, p.clockBox, danger)
+	groups := container.New(layout.NewCustomPaddedVBoxLayout(18), p.generalBox, p.envBox, p.networkBox, p.featuresBox, p.clockBox, danger)
 	shown := container.New(layout.NewCustomPaddedVBoxLayout(14), p.err.box, groups)
 
 	p.pane = &managePane{body: shown, scroll: true, shown: m.settings.src.ensure, impl: p}
@@ -222,10 +234,15 @@ func (p *settingsPane) render() {
 // show puts s into the controls.
 func (p *settingsPane) show(s amt.Settings) {
 	g := s.General
-	p.host.setValue(g.HostName)
-	p.domain.setValue(g.DomainName)
+	p.hostText.Text, p.domainText.Text = g.HostName, g.DomainName
+	p.hostText.Refresh()
+	p.domainText.Refresh()
 	p.ping.SetChecked(g.PingResponse)
+	// DDNS by the DHCP server counts as on: switching off ends it as well
 	p.ddns.SetChecked(g.DynamicDNS != amt.DDNSOff)
+
+	setShown(p.envBox, s.Environment.Available)
+	p.showDomains(s.Environment.Domains)
 
 	n := s.Network
 	setShown(p.networkBox, n.Available)
@@ -260,8 +277,8 @@ func (p *settingsPane) show(s amt.Settings) {
 // lock disables every control while on; the consent stays disabled where the device does not
 // allow changing it.
 func (p *settingsPane) lock(on bool) {
-	for _, w := range []fyne.Disableable{p.host, p.domain, p.ping, p.ddns, p.address, p.kvm, p.ider, p.sol,
-		p.sync, p.change, p.turnOff} {
+	for _, w := range []fyne.Disableable{p.changeHost, p.changeDomain, p.ping, p.ddns, p.changeEnv, p.address,
+		p.kvm, p.ider, p.sol, p.sync, p.change, p.turnOff} {
 		setEnabled(w, !on)
 	}
 	c := p.d.src.val.Consent
@@ -295,31 +312,28 @@ func (p *settingsPane) setSwitch(s *widgets.Switch, on bool) {
 	p.applying = false
 }
 
-// newFeatureSwitch switches a redirection service: on is written at once, off needs the orange
-// confirmation, which has no approved text yet.
-func (p *settingsPane) newFeatureSwitch(what string, change func(bool) amt.FeatureChange) *widgets.Switch {
+// newFeatureSwitch switches a redirection service: on is written at once, off after the orange
+// confirmation (confirmFeatureOff); until then the switch keeps the device's value.
+func (p *settingsPane) newFeatureSwitch(f feature, change func(bool) amt.FeatureChange) *widgets.Switch {
 	var s *widgets.Switch
 	s = p.newSwitch(func(on bool) {
+		c := change(on)
 		if !on {
-			// TODO(design): the orange confirmation for turning a feature off has no approved text yet.
-			notApproved("confirmation for turning off " + what)
 			p.setSwitch(s, true)
+			p.confirmFeatureOff(f, c)
 			return
 		}
-		c := change(true)
 		p.d.write(func() error { return p.m.sess.SetFeatures(c, amt.Confirmation{}) }, true)
 	})
 	return s
 }
 
-// Geometry of the settings rows (Settings.dc.html .row, .inp): 40 high, 16 px side padding, 13 px
-// text, a 16 px gap; the inputs 220 wide with radius 6 and 4 x 8 px padding.
+// Geometry of the settings rows (Settings.dc.html .row): 40 high, 16 px side padding, 13 px text,
+// a 16 px gap.
 const (
-	settingsRowHeight  float32 = 40
-	settingsRowPad     float32 = 16
-	settingsRowGap     float32 = 16
-	settingsInputWidth float32 = 220
-	settingsInputRound float32 = 6
+	settingsRowHeight float32 = 40
+	settingsRowPad    float32 = 16
+	settingsRowGap    float32 = 16
 )
 
 // amtSettingsRow is a row of a settings card: the key on the left, control or value on the right.
@@ -422,103 +436,28 @@ func (p *settingsPane) dangerCard() fyne.CanvasObject {
 	return widgets.NewPanel(style.ColorNameDangerSurface, style.ColorNameDangerZoneBorder, 12, row, 14, 16, 14, 16)
 }
 
-// settingsEntry is the host name or domain field: Enter hands the text to onSubmit (which asks
-// for the confirmation); Esc or leaving the field without Enter puts the device's value back.
-type settingsEntry struct {
-	widget.Entry
-	value    string // the device's value
-	held     bool   // Enter was pressed: the confirmation decides, leaving the field keeps the text
-	focused  bool
-	onSubmit func(string)
-	obj      fyne.CanvasObject
-}
-
-func newSettingsEntry(submit func(string)) *settingsEntry {
-	e := &settingsEntry{onSubmit: submit}
-	e.ExtendBaseWidget(e)
-	e.OnSubmitted = func(s string) {
-		s = strings.TrimSpace(s)
-		if s == e.value {
-			e.revert()
-			return
+// showDomains shows the intranet domains joined with ", ", one per line (HostEnv.dc.html), so
+// the value and "Change…" fit the sidebar; none shows nothing.
+func (p *settingsPane) showDomains(domains []string) {
+	lines := make([]fyne.CanvasObject, len(domains))
+	for i, d := range domains {
+		if i < len(domains)-1 {
+			d += ","
 		}
-		e.held = true
-		e.onSubmit(s)
+		lines[i] = designText(d, 13, theme.ColorNameForeground, false)
 	}
-	frame := style.BindRect(&canvas.Rectangle{CornerRadius: settingsInputRound, StrokeWidth: 1}, style.ColorNameField, style.ColorNameControlBorder)
-	e.obj = container.NewStack(frame, container.New(&vCenterLayout{}, container.NewThemeOverride(e, settingsInputTheme{})))
-	return e
+	p.envLines.Objects = lines
+	p.envLines.Refresh()
+	p.env.sync()
 }
 
-// setValue takes the device's value; the text follows unless the user is editing it.
-func (e *settingsEntry) setValue(v string) {
-	edited := e.focused && e.Text != e.value
-	e.value = v
-	if !edited && !e.held && e.Text != v {
-		e.SetText(v)
+// envValue is the shown value of "Intranet domains" in one line (tests).
+func (p *settingsPane) envValue() string {
+	var parts []string
+	for _, o := range p.envLines.Objects {
+		parts = append(parts, o.(*canvas.Text).Text)
 	}
-}
-
-// release ends a confirmation: cancelled puts the device's value back.
-func (e *settingsEntry) release(cancelled bool) {
-	e.held = false
-	if cancelled {
-		e.revert()
-	}
-}
-
-func (e *settingsEntry) revert() {
-	if e.Text != e.value {
-		e.SetText(e.value)
-	}
-}
-
-func (e *settingsEntry) FocusGained() { e.focused = true; e.Entry.FocusGained() }
-
-func (e *settingsEntry) FocusLost() {
-	e.focused = false
-	e.Entry.FocusLost()
-	if !e.held {
-		e.revert()
-	}
-}
-
-func (e *settingsEntry) TypedKey(k *fyne.KeyEvent) {
-	if k.Name == fyne.KeyEscape {
-		e.revert()
-		if c := fyne.CurrentApp().Driver().CanvasForObject(e); c != nil {
-			c.Unfocus()
-		}
-		return
-	}
-	e.Entry.TypedKey(k)
-}
-
-// MinSize is the width of the design's input.
-func (e *settingsEntry) MinSize() fyne.Size {
-	return fyne.NewSize(settingsInputWidth, e.Entry.MinSize().Height)
-}
-
-// settingsInputTheme draws the entry of a settings field without its own border, with 13 px
-// text and a 4 px inner padding, so it fits the 40 px row.
-type settingsInputTheme struct{ style.CardTheme }
-
-func (t settingsInputTheme) Size(name fyne.ThemeSizeName) float32 {
-	switch name {
-	case theme.SizeNameInnerPadding:
-		return 4
-	case theme.SizeNameText:
-		return 13
-	}
-	return t.CardTheme.Size(name)
-}
-
-// fqdn is host.domain, or host alone without a domain.
-func fqdn(host, domain string) string {
-	if domain == "" {
-		return host
-	}
-	return host + "." + domain
+	return strings.Join(parts, " ")
 }
 
 // prefixLength returns the prefix length of a contiguous IPv4 mask, -1 for anything else.

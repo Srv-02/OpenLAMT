@@ -68,8 +68,8 @@ func TestManageSettingsShots(t *testing.T) {
 	wp := w.view.panes[3].impl.(*settingsPane)
 
 	// the dialogs open on the window of the view
-	wp.host.SetText("lab01")
-	wp.host.OnSubmitted(wp.host.Text)
+	test.Tap(wp.changeHost)
+	wp.nameField.SetText("lab01")
 	test.Tap(wp.dialog.check)
 	shot("settings-dialog-host-name.png", w.win)
 	wp.dialog.Dismiss()

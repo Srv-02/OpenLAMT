@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 
+	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
@@ -60,7 +61,8 @@ func (d *DeviceWindow) buildManagePane() fyne.CanvasObject {
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSidePanel, "")
 	d.manageSlot = container.NewStack()
 	panel := container.New(&fixedWidthStack{width: manageWidth}, bg, d.manageSlot)
-	d.managePane = container.New(layout.NewCustomPaddedHBoxLayout(0), vline(style.ColorNameSeparatorDark), panel)
+	d.manageEdge = vline(style.ColorNameSeparatorDark)
+	d.managePane = container.New(layout.NewCustomPaddedHBoxLayout(0), d.manageEdge, panel)
 	d.managePane.Hide()
 	return d.managePane
 }
@@ -176,6 +178,7 @@ func (d *DeviceWindow) setManageOpen(open bool) {
 		if d.manageContent != nil {
 			if c := d.manageContent(); c != nil {
 				d.manageSlot.Objects = []fyne.CanvasObject{c}
+				d.manageEdge.Hide() // the content draws its own left line (manager.Sidebar)
 			}
 		}
 	}
@@ -254,5 +257,34 @@ func (l *fixedWidthStack) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	for _, o := range objs {
 		o.Move(fyne.NewPos(0, 0))
 		o.Resize(size)
+	}
+}
+
+// ensureManager returns the device management of this window and creates it at the first call
+// (the first opening of the sidebar). It reads nothing itself: Sidebar starts the first read.
+func (d *DeviceWindow) ensureManager() *manager {
+	if d.manager != nil {
+		return d.manager
+	}
+	m := newManager(d.app, d.win, d.sess, d.name, manageDeps{
+		host:       d.sess.Config().Host,
+		status:     func() (amt.Status, bool) { return d.lastStatus, d.statusKnown },
+		loginStore: d.loginStore,
+		onError:    func(err error) { d.onError(err) },
+	})
+	// The pop-out symbol: the sidebar closes (Manage inactive), then the window opens.
+	m.SetOnPopOut(func() { d.setManageOpen(false) })
+	d.manager = m
+	if d.onManager != nil {
+		d.onManager(m)
+	}
+	return m
+}
+
+// closeManager ends device management with the window or the session: its own window closes and
+// later results are dropped.
+func (d *DeviceWindow) closeManager() {
+	if d.manager != nil {
+		d.manager.Close()
 	}
 }

@@ -110,6 +110,15 @@ type DeviceWindow struct {
 	mediaLine            *ellipsisText            // "ISO mounted · …" in the status bar; hidden while empty
 	consoleLine          *ellipsisText            // "Console connected" in the status bar; hidden while empty
 	con                  serialConsole            // the serial console of the Console view (console.go)
+	manageEdge           fyne.CanvasObject        // left line of the sidebar; hidden once the content brings its own
+
+	// Device management (manage.go), only touched on the Fyne thread.
+	app         fyne.App
+	manager     *manager           // created at the first opening of the sidebar; nil before
+	loginStore  session.LoginStore // favorites manager for device management; nil = nothing stored
+	lastStatus  amt.Status         // last status read, valid if statusKnown
+	statusKnown bool               // the last status read succeeded and the session is not aborted
+	onManager   func(*manager)     // test hook: the device management was created; nil in production
 
 	// Keyboard menu (device_keyboard.go), only touched on the Fyne thread.
 	keyboardMenu    *fyne.Menu
@@ -203,7 +212,7 @@ func isAsleep(ps models.PowerState) bool {
 // NewDeviceWindow builds the window; onClosed runs once when the user closes it or the session
 // is aborted after a certificate mismatch (the poller is stopped on a goroutine before that).
 func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Status, settings Settings, onClosed func()) *DeviceWindow {
-	d := &DeviceWindow{win: a.NewWindow(name), sess: sess, settings: settings, name: name,
+	d := &DeviceWindow{win: a.NewWindow(name), app: a, sess: sess, settings: settings, name: name,
 		onClosed: onClosed, goos: runtime.GOOS, kvmStatus: &statusText{},
 		readClipboard: defaultReadClipboard, detectLayout: func() typing.Layout { return typing.DetectLocalLayout(string(lang.SystemLocale())) }, typeDelay: typing.DefaultDelay}
 	d.onError = d.showErrorDialog
@@ -211,6 +220,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	d.kvmStatus.changed = d.refreshKVMLine
 	d.media = newMediaPanel(d)
 	d.onMedia = d.media.toggle
+	d.manageContent = func() fyne.CanvasObject { return d.ensureManager().Sidebar() }
 
 	d.buildViewControls()
 	d.buildConsole()
@@ -234,6 +244,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 		d.shutdown()
 		d.release()
 		d.closeConsole()
+		d.closeManager()
 		d.disconnectKVM() // last: kvmEnded then only clears state (closed window)
 		if idle {
 			d.view.free()
@@ -297,6 +308,7 @@ func (d *DeviceWindow) apply(st amt.Status, err error) {
 		d.setVersion(st.AMTVersion, string(st.ControlMode))
 		d.setMessage("")
 	}
+	d.lastStatus, d.statusKnown = st, !d.aborted && err == nil
 	d.autoConnect()
 	d.resumeCheck()
 	if d.onStatus != nil {
@@ -332,6 +344,7 @@ func (d *DeviceWindow) abort(err error) {
 		d.onError(err)
 	}
 	d.closeConsole()
+	d.closeManager()
 	d.disconnectKVM() // last: the frame loop reports kvmEnded on the Fyne thread afterwards
 }
 

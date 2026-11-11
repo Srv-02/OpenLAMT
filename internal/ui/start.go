@@ -1274,6 +1274,9 @@ func (s *StartWindow) addDevice(sess *session.Session, st amt.Status, name strin
 		}
 	})
 	d.layouts = s.mgr
+	if s.mgr != nil { // a typed nil would count as a store
+		d.loginStore = s.mgr
+	}
 	d.onFavoriteChanged = s.reload // the read-only view and edit mode show the stored quality
 	d.onStatus = func(st amt.Status, known bool) {
 		if s.open[k] == d { // a late read of a closed window does not count

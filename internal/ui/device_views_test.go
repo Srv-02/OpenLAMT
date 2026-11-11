@@ -177,7 +177,7 @@ func TestManageSidebar(t *testing.T) {
 	if w := d.manageSlot.Size().Width; w != manageWidth || manageWidth != 400 {
 		t.Fatalf("slot width %v", w)
 	}
-	if d.kvmStage.Size().Width != d.content.Size().Width-manageWidth-1 {
+	if d.kvmStage.Size().Width != d.content.Size().Width-manageWidth || d.manageEdge.Visible() {
 		t.Fatalf("stage %v, window %v", d.kvmStage.Size().Width, d.content.Size().Width)
 	}
 

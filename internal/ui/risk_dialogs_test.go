@@ -93,6 +93,47 @@ func TestOrangeConfirmNeedsTheCheckbox(t *testing.T) {
 	}
 }
 
+// The TLS dialog of Forms.dc.html is orange (checkbox) but shows the red warning box with a
+// semibold first sentence and a list between the warning and the checkbox.
+func TestOrangeConfirmWithRedBoxAndExtra(t *testing.T) {
+	w, _ := panelHarness(t)
+	var pick *dialogCheck
+	confirmed := 0
+	d := showOrangeConfirm(w, orangeSpec{
+		op: amt.OpTLS, host: riskHost, title: "Change TLS certificate", danger: true,
+		warningBold: "Risk of lockout.", warning: "AMT restarts TLS with the new certificate.",
+		extra: func(d *riskDialog) []fyne.CanvasObject {
+			pick = d.newCheck("other certificate", false)
+			pick.OnChanged = func(bool) { d.Revalidate() }
+			return []fyne.CanvasObject{pick}
+		},
+		ready:  func() bool { return pick.Checked },
+		button: "Change Certificate", onConfirm: func(c amt.Confirmation) {
+			if c.Allows(amt.OpTLS, riskHost) {
+				confirmed++
+			}
+		},
+	})
+	if !same(d.warnBox.FillColor, style.Color(style.ColorNameDangerSurface)) || !hasRichText(t, d.frame, "Risk of lockout. ", true) {
+		t.Errorf("warning box %v, bold first sentence missing", d.warnBox.FillColor)
+	}
+	if absPos(pick).Y >= absPos(d.check).Y {
+		t.Errorf("extra content at %v below the checkbox at %v", absPos(pick), absPos(d.check))
+	}
+	test.Tap(d.check)
+	if !d.action.Disabled() {
+		t.Fatal("button enabled while the extra condition fails")
+	}
+	test.Tap(pick)
+	if d.action.Disabled() {
+		t.Fatal("button disabled with checkbox and extra condition")
+	}
+	test.Tap(d.action)
+	if confirmed != 1 || open(w) {
+		t.Fatalf("confirmed %d open %v", confirmed, open(w))
+	}
+}
+
 func TestOrangeConfirmRefusesLockoutOperations(t *testing.T) {
 	w, _ := panelHarness(t)
 	d := showOrangeConfirm(w, orangeSpec{op: amt.OpNetwork, host: riskHost, title: "x", warning: "y", button: "Go",

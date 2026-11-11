@@ -1,5 +1,5 @@
 // Package redirtest provides the server side of the AMT redirection handshake for the fake
-// servers in kvmtest and idertest. It deliberately does not import internal/redir (import cycle
+// servers in kvmtest, idertest and soltest. It deliberately does not import internal/redir (import cycle
 // with that package's tests) and is only imported by tests.
 package redirtest
 
@@ -16,6 +16,7 @@ import (
 var (
 	MagicKVM  = []byte{0x10, 0x01, 0x00, 0x00, 'K', 'V', 'M', 'R'}
 	MagicIDER = []byte{0x10, 0x00, 0x00, 0x00, 'I', 'D', 'E', 'R'}
+	MagicSOL  = []byte{0x10, 0x00, 0x00, 0x00, 'S', 'O', 'L', ' '}
 )
 
 // Options configures the handshake.

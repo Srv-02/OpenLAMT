@@ -4,7 +4,7 @@
 // Modifications Copyright 2026 Michael Mayer, Apache License 2.0.
 
 // Package redir implements the protocol-neutral part of the AMT redirection protocol: the TCP/TLS
-// connection, StartRedirectionSession for a service (KVM or IDE-R) and digest authentication.
+// connection, StartRedirectionSession for a service (KVM, IDE-R or SOL) and digest authentication.
 package redir
 
 import (
@@ -41,11 +41,13 @@ type Protocol int
 const (
 	KVM  Protocol = iota // start magic 10 01 00 00 'K' 'V' 'M' 'R' (AMTRedirector.ts:84)
 	IDER                 // start magic 10 00 00 00 'I' 'D' 'E' 'R' (AMTRedirector.ts:86)
+	SOL                  // start magic 10 00 00 00 'S' 'O' 'L' ' ' (AMTRedirector.ts:83)
 )
 
 var (
 	startKVM  = []byte{0x10, 0x01, 0x00, 0x00, 'K', 'V', 'M', 'R'}
 	startIDER = []byte{0x10, 0x00, 0x00, 0x00, 'I', 'D', 'E', 'R'}
+	startSOL  = []byte{0x10, 0x00, 0x00, 0x00, 'S', 'O', 'L', ' '}
 )
 
 func (p Protocol) startMagic() ([]byte, error) {
@@ -54,6 +56,8 @@ func (p Protocol) startMagic() ([]byte, error) {
 		return startKVM, nil
 	case IDER:
 		return startIDER, nil
+	case SOL:
+		return startSOL, nil
 	}
 	return nil, fmt.Errorf("redirection: unknown protocol %d", int(p))
 }
@@ -78,7 +82,8 @@ var (
 
 // Handshake runs StartRedirectionSession for p, the authentication query and one digest
 // authentication attempt (type 4, nc 00000001). On success the redirection layer is done and rw
-// carries the service's own protocol (the caller sends the KVM start or the first IDE-R message).
+// carries the service's own protocol (the caller sends the KVM start, the first IDE-R message or
+// the SOL start).
 // random supplies cnonce bytes (nil = crypto/rand).
 func Handshake(rw io.ReadWriter, p Protocol, user, password string, random io.Reader) error {
 	magic, err := p.startMagic()

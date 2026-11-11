@@ -245,6 +245,15 @@ func TestHandshake_IDERMagic(t *testing.T) {
 	waitFor(t, func() bool { return srv.Connections() == 1 })
 }
 
+func TestHandshake_SOLMagic(t *testing.T) {
+	srv := startServer(t, redirtest.MagicSOL, redirtest.Options{Username: "admin", Password: "pw"})
+	conn := dialRedirection(t, srv)
+	if err := Handshake(conn, SOL, "admin", "pw", nil); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, func() bool { return srv.Connections() == 1 })
+}
+
 func TestHandshake_WrongMagicRejected(t *testing.T) {
 	// A KVM-only server does not answer the IDER start: the client sees the closed connection.
 	srv := startServer(t, redirtest.MagicKVM, redirtest.Options{Username: "admin", Password: "pw"})
@@ -264,8 +273,10 @@ func TestHandshake_UnknownProtocol(t *testing.T) {
 func TestStartMagics(t *testing.T) {
 	k, _ := KVM.startMagic()
 	i, _ := IDER.startMagic()
-	if !bytes.Equal(k, []byte("\x10\x01\x00\x00KVMR")) || !bytes.Equal(i, []byte("\x10\x00\x00\x00IDER")) {
-		t.Fatalf("%x %x", k, i)
+	s, _ := SOL.startMagic()
+	if !bytes.Equal(k, []byte("\x10\x01\x00\x00KVMR")) || !bytes.Equal(i, []byte("\x10\x00\x00\x00IDER")) ||
+		!bytes.Equal(s, []byte("\x10\x00\x00\x00SOL ")) {
+		t.Fatalf("%x %x %x", k, i, s)
 	}
 }
 

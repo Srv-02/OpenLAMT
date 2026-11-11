@@ -9,10 +9,10 @@ It uses and includes code derived from the following projects:
   https://github.com/device-management-toolkit/go-wsman-messages
 - ui-toolkit, Copyright Intel Corporation, Apache License 2.0
   https://github.com/device-management-toolkit/ui-toolkit
-  (KVM client code and IDE-R client code (AMTIDER.ts, IDERDataProcessor.ts, Constants.ts) ported from TypeScript to Go at commit e1eb6980963b1e59df45e05edf94b68dd5c36920; ported files are marked in their header)
+  (KVM client code, IDE-R client code (AMTIDER.ts, IDERDataProcessor.ts, Constants.ts) and Serial-over-LAN client code (AMTRedirector.ts) ported from TypeScript to Go at commit e1eb6980963b1e59df45e05edf94b68dd5c36920; ported files are marked in their header)
 - MeshCommander, Ylian Saint-Hilaire and contributors, Apache License 2.0
   https://github.com/Ylianst/MeshCommander
-  (KVM session logic ported from amt-desktop-0.0.2.js and index.html; IDE-R behavior cross-checked against amt-ider-ws-0.0.1.js; ported files are marked in their header)
+  (KVM session logic ported from amt-desktop-0.0.2.js and index.html; IDE-R behavior cross-checked against amt-ider-ws-0.0.1.js; Serial-over-LAN behavior cross-checked against amt-redir-ws-0.1.0.js; ported files are marked in their header)
 - Fyne, Copyright (C) 2018 Fyne.io developers, BSD 3-Clause License
   https://github.com/fyne-io/fyne
 - go-keyring, Copyright (c) 2016 Zalando SE, MIT License

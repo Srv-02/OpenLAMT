@@ -12,6 +12,7 @@ import (
 
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/keychain"
+	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/session"
 	"github.com/Srv-02/openlamt/internal/ui"
 	"github.com/Srv-02/openlamt/internal/ui/i18n"
@@ -44,11 +45,22 @@ func main() {
 	ui.InstallAboutMenu(a, start.Window())
 	start.EnableUpdateCheck()
 	start.EnableCoffeeNudge()
+	go cleanMediaCache()
 	start.Window().ShowAndRun()
 	// The device windows unmount their ISOs on goroutines: deleting a folder ISO and clearing
 	// the next-start boot option must not be cut off by the process exit.
 	if !start.WaitForCleanup() {
 		fyne.LogError("quitting", errors.New("unmounting did not finish in time"))
+	}
+}
+
+// cleanMediaCache deletes folder ISOs an earlier run left in the cache (a crash, or the wait at
+// exit ran out). Only *.iso files in OpenLAMT's own cache folder are touched. A file another
+// running instance has open stays usable: on Linux and macOS it is only unlinked, on Windows it
+// cannot be deleted and is skipped.
+func cleanMediaCache() {
+	if err := mkiso.CleanCache(); err != nil {
+		fyne.LogError("cleaning the ISO cache", err)
 	}
 }
 

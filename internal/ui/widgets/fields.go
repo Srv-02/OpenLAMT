@@ -119,7 +119,16 @@ func (f *FilterField) SetText(s string) {
 	f.syncClear()
 }
 
-func (f *FilterField) syncClear() { setVisible(f.clear, f.Entry.Text != "") }
+// syncClear shows the clear button while the field has text and lays the field out again: the
+// hidden button takes no width, so the entry would cover it.
+func (f *FilterField) syncClear() {
+	on := f.Entry.Text != ""
+	if f.clear.Visible() == on {
+		return
+	}
+	setVisible(f.clear, on)
+	f.content.Refresh()
+}
 
 func (f *FilterField) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(f.content)

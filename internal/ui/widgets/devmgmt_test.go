@@ -185,6 +185,27 @@ func TestFilterFieldClearButtonOnlyWithText(t *testing.T) {
 	}
 }
 
+// The clear button that shows after typing sits inside the field, 7 px from its right edge,
+// and is not laid out in the zero width it had while hidden.
+func TestFilterFieldClearButtonInsideTheField(t *testing.T) {
+	themedApp(t)
+	f := NewFilterField(nil)
+	test.NewTempWindow(t, f)
+	f.Resize(fyne.NewSize(200, 30))
+	test.Type(f.Entry, "boot")
+	d := fyne.CurrentApp().Driver()
+	right := d.AbsolutePositionForObject(f).X + f.Size().Width
+	cr := test.WidgetRenderer(f.clear).(*clearButtonRenderer)
+	end := d.AbsolutePositionForObject(f.clear).X + cr.circle.Position().X + cr.circle.Size().Width
+	if gap := right - end; gap < filterPadH-3-0.5 || gap > filterPadH-3+0.5 {
+		t.Errorf("clear button %v px from the right edge, want %v", gap, filterPadH-3)
+	}
+	entryEnd := d.AbsolutePositionForObject(f.Entry).X + f.Entry.Size().Width
+	if start := end - clearButtonSize; entryEnd > start+0.5 {
+		t.Errorf("entry ends at %v, under the clear button from %v", entryEnd, start)
+	}
+}
+
 // The entry of the filter field sits in the vertical middle of the 30 px frame, so text and
 // placeholder line up with the magnifier.
 func TestFilterFieldCentersTheText(t *testing.T) {

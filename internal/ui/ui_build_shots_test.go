@@ -187,6 +187,13 @@ func TestUIBuildShots(t *testing.T) {
 	waitFor(t, func() bool { return strings.Contains(h.d.con.term.Text(), "load average") })
 	h.shot("40-console.png", h.d.win)
 
+	// 43: the Console view in full screen, with the KVM|Console switch in the bar.
+	test.Tap(h.d.fullBtn)
+	h.d.win.Resize(uiShotSize)
+	h.shot("43-console-fullscreen.png", h.d.win)
+	test.Tap(h.d.exitFullBtn)
+	h.d.win.Resize(uiShotSize)
+
 	if len(h.errs) > 0 {
 		t.Fatalf("errors: %v", <-h.errs)
 	}

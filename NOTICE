@@ -29,12 +29,18 @@ Linux x64; the union of all three; go-wsman-messages, Fyne and go-keyring are li
   https://go.dev
 - fyne.io/systray, Copyright 2014 Brave New Software Project, Inc., Apache License 2.0
   https://github.com/fyne-io/systray
+- github.com/ActiveState/termtest/conpty (Windows builds only), Copyright (c) 2020, ActiveState Software, BSD 3-Clause License
+  https://github.com/ActiveState/termtest
 - github.com/anthonynsimon/bild, Copyright (c) 2021 Anthony Najjar Simon, MIT License
   https://github.com/anthonynsimon/bild
+- github.com/Azure/go-ansiterm (Windows builds only), Copyright (c) 2015 Microsoft Corporation, MIT License
+  https://github.com/Azure/go-ansiterm
 - github.com/BurntSushi/toml, Copyright (c) 2013 TOML authors, MIT License
   https://github.com/BurntSushi/toml
 - github.com/clipperhouse/uax29/v2, Copyright (c) 2020 Matt Sherman, MIT License
   https://github.com/clipperhouse/uax29
+- github.com/creack/pty (macOS and Linux builds only), Copyright (c) 2011 Keith Rarick, MIT License
+  https://github.com/creack/pty
 - github.com/danieljoos/wincred (Windows builds only), Copyright (c) 2014 Daniel Joos, MIT License
   https://github.com/danieljoos/wincred
 - github.com/fsnotify/fsnotify, Copyright (c) 2012 The Go Authors; Copyright (c) fsnotify Authors, BSD 3-Clause License
@@ -43,6 +49,8 @@ Linux x64; the union of all three; go-wsman-messages, Fyne and go-keyring are li
   https://github.com/fyne-io/image
 - github.com/fyne-io/oksvg, Copyright (c) 2018, Steven R Wiley, BSD 3-Clause License
   https://github.com/fyne-io/oksvg
+- github.com/fyne-io/terminal, Copyright (C) 2021 Fyne.io developers, BSD 3-Clause License
+  https://github.com/fyne-io/terminal
 - github.com/FyshOS/fancyfs, Copyright (C) 2025 FyshOS developers, BSD 3-Clause License
   https://github.com/FyshOS/fancyfs
 - github.com/go-gl/gl, Copyright (c) 2014 Eric Woroshow, MIT License

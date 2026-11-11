@@ -364,6 +364,14 @@ func (c *Client) dispatch(m message) error {
 	}
 	c.inSeq++
 	b := m.body
+	if !c.opened {
+		switch m.cmd {
+		case cmdWritten, cmdDataFromHost, cmdResetOccurred:
+			// Device commands need the negotiated read buffer; before the OPEN_SESSION reply
+			// they are a protocol error (the original would read with an undefined buffer size).
+			return fmt.Errorf("%w: command 0x%02x before OPEN_SESSION reply", errProtocol, m.cmd)
+		}
+	}
 	switch m.cmd {
 	case cmdOpenSessionReply:
 		return c.handleOpenSession(b)

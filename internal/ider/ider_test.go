@@ -427,6 +427,28 @@ func TestDial_FirstMessageNotOpenSession(t *testing.T) {
 	}
 }
 
+// A peer that sends device commands before the OPEN_SESSION reply (readbfr still unknown) must
+// get a protocol error instead of a read loop with an empty buffer that never advances.
+func TestDial_CommandsBeforeOpenSession(t *testing.T) {
+	read10 := []byte{0x28, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0}
+	for _, tc := range []struct {
+		name   string
+		script func(t *testing.T, p *idertest.Peer)
+	}{
+		{"read10", func(t *testing.T, p *idertest.Peer) { p.Written(t, read10, 0x10, 0) }},
+		{"reset", func(t *testing.T, p *idertest.Peer) { p.Reset(t) }},
+		{"data from host", func(t *testing.T, p *idertest.Peer) { p.Send(t, 0x53, 0, make([]byte, 6)) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			img := newImage(4096)
+			err := dialFail(t, img, tc.script)
+			if !errors.Is(err, errProtocol) || img.closed.Load() != 0 {
+				t.Fatalf("err %v closed %d", err, img.closed.Load())
+			}
+		})
+	}
+}
+
 func TestDial_ContextTimeout(t *testing.T) {
 	img := newImage(4096)
 	srv := idertest.Start(t, idertest.Options{Username: "admin", Password: "pw"})

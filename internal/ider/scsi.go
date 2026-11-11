@@ -8,6 +8,7 @@ package ider
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"time"
 )
@@ -291,6 +292,9 @@ func (c *Client) readDisk(dev byte, lba uint32, blocks uint64, dma bool) error {
 	}
 	if blocks == 0 {
 		return c.sendGood(dev) // TS good 00/00/00
+	}
+	if c.readBuf <= 0 { // dispatch rejects reads before OPEN_SESSION; never loop on an empty buffer
+		return fmt.Errorf("%w: read before OPEN_SESSION reply", errProtocol)
 	}
 	off := int64(lba) * sectorSize
 	remaining := int64(blocks) * sectorSize

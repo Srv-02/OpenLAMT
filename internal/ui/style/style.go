@@ -43,6 +43,7 @@ const (
 	ColorNameDangerTile     fyne.ThemeColorName = "openlamt-danger-tile"      // rgba(255,69,58,0.16) confirm dialog icon tile
 	ColorNameErrorText      fyne.ThemeColorName = "openlamt-error-text"       // red warning text (dark #FF6961, light #D70015); "error" stays the red button fill
 	ColorNameLetterbox      fyne.ThemeColorName = "openlamt-letterbox"        // #0B0B0C area around the framebuffer
+	ColorNameConsole        fyne.ThemeColorName = "openlamt-console"          // #0B0D10 SOL console stage, dark in both variants (Console.dc.html)
 	ColorNameEmptyStateTile fyne.ThemeColorName = "openlamt-empty-state-tile" // #1C1C1E icon tile of the "not connected" state
 	ColorNameWhite          fyne.ThemeColorName = "openlamt-white"            // #FFFFFF text on accent, selected row
 	ColorNameDialogCard     fyne.ThemeColorName = "openlamt-dialog-card"      // #232326 cards inside the About and settings dialogs
@@ -214,6 +215,7 @@ var darkColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameDangerTile:     color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.16)},
 	ColorNameErrorText:      rgb(0xFF6961), // 4.94:1 on #2C2C2F; #D70015 is 2.59:1
 	ColorNameLetterbox:      rgb(0x0B0B0C),
+	ColorNameConsole:        rgb(0x0B0D10), // derived: the light value, a terminal stays dark
 	ColorNameEmptyStateTile: rgb(0x1C1C1E),
 	ColorNameWhite:          rgb(0xFFFFFF),
 	ColorNameDialogCard:     rgb(0x232326),
@@ -321,6 +323,7 @@ var lightColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameDangerTile:     color.NRGBA{R: 0xFF, G: 0x3B, B: 0x30, A: alpha(0.12)}, // derived
 	ColorNameErrorText:      rgb(0xD70015),                                          // 5.38:1 on white
 	ColorNameLetterbox:      rgb(0xE3E3E6),
+	ColorNameConsole:        rgb(0x0B0D10),
 	ColorNameEmptyStateTile: rgb(0xF2F2F4), // derived
 	ColorNameWhite:          rgb(0xFFFFFF),
 	ColorNameDialogCard:     rgb(0xF5F5F7),

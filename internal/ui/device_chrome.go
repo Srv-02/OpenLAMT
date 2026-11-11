@@ -45,12 +45,11 @@ const (
 	dotNameGap       float32 = 10 // toolbar dot to name and host, as the sidebar row gap
 )
 
-// buildContent lays out toolbar, banners, the KVM stage and the status bar.
+// buildContent lays out toolbar, banners, the stages with the sidebar and the status bar.
 func (d *DeviceWindow) buildContent() fyne.CanvasObject {
 	top := container.New(&columnLayout{fill: -1}, d.buildToolbar(), hline(style.ColorNameSeparatorDark), d.buildWarning(), d.buildMessage())
-	letterbox := style.BindRect(canvas.NewRectangle(nil), style.ColorNameLetterbox, "")
-	stage := container.NewStack(letterbox, d.kvmArea, d.buildEmptyState())
-	content := container.New(&columnLayout{fill: 1}, top, stage, hline(style.ColorNameSeparatorDark), d.buildStatusBar())
+	d.body = container.New(manageSideLayout{}, d.buildStage(), d.buildManagePane())
+	content := container.New(&columnLayout{fill: 1}, top, d.body, hline(style.ColorNameSeparatorDark), d.buildStatusBar())
 	d.setKVMControls()
 	d.showPower()
 	return content
@@ -70,12 +69,12 @@ func (d *DeviceWindow) buildToolbar() fyne.CanvasObject {
 	d.powerBtn = widgets.NewToolbarMenuButton(icons.Power, lang.L("Power"), d.showPowerMenu)
 	d.buildPowerMenu()
 	d.buildKeyboardMenu()
-	buttons := container.New(layout.NewCustomPaddedHBoxLayout(toolbarGap),
+	d.toolbarItems = container.New(layout.NewCustomPaddedHBoxLayout(toolbarGap),
 		d.powerBtn, divider(),
-		d.kvm, d.quality, d.keyboard, divider(),
-		d.cadBtn, d.clipBtn, divider(),
-		d.fullBtn)
-	row := container.New(&leadingFillLayout{gap: toolbarGap}, head, buttons)
+		d.viewSwitch, d.mediaBtn, d.quality, divider(),
+		d.cadBtn, d.clipBtn, d.keyboard, divider(),
+		d.manageBtn, d.fullBtn)
+	row := container.New(&leadingFillLayout{gap: toolbarGap}, head, d.toolbarItems)
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameToolbar, "")
 	bg.SetMinSize(fyne.NewSize(1, style.ToolbarHeight))
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(0, 0, toolbarPadLeft, toolbarPadRight), row))
@@ -141,16 +140,20 @@ func (d *DeviceWindow) setMessage(text string) {
 	}
 }
 
-// buildStatusBar returns the 28 px status bar: power, AMT version, control mode, TLS and the
-// KVM state or message.
+// buildStatusBar returns the 28 px status bar: power, AMT version and control mode on the left;
+// on the right the media status (only while set), TLS, the KVM state or message and the console
+// status (only while set).
 func (d *DeviceWindow) buildStatusBar() fyne.CanvasObject {
 	text := func() *ellipsisText {
 		return newEllipsisText("", style.Size(style.SizeNameSecondaryText), style.ColorNameTextSecondary, false)
 	}
 	d.powerDot = widgets.NewStatusDot(widgets.DotUnknown, style.StatusDotSizeSmall)
-	d.power, d.version, d.mode, d.tls, d.kvmLine = text(), text(), text(), text(), text()
+	d.power, d.version, d.mode, d.tls, d.kvmLine, d.consoleLine = text(), text(), text(), text(), text(), text()
+	d.mediaLine = newEllipsisText("", style.Size(style.SizeNameSecondaryText), style.ColorNameAccentText, false)
 	d.version.Hide()
 	d.mode.Hide()
+	d.mediaLine.Hide()
+	d.consoleLine.Hide()
 	d.kvmLine.shrink = true
 	d.kvmLine.align = fyne.TextAlignTrailing
 	power := container.New(layout.NewCustomPaddedHBoxLayout(statusDotTextGap), container.NewCenter(d.powerDot), d.power)
@@ -168,7 +171,7 @@ func (d *DeviceWindow) buildStatusBar() fyne.CanvasObject {
 
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameStatusBar, "")
 	bg.SetMinSize(fyne.NewSize(1, style.StatusBarHeight))
-	row := container.New(&statusLayout{gap: statusGap}, left, tls, d.kvmLine)
+	row := container.New(&statusLayout{gap: statusGap, shrink: statusShrink}, left, d.mediaLine, tls, d.kvmLine, d.consoleLine)
 	d.statusRow = row
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(0, 0, statusPad, statusPad), row))
 }
@@ -412,7 +415,7 @@ func (d *DeviceWindow) buildQualityMenu() {
 }
 
 func (d *DeviceWindow) showQualityMenu() {
-	if d.qualityPopup != nil || d.kvmBusy || d.kvmReconnecting || d.aborted {
+	if d.qualityPopup != nil || d.kvmBusy || d.kvmReconnecting || d.aborted || d.consoleView {
 		return
 	}
 	d.qualityPopup = d.showMenu(d.quality, d.qualityMenu, func() { d.qualityPopup = nil })
@@ -426,8 +429,8 @@ func (d *DeviceWindow) showMenu(btn *widgets.ToolbarButton, m *fyne.Menu, closed
 	p.OnDismiss = func() {
 		btn.SetOpen(false)
 		closed()
-		if d.kvmClient != nil && !d.fullScreen {
-			d.win.Canvas().Focus(d.view)
+		if !d.fullScreen {
+			d.focusView()
 		}
 	}
 	btn.SetOpen(true)
@@ -750,25 +753,68 @@ func (l *leadingFillLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 	objs[0].Resize(fyne.NewSize(max(0, size.Width-bw-l.gap), size.Height))
 }
 
-// statusLayout places left at the start, then tls and the KVM text at the end; the KVM text is
-// shortened when the bar is too narrow.
-type statusLayout struct{ gap float32 }
+// statusLayout places objs[0] at the start and the other visible objects at the end, in their
+// order; objs[shrink], an *ellipsisText (the KVM text), is shortened when the bar is too narrow.
+type statusLayout struct {
+	gap    float32
+	shrink int
+}
+
+// statusShrink is the index of the KVM text in the status bar row.
+const statusShrink = 3
 
 func (l *statusLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
-	a, b := objs[0].MinSize(), objs[1].MinSize()
-	return fyne.NewSize(a.Width+b.Width+2*l.gap, max(a.Height, b.Height, objs[2].MinSize().Height))
+	var s fyne.Size
+	n := 0
+	for i, o := range objs {
+		if !o.Visible() {
+			continue
+		}
+		m := o.MinSize()
+		if i != l.shrink {
+			s.Width += m.Width
+		}
+		s.Height = max(s.Height, m.Height)
+		n++
+	}
+	s.Width += float32(max(0, n-1)) * l.gap
+	return s
 }
 
 func (l *statusLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
-	left, tls, kvmText := objs[0], objs[1], objs[2].(*ellipsisText)
-	lw, tw := left.MinSize().Width, tls.MinSize().Width
-	kw := min(kvmText.natural(), max(0, size.Width-lw-tw-2*l.gap))
+	left := objs[0]
+	lw := left.MinSize().Width
 	left.Move(fyne.NewPos(0, 0))
 	left.Resize(fyne.NewSize(lw, size.Height))
-	kvmText.Move(fyne.NewPos(size.Width-kw, 0))
-	kvmText.Resize(fyne.NewSize(kw, size.Height))
-	tls.Move(fyne.NewPos(size.Width-kw-l.gap-tw, 0))
-	tls.Resize(fyne.NewSize(tw, size.Height))
+	var fixed float32
+	n := 0
+	for i, o := range objs[1:] {
+		if o.Visible() {
+			n++
+			if i+1 != l.shrink {
+				fixed += o.MinSize().Width
+			}
+		}
+	}
+	var sw float32
+	if t, ok := objs[l.shrink].(*ellipsisText); ok && t.Visible() {
+		sw = min(t.natural(), max(0, size.Width-lw-fixed-float32(n)*l.gap))
+	}
+	x := size.Width
+	for i := len(objs) - 1; i >= 1; i-- {
+		o := objs[i]
+		if !o.Visible() {
+			continue
+		}
+		w := o.MinSize().Width
+		if i == l.shrink {
+			w = sw
+		}
+		x -= w
+		o.Move(fyne.NewPos(x, 0))
+		o.Resize(fyne.NewSize(w, size.Height))
+		x -= l.gap
+	}
 }
 
 // fixedWidthLayout gives its single object a fixed width (or less if the space is narrower)

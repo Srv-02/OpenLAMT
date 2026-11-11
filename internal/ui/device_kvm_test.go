@@ -59,7 +59,7 @@ type sessionFake = session.Fake
 // test receives a frame.
 func (h *kvmHarness) connect(t *testing.T, frame bool) *kvm.Client {
 	t.Helper()
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed)
 	if frame {
 		recv(t, h.frames)
@@ -72,7 +72,7 @@ func (h *kvmHarness) connect(t *testing.T, frame bool) *kvm.Client {
 
 func (h *kvmHarness) disconnect(t *testing.T) {
 	t.Helper()
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed)
 }
 
@@ -80,8 +80,8 @@ func TestKVMConnectShowsFrameAndDisconnects(t *testing.T) {
 	dev := &sessionFake{}
 	h := newKVMDevice(t, dev, kvmtest.Options{})
 	c := h.connect(t, true)
-	if !h.d.kvm.Active() || h.d.quality.Disabled() || h.d.fullBtn.Disabled() || h.d.cadBtn.Disabled() || h.d.clipBtn.Disabled() {
-		t.Fatalf("controls while connected: active=%v", h.d.kvm.Active())
+	if !h.d.kvmOn() || h.d.quality.Disabled() || h.d.fullBtn.Disabled() || h.d.cadBtn.Disabled() || h.d.clipBtn.Disabled() {
+		t.Fatalf("controls while connected: active=%v", h.d.kvmOn())
 	}
 	if h.d.kvmStatus.Text != "" || h.d.view.img.Image == nil || h.d.view.front.RGBAAt(1, 1).R < 240 {
 		t.Fatalf("status %q, image set %v", h.d.kvmStatus.Text, h.d.view.img.Image != nil)
@@ -90,8 +90,8 @@ func TestKVMConnectShowsFrameAndDisconnects(t *testing.T) {
 		t.Fatal("view not focused after connect")
 	}
 	h.disconnect(t)
-	if h.d.kvmClient != nil || h.d.view.Client() != nil || h.d.kvm.Active() || h.d.quality.Disabled() {
-		t.Fatalf("after disconnect: client=%v active=%v", h.d.kvmClient, h.d.kvm.Active())
+	if h.d.kvmClient != nil || h.d.view.Client() != nil || h.d.kvmOn() || h.d.quality.Disabled() {
+		t.Fatalf("after disconnect: client=%v active=%v", h.d.kvmClient, h.d.kvmOn())
 	}
 	if h.d.kvmStatus.Text != "KVM session closed." || !errors.Is(c.Err(), kvm.ErrClosed) || !h.d.fullBtn.Disabled() {
 		t.Fatalf("status %q err %v", h.d.kvmStatus.Text, c.Err())
@@ -112,10 +112,10 @@ func TestKVMConnectShowsFrameAndDisconnects(t *testing.T) {
 func TestKVMConsentDialog(t *testing.T) {
 	dev := &sessionFake{Consent: true, ConsentCode: "123456"}
 	h := newKVMDevice(t, dev, kvmtest.Options{})
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	answer := <-h.asked
-	if !h.d.kvm.Active() || !h.d.quality.Disabled() || h.d.kvmStatus.Text != "Connecting KVM…" {
-		t.Fatalf("controls while connecting: active=%v %q", h.d.kvm.Active(), h.d.kvmStatus.Text)
+	if !h.d.kvmOn() || !h.d.quality.Disabled() || h.d.kvmStatus.Text != "Connecting KVM…" {
+		t.Fatalf("controls while connecting: active=%v %q", h.d.kvmOn(), h.d.kvmStatus.Text)
 	}
 	answer("123456", true)
 	recv(t, h.changed)
@@ -125,14 +125,14 @@ func TestKVMConsentDialog(t *testing.T) {
 	}
 	h.disconnect(t)
 
-	test.Tap(h.d.kvm) // cancelled dialog: silent
+	tapKVM(h.d) // cancelled dialog: silent
 	(<-h.asked)("", false)
 	recv(t, h.changed)
-	if h.d.kvmClient != nil || len(h.errs) != 0 || h.d.kvmStatus.Text != "" || h.d.kvm.Active() {
+	if h.d.kvmClient != nil || len(h.errs) != 0 || h.d.kvmStatus.Text != "" || h.d.kvmOn() {
 		t.Fatalf("cancel: errs=%d status=%q", len(h.errs), h.d.kvmStatus.Text)
 	}
 
-	test.Tap(h.d.kvm) // wrong code: error shown
+	tapKVM(h.d) // wrong code: error shown
 	(<-h.asked)("654321", true)
 	recv(t, h.changed)
 	var ce *amt.ConsentError
@@ -140,9 +140,9 @@ func TestKVMConsentDialog(t *testing.T) {
 		t.Fatalf("wrong code: %v %q", err, h.d.kvmStatus.Text)
 	}
 
-	test.Tap(h.d.kvm) // "Disconnect KVM" while the dialog is open cancels and hides it
+	tapKVM(h.d) // "Disconnect KVM" while the dialog is open cancels and hides it
 	<-h.asked
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed)
 	if h.d.kvmClient != nil || !h.hidden.Load() || len(h.errs) != 0 {
 		t.Fatalf("cancel by disconnect: hidden=%v errs=%d", h.hidden.Load(), len(h.errs))
@@ -155,19 +155,19 @@ func TestKVMConsentDialog(t *testing.T) {
 func TestKVMOpenErrorsAreShown(t *testing.T) {
 	dev := &sessionFake{KVMErr: &amt.KVMError{Step: "KVMRedirectionSAP.RequestStateChange", ReturnValue: 2}}
 	h := newKVMDevice(t, dev, kvmtest.Options{})
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed)
 	if err := <-h.errs; !strings.Contains(describe(err), "refused to turn on KVM (return value 2)") {
 		t.Fatalf("err %v", err)
 	}
-	if h.d.kvmClient != nil || h.d.kvm.Disabled() || h.d.kvm.Active() || h.d.quality.Disabled() {
+	if h.d.kvmClient != nil || !h.d.kvmToggleEnabled() || h.d.kvmOn() || h.d.quality.Disabled() {
 		t.Fatal("controls not reset after error")
 	}
 	mm := &amt.FingerprintMismatchError{Host: "device.example.com", Expected: fp, Actual: strings.Repeat("cd", 32)}
 	dev.KVMErr = mm
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed)
-	if err := <-h.errs; !errors.Is(err, mm) || !h.d.aborted || !h.d.kvm.Disabled() {
+	if err := <-h.errs; !errors.Is(err, mm) || !h.d.aborted || h.d.kvmToggleEnabled() {
 		t.Fatalf("mismatch: %v aborted=%v", err, h.d.aborted)
 	}
 	recv(t, h.closed)
@@ -176,12 +176,12 @@ func TestKVMOpenErrorsAreShown(t *testing.T) {
 
 func TestKVMSessionEndedByServerShowsMessage(t *testing.T) {
 	h := newKVMDevice(t, &sessionFake{}, kvmtest.Options{CloseAfterUpdate: 1})
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed) // opened
 	recv(t, h.frames)
 	recv(t, h.changed) // ended by the server
-	if h.d.kvmClient != nil || !strings.HasPrefix(h.d.kvmStatus.Text, "KVM session ended: ") || h.d.kvm.Active() || h.d.kvm.Disabled() {
-		t.Fatalf("status %q active %v", h.d.kvmStatus.Text, h.d.kvm.Active())
+	if h.d.kvmClient != nil || !strings.HasPrefix(h.d.kvmStatus.Text, "KVM session ended: ") || h.d.kvmOn() || !h.d.kvmToggleEnabled() {
+		t.Fatalf("status %q active %v", h.d.kvmStatus.Text, h.d.kvmOn())
 	}
 	if h.d.view.img.Image != nil || len(h.errs) != 0 {
 		t.Fatal("image still shown or error dialog raised")
@@ -230,12 +230,12 @@ func TestCloseWindowAfterDisconnectFreesView(t *testing.T) {
 func TestCloseWindowDuringConnectFreesView(t *testing.T) {
 	dev := &sessionFake{Consent: true, ConsentCode: "123456"}
 	h := newKVMDevice(t, dev, kvmtest.Options{})
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	(<-h.asked)("123456", true)
 	recv(t, h.changed)
 	recv(t, h.frames)
 	h.disconnect(t)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	<-h.asked // the connect waits for the consent code
 	h.d.win.Close()
 	recv(t, h.closed)
@@ -251,10 +251,10 @@ func TestMismatchDuringKVMClosesSession(t *testing.T) {
 	h.d.apply(amt.Status{}, mm)
 	recv(t, h.changed)
 	<-h.errs
-	if !errors.Is(c.Err(), kvm.ErrClosed) || h.d.kvmClient != nil || !h.d.kvm.Disabled() || !h.d.fullBtn.Disabled() || !h.d.quality.Disabled() {
-		t.Fatalf("after abort: err=%v disabled=%v", c.Err(), h.d.kvm.Disabled())
+	if !errors.Is(c.Err(), kvm.ErrClosed) || h.d.kvmClient != nil || h.d.kvmToggleEnabled() || !h.d.fullBtn.Disabled() || !h.d.quality.Disabled() {
+		t.Fatalf("after abort: err=%v disabled=%v", c.Err(), !h.d.kvmToggleEnabled())
 	}
-	test.Tap(h.d.kvm) // disabled
+	tapKVM(h.d) // disabled
 	time.Sleep(10 * time.Millisecond)
 	if h.srv.Connections() != 1 {
 		t.Fatal("reconnected after abort")
@@ -372,7 +372,7 @@ func TestKVMIdleTimeoutDisconnects(t *testing.T) {
 	h := newKVMDevice(t, &sessionFake{}, kvmtest.Options{})
 	h.d.idleTimeout = func() time.Duration { return 80 * time.Millisecond }
 	// No window state is read between the two signals: the timer goroutine runs kvmEnded.
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed) // connected
 	recv(t, h.changed) // the idle timer ended the session
 	if h.d.kvmClient != nil || h.d.kvmStatus.Text != "KVM disconnected after 1 minutes without input." {
@@ -478,7 +478,7 @@ func TestPowerOffWaitsForCancelledConnect(t *testing.T) {
 	release := func() { once.Do(func() { close(gate) }) }
 	t.Cleanup(release)
 	dev.KVMGate = gate
-	test.Tap(h.d.kvm) // connecting; the fake holds the session after the dial
+	tapKVM(h.d) // connecting; the fake holds the session after the dial
 	if !h.d.kvmBusy {
 		t.Fatal("not connecting")
 	}

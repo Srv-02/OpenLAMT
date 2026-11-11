@@ -242,7 +242,7 @@ func TestLightColorsDifferFromDark(t *testing.T) {
 	same := map[fyne.ThemeColorName]bool{ // identical in both tables on purpose
 		theme.ColorNameError: true, theme.ColorNamePlaceHolder: true, theme.ColorNameInputBackground: true,
 		theme.ColorNameForegroundOnError: true, theme.ColorNameForegroundOnPrimary: true,
-		ColorNameWhite: true,
+		ColorNameWhite: true, ColorNameConsole: true,
 	}
 	for n, d := range darkColors {
 		if same[n] {

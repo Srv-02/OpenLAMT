@@ -23,11 +23,12 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
-// DeviceWindow shows one connected device (design SessionA/SessionA2, issue #44): a toolbar
-// (Power menu, KVM, Quality, Keyboard, Ctrl+Alt+Del, Type Clipboard, Full Screen), banners for
-// the TLS warning and a failed status read, the KVM area with its empty state, and a status
-// bar (device_chrome.go builds these). KVM logic is in device_kvm.go. The status is polled by
-// a session.Poller.
+// DeviceWindow shows one connected device (design SessionA/SessionA2, issue #44, Main.dc.html):
+// a toolbar (Power menu, KVM|Console, Media, Quality, Ctrl+Alt+Del, Type Clipboard, Keyboard,
+// Manage, Full Screen), banners for the TLS warning and a failed status read, the KVM or
+// Console stage, the device management sidebar and a status bar (device_chrome.go and
+// device_views.go build these). KVM logic is in device_kvm.go. The status is polled by a
+// session.Poller.
 type DeviceWindow struct {
 	win      fyne.Window
 	sess     *session.Session
@@ -87,6 +88,27 @@ type DeviceWindow struct {
 	resuming                  bool             // the pending connect is a resume: no wake key, no error dialog
 	resumedClient             *kvm.Client      // session of the last resume; an early error counts as a failed attempt
 
+	// Views, Media and Manage (device_views.go), only touched on the Fyne thread.
+	toolbarItems         *fyne.Container    // the toolbar buttons and dividers, in order
+	viewSwitch           *widgets.Segmented // KVM | Console
+	consoleView          bool               // the Console view is shown (consoleActive)
+	kvmStage             fyne.CanvasObject  // letterbox, KVM view and empty state
+	consolePane          fyne.CanvasObject  // dark background and consoleStage
+	consoleStage         *fyne.Container    // content of the Console view; empty until the console fills it
+	onConsoleSelected    func()             // the user switched to the Console view; nil = nothing
+	onConsoleReselected  func()             // the user tapped the selected Console segment; nil = nothing
+	consoleCtrlAltDel    func()             // toolbar Ctrl+Alt+Del in the Console view; nil = nothing
+	consoleTypeClipboard func()             // toolbar Type Clipboard in the Console view; nil = nothing
+	mediaBtn, manageBtn  *widgets.ToolbarButton
+	onMedia              func()                   // Media button; nil = nothing
+	body                 *fyne.Container          // stage and sidebar
+	managePane           fyne.CanvasObject        // sidebar with its left line; hidden while closed
+	manageSlot           *fyne.Container          // content of the sidebar, manageWidth wide
+	manageContent        func() fyne.CanvasObject // builds the sidebar content at the first opening; nil = empty
+	manageBuilt          bool                     // manageContent was called
+	mediaLine            *ellipsisText            // "ISO mounted · …" in the status bar; hidden while empty
+	consoleLine          *ellipsisText            // "Console connected" in the status bar; hidden while empty
+
 	// Keyboard menu (device_keyboard.go), only touched on the Fyne thread.
 	keyboardMenu    *fyne.Menu
 	layoutItems     map[string]*fyne.MenuItem // by stored layout name; "" is Default
@@ -97,27 +119,27 @@ type DeviceWindow struct {
 	onKeyboardSaved func() // test hook, nil in production
 
 	// KVM state, only touched on the Fyne thread.
-	view                          *kvmView
-	kvm, fullBtn, cadBtn, clipBtn *widgets.ToolbarButton
-	exitFullBtn, barCad, barClip  *widgets.ToolbarButton
-	quality                       *widgets.ToolbarButton
-	kvmStatus                     *statusText // transient KVM message; empty shows the plain state
-	bar                           *dragBar
-	barLayer                      *fyne.Container
-	kvmClient                     *kvm.Client                      // running session or nil
-	kvmCancel                     context.CancelFunc               // pending connect (dial or consent) or nil
-	kvmBusy                       bool                             // connect in progress
-	kvmReconnecting               bool                             // AMT dropped the session, reconnect pending (kvmClient nil)
-	qualitySwitch                 *kvm.Client                      // session closed for a new quality; kvmEnded reconnects
-	idleTimer                     *time.Timer                      // ends the KVM session without input; nil = never
-	idleAfter                     time.Duration                    // timeout of idleTimer
-	idleExpired                   time.Duration                    // set when idleTimer ended the session, for the status
-	idleTimeout                   func() time.Duration             // test hook; nil = settings
-	wake                          func(*kvm.Client, time.Duration) // wakeScreen; nil in most tests (no extra key messages)
-	lastInput                     time.Time                        // last local input (touchIdle)
-	fullScreen                    bool
-	askConsent                    func(answer func(code string, ok bool)) (hide func()) // dialog; replaced in tests
-	onTypeClipboard               func()                                                // "Type clipboard" dialog (type_clipboard.go); nil keeps the buttons disabled
+	view                         *kvmView
+	fullBtn, cadBtn, clipBtn     *widgets.ToolbarButton
+	exitFullBtn, barCad, barClip *widgets.ToolbarButton
+	quality                      *widgets.ToolbarButton
+	kvmStatus                    *statusText // transient KVM message; empty shows the plain state
+	bar                          *dragBar
+	barLayer                     *fyne.Container
+	kvmClient                    *kvm.Client                      // running session or nil
+	kvmCancel                    context.CancelFunc               // pending connect (dial or consent) or nil
+	kvmBusy                      bool                             // connect in progress
+	kvmReconnecting              bool                             // AMT dropped the session, reconnect pending (kvmClient nil)
+	qualitySwitch                *kvm.Client                      // session closed for a new quality; kvmEnded reconnects
+	idleTimer                    *time.Timer                      // ends the KVM session without input; nil = never
+	idleAfter                    time.Duration                    // timeout of idleTimer
+	idleExpired                  time.Duration                    // set when idleTimer ended the session, for the status
+	idleTimeout                  func() time.Duration             // test hook; nil = settings
+	wake                         func(*kvm.Client, time.Duration) // wakeScreen; nil in most tests (no extra key messages)
+	lastInput                    time.Time                        // last local input (touchIdle)
+	fullScreen                   bool
+	askConsent                   func(answer func(code string, ok bool)) (hide func()) // dialog; replaced in tests
+	onTypeClipboard              func()                                                // "Type clipboard" dialog (type_clipboard.go); nil keeps the buttons disabled
 
 	// "Type clipboard" (type_clipboard.go), only touched on the Fyne thread.
 	typing         *typeJob             // pending or running "Type clipboard" or nil
@@ -186,6 +208,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	d.confirm = d.confirmDialog
 	d.kvmStatus.changed = d.refreshKVMLine
 
+	d.buildViewControls()
 	d.buildKVM()
 	d.content = d.buildContent()
 	d.poller = session.NewPoller(sess, settings.PollInterval(), func(st amt.Status, err error) {

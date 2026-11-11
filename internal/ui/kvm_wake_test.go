@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"fyne.io/fyne/v2/test"
-
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/kvm/kvmtest"
 )
@@ -92,7 +90,7 @@ func TestKVMReconnectDoesNotWakeScreen(t *testing.T) {
 	h.d.wake = wakeScreen
 	h.d.idleTimeout = func() time.Duration { return time.Hour }
 	snaps := snapshots(h)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	next(t, snaps) // opened
 	recv(t, h.frames)
 	for i := 1; i <= 2; i++ {
@@ -109,6 +107,6 @@ func TestKVMReconnectDoesNotWakeScreen(t *testing.T) {
 	if len(keys) != 3 || !isWakeTwice(keys[0]) || len(keys[1]) != 0 || len(keys[2]) != 0 {
 		t.Fatalf("keys per connection %x", keys)
 	}
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	next(t, snaps)
 }

@@ -175,14 +175,16 @@ func (d *DeviceWindow) consoleSettingsRead(st amt.Settings, err error) {
 	case err != nil:
 		d.con.busy = false
 		d.consoleFailed(err)
+		d.leaveEmptyConsole()
 	case !st.Features.SOL:
 		d.releaseKeys()
 		p := showQuestion(d.win, icons.Console, toneInfo, lang.L("Enable Serial over LAN?"),
 			lang.L("Serial over LAN (SOL) is disabled on “{{.Name}}”. Enable it to open the text console of this device? The setting stays enabled until you disable it in Settings.",
 				map[string]any{"Name": d.name}),
 			lang.L("Cancel"), lang.L("Enable"), d.openConsole)
-		p.spec.onCancel = func() { // the view stays on the empty console
+		p.spec.onCancel = func() {
 			d.con.busy = false
+			d.leaveEmptyConsole()
 			d.consoleChanged()
 		}
 		d.consoleChanged()
@@ -219,11 +221,23 @@ func (d *DeviceWindow) consoleOpened(c *sol.Client, err error) {
 		go c.Close()
 	case err == nil:
 		d.startConsole(c)
-	case d.closed || d.aborted, errors.Is(err, errConsentCancelled), errors.Is(err, context.Canceled):
+	case d.closed || d.aborted:
+	case errors.Is(err, errConsentCancelled), errors.Is(err, context.Canceled):
+		d.leaveEmptyConsole()
 	default:
 		d.consoleFailed(err)
+		d.leaveEmptyConsole()
 	}
 	d.consoleChanged()
+}
+
+// leaveEmptyConsole returns to the KVM view (in the window or in full screen) when a connect
+// was cancelled or failed before any session of this window had filled the console, so no
+// empty console stays behind. After a session the view keeps its terminal.
+func (d *DeviceWindow) leaveEmptyConsole() {
+	if d.con.term == nil && d.consoleView && !d.closed && !d.aborted {
+		d.setConsoleView(false)
+	}
 }
 
 // consoleFailed shows an error of the settings read or OpenSOL; a certificate mismatch ends the

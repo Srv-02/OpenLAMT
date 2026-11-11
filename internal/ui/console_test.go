@@ -219,14 +219,15 @@ func TestConsoleAsksToEnableSOL(t *testing.T) {
 	if got := texts(bs); got != "Cancel|Enable" {
 		t.Fatalf("buttons %q", got)
 	}
-	test.Tap(bs[0]) // Cancel: nothing opens, the view stays on an empty Console
+	test.Tap(bs[0]) // Cancel: nothing opens, the KVM view returns instead of an empty Console
 	recv(t, h.conChanged)
-	if h.dev.SOL.Calls() != 0 || h.d.con.client != nil || h.d.con.busy || !h.d.consoleActive() ||
-		len(h.d.consoleStage.Objects) != 0 || h.d.consoleLine.Visible() || len(h.errs) != 0 {
-		t.Fatalf("cancel: calls %d, busy %v, stage %d", h.dev.SOL.Calls(), h.d.con.busy, len(h.d.consoleStage.Objects))
+	if h.dev.SOL.Calls() != 0 || h.d.con.client != nil || h.d.con.busy || h.d.consoleActive() ||
+		h.d.viewSwitch.Selected() != viewKVM || !h.d.kvmStage.Visible() || h.d.consolePane.Visible() ||
+		h.d.consoleLine.Visible() || len(h.errs) != 0 {
+		t.Fatalf("cancel: calls %d, busy %v, console view %v", h.dev.SOL.Calls(), h.d.con.busy, h.d.consoleActive())
 	}
 
-	h.d.viewSwitch.Tap(viewConsole) // the selected segment asks again
+	h.d.viewSwitch.Tap(viewConsole) // Console again asks again
 	recv(t, h.conChanged)
 	h.accept(t)
 	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[1]) // Enable
@@ -242,10 +243,10 @@ func TestConsoleConsentAndOpenErrors(t *testing.T) {
 	h := newConsoleDevice(t, true)
 	h.dev.Consent, h.dev.ConsentCode = true, "123456"
 	h.d.viewSwitch.Tap(viewConsole)
-	(<-h.asked)("", false) // cancelled consent: silent
+	(<-h.asked)("", false) // cancelled consent: silent, back to the KVM view
 	recv(t, h.conChanged)
-	if h.d.con.client != nil || h.d.con.busy || len(h.errs) != 0 {
-		t.Fatalf("cancelled consent: busy %v errs %d", h.d.con.busy, len(h.errs))
+	if h.d.con.client != nil || h.d.con.busy || len(h.errs) != 0 || h.d.consoleActive() {
+		t.Fatalf("cancelled consent: busy %v errs %d console view %v", h.d.con.busy, len(h.errs), h.d.consoleActive())
 	}
 
 	h.accept(t)
@@ -266,6 +267,41 @@ func TestConsoleConsentAndOpenErrors(t *testing.T) {
 	recv(t, h.conChanged)
 	if err := <-h.errs; !errors.Is(err, boom) || h.d.con.busy || h.d.consoleLine.Visible() {
 		t.Fatalf("open error %v, busy %v", err, h.d.con.busy)
+	}
+	if !h.d.consoleActive() {
+		t.Fatal("after an earlier session the view must stay on its terminal")
+	}
+}
+
+// TestConsoleFirstOpenFailureReturnsToKVM: an error before any session was open leaves no
+// empty console: the error shows and the KVM view returns.
+func TestConsoleFirstOpenFailureReturnsToKVM(t *testing.T) {
+	h := newConsoleDevice(t, true)
+	boom := errors.New("boom")
+	h.dev.SOL.Err = boom
+	h.d.viewSwitch.Tap(viewConsole)
+	recv(t, h.conChanged)
+	if err := <-h.errs; !errors.Is(err, boom) || h.d.con.busy {
+		t.Fatalf("open error %v, busy %v", err, h.d.con.busy)
+	}
+	if h.d.consoleActive() || h.d.viewSwitch.Selected() != viewKVM || !h.d.kvmStage.Visible() {
+		t.Fatal("the KVM view must return")
+	}
+}
+
+// TestConsoleCancelInFullScreenReturnsToKVM: Cancel on the SOL question asked from the full
+// screen bar returns to the KVM view in full screen.
+func TestConsoleCancelInFullScreenReturnsToKVM(t *testing.T) {
+	h := newConsoleDevice(t, false)
+	h.connect(t, true)
+	test.Tap(h.d.fullBtn)
+	h.d.barSwitch.Tap(viewConsole)
+	recv(t, h.conChanged) // the question
+	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[0])
+	recv(t, h.conChanged)
+	if h.d.consoleActive() || h.d.barSwitch.Selected() != viewKVM || !fullScreenShows(h.d, h.d.kvmStage) ||
+		h.d.win.Canvas().Focused() != h.d.view {
+		t.Fatalf("console view %v, full screen %v", h.d.consoleActive(), h.d.fullScreen)
 	}
 }
 

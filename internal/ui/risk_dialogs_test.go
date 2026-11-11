@@ -149,6 +149,22 @@ func TestOrangeConfirmRefusesLockoutOperations(t *testing.T) {
 	}
 }
 
+// TestFlushPanelLinesUpTitle: in the orange and red confirmations the title starts where the
+// warning box and the fields start (Danger.dc.html, Forms.dc.html); its label padding is taken away.
+func TestFlushPanelLinesUpTitle(t *testing.T) {
+	w, _ := panelHarness(t)
+	d := showRedConfirm(w, redSpec{op: amt.OpDisableNetwork, host: riskHost, title: "Turn off AMT on the network?",
+		warningBold: "Bold.", warningRest: "Rest.", button: "Turn Off AMT"})
+	head := findLabel(t, w.Canvas().Overlays().Top(), "Turn off AMT on the network?")
+	textX := absPos(head).X + theme.InnerPadding()
+	for name, o := range map[string]fyne.CanvasObject{"warning box": d.warnBox, "field": d.border} {
+		if dx := absPos(o).X - textX; dx < -0.5 || dx > 0.5 {
+			t.Errorf("%s %v px from the title", name, dx)
+		}
+	}
+	d.Dismiss()
+}
+
 func TestRedConfirmNeedsTheExactHost(t *testing.T) {
 	w, _ := panelHarness(t)
 	var got []amt.Confirmation
@@ -170,12 +186,20 @@ func TestRedConfirmNeedsTheExactHost(t *testing.T) {
 	if !same(d.border.StrokeColor, normal) {
 		t.Errorf("empty field border %v", d.border.StrokeColor)
 	}
+	if d.alarm.Visible() {
+		t.Error("red frame over the empty field")
+	}
+	w.Canvas().Focus(d.entry) // typing: the red frame lies over the entry's focus border
 	d.entry.SetText("device.example.co")
 	if !d.action.Disabled() || !same(d.border.StrokeColor, style.Color(style.ColorNameDanger)) || d.border.StrokeWidth != 1.5 {
 		t.Errorf("mistyped: disabled %v border %v width %v", d.action.Disabled(), d.border.StrokeColor, d.border.StrokeWidth)
 	}
+	if objs := d.field.Objects; !d.alarm.Visible() || objs[len(objs)-1] != d.alarm ||
+		!same(d.alarm.StrokeColor, style.Color(style.ColorNameDanger)) || d.alarm.StrokeWidth != 1.5 {
+		t.Errorf("mistyped: red frame visible %v on top %v color %v", d.alarm.Visible(), objs[len(objs)-1] == d.alarm, d.alarm.StrokeColor)
+	}
 	d.entry.SetText("  DEVICE.Example.com ")
-	if d.action.Disabled() || !same(d.border.StrokeColor, normal) {
+	if d.action.Disabled() || !same(d.border.StrokeColor, normal) || d.alarm.Visible() {
 		t.Fatalf("exact host (case and spaces ignored): disabled %v border %v", d.action.Disabled(), d.border.StrokeColor)
 	}
 	d.entry.SetText("")

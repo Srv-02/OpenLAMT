@@ -195,7 +195,7 @@ func (m *manager) showUserDialog(v *usersPane, u *amt.User) *userDialog {
 		title, button = lang.L("Edit user"), lang.L("Save")
 	}
 	d.panel = showPanel(v.window(), panelSpec{
-		title: title, action: button, cancel: lang.L("Cancel"),
+		title: title, action: button, cancel: lang.L("Cancel"), flush: true,
 		onAction: func() { d.write(m, v) },
 		onCancel: d.forget,
 	}, func(p *panel) []fyne.CanvasObject {
@@ -384,7 +384,7 @@ func showNotSavedDialog(parent fyne.Window, name, password string) *notSavedDial
 	d := &notSavedDialog{}
 	forget := func() { d.display.SetText("") }
 	d.panel = showPanel(parent, panelSpec{
-		title: lang.L("New password not saved"), action: lang.L("I Have Saved It"), noEnter: true,
+		title: lang.L("New password not saved"), action: lang.L("I Have Saved It"), noEnter: true, flush: true,
 		onAction: forget, onCancel: forget,
 	}, func(p *panel) []fyne.CanvasObject {
 		msg := widget.NewLabel(lang.L("The password on “{{.Name}}” was changed, but OpenLAMT could not save it in the keychain. Copy it now. It is shown only once.",
@@ -392,7 +392,7 @@ func showNotSavedDialog(parent fyne.Window, name, password string) *notSavedDial
 		msg.Wrapping = fyne.TextWrapWord
 		d.display = widgets.NewPasswordDisplay(password)
 		d.copy = p.newButton(lang.L("Copy"), func() { fyne.CurrentApp().Clipboard().SetContent(d.display.Text()) })
-		return []fyne.CanvasObject{msg, container.New(&rowLayout{gap: 8, fill: 0}, d.display, d.copy)}
+		return []fyne.CanvasObject{flushText(msg), container.New(&rowLayout{gap: 8, fill: 0}, d.display, d.copy)}
 	})
 	d.done = d.action
 	return d

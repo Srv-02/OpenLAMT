@@ -54,6 +54,8 @@ type riskDialog struct {
 	check   *dialogCheck      // orange: "I understand the risk"
 	entry   *dialogEntry      // red: the typed confirmation phrase
 	border  *canvas.Rectangle // red: frame of entry, red while it holds a wrong phrase
+	alarm   *canvas.Rectangle // red: the red frame again, over the entry's focus border
+	field   *fyne.Container   // red: border, entry and alarm
 	prefix  *canvas.Text      // red: text before the phrase in "Type … to confirm"
 	phrase  *canvas.Text      // red: the phrase in code style
 
@@ -105,7 +107,7 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 		return amt.ConfirmChecked(s.op, s.host, d.check != nil && d.check.Checked)
 	}
 	d.panel = showPanel(parent, panelSpec{
-		danger: true, redButton: true, title: s.title, action: s.button, cancel: lang.L("Cancel"),
+		danger: true, redButton: true, flush: true, title: s.title, action: s.button, cancel: lang.L("Cancel"),
 		onAction: func() {
 			if s.ready != nil && !s.ready() {
 				return
@@ -125,9 +127,9 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 		box, d.warnBox = warningBox(s.danger, bold, s.warning)
 		body := []fyne.CanvasObject{box}
 		if s.oldValue != "" || s.newValue != "" {
-			body = append(body, richLine(
+			body = append(body, flushText(richLine(
 				textSeg(s.oldValue+" → ", style.ColorNameControlText, false),
-				textSeg(s.newValue, theme.ColorNameForeground, true)))
+				textSeg(s.newValue, theme.ColorNameForeground, true))))
 		}
 		if s.extra != nil {
 			body = append(body, s.extra(d)...)
@@ -189,7 +191,7 @@ func showRedConfirm(parent fyne.Window, s redSpec) *riskDialog {
 		return amt.Confirm(s.op, s.host, typed)
 	}
 	d.panel = showPanel(parent, panelSpec{
-		danger: true, redButton: true, title: s.title, action: s.button, cancel: lang.L("Cancel"),
+		danger: true, redButton: true, flush: true, title: s.title, action: s.button, cancel: lang.L("Cancel"),
 		onAction: func() {
 			if s.ready != nil && !s.ready() {
 				return
@@ -212,9 +214,12 @@ func showRedConfirm(parent fyne.Window, s redSpec) *riskDialog {
 		d.border = &canvas.Rectangle{CornerRadius: confirmFieldRadius, StrokeWidth: 1}
 		style.BindRect(d.border, style.ColorNameField, "")
 		d.border.StrokeColor = style.Color(style.ColorNameControlBorder)
-		field := container.NewStack(d.border, container.NewThemeOverride(d.entry, style.CardTheme{}))
+		d.alarm = style.BindRect(&canvas.Rectangle{CornerRadius: confirmFieldRadius, StrokeWidth: mistypedWidth, FillColor: color.Transparent},
+			"", style.ColorNameDanger)
+		d.alarm.Hide()
+		d.field = container.NewStack(d.border, container.NewThemeOverride(d.entry, style.CardTheme{}), d.alarm)
 		p.focus = d.entry
-		return append(body, d.confirmLabel(amt.ConfirmPhrase(s.op, s.host)), field)
+		return append(body, d.confirmLabel(amt.ConfirmPhrase(s.op, s.host)), d.field)
 	})
 	d.validate = func() {
 		_, err := confirmation()
@@ -222,6 +227,9 @@ func showRedConfirm(parent fyne.Window, s redSpec) *riskDialog {
 		d.border.StrokeColor, d.border.StrokeWidth = style.Color(style.ColorNameControlBorder), 1
 		if mistyped {
 			d.border.StrokeColor, d.border.StrokeWidth = style.Color(style.ColorNameDanger), mistypedWidth
+			d.alarm.Show()
+		} else {
+			d.alarm.Hide()
 		}
 		d.border.Refresh()
 		d.setEnabled(err == nil && (s.ready == nil || s.ready()))

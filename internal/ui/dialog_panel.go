@@ -30,6 +30,7 @@ const (
 	panelTileSize   float32 = 40
 	panelTileRadius float32 = 10
 	panelIconSize   float32 = 22
+	panelFormGap    float32 = 12 // between the parts of a flush panel (Forms.dc.html .dlg gap)
 )
 
 // tileTone is the color of a panel's symbol tile.
@@ -67,6 +68,10 @@ type panelSpec struct {
 	onAction  func() // runs after the dialog closed through the main button; may be nil
 	onCancel  func() // runs after it closed any other way; may be nil
 	keep      bool   // the main button (and Enter) runs onAction without closing; onAction closes with p.close
+	// flush lines the title up with content that has no inner padding of its own (warning boxes,
+	// fields: the device management dialogs of Danger.dc.html and Forms.dc.html) and spaces the
+	// parts panelFormGap apart. Texts with an inner padding go through flushText.
+	flush bool
 }
 
 // panel is a shown panel dialog.
@@ -114,6 +119,9 @@ func showPanel(parent fyne.Window, spec panelSpec, build func(p *panel) []fyne.C
 	head.SizeName = theme.SizeNameSubHeadingText
 	head.Wrapping = fyne.TextWrapWord
 	col := container.NewVBox(append([]fyne.CanvasObject{head}, body...)...)
+	if spec.flush {
+		col = container.New(layout.NewCustomPaddedVBoxLayout(panelFormGap), append([]fyne.CanvasObject{flushText(head)}, body...)...)
+	}
 	var content fyne.CanvasObject = col
 	if spec.icon != "" {
 		size, radius, iconSize, stroke := panelTileSize, panelTileRadius, panelIconSize, float32(2)
@@ -157,6 +165,13 @@ func showPanel(parent fyne.Window, spec panelSpec, build func(p *panel) []fyne.C
 		c.Unfocus() // Enter must reach the dialog, not a field of the window behind it
 	}
 	return p
+}
+
+// flushText takes the inner padding of a label or rich text away on the left, top and bottom,
+// so its text lines up with the unpadded content of a flush panel.
+func flushText(o fyne.CanvasObject) fyne.CanvasObject {
+	pad := theme.InnerPadding()
+	return container.New(layout.NewCustomPaddedLayout(-pad, -pad, -pad, 0), o)
 }
 
 // act is the main button: it closes the dialog and runs onAction, or with keep only runs it.

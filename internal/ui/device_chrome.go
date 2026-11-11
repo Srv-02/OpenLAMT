@@ -338,6 +338,8 @@ func powerIcon(a amt.PowerAction) icons.Name {
 		return icons.PowerCycle
 	case amt.BootToBIOS:
 		return icons.BIOS
+	case amt.BootToISO:
+		return icons.Media
 	}
 	return icons.Power
 }
@@ -357,12 +359,14 @@ func powerMenuLabel(a amt.PowerAction) string {
 		return lang.L("Power Off…")
 	case amt.BootToBIOS:
 		return lang.L("Reboot to BIOS…")
+	case amt.BootToISO:
+		return lang.L("Boot from ISO…")
 	}
 	return a.String()
 }
 
 // buildPowerMenu creates the items of the Power menu: Power On, Power Off | Reset, Power Cycle,
-// Reboot to BIOS | Shutdown.
+// Reboot to BIOS, Boot from ISO | Shutdown.
 func (d *DeviceWindow) buildPowerMenu() {
 	d.powerItems = map[amt.PowerAction]*fyne.MenuItem{}
 	var items []*fyne.MenuItem
@@ -370,7 +374,7 @@ func (d *DeviceWindow) buildPowerMenu() {
 		it := fyne.NewMenuItem(powerMenuLabel(act), func() { d.run(act) })
 		d.powerItems[act] = it
 		items = append(items, it)
-		if act == amt.PowerOff || act == amt.BootToBIOS {
+		if act == amt.PowerOff || act == amt.BootToISO {
 			items = append(items, fyne.NewMenuItemSeparator())
 		}
 	}
@@ -390,6 +394,7 @@ func (d *DeviceWindow) updatePowerItems() {
 	if d.powerPopup != nil {
 		d.powerPopup.Refresh()
 	}
+	d.media.powerChanged() // "Restart from ISO…" of the Media popover
 }
 
 // showPowerMenu opens the Power menu. The state is read once more right away, followed by the
@@ -440,8 +445,10 @@ func (d *DeviceWindow) showMenu(btn *widgets.ToolbarButton, m *fyne.Menu, closed
 	return p
 }
 
-// closeMenus dismisses an open Power or Quality menu (power action started, abort, KVM connect).
+// closeMenus dismisses an open Power, Quality or Keyboard menu and the Media popover (power
+// action started, abort, KVM connect).
 func (d *DeviceWindow) closeMenus() {
+	d.media.dismiss()
 	if d.powerPopup != nil {
 		d.powerPopup.Dismiss()
 	}

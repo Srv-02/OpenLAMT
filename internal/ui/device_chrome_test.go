@@ -46,17 +46,17 @@ func sameActions(a, b []amt.PowerAction) bool {
 }
 
 // The Power menu offers only what applies to the power state; an unknown state offers all.
-// Shutdown additionally needs Off - Soft Graceful (12) in the device's power states.
+// Shutdown additionally needs Off - Soft Graceful (12) in the device's power states, Boot from
+// ISO a mounted ISO (none here; media_test.go).
 func TestPowerMenuFollowsPowerState(t *testing.T) {
 	englishUI(t)
 	h := newDevice(t, test.NewTempApp(t), &session.Fake{FP: fp}, true)
 	d := h.d
 	for _, states := range [][]power.PowerState{{5, 8, 2, 10, 11}, {2, 5, 8, 10, 11, 12}} {
 		graceful := slices.Contains(states, power.PowerOffSoftGraceful)
-		all := powerOrder
-		if !graceful {
-			all = slices.DeleteFunc(slices.Clone(powerOrder), func(a amt.PowerAction) bool { return a == amt.PowerShutdown })
-		}
+		all := slices.DeleteFunc(slices.Clone(powerOrder), func(a amt.PowerAction) bool {
+			return a == amt.BootToISO || a == amt.PowerShutdown && !graceful
+		})
 		on := []amt.PowerAction{amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS}
 		if graceful {
 			on = []amt.PowerAction{amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.PowerShutdown}

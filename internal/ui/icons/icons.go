@@ -1,5 +1,5 @@
 // Package icons holds OpenLAMT's UI symbols (24 px grid, 1.7 stroke, issue #44) as Fyne
-// resources: 33 stroked ones and the two filled ones (heart, star) of the About dialog.
+// resources: 35 stroked ones and the two filled ones (heart, star) of the About dialog.
 //
 // Fyne recolors only the fill of themed SVGs, not the stroke these symbols are drawn with, so
 // each symbol is served as a static resource with the stroke color already set: one per
@@ -68,8 +68,8 @@ const (
 // navigation, Media.dc.html, Dialogs.dc.html and Danger.dc.html).
 const (
 	Console  Name = "console"   // SOL text console, KVM|Console segment
-	Media    Name = "media"     // disc: toolbar Media, "Mount ISO file…"
-	Folder   Name = "folder"    // "Mount folder as ISO…"
+	Media    Name = "media"     // disc: toolbar Media, "Mount ISO…"
+	Folder   Name = "folder"    // "Mount Folder…"
 	Manage   Name = "manage"    // window with a sidebar: toolbar Manage
 	Hardware Name = "hardware"  // chip: navigation Hardware
 	EventLog Name = "event-log" // navigation Event log
@@ -78,6 +78,7 @@ const (
 	Warning  Name = "warning"   // triangle: orange and red warning boxes, orange question tile
 
 	DeviceSettings Name = "device-settings" // navigation Settings (Settings.dc.html)
+	Unmount        Name = "unmount"         // arrow up onto a line: "Unmount" of the Media menu (Extras.dc.html)
 )
 
 // Filled symbols (no stroke): the file's fill is recolored like the stroke of the others.
@@ -91,7 +92,7 @@ const (
 var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, Fullscreen, Settings,
 	Server, Search, Lock, Eye, Edit, Duplicate, Delete, Add, Connect, Key, ChevronDown,
 	Coffee, ExternalLink, Info, Clear,
-	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings}
+	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings, Unmount}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}

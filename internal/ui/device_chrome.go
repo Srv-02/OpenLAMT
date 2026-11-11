@@ -394,7 +394,7 @@ func (d *DeviceWindow) updatePowerItems() {
 	if d.powerPopup != nil {
 		d.powerPopup.Refresh()
 	}
-	d.media.powerChanged() // "Restart from ISO…" of the Media popover
+	d.media.powerChanged() // "Restart from ISO…" of the Media menu
 }
 
 // showPowerMenu opens the Power menu. The state is read once more right away, followed by the
@@ -429,8 +429,16 @@ func (d *DeviceWindow) showQualityMenu() {
 // showMenu opens m below btn (SessionA2.html: 6 px below the item, 8 px to the left) and marks
 // btn open until the menu closes. Held keys are released first: the menu takes the focus.
 func (d *DeviceWindow) showMenu(btn *widgets.ToolbarButton, m *fyne.Menu, closed func()) *widgets.MenuPopup {
+	return d.showMenuWith(btn, m, nil, closed)
+}
+
+// showMenuWith is showMenu with the info line info above the items (nil for none).
+func (d *DeviceWindow) showMenuWith(btn *widgets.ToolbarButton, m *fyne.Menu, info *widgets.MenuInfo, closed func()) *widgets.MenuPopup {
 	d.releaseKeys()
 	p := widgets.NewMenuPopup(m, d.win.Canvas())
+	if info != nil {
+		p.SetMenu(m, info)
+	}
 	p.OnDismiss = func() {
 		btn.SetOpen(false)
 		closed()
@@ -445,7 +453,7 @@ func (d *DeviceWindow) showMenu(btn *widgets.ToolbarButton, m *fyne.Menu, closed
 	return p
 }
 
-// closeMenus dismisses an open Power, Quality or Keyboard menu and the Media popover (power
+// closeMenus dismisses an open Power, Quality, Keyboard or Media menu (power
 // action started, abort, KVM connect).
 func (d *DeviceWindow) closeMenus() {
 	d.media.dismiss()

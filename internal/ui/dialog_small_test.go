@@ -30,6 +30,9 @@ func TestDesignDialogsStayReachableInSmallWindows(t *testing.T) {
 			}
 			_, _, buttons := dialogTexts(h.s.win)
 			for name, b := range buttons {
+				if name == "Reset Warnings" { // a row of the settings, which scroll
+					continue
+				}
 				ok, pos, sz := reachable(h.s.win, b)
 				t.Logf("%s %v canvas %v: button %q at %v size %v reachable=%v", kind, size, h.s.win.Canvas().Size(), name, pos, sz, ok)
 				if !ok {

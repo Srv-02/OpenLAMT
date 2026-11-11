@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 	"strconv"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -21,10 +22,12 @@ import (
 )
 
 // Geometry of the settings dialog (Settings.html, one 45 px row added for the language, one for
-// the appearance and one for the update check, 45 for the two-line row "Color blind mode"): 600 x 620, padding 20/22/18, 16 between the blocks, a number field of 56 x 26.
+// the appearance and one for the update check, 45 for the two-line row "Color blind mode", 60
+// for the last row "Hidden messages" of Extras.dc.html): 600 x 700, padding 20/22/18, 16
+// between the blocks, a number field of 56 x 26.
 const (
 	settingsWidth  float32 = 600
-	settingsHeight float32 = 620
+	settingsHeight float32 = 700
 
 	numberFieldWidth  float32 = 56
 	numberFieldHeight float32 = 26
@@ -259,6 +262,52 @@ func colorBlindRow(sw *widgets.Switch) fyne.CanvasObject {
 		container.New(&rowLayout{gap: 16, fill: 0}, label, preview, sw))
 }
 
+// hiddenMessagesRow is the row "Hidden messages" (Extras.dc.html): a label with a secondary
+// explanation and the button "Reset Warnings", which shows every message hidden with "Don’t
+// show again" again at once (not on Save). The button is disabled while nothing is hidden.
+func hiddenMessagesRow(s *Settings, onEscape func()) (fyne.CanvasObject, *widgets.PrimaryButton) {
+	b := dialogButton(lang.L("Reset Warnings"), false, 14, nil)
+	b.OnTapped = func() {
+		s.ResetHiddenMessages()
+		b.Disable()
+	}
+	b.OnEscape = onEscape
+	if !s.HiddenMessages() {
+		b.Disable()
+	}
+	// The dialog has a fixed width: the explanation wraps at the width left of the button.
+	width := settingsWidth - 2*22 - 2*rowPadH - b.MinSize().Width - 16 - 2
+	size := style.Size(style.SizeNameSecondaryText)
+	lines := []fyne.CanvasObject{designText(lang.L("Hidden messages"), style.Size("text"), "foreground", false)}
+	for _, l := range wrapWords(lang.L("Show all messages again that were hidden with “Don’t show again”."), size, width) {
+		lines = append(lines, designText(l, size, style.ColorNameTextSecondary, false))
+	}
+	label := container.New(layout.NewCustomPaddedVBoxLayout(1), lines...)
+	return container.New(layout.NewCustomPaddedLayout(colorBlindPadV, colorBlindPadV, rowPadH, rowPadH),
+		container.New(&rowLayout{gap: 16, fill: 0}, label, b)), b
+}
+
+// wrapWords breaks s into lines no wider than width at size, at spaces.
+func wrapWords(s string, size, width float32) []string {
+	var lines []string
+	line := ""
+	for _, w := range strings.Fields(s) {
+		next := w
+		if line != "" {
+			next = line + " " + w
+		}
+		if line != "" && fyne.MeasureText(next, size, fyne.TextStyle{}).Width > width {
+			lines = append(lines, line)
+			next = w
+		}
+		line = next
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
+}
+
 // footerLink is a flat 28 px link button of the footer.
 func footerLink(text string, icon fyne.Resource, iconSize float32, tapped func()) *widgets.Link {
 	l := widgets.NewLink(text, nil)
@@ -321,6 +370,7 @@ func showSettingsDialog(parent fyne.Window, s *Settings) {
 			f.layout.OnEscape, f.idle.OnEscape, f.quality.OnEscape, f.autoKVM.OnEscape, f.language.OnEscape, f.appearance.OnEscape, f.colorBlind.OnEscape, f.updates.OnEscape = d.Close, d.Close, d.Close, d.Close, d.Close, d.Close, d.Close, d.Close
 			save.OnEscape, cancel.OnEscape = d.Close, d.Close
 			sync()
+			hidden, _ := hiddenMessagesRow(s, d.Close)
 
 			// The rows run top to bottom in the order of the spec; Tab follows the same order,
 			// because Fyne moves the focus through the widget tree.
@@ -335,7 +385,8 @@ func showSettingsDialog(parent fyne.Window, s *Settings) {
 				settingsRow(lang.L("KVM quality"), f.quality),
 				settingsRow(lang.L("KVM auto-connect"), f.autoKVM),
 				settingsRow(lang.L("Disconnect KVM without input after"), f.idle),
-				settingsRow(lang.L("Type clipboard layout"), f.layout))
+				settingsRow(lang.L("Type clipboard layout"), f.layout),
+				hidden)
 			card.Background = style.ColorNameDialogCard
 			title := designText(lang.L("Settings"), style.Size("subHeadingText"), "foreground", true)
 			buttons := container.New(&rowLayout{gap: 8, fill: 0}, spacer(), cancel, save)

@@ -6,56 +6,30 @@ import (
 	"fmt"
 	"math"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/storage"
-	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/ui/icons"
-	"github.com/Srv-02/openlamt/internal/ui/style"
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
-// Media of the device window (Media.dc.html, Dialogs.dc.html): the Media button opens a popover
-// with three states. Nothing mounted offers "Mount ISO file…" and "Mount folder as ISO…";
-// preparing shows the folder ISO being built (and, for every image, the mount until it runs);
-// mounted shows the image, its read statistics, the next-start boot checkbox, Unmount and
-// "Restart from ISO…". The image is mounted over IDE-R as a read-only CD drive. While it is
-// mounted the status bar reads "ISO mounted · x MB/s" and the Power menu offers "Boot from ISO…".
-// Closing the window with an image mounted (or being prepared) asks first.
-
-// Geometry of the popover (Media.dc.html .pop): white card, radius 14, 16 padding, 12 between
-// rows; 340 wide, 400 while mounted.
-const (
-	mediaPopRadius       float32 = 14
-	mediaPopPad          float32 = 16
-	mediaPopGap          float32 = 12
-	mediaPopWidth        float32 = 340
-	mediaPopWidthMounted float32 = 400
-	mediaTitleSize       float32 = 14
-	mediaSizeTextSize    float32 = 12
-	mediaBarHeight       float32 = 6
-	mediaBarRadius       float32 = 3
-	mediaDotSize         float32 = 8
-	mediaButtonHeight    float32 = 34
-	mediaButtonIcon      float32 = 18
-	mediaButtonGap       float32 = 10
-	mediaButtonPad       float32 = 12
-	mediaButtonRadius    float32 = 8
-	mediaButtonText      float32 = 13
-)
+// Media of the device window (Extras.dc.html, Dialogs.dc.html): the Media button opens a
+// drop-down menu like Power, with three states. Nothing mounted offers "Mount ISO…" and "Mount
+// Folder…" (after the hint "Mount a folder", unless it was hidden with "Don’t show again");
+// preparing shows the name, for a folder ISO the build progress, and Cancel; mounted shows the
+// name and the read rate, "Boot from ISO on next start" with a check mark, "Restart from ISO…"
+// and Unmount. The image is mounted over IDE-R as a read-only CD drive. While it is mounted the
+// status bar reads "ISO mounted · x MB/s" and the Power menu offers "Boot from ISO…". Closing the
+// window with an image mounted (or being prepared) asks first.
 
 // mediaDialogSize is the size of the file and folder dialogs.
 var mediaDialogSize = fyne.NewSize(800, 540)
@@ -96,9 +70,8 @@ type mediaPanel struct {
 	info        *mkiso.Info // the folder ISO is built
 
 	mount    *mediaMount   // the running session while mounted
-	size     int64         // image size in bytes
-	bootNext bool          // "Boot from this ISO on the next start" is ticked
-	bootBusy bool          // NextBootFromISO or ClearISOBoot of the checkbox runs
+	bootNext bool          // "Boot from ISO on next start" is checked
+	bootBusy bool          // NextBootFromISO or ClearISOBoot of that item runs
 	bootDone chan struct{} // closed when that call returned; set while bootBusy
 	rate     rateMeter
 	stopTick func()
@@ -106,9 +79,10 @@ type mediaPanel struct {
 	askIDER  *panel // "Enable media redirection?" while shown; it owns the image then
 	closeAsk *panel // "An ISO is still mounted" while shown
 
-	pop     *mediaPopover // open popover or nil
-	ui      mediaControls // controls of the shown state; zero while the popover is closed
-	syncing bool          // the checkbox is set from code: no OnChanged action
+	menu  *widgets.MenuPopup // open menu or nil
+	shown *fyne.Menu         // items of the open menu; nil while it is closed
+	line  *widgets.MenuInfo  // info line of the open menu; nil for none
+	items mediaItems         // items of the open menu's state; zero while it is closed
 
 	// Hooks, replaced in tests.
 	pickISO, pickFolder func(chosen func(path string))  // Fyne file and folder dialogs
@@ -116,17 +90,12 @@ type mediaPanel struct {
 	now                 func() time.Time                // clock of the read rate
 	onBuildProgress     func(done, total int64)         // called on the build goroutine; nil in production
 	onEvent             func(string)                    // end of an asynchronous step; nil in production
-	beforeBoot          func()                          // on the goroutine of the checkbox, before the session call; nil in production
+	beforeBoot          func()                          // on the goroutine of the boot item, before the session call; nil in production
 }
 
-// mediaControls are the controls of the popover state that is shown.
-type mediaControls struct {
-	title                                 *ellipsisText
-	iso, folder, cancel, unmount, restart *widgets.PrimaryButton
-	hint, progress, stats                 *widget.RichText
-	bar                                   *mediaBar
-	size                                  *ellipsisText
-	check                                 *dialogCheck
+// mediaItems are the items of the menu state that is shown.
+type mediaItems struct {
+	iso, folder, boot, restart, unmount, cancel *fyne.MenuItem
 }
 
 func newMediaPanel(d *DeviceWindow) *mediaPanel {
@@ -193,7 +162,7 @@ func (m *mediaPanel) reset() {
 		m.stopTick()
 	}
 	m.phase, m.ctx, m.cancel, m.stopTick = mediaIdle, nil, nil, nil
-	m.mount, m.info, m.size = nil, nil, 0
+	m.mount, m.info = nil, nil
 	m.done, m.total = 0, 0
 	m.bootNext, m.bootBusy, m.bootDone = false, false, nil
 	m.rate = rateMeter{}
@@ -213,13 +182,52 @@ func (m *mediaPanel) chooseISO() {
 	m.pickISO(func(path string) { m.start(path, false) })
 }
 
+// chooseFolder is "Mount Folder…": the hint "Mount a folder" first, unless it was hidden, then
+// the folder dialog.
 func (m *mediaPanel) chooseFolder() {
 	m.dismiss()
 	if m.phase != mediaIdle {
 		return
 	}
 	m.d.releaseKeys()
-	m.pickFolder(func(path string) { m.start(path, true) })
+	pick := func() { m.pickFolder(func(path string) { m.start(path, true) }) }
+	if m.d.settings.HideFolderMountHint() {
+		pick()
+		return
+	}
+	showFolderHint(m.d.win, func(hide bool) {
+		if hide {
+			m.d.settings.SetHideFolderMountHint(true)
+		}
+		pick()
+	})
+}
+
+// showFolderHint shows "Mount a folder" (Extras.dc.html): what a mounted folder is, "Don’t show
+// again" and the buttons Cancel and "Choose Folder…". onChoose gets whether the box is ticked;
+// Cancel ends there.
+func showFolderHint(parent fyne.Window, onChoose func(hide bool)) *panel {
+	var check *dialogCheck
+	return showPanel(parent, panelSpec{title: lang.L("Mount a folder"), action: lang.L("Choose Folder…"), cancel: lang.L("Cancel"),
+		onAction: func() { onChoose(check.Checked) },
+	}, func(p *panel) []fyne.CanvasObject {
+		msg := widget.NewLabel(lang.L("The folder is mounted on the device as a CD drive."))
+		msg.Wrapping = fyne.TextWrapWord
+		check = p.newCheck(lang.L("Don’t show again"), false)
+		return []fyne.CanvasObject{msg, bulletList(lang.L("Read only"), lang.L("Each file must be smaller than 4 GB"),
+			lang.L("Large folders take a moment to prepare")), check}
+	})
+}
+
+// bulletList is a list with a bullet before each line.
+func bulletList(lines ...string) *widget.RichText {
+	var items []widget.RichTextSegment
+	for _, l := range lines {
+		items = append(items, &widget.ParagraphSegment{Texts: []widget.RichTextSegment{&widget.TextSegment{Text: l, Style: widget.RichTextStyleInline}}})
+	}
+	rt := widget.NewRichText(&widget.ListSegment{Items: items})
+	rt.Wrapping = fyne.TextWrapWord
+	return rt
 }
 
 // dialogISO is the Fyne file dialog for an .iso file.
@@ -258,7 +266,7 @@ func (m *mediaPanel) dialogFolder(chosen func(path string)) {
 }
 
 // start opens the ISO file at path, or builds an ISO from the folder at path, and then mounts
-// it (prepared, settingsRead, open, opened). The popover shows the progress.
+// it (prepared, settingsRead, open, opened). The Media menu opens and shows the progress.
 func (m *mediaPanel) start(path string, folder bool) {
 	if m.phase != mediaIdle || m.d.aborted || m.d.closed {
 		return
@@ -415,7 +423,7 @@ func (m *mediaPanel) opened(ctx context.Context, c *ider.Client, err error) {
 		return
 	}
 	mt := &mediaMount{c: c}
-	m.phase, m.mount, m.size = mediaMounted, mt, c.Stats().ImageSize
+	m.phase, m.mount = mediaMounted, mt
 	m.rate = rateMeter{}
 	m.stopTick = m.ticker(m.tick)
 	go func() {
@@ -447,8 +455,8 @@ func (m *mediaPanel) tick() {
 	m.rate.add(now, s.BytesRead)
 	r := m.rate.rate()
 	m.d.setMediaStatus(lang.L("ISO mounted") + " · " + formatRate(r))
-	if m.ui.stats != nil {
-		setMuted(m.ui.stats, statsLine(s, r, now))
+	if m.line != nil {
+		m.line.SetDetail(formatRate(r))
 	}
 }
 
@@ -497,12 +505,12 @@ func (m *mediaPanel) unmount() {
 	}()
 }
 
-// release ends media for a window that closes or is aborted: the popover and an open
+// release ends media for a window that closes or is aborted: the menu and an open
 // redirection question close, a pending attempt is cancelled and a mounted session detached.
 // It returns the blocking rest (closing the session, clearing the boot option if clearBoot and
 // it was set), which shutdown runs before it releases the session. nil-safe.
 func (m *mediaPanel) release(clearBoot bool) func() {
-	if m == nil || m.phase == mediaIdle && m.pop == nil && m.askIDER == nil {
+	if m == nil || m.phase == mediaIdle && m.menu == nil && m.askIDER == nil {
 		return func() {} // nothing to end: the closing window is left alone
 	}
 	m.dismiss()
@@ -532,15 +540,15 @@ func (m *mediaPanel) release(clearBoot bool) func() {
 
 // --- Boot ---
 
-// setBootNext is the checkbox: on sets the IDE-R boot option for the next start, off clears it.
-// A failure puts the checkbox back and is reported.
+// setBootNext is "Boot from ISO on next start": on sets the IDE-R boot option for the next
+// start, off clears it. A failure takes the check mark back and is reported.
 func (m *mediaPanel) setBootNext(on bool) {
-	if m.syncing || m.phase != mediaMounted || m.bootBusy || on == m.bootNext {
+	if m.phase != mediaMounted || m.bootBusy || on == m.bootNext {
 		return
 	}
 	done := make(chan struct{})
 	m.bootNext, m.bootBusy, m.bootDone = on, true, done
-	m.syncCheck()
+	m.syncBoot()
 	mt, sess, hook := m.mount, m.d.sess, m.beforeBoot
 	go func() {
 		if hook != nil {
@@ -557,7 +565,7 @@ func (m *mediaPanel) setBootNext(on bool) {
 	}()
 }
 
-// bootSet ends a change of the checkbox. After an unmount (or a closed window) meanwhile, the
+// bootSet ends a change of the boot item. After an unmount (or a closed window) meanwhile, the
 // unmount has cleared the option after this call (bootToClear), so only the error is left.
 func (m *mediaPanel) bootSet(mt *mediaMount, on bool, err error) {
 	defer m.event("boot")
@@ -569,12 +577,12 @@ func (m *mediaPanel) bootSet(mt *mediaMount, on bool, err error) {
 	if err != nil {
 		m.bootNext = !on
 	}
-	m.syncCheck()
+	m.syncBoot()
 	m.report(err)
 }
 
 // bootToClear reports whether ending the mount must clear the boot option: it is set, or a
-// change of the checkbox still runs (it may set it after a clear sent now). after is closed when
+// change of the boot item still runs (it may set it after a clear sent now). after is closed when
 // that change returned; the clear has to wait for it (waitBoot). Call before reset.
 func (m *mediaPanel) bootToClear() (boot bool, after <-chan struct{}) {
 	if m.bootBusy {
@@ -583,14 +591,14 @@ func (m *mediaPanel) bootToClear() (boot bool, after <-chan struct{}) {
 	return m.bootNext, nil
 }
 
-// waitBoot waits for a running change of the checkbox (bootToClear); off the Fyne thread.
+// waitBoot waits for a running change of the boot item (bootToClear); off the Fyne thread.
 func waitBoot(after <-chan struct{}) {
 	if after != nil {
 		<-after
 	}
 }
 
-// clearBoot clears the IDE-R boot option off the Fyne thread, after the change of the checkbox
+// clearBoot clears the IDE-R boot option off the Fyne thread, after the change of the boot item
 // that after belongs to (nil for none).
 func (m *mediaPanel) clearBoot(after <-chan struct{}) {
 	sess := m.d.sess
@@ -606,20 +614,18 @@ func (m *mediaPanel) clearBoot(after <-chan struct{}) {
 	}()
 }
 
-// syncCheck shows bootNext in the checkbox, which is locked while a change runs.
-func (m *mediaPanel) syncCheck() {
-	c := m.ui.check
-	if c == nil {
+// syncBoot shows bootNext as the check mark of the boot item, which is locked while a change
+// runs.
+func (m *mediaPanel) syncBoot() {
+	if m.items.boot == nil {
 		return
 	}
-	m.syncing = true
-	c.SetChecked(m.bootNext)
-	m.syncing = false
-	if m.bootBusy {
-		c.Disable()
-	} else {
-		c.Enable()
-	}
+	m.applyBoot()
+	m.menu.Refresh()
+}
+
+func (m *mediaPanel) applyBoot() {
+	m.items.boot.Checked, m.items.boot.Disabled = m.bootNext, m.bootBusy
 }
 
 // askBoot asks once before "Restart from ISO…" or "Boot from ISO…" and then runs the power
@@ -646,14 +652,21 @@ func (m *mediaPanel) askBoot() {
 
 // powerChanged follows the Power menu: "Restart from ISO…" is enabled while Boot from ISO is.
 func (m *mediaPanel) powerChanged() {
-	if m == nil || m.ui.restart == nil {
+	if m == nil || m.items.restart == nil {
 		return
 	}
-	if m.d.powerAllowed(amt.BootToISO) {
-		m.ui.restart.Enable()
-	} else {
-		m.ui.restart.Disable()
+	m.applyRestart()
+	m.menu.Refresh()
+}
+
+func (m *mediaPanel) applyRestart() {
+	it := m.items.restart
+	it.Disabled = !m.d.powerAllowed(amt.BootToISO)
+	v := icons.Foreground
+	if it.Disabled {
+		v = icons.Disabled
 	}
+	it.Icon = icons.Get(icons.Reset, v)
 }
 
 // --- Closing the window ---
@@ -700,364 +713,90 @@ func (d *DeviceWindow) askClose(closeWin, kept func()) {
 	m.closeAsk.spec.onCancel = onKeep
 }
 
-// --- Popover ---
+// --- Menu ---
 
 // toggle is the Media button.
 func (m *mediaPanel) toggle() {
-	if m.pop != nil {
+	if m.menu != nil {
 		m.dismiss()
 		return
 	}
 	m.show()
 }
 
-// dismiss closes the popover; nil-safe.
+// dismiss closes the menu; nil-safe.
 func (m *mediaPanel) dismiss() {
-	if m != nil && m.pop != nil {
-		m.pop.Dismiss()
+	if m != nil && m.menu != nil {
+		m.menu.Dismiss()
 	}
 }
 
-// show opens the popover below the Media button, or shows the current state in the open one.
-// The Media button stays active while it is open.
+// show opens the menu below the Media button like the Power menu, or shows the current state in
+// the open one.
 func (m *mediaPanel) show() {
 	if m.d.aborted || m.d.closed || m.d.fullScreen {
 		return
 	}
-	if m.pop == nil {
-		m.d.releaseKeys()
-		m.pop = newMediaPopover(m.d.win.Canvas())
-		m.pop.onDismiss = func() {
-			m.pop = nil
-			m.ui = mediaControls{}
-			m.d.mediaBtn.SetActive(false)
-			if !m.d.fullScreen {
-				m.d.focusView()
-			}
-		}
-		m.d.mediaBtn.SetActive(true)
-	}
-	m.render()
-	btn := m.d.mediaBtn
-	pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(btn)
-	top := (btn.Size().Height - style.ToolbarItemHeight) / 2
-	m.pop.showAt(pos.Add(fyne.NewPos(menuOffsetX, top+menuOffsetY)))
-}
-
-// render builds the rows of the current state into the open popover.
-func (m *mediaPanel) render() {
-	m.ui = mediaControls{}
-	if m.pop == nil {
+	if m.menu != nil {
+		m.render()
 		return
 	}
-	var rows []fyne.CanvasObject
-	width := mediaPopWidth
+	menu, line := m.build()
+	m.menu = m.d.showMenuWith(m.d.mediaBtn, menu, line, func() {
+		m.menu, m.shown, m.line, m.items = nil, nil, nil, mediaItems{}
+	})
+}
+
+// render shows the current state in the open menu.
+func (m *mediaPanel) render() {
+	if m.menu == nil {
+		return
+	}
+	menu, line := m.build()
+	m.menu.SetMenu(menu, line)
+}
+
+// build creates the items and the info line of the current state (Extras.dc.html).
+func (m *mediaPanel) build() (*fyne.Menu, *widgets.MenuInfo) {
+	m.items, m.line = mediaItems{}, nil
+	sep := fyne.NewMenuItemSeparator
+	var items []*fyne.MenuItem
 	switch m.phase {
 	case mediaIdle:
-		m.ui.title = mediaTitle(lang.L("Media"))
-		m.ui.iso = mediaButton(lang.L("Mount ISO file…"), icons.Media, false, m.chooseISO)
-		m.ui.folder = mediaButton(lang.L("Mount folder as ISO…"), icons.Folder, false, m.chooseFolder)
-		m.ui.hint = mutedText(lang.L("The device sees a read-only CD drive. A folder with EFI/BOOT/BOOTX64.EFI also boots in UEFI, for example into the EFI shell. Files must be smaller than 4 GB."))
-		rows = []fyne.CanvasObject{m.ui.title, m.ui.iso, m.ui.folder, unpadRich(m.ui.hint)}
+		m.items.iso = fyne.NewMenuItem(lang.L("Mount ISO…"), m.chooseISO)
+		m.items.iso.Icon = icons.Get(icons.Media, icons.Foreground)
+		m.items.folder = fyne.NewMenuItem(lang.L("Mount Folder…"), m.chooseFolder)
+		m.items.folder.Icon = icons.Get(icons.Folder, icons.Foreground)
+		items = []*fyne.MenuItem{m.items.iso, m.items.folder}
 	case mediaPreparing:
-		m.ui.title = mediaTitle(lang.L("Preparing “{{.Name}}”", map[string]any{"Name": m.name}))
-		rows = []fyne.CanvasObject{m.ui.title}
-		if m.folder {
-			m.ui.bar = newMediaBar()
-			m.ui.progress = mutedText("")
-			rows = append(rows, m.ui.bar.Container, unpadRich(m.ui.progress))
-		}
-		m.ui.cancel = mediaButton(lang.L("Cancel"), "", false, m.cancelPrepare)
-		rows = append(rows, container.NewHBox(layout.NewSpacer(), m.ui.cancel))
+		m.line = widgets.NewMenuInfo(m.name, "")
+		m.items.cancel = fyne.NewMenuItem(lang.L("Cancel"), m.cancelPrepare)
+		items = []*fyne.MenuItem{sep(), m.items.cancel}
 		m.refreshProgress()
 	case mediaMounted:
-		width = mediaPopWidthMounted
-		m.ui.title = mediaTitle(m.name)
-		m.ui.size = newEllipsisText(formatBytes(m.size), mediaSizeTextSize, style.ColorNameTextSecondary, false)
-		dot := widgets.NewStatusDot(widgets.DotOn, mediaDotSize)
-		head := container.New(&mediaHeadLayout{gap: mediaButtonGap}, dot, m.ui.title, m.ui.size)
-		m.ui.stats = mutedText("")
-		// widget.Check takes the focus when tapped and handles only Space: Esc closes the popover.
-		m.ui.check = &dialogCheck{onKey: func(k *fyne.KeyEvent) bool {
-			if k.Name != fyne.KeyEscape {
-				return false
-			}
-			m.dismiss()
-			return true
-		}}
-		m.ui.check.Text = lang.L("Boot from this ISO on the next start")
-		m.ui.check.ExtendBaseWidget(m.ui.check)
-		m.ui.check.SetChecked(m.bootNext)
-		m.ui.check.OnChanged = m.setBootNext
-		m.ui.unmount = mediaButton(lang.L("Unmount"), "", false, m.unmount)
-		m.ui.restart = mediaButton(lang.L("Restart from ISO…"), "", true, func() { m.d.run(amt.BootToISO) })
-		buttons := container.New(layout.NewCustomPaddedHBoxLayout(8), layout.NewSpacer(), m.ui.unmount, m.ui.restart)
-		rows = []fyne.CanvasObject{head, unpadRich(m.ui.stats), m.ui.check, buttons}
-		m.syncCheck()
-		m.powerChanged()
-		if m.mount != nil {
-			s := m.mount.c.Stats()
-			now := m.now()
-			setMuted(m.ui.stats, statsLine(s, m.rate.rate(), now))
-		}
+		m.line = widgets.NewMenuInfo(m.name, formatRate(m.rate.rate()))
+		m.items.boot = fyne.NewMenuItem(lang.L("Boot from ISO on next start"), func() { m.setBootNext(!m.bootNext) })
+		m.items.restart = fyne.NewMenuItem(lang.L("Restart from ISO…"), func() { m.d.run(amt.BootToISO) })
+		m.items.unmount = fyne.NewMenuItem(lang.L("Unmount"), m.unmount)
+		m.items.unmount.Icon = icons.Get(icons.Unmount, icons.Foreground)
+		m.applyBoot()
+		m.applyRestart()
+		items = []*fyne.MenuItem{sep(), m.items.boot, m.items.restart, sep(), m.items.unmount}
 	}
-	m.pop.setContent(width, rows)
+	m.shown = fyne.NewMenu("", items...)
+	return m.shown, m.line
 }
 
-// refreshProgress shows the build progress in the open popover.
+// refreshProgress shows the build progress of a folder ISO in the open menu: the percentage
+// once it is known and the bar.
 func (m *mediaPanel) refreshProgress() {
-	if m.ui.bar == nil {
+	if m.line == nil || m.phase != mediaPreparing || !m.folder {
 		return
 	}
-	frac := float32(0)
-	if m.total > 0 {
-		frac = float32(m.done) / float32(m.total)
-	} else if m.info != nil {
-		frac = 1
-	}
-	m.ui.bar.setValue(frac)
-	setMuted(m.ui.progress, progressLine(m.done, m.total, m.info))
+	frac, pct := buildProgress(m.done, m.total, m.info != nil)
+	m.line.SetDetail(pct)
+	m.line.SetProgress(frac)
 }
-
-// mediaTitle is the 14 px semibold title of a state; long names end in "…".
-func mediaTitle(s string) *ellipsisText {
-	t := newEllipsisText(s, mediaTitleSize, theme.ColorNameForeground, true)
-	t.shrink = true
-	return t
-}
-
-// mediaButton is a 34 px button of the popover (Media.dc.html .btn, .btn-p) with regular text:
-// white and bordered, or the accent button with high; with a symbol, symbol and text start at the left.
-func mediaButton(text string, icon icons.Name, high bool, tapped func()) *widgets.PrimaryButton {
-	var res fyne.Resource
-	if icon != "" {
-		res = icons.GetStroke(icon, icons.Foreground, 1.8)
-	}
-	b := widgets.NewPrimaryButton(text, res, tapped)
-	b.Metrics = &widgets.ButtonMetrics{Height: mediaButtonHeight, Radius: mediaButtonRadius, PaddingH: mediaButtonPad,
-		IconSize: mediaButtonIcon, Gap: mediaButtonGap, TextSize: mediaButtonText, Regular: true,
-		Neutral: style.ColorNameField, NeutralBorder: style.ColorNameControlBorder}
-	b.Leading = res != nil
-	if !high {
-		b.Importance = widget.MediumImportance
-	}
-	return b
-}
-
-// mutedText is a wrapped 12 px secondary text (Media.dc.html .muted).
-func mutedText(s string) *widget.RichText {
-	rt := widget.NewRichText(&widget.TextSegment{Text: s, Style: widget.RichTextStyle{
-		ColorName: style.ColorNameTextSecondary, SizeName: style.SizeNameSmallText}})
-	rt.Wrapping = fyne.TextWrapWord
-	return rt
-}
-
-func setMuted(rt *widget.RichText, s string) {
-	seg := rt.Segments[0].(*widget.TextSegment)
-	if seg.Text == s {
-		return
-	}
-	seg.Text = s
-	rt.Refresh()
-}
-
-// unpadRich removes the inner padding of a RichText, so its text lines up with the buttons.
-func unpadRich(rt *widget.RichText) fyne.CanvasObject {
-	p := -theme.InnerPadding()
-	return container.New(layout.NewCustomPaddedLayout(p, p, p, p), rt)
-}
-
-// mediaHeadLayout places objs[0] (the dot) and objs[2] (the size) at their size, centred, at
-// the start and the end; objs[1] (the name) takes the width between them.
-type mediaHeadLayout struct{ gap float32 }
-
-func (l *mediaHeadLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
-	a, b, c := objs[0].MinSize(), objs[1].MinSize(), objs[2].MinSize()
-	return fyne.NewSize(a.Width+b.Width+c.Width+2*l.gap, max(a.Height, b.Height, c.Height))
-}
-
-func (l *mediaHeadLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
-	a, c := objs[0].MinSize(), objs[2].MinSize()
-	objs[0].Move(fyne.NewPos(0, (size.Height-a.Height)/2))
-	objs[0].Resize(a)
-	objs[2].Move(fyne.NewPos(size.Width-c.Width, (size.Height-c.Height)/2))
-	objs[2].Resize(c)
-	x := a.Width + l.gap
-	objs[1].Move(fyne.NewPos(x, 0))
-	objs[1].Resize(fyne.NewSize(max(0, size.Width-x-c.Width-l.gap), size.Height))
-}
-
-// mediaBar is the 6 px progress bar in the accent color on a light track. Its Container goes
-// into the layout (drivers walk only *fyne.Container children).
-type mediaBar struct {
-	*fyne.Container
-	value float32
-}
-
-func newMediaBar() *mediaBar {
-	track := style.BindRect(&canvas.Rectangle{CornerRadius: mediaBarRadius}, style.ColorNameSegment, "")
-	fill := style.BindRect(&canvas.Rectangle{CornerRadius: mediaBarRadius}, theme.ColorNamePrimary, "")
-	b := &mediaBar{}
-	b.Container = container.New(&mediaBarLayout{b: b}, track, fill)
-	return b
-}
-
-func (b *mediaBar) setValue(v float32) {
-	b.value = min(max(v, 0), 1)
-	b.Container.Refresh()
-}
-
-type mediaBarLayout struct{ b *mediaBar }
-
-func (l *mediaBarLayout) MinSize([]fyne.CanvasObject) fyne.Size {
-	return fyne.NewSize(0, mediaBarHeight)
-}
-
-func (l *mediaBarLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
-	objs[0].Move(fyne.NewPos(0, 0))
-	objs[0].Resize(size)
-	objs[1].Move(fyne.NewPos(0, 0))
-	objs[1].Resize(fyne.NewSize(size.Width*l.b.value, size.Height))
-}
-
-// mediaPopover is the floating card under the Media button: an overlay over the whole canvas
-// that closes on a tap outside the card or on Esc, like widgets.MenuPopup.
-type mediaPopover struct {
-	widget.BaseWidget
-	canvas    fyne.Canvas
-	bg        *canvas.Rectangle
-	rows      *fyne.Container // the state's rows at the inner width
-	card      fyne.CanvasObject
-	width     float32
-	pos       fyne.Position
-	shown     bool
-	onDismiss func()
-}
-
-var (
-	_ fyne.Tappable  = (*mediaPopover)(nil)
-	_ fyne.Focusable = (*mediaPopover)(nil)
-)
-
-func newMediaPopover(c fyne.Canvas) *mediaPopover {
-	p := &mediaPopover{canvas: c, width: mediaPopWidth}
-	p.ExtendBaseWidget(p)
-	p.bg = &canvas.Rectangle{CornerRadius: mediaPopRadius, StrokeWidth: 1,
-		Shadow: canvas.Shadow{BlurRadius: 32, Offset: fyne.NewPos(0, 12), Variant: canvas.DropShadow}}
-	p.rows = container.NewStack()
-	body := container.New(layout.NewCustomPaddedLayout(mediaPopPad, mediaPopPad, mediaPopPad, mediaPopPad), p.rows)
-	p.card = container.NewThemeOverride(container.NewStack(p.bg, body), overrideTheme)
-	p.recolor()
-	return p
-}
-
-// setContent shows rows in a card of width.
-func (p *mediaPopover) setContent(width float32, rows []fyne.CanvasObject) {
-	p.width = width
-	col := container.New(layout.NewCustomPaddedVBoxLayout(mediaPopGap), rows...)
-	p.rows.Objects = []fyne.CanvasObject{container.New(&fixedWidthLayout{width: width - 2*mediaPopPad}, col)}
-	p.rows.Refresh()
-	if p.shown {
-		p.Refresh()
-	}
-}
-
-// showAt shows the card with its top left corner at pos (canvas coordinates) and takes the focus.
-func (p *mediaPopover) showAt(pos fyne.Position) {
-	p.pos = pos
-	if !p.shown {
-		p.shown = true
-		p.canvas.Overlays().Add(p)
-	}
-	p.Refresh()
-	p.canvas.Focus(p)
-}
-
-// Dismiss closes the popover and calls onDismiss; nothing happens if it is not shown.
-// removeOverlay removes o from the overlays of c and keeps the overlays above it (a question,
-// the consent prompt or an error dialog shown while the popover was open): Fyne's
-// OverlayStack.Remove drops everything above the removed one, without the dialogs' callbacks.
-// The focus stays where it was.
-func removeOverlay(c fyne.Canvas, o fyne.CanvasObject) {
-	ov := c.Overlays()
-	list := ov.List()
-	var above []fyne.CanvasObject
-	for i, x := range list {
-		if x == o {
-			above = append(above, list[i+1:]...)
-			break
-		}
-	}
-	focused := c.Focused()
-	ov.Remove(o)
-	for _, x := range above {
-		ov.Add(x)
-	}
-	if len(above) > 0 && focused != nil {
-		c.Focus(focused)
-	}
-}
-
-func (p *mediaPopover) Dismiss() {
-	if !p.shown {
-		return
-	}
-	p.shown = false
-	removeOverlay(p.canvas, p)
-	if p.onDismiss != nil {
-		p.onDismiss()
-	}
-}
-
-func (p *mediaPopover) recolor() {
-	p.bg.FillColor = style.Color(style.ColorNameMenuPanel)
-	p.bg.StrokeColor = style.Color(style.ColorNameDialogBorder)
-	p.bg.Shadow.Color = style.Color(style.ColorNameMenuShadow)
-	p.bg.Refresh()
-}
-
-// Refresh lays the card out again in the colors of the current theme variant.
-func (p *mediaPopover) Refresh() {
-	p.recolor()
-	p.BaseWidget.Refresh()
-}
-
-// Tapped outside the card closes the popover; taps on the card's padding do nothing.
-func (p *mediaPopover) Tapped(e *fyne.PointEvent) {
-	pos, size := p.card.Position(), p.card.Size()
-	if e != nil && e.Position.X >= pos.X && e.Position.Y >= pos.Y && e.Position.X < pos.X+size.Width && e.Position.Y < pos.Y+size.Height {
-		return
-	}
-	p.Dismiss()
-}
-
-func (p *mediaPopover) FocusGained()   {}
-func (p *mediaPopover) FocusLost()     {}
-func (p *mediaPopover) TypedRune(rune) {}
-
-func (p *mediaPopover) TypedKey(e *fyne.KeyEvent) {
-	if e.Name == fyne.KeyEscape {
-		p.Dismiss()
-	}
-}
-
-func (p *mediaPopover) CreateRenderer() fyne.WidgetRenderer { return &mediaPopoverRenderer{p: p} }
-
-type mediaPopoverRenderer struct{ p *mediaPopover }
-
-func (r *mediaPopoverRenderer) Layout(size fyne.Size) {
-	cs := fyne.NewSize(r.p.width, r.p.card.MinSize().Height)
-	pos := r.p.pos
-	pos.X = max(0, min(pos.X, size.Width-cs.Width))
-	pos.Y = max(0, min(pos.Y, size.Height-cs.Height))
-	r.p.card.Move(pos)
-	r.p.card.Resize(cs)
-}
-
-func (r *mediaPopoverRenderer) MinSize() fyne.Size           { return fyne.NewSize(0, 0) }
-func (r *mediaPopoverRenderer) Refresh()                     { r.Layout(r.p.Size()); canvas.Refresh(r.p) }
-func (r *mediaPopoverRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.p.card} }
-func (r *mediaPopoverRenderer) Destroy()                     {}
 
 // --- Texts ---
 
@@ -1091,68 +830,20 @@ func (r *rateMeter) rate() float64 {
 	return float64(b.n-a.n) / dt
 }
 
-// formatBytes is a size in decimal units as in the design: "640 KB", "214 MB", "1.0 GB".
-func formatBytes(n int64) string {
-	if n < 1_000_000 {
-		return fmt.Sprintf("%d KB", (n+500)/1000)
-	}
-	if mb := (n + 500_000) / 1_000_000; mb < 1000 {
-		return fmt.Sprintf("%d MB", mb)
-	}
-	tenths := (n + 50_000_000) / 100_000_000
-	return lang.L("{{.Int}}.{{.Frac}} GB", map[string]any{"Int": tenths / 10, "Frac": tenths % 10})
-}
-
 // formatRate is a read rate in bytes per second as "18.2 MB/s".
 func formatRate(bps float64) string {
 	tenths := int64(math.Round(max(bps, 0) / 100_000))
 	return lang.L("{{.Int}}.{{.Frac}} MB/s", map[string]any{"Int": tenths / 10, "Frac": tenths % 10})
 }
 
-// formatAge is a duration in whole seconds, minutes or hours and minutes: "3 s", "6 min", "1 h 5 min".
-func formatAge(d time.Duration) string {
-	s := int64(max(d, 0) / time.Second)
-	switch {
-	case s < 60:
-		return fmt.Sprintf("%d s", s)
-	case s < 3600:
-		return fmt.Sprintf("%d min", s/60)
-	}
-	return fmt.Sprintf("%d h %d min", s/3600, s%3600/60)
-}
-
-// statsLine is the statistics of a mounted image (Media.dc.html): "Read 118 MB · 18.2 MB/s ·
-// last read 3 s ago · connected 6 min"; "last read" only once something was read.
-func statsLine(s ider.Stats, rate float64, now time.Time) string {
-	parts := []string{lang.L("Read {{.Size}}", map[string]any{"Size": formatBytes(s.BytesRead)}), formatRate(rate)}
-	if !s.LastRead.IsZero() {
-		parts = append(parts, lang.L("last read {{.Time}} ago", map[string]any{"Time": formatAge(now.Sub(s.LastRead))}))
-	}
-	parts = append(parts, lang.L("connected {{.Time}}", map[string]any{"Time": formatAge(now.Sub(s.Started))}))
-	return strings.Join(parts, " · ")
-}
-
-// progressLine is the build progress of a folder ISO (Media.dc.html): "62 % · 640 MB of 1.0 GB",
-// followed by the number of files and "UEFI-bootable" once the image is built.
-func progressLine(done, total int64, info *mkiso.Info) string {
-	pct := int64(0)
+// buildProgress is the share of a folder ISO built and its percentage ("62 %"); the
+// percentage is empty while the size is not known yet, built is 100 %.
+func buildProgress(done, total int64, built bool) (float32, string) {
 	switch {
 	case total > 0:
-		pct = done * 100 / total
-	case info != nil:
-		pct = 100
+		return float32(done) / float32(total), fmt.Sprintf("%d %%", done*100/total)
+	case built:
+		return 1, "100 %"
 	}
-	parts := []string{fmt.Sprintf("%d %%", pct),
-		lang.L("{{.Done}} of {{.Total}}", map[string]any{"Done": formatBytes(done), "Total": formatBytes(total)})}
-	if info != nil {
-		if info.Files == 1 {
-			parts = append(parts, lang.L("1 file"))
-		} else {
-			parts = append(parts, lang.L("{{.Count}} files", map[string]any{"Count": info.Files}))
-		}
-		if info.Bootable {
-			parts = append(parts, lang.L("UEFI-bootable"))
-		}
-	}
-	return strings.Join(parts, " · ")
+	return 0, ""
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/test"
+	"fyne.io/fyne/v2/widget"
 	models "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
 
 	"github.com/Srv-02/openlamt/internal/amt"
@@ -18,7 +20,6 @@ import (
 	"github.com/Srv-02/openlamt/internal/ider/idertest"
 	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/session"
-	"github.com/Srv-02/openlamt/internal/ui/style"
 )
 
 // mediaHarness is a device window whose fake mounts on an idertest server. The statistics
@@ -54,6 +55,7 @@ func newMediaDevice(t *testing.T, dev *session.Fake) *mediaHarness {
 	h.m.now = func() time.Time { return h.clock }
 	h.m.beforeBoot = func() { <-h.bootGo }
 	h.d.askConsent = func(answer func(string, bool)) func() { h.asked <- answer; return func() {} }
+	h.d.settings.SetHideFolderMountHint(true) // the hint has its own tests
 	return h
 }
 
@@ -78,24 +80,69 @@ func (h *mediaHarness) serve(t *testing.T) {
 	go func() { h.peers <- h.srv.AcceptSession(t) }()
 }
 
-// openPopover taps Media unless the popover is open.
-func (h *mediaHarness) openPopover(t *testing.T) {
+// openMenu taps Media unless the menu is open.
+func (h *mediaHarness) openMenu(t *testing.T) {
 	t.Helper()
-	if h.m.pop == nil {
+	if h.m.menu == nil {
 		test.Tap(h.d.mediaBtn)
 	}
-	if h.m.pop == nil {
-		t.Fatal("popover not open")
+	if h.m.menu == nil {
+		t.Fatal("menu not open")
 	}
 }
 
-// mountISO mounts the file at path through "Mount ISO file…" and returns the device side.
+// The items of the Media menu, for tapItem.
+var (
+	itemISO     = func(i mediaItems) *fyne.MenuItem { return i.iso }
+	itemFolder  = func(i mediaItems) *fyne.MenuItem { return i.folder }
+	itemBoot    = func(i mediaItems) *fyne.MenuItem { return i.boot }
+	itemRestart = func(i mediaItems) *fyne.MenuItem { return i.restart }
+	itemUnmount = func(i mediaItems) *fyne.MenuItem { return i.unmount }
+	itemCancel  = func(i mediaItems) *fyne.MenuItem { return i.cancel }
+)
+
+// tapItem opens the Media menu and taps the item that pick takes from its state.
+func (h *mediaHarness) tapItem(t *testing.T, pick func(mediaItems) *fyne.MenuItem) {
+	t.Helper()
+	h.openMenu(t)
+	it := pick(h.m.items)
+	if it == nil {
+		t.Fatalf("item not in the menu of phase %d", h.m.phase)
+	}
+	test.Tap(h.menuRow(t, it))
+}
+
+// menuRow is the row of it in the open menu.
+func (h *mediaHarness) menuRow(t *testing.T, it *fyne.MenuItem) fyne.Tappable {
+	t.Helper()
+	for i, x := range h.m.shown.Items {
+		if x == it {
+			return h.m.menu.Item(i)
+		}
+	}
+	t.Fatalf("item %q not shown", it.Label)
+	return nil
+}
+
+// labels are the labels of the open menu's items, "|" for a separator.
+func (h *mediaHarness) labels() string {
+	var l []string
+	for _, it := range h.m.shown.Items {
+		if it.IsSeparator {
+			l = append(l, "|")
+		} else {
+			l = append(l, it.Label)
+		}
+	}
+	return strings.Join(l, " ")
+}
+
+// mountISO mounts the file at path through "Mount ISO…" and returns the device side.
 func (h *mediaHarness) mountISO(t *testing.T, path string) *idertest.Peer {
 	t.Helper()
 	h.m.pickISO = func(chosen func(string)) { chosen(path) }
 	h.serve(t)
-	h.openPopover(t)
-	test.Tap(h.m.ui.iso)
+	h.tapItem(t, itemISO)
 	h.wait(t, "opened")
 	if h.m.phase != mediaMounted {
 		t.Fatalf("not mounted: phase %d, errors %d", h.m.phase, len(h.errs))
@@ -103,12 +150,11 @@ func (h *mediaHarness) mountISO(t *testing.T, path string) *idertest.Peer {
 	return <-h.peers
 }
 
-// tapCheck taps "Boot from this ISO on the next start" and waits for the session call. The
-// call waits until the tap has returned: the test driver runs fyne.Do at once, and Check
-// refreshes itself after OnChanged.
-func (h *mediaHarness) tapCheck(t *testing.T) {
+// tapBoot taps "Boot from ISO on next start" and waits for the session call. The call waits
+// until the tap has returned: the test driver runs fyne.Do at once.
+func (h *mediaHarness) tapBoot(t *testing.T) {
 	t.Helper()
-	test.Tap(h.m.ui.check)
+	h.tapItem(t, itemBoot)
 	h.bootGo <- struct{}{}
 	h.wait(t, "boot")
 }
@@ -169,47 +215,51 @@ func cachedISOs(t *testing.T) []string {
 	return m
 }
 
-// TestMediaPopoverNothingMounted: the Media button opens the popover below it and stays active
-// while it is open; Esc and a tap outside close it, a tap on the card does not.
-func TestMediaPopoverNothingMounted(t *testing.T) {
+// TestMediaMenuNothingMounted: the Media button opens a drop-down menu below it like Power, with
+// "Mount ISO…" and "Mount Folder…"; Esc and a tap outside close it.
+func TestMediaMenuNothingMounted(t *testing.T) {
 	h := newMediaDevice(t, &session.Fake{})
-	h.openPopover(t)
-	if !h.d.mediaBtn.Active() || h.m.pop.width != mediaPopWidth {
-		t.Fatalf("active %v width %v", h.d.mediaBtn.Active(), h.m.pop.width)
+	h.openMenu(t)
+	if h.labels() != "Mount ISO… Mount Folder…" || h.m.line != nil {
+		t.Fatalf("items %q, info line %v", h.labels(), h.m.line)
 	}
-	if h.m.ui.title.Text != "Media" || h.m.ui.iso.Text != "Mount ISO file…" || h.m.ui.folder.Text != "Mount folder as ISO…" ||
-		!strings.HasPrefix(h.m.ui.hint.String(), "The device sees a read-only CD drive.") {
-		t.Fatalf("texts %q %q %q %q", h.m.ui.title.Text, h.m.ui.iso.Text, h.m.ui.folder.Text, h.m.ui.hint.String())
+	if h.m.items.iso.Icon == nil || h.m.items.folder.Icon == nil {
+		t.Fatal("items need their symbols")
 	}
-	if h.m.ui.iso.Icon() == nil || h.m.ui.folder.Icon() == nil || !h.m.ui.iso.Leading {
-		t.Fatal("buttons need their symbols at the left")
+	if h.d.win.Canvas().Overlays().Top() != h.m.menu || h.d.win.Canvas().Focused() != h.m.menu {
+		t.Fatal("menu not on top or not focused")
 	}
-	// Media.dc.html .btn: white with a border, regular text
-	if m := h.m.ui.iso.Metrics; m.Neutral != style.ColorNameField || m.NeutralBorder != style.ColorNameControlBorder || !m.Regular {
-		t.Fatalf("button metrics %+v", *m)
+	// The first item sits where the Power menu's first item sits relative to its button.
+	abs := fyne.CurrentApp().Driver().AbsolutePositionForObject
+	media := abs(h.m.menu.Item(0).(fyne.CanvasObject)).Subtract(abs(h.d.mediaBtn))
+	h.m.dismiss()
+	h.d.showPowerMenu()
+	power := abs(h.d.powerPopup.Item(0).(fyne.CanvasObject)).Subtract(abs(h.d.powerBtn))
+	h.d.powerPopup.Dismiss()
+	if media != power {
+		t.Fatalf("first item at %v below Media, at %v below Power", media, power)
 	}
-	btn := fyne.CurrentApp().Driver().AbsolutePositionForObject(h.d.mediaBtn)
-	if card := h.m.pop.card.Position(); card.Y <= btn.Y || card.X > btn.X {
-		t.Fatalf("card at %v, button at %v: card must hang below the button", card, btn)
+	h.openMenu(t)
+	h.m.menu.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
+	if h.m.menu != nil || h.m.shown != nil {
+		t.Fatal("Esc did not close the menu")
 	}
-	inside := h.m.pop.card.Position().Add(fyne.NewPos(2, 2))
-	h.m.pop.Tapped(&fyne.PointEvent{Position: inside})
-	if h.m.pop == nil {
-		t.Fatal("a tap on the card closed the popover")
+	h.openMenu(t)
+	h.m.menu.Tapped(&fyne.PointEvent{Position: fyne.NewPos(1, 700)})
+	if h.m.menu != nil || len(h.d.win.Canvas().Overlays().List()) != 0 {
+		t.Fatal("a tap outside did not close the menu")
 	}
-	h.m.pop.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
-	if h.m.pop != nil || h.d.mediaBtn.Active() {
-		t.Fatal("Esc did not close the popover")
-	}
-	h.openPopover(t)
-	h.m.pop.Tapped(&fyne.PointEvent{Position: fyne.NewPos(1, 700)})
-	if h.m.pop != nil || h.d.mediaBtn.Active() || len(h.d.win.Canvas().Overlays().List()) != 0 {
-		t.Fatal("a tap outside did not close the popover")
+	// The Media button toggles the menu.
+	test.Tap(h.d.mediaBtn)
+	test.Tap(h.d.mediaBtn)
+	if h.m.menu != nil {
+		t.Fatal("the Media button did not close its menu")
 	}
 }
 
-// TestMediaMountISOShowsStatistics: an ISO file is mounted (IDE-R on, StartNow); the popover,
-// the status bar and Boot from ISO follow; the statistics come from the client once a second.
+// TestMediaMountISOShowsStatistics: an ISO file is mounted (IDE-R on, StartNow); the menu, the
+// status bar and Boot from ISO follow; the read rate comes from the client once a second and
+// follows in the open menu.
 func TestMediaMountISOShowsStatistics(t *testing.T) {
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
@@ -220,17 +270,22 @@ func TestMediaMountISOShowsStatistics(t *testing.T) {
 	if st := dev.IDERStarts(); len(st) != 1 || st[0] != ider.StartNow {
 		t.Fatalf("starts %v", st)
 	}
-	if h.m.pop == nil || h.m.pop.width != mediaPopWidthMounted || h.m.ui.title.Text != "alpine-standard.iso" || h.m.ui.size.Text != "1 MB" {
-		t.Fatalf("mounted popover: title %q size %q", h.m.ui.title.Text, h.m.ui.size.Text)
+	// The menu opened for the mount and shows the mounted state now.
+	if h.m.menu == nil || h.labels() != "| Boot from ISO on next start Restart from ISO… | Unmount" {
+		t.Fatalf("mounted menu %q", h.labels())
 	}
-	if h.m.ui.check.Checked || h.m.ui.unmount.Text != "Unmount" || h.m.ui.restart.Text != "Restart from ISO…" || h.m.ui.restart.Disabled() {
-		t.Fatalf("controls: check %v %q %q", h.m.ui.check.Checked, h.m.ui.unmount.Text, h.m.ui.restart.Text)
+	if h.m.line.Name() != "alpine-standard.iso" || h.m.line.Detail() != "0.0 MB/s" {
+		t.Fatalf("info line %q %q", h.m.line.Name(), h.m.line.Detail())
+	}
+	if _, bar := h.m.line.Progress(); bar {
+		t.Fatal("progress bar while mounted")
+	}
+	it := h.m.items
+	if it.boot.Checked || it.boot.Disabled || it.boot.Icon != nil || it.restart.Disabled || it.restart.Icon == nil || it.unmount.Icon == nil {
+		t.Fatalf("items: boot %v/%v restart %v", it.boot.Checked, it.boot.Disabled, it.restart.Disabled)
 	}
 	if !h.d.mediaLine.Visible() || h.d.mediaLine.Text != "ISO mounted · 0.0 MB/s" {
 		t.Fatalf("status %q", h.d.mediaLine.Text)
-	}
-	if s := h.m.ui.stats.String(); !strings.HasPrefix(s, "Read 0 KB · 0.0 MB/s · connected ") || strings.Contains(s, "last read") {
-		t.Fatalf("stats %q", s)
 	}
 	if h.d.powerItems[amt.BootToISO].Disabled {
 		t.Fatal("Boot from ISO disabled while an ISO is mounted")
@@ -248,19 +303,21 @@ func TestMediaMountISOShowsStatistics(t *testing.T) {
 	waitFor(t, func() bool { return c.Stats().Reads == 1 })
 	h.clock = h.clock.Add(time.Second)
 	h.tick()
-	if h.d.mediaLine.Text != "ISO mounted · 1.0 MB/s" {
-		t.Fatalf("status %q", h.d.mediaLine.Text)
-	}
-	if s := h.m.ui.stats.String(); !strings.HasPrefix(s, "Read 1 MB · 1.0 MB/s · last read ") {
-		t.Fatalf("stats %q", s)
+	if h.d.mediaLine.Text != "ISO mounted · 1.0 MB/s" || h.m.line.Detail() != "1.0 MB/s" {
+		t.Fatalf("status %q, menu %q", h.d.mediaLine.Text, h.m.line.Detail())
 	}
 	// Without reads the rate falls to zero once the window has passed.
+	h.m.dismiss()
 	for range 6 {
 		h.clock = h.clock.Add(time.Second)
 		h.tick()
 	}
 	if h.d.mediaLine.Text != "ISO mounted · 0.0 MB/s" {
 		t.Fatalf("status after idle %q", h.d.mediaLine.Text)
+	}
+	h.openMenu(t)
+	if h.m.line.Detail() != "0.0 MB/s" {
+		t.Fatalf("menu after idle %q", h.m.line.Detail())
 	}
 	if len(h.errs) != 0 {
 		t.Fatalf("errors: %v", <-h.errs)
@@ -276,8 +333,7 @@ func TestMediaEnableRedirection(t *testing.T) {
 	dir := sourceFolder(t)
 	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
 
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	h.wait(t, "settings")
 	bs := h.question(t, "Enable media redirection?")
 	if texts(bs) != lang.L("Cancel")+"|Enable" ||
@@ -287,10 +343,9 @@ func TestMediaEnableRedirection(t *testing.T) {
 	if len(cachedISOs(t)) != 1 || h.m.phase != mediaPreparing {
 		t.Fatalf("built image %v, phase %d", cachedISOs(t), h.m.phase)
 	}
-	// The popover shows the finished build with its file count.
-	if h.m.ui.progress.String() != "100 % · 131 KB of 131 KB · 2 files" || h.m.ui.bar.value != 1 ||
-		h.m.ui.title.Text != "Preparing “firmware-tools”" {
-		t.Fatalf("progress %q bar %v title %q", h.m.ui.progress.String(), h.m.ui.bar.value, h.m.ui.title.Text)
+	// The menu below the question shows the finished build.
+	if v, bar := h.m.line.Progress(); h.m.line.Name() != "firmware-tools" || h.m.line.Detail() != "100 %" || v != 1 || !bar {
+		t.Fatalf("info line %q %q bar %v %v", h.m.line.Name(), h.m.line.Detail(), v, bar)
 	}
 	test.Tap(bs[0])
 	if h.m.phase != mediaIdle || len(cachedISOs(t)) != 0 || len(dev.IDERStarts()) != 0 {
@@ -298,14 +353,13 @@ func TestMediaEnableRedirection(t *testing.T) {
 	}
 
 	h.serve(t)
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	h.wait(t, "settings")
 	test.Tap(h.question(t, "Enable media redirection?")[1])
 	h.wait(t, "opened")
 	<-h.peers
-	if h.m.phase != mediaMounted || h.m.ui.title.Text != "firmware-tools" || len(dev.IDERStarts()) != 1 {
-		t.Fatalf("Enable: phase %d title %q", h.m.phase, h.m.ui.title.Text)
+	if h.m.phase != mediaMounted || h.m.line.Name() != "firmware-tools" || len(dev.IDERStarts()) != 1 {
+		t.Fatalf("Enable: phase %d", h.m.phase)
 	}
 	if len(h.errs) != 0 {
 		t.Fatalf("errors: %v", <-h.errs)
@@ -320,8 +374,7 @@ func TestMediaOpenErrorClosesImage(t *testing.T) {
 	h := newMediaDevice(t, dev)
 	dir := sourceFolder(t)
 	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	h.wait(t, "opened")
 	if err := <-h.errs; !errors.Is(err, boom) || h.m.phase != mediaIdle || len(cachedISOs(t)) != 0 || h.d.mediaLine.Visible() {
 		t.Fatalf("err %v phase %d images %v", err, h.m.phase, cachedISOs(t))
@@ -329,16 +382,14 @@ func TestMediaOpenErrorClosesImage(t *testing.T) {
 
 	dev.IDERErr = nil
 	dev.Consent, dev.ConsentCode = true, "123456"
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	(<-h.asked)("", false)
 	h.wait(t, "opened")
 	if h.m.phase != mediaIdle || len(h.errs) != 0 || len(cachedISOs(t)) != 0 {
 		t.Fatalf("cancelled consent: phase %d errors %d images %v", h.m.phase, len(h.errs), cachedISOs(t))
 	}
 	h.serve(t)
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	(<-h.asked)("123456", true)
 	h.wait(t, "opened")
 	<-h.peers
@@ -347,8 +398,8 @@ func TestMediaOpenErrorClosesImage(t *testing.T) {
 	}
 }
 
-// TestMediaFolderBuildCancel: the folder ISO is built with progress; Cancel stops the build and
-// removes the partial file without an error.
+// TestMediaFolderBuildCancel: the folder ISO is built with progress in the menu (name,
+// percentage, bar, Cancel); Cancel stops the build and removes the partial file without an error.
 func TestMediaFolderBuildCancel(t *testing.T) {
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
@@ -363,20 +414,21 @@ func TestMediaFolderBuildCancel(t *testing.T) {
 			<-release
 		}
 	}
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	<-progressed // the build waits in the hook: the window is ours
-	if h.m.phase != mediaPreparing || h.m.pop == nil || h.m.ui.title.Text != "Preparing “firmware-tools”" || h.m.ui.bar == nil ||
-		h.m.ui.cancel.Text != lang.L("Cancel") {
-		t.Fatalf("preparing: phase %d", h.m.phase)
+	if h.m.phase != mediaPreparing || h.m.menu == nil || h.labels() != "| "+lang.L("Cancel") || h.m.line.Name() != "firmware-tools" {
+		t.Fatalf("preparing: phase %d items %q", h.m.phase, h.labels())
 	}
-	drawn := false // the bar's container itself is in the tree, so the driver draws it
-	walk(h.m.pop.card, func(o fyne.CanvasObject) { drawn = drawn || o == h.m.ui.bar.Container })
-	if !drawn {
-		t.Fatal("progress bar not in the popover")
+	if v, bar := h.m.line.Progress(); !bar || v != 0 || h.m.line.Detail() != "" {
+		t.Fatalf("before the first progress: %v %v %q", v, bar, h.m.line.Detail())
 	}
-	test.Tap(h.m.ui.cancel)
-	if h.m.phase != mediaIdle || h.m.ui.title.Text != "Media" {
+	h.m.done, h.m.total = 640_000_000, 1_030_000_000
+	h.m.refreshProgress()
+	if v, _ := h.m.line.Progress(); h.m.line.Detail() != "62 %" || v < 0.62 || v > 0.63 {
+		t.Fatalf("progress %q %v", h.m.line.Detail(), v)
+	}
+	h.tapItem(t, itemCancel)
+	if h.m.phase != mediaIdle || h.m.menu != nil {
 		t.Fatalf("Cancel: phase %d", h.m.phase)
 	}
 	close(release)
@@ -384,27 +436,60 @@ func TestMediaFolderBuildCancel(t *testing.T) {
 	if len(cachedISOs(t)) != 0 || len(h.errs) != 0 || len(dev.IDERStarts()) != 0 || h.m.phase != mediaIdle {
 		t.Fatalf("after cancel: images %v errors %d", cachedISOs(t), len(h.errs))
 	}
+	h.openMenu(t)
+	if h.labels() != "Mount ISO… Mount Folder…" {
+		t.Fatalf("after cancel: %q", h.labels())
+	}
 }
 
-// TestMediaBootCheckbox: ticking sets the boot option for the next start, unticking clears it;
-// a failure puts the checkbox back and is reported.
-func TestMediaBootCheckbox(t *testing.T) {
+// TestMediaPreparingISO: an ISO file being mounted shows its name and Cancel, without a
+// percentage or bar (the progress is not known).
+func TestMediaPreparingISO(t *testing.T) {
+	dev := &session.Fake{}
+	h := newMediaDevice(t, dev)
+	dev.Cfg.Settings.Features.IDER = false
+	h.m.pickISO = func(chosen func(string)) { chosen(writeISO(t, "alpine-standard.iso", 8192)) }
+	h.tapItem(t, itemISO)
+	h.wait(t, "settings")
+	if _, bar := h.m.line.Progress(); h.m.phase != mediaPreparing || h.labels() != "| "+lang.L("Cancel") ||
+		h.m.line.Name() != "alpine-standard.iso" || h.m.line.Detail() != "" || bar {
+		t.Fatalf("preparing ISO: %q %q bar %v", h.labels(), h.m.line.Detail(), bar)
+	}
+	h.question(t, "Enable media redirection?")
+	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[0])
+	if h.m.phase != mediaIdle {
+		t.Fatalf("phase %d", h.m.phase)
+	}
+}
+
+// TestMediaBootItem: "Boot from ISO on next start" sets the boot option for the next start and
+// shows a check mark; again clears it; it is locked while the call runs; a failure takes the
+// check mark back and is reported.
+func TestMediaBootItem(t *testing.T) {
 	boom := errors.New("boom")
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
 	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
-	h.tapCheck(t)
-	if n, c := dev.ISOCalls(); n != 1 || c != 0 || !h.m.ui.check.Checked || h.m.ui.check.Disabled() || !h.m.bootNext {
-		t.Fatalf("on: calls %d %d checked %v", n, c, h.m.ui.check.Checked)
+	h.tapItem(t, itemBoot)
+	h.openMenu(t)
+	if !h.m.items.boot.Checked || !h.m.items.boot.Disabled {
+		t.Fatalf("while setting: checked %v disabled %v", h.m.items.boot.Checked, h.m.items.boot.Disabled)
 	}
-	h.tapCheck(t)
-	if n, c := dev.ISOCalls(); n != 1 || c != 1 || h.m.ui.check.Checked || h.m.bootNext {
-		t.Fatalf("off: calls %d %d checked %v", n, c, h.m.ui.check.Checked)
+	h.bootGo <- struct{}{}
+	h.wait(t, "boot")
+	if n, c := dev.ISOCalls(); n != 1 || c != 0 || !h.m.items.boot.Checked || h.m.items.boot.Disabled || !h.m.bootNext {
+		t.Fatalf("on: calls %d %d checked %v", n, c, h.m.items.boot.Checked)
+	}
+	h.tapBoot(t)
+	h.openMenu(t)
+	if n, c := dev.ISOCalls(); n != 1 || c != 1 || h.m.items.boot.Checked || h.m.bootNext {
+		t.Fatalf("off: calls %d %d checked %v", n, c, h.m.items.boot.Checked)
 	}
 	dev.NextBootErr = boom
-	h.tapCheck(t)
-	if err := <-h.errs; !errors.Is(err, boom) || h.m.ui.check.Checked || h.m.bootNext || h.m.ui.check.Disabled() {
-		t.Fatalf("failure: err %v checked %v", err, h.m.ui.check.Checked)
+	h.tapBoot(t)
+	h.openMenu(t)
+	if err := <-h.errs; !errors.Is(err, boom) || h.m.items.boot.Checked || h.m.bootNext || h.m.items.boot.Disabled {
+		t.Fatalf("failure: err %v checked %v", err, h.m.items.boot.Checked)
 	}
 }
 
@@ -415,8 +500,8 @@ func TestMediaUnmount(t *testing.T) {
 	iso := writeISO(t, "alpine-standard.iso", 8192)
 	h.mountISO(t, iso)
 	c := h.m.mount.c
-	test.Tap(h.m.ui.unmount)
-	if h.m.phase != mediaIdle || h.m.ui.title.Text != "Media" || h.d.mediaLine.Visible() || !h.d.powerItems[amt.BootToISO].Disabled {
+	h.tapItem(t, itemUnmount)
+	if h.m.phase != mediaIdle || h.m.menu != nil || h.d.mediaLine.Visible() || !h.d.powerItems[amt.BootToISO].Disabled {
 		t.Fatalf("after Unmount: phase %d status %q", h.m.phase, h.d.mediaLine.Text)
 	}
 	h.wait(t, "unmounted")
@@ -424,15 +509,15 @@ func TestMediaUnmount(t *testing.T) {
 		t.Fatalf("client err %v", c.Err())
 	}
 	if _, cl := dev.ISOCalls(); cl != 0 {
-		t.Fatalf("ClearISOBoot without the checkbox: %d", cl)
+		t.Fatalf("ClearISOBoot without the boot option: %d", cl)
 	}
 
 	h.mountISO(t, iso)
-	h.tapCheck(t)
-	test.Tap(h.m.ui.unmount)
+	h.tapBoot(t)
+	h.tapItem(t, itemUnmount)
 	h.wait(t, "unmounted")
 	if _, cl := dev.ISOCalls(); cl != 1 || len(h.errs) != 0 {
-		t.Fatalf("ClearISOBoot after Unmount with the checkbox: %d", cl)
+		t.Fatalf("ClearISOBoot after Unmount with the boot option: %d", cl)
 	}
 }
 
@@ -442,10 +527,11 @@ func TestMediaSessionEndedByDevice(t *testing.T) {
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
 	p := h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
-	h.tapCheck(t)
+	h.tapBoot(t)
+	h.openMenu(t)
 	p.Close(t) // CLOSE 0x43
 	h.wait(t, "ended")
-	if h.m.phase != mediaIdle || h.d.mediaLine.Visible() || h.m.ui.title.Text != "Media" {
+	if h.m.phase != mediaIdle || h.d.mediaLine.Visible() || h.m.menu == nil || h.labels() != "Mount ISO… Mount Folder…" {
 		t.Fatalf("phase %d status %q", h.m.phase, h.d.mediaLine.Text)
 	}
 	if err := <-h.errs; !errors.Is(err, ider.ErrClosedByDevice) {
@@ -494,9 +580,9 @@ func TestRestartFromISO(t *testing.T) {
 	h.d.confirm = func(amt.PowerAction, func()) { t.Fatal("general power confirmation shown") }
 	h.show(t)
 	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
-	test.Tap(h.m.ui.restart)
-	if h.m.pop != nil {
-		t.Fatal("popover still open behind the question")
+	h.tapItem(t, itemRestart)
+	if h.m.menu != nil {
+		t.Fatal("menu still open behind the question")
 	}
 	bs := h.question(t, "Restart “Büro” from the ISO?")
 	if texts(bs) != lang.L("Cancel")+"|"+lang.L("Restart") ||
@@ -527,7 +613,7 @@ func TestCloseWindowWithISOAsks(t *testing.T) {
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
 	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
-	h.tapCheck(t)
+	h.tapBoot(t)
 	c := h.m.mount.c
 
 	interceptOf(h.d.win)()
@@ -586,10 +672,10 @@ func TestMismatchUnmounts(t *testing.T) {
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
 	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
-	h.tapCheck(t)
+	h.tapBoot(t)
 	c := h.m.mount.c
 	h.d.apply(amt.Status{}, &amt.FingerprintMismatchError{Host: "device.example.com", Expected: fp, Actual: strings.Repeat("cd", 32)})
-	if h.m.phase != mediaIdle || h.m.pop != nil || !h.d.mediaBtn.Disabled() || h.d.mediaLine.Visible() {
+	if h.m.phase != mediaIdle || h.m.menu != nil || !h.d.mediaBtn.Disabled() || h.d.mediaLine.Visible() {
 		t.Fatalf("after abort: phase %d", h.m.phase)
 	}
 	select {
@@ -604,16 +690,6 @@ func TestMismatchUnmounts(t *testing.T) {
 
 func TestMediaTexts(t *testing.T) {
 	englishUI(t)
-	now := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
-	for _, c := range []struct {
-		n    int64
-		want string
-	}{{0, "0 KB"}, {640_000, "640 KB"}, {999_400, "999 KB"}, {214_000_000, "214 MB"}, {999_400_000, "999 MB"},
-		{999_600_000, "1.0 GB"}, {1_049_000_000, "1.0 GB"}, {2_850_000_000, "2.9 GB"}} {
-		if got := formatBytes(c.n); got != c.want {
-			t.Errorf("formatBytes(%d) = %q, want %q", c.n, got, c.want)
-		}
-	}
 	for _, c := range []struct {
 		bps  float64
 		want string
@@ -623,33 +699,18 @@ func TestMediaTexts(t *testing.T) {
 		}
 	}
 	for _, c := range []struct {
-		s    ider.Stats
-		rate float64
-		want string
-	}{
-		{ider.Stats{Started: now.Add(-6 * time.Minute)}, 0, "Read 0 KB · 0.0 MB/s · connected 6 min"},
-		{ider.Stats{Started: now.Add(-6*time.Minute - 59*time.Second), BytesRead: 118_000_000, LastRead: now.Add(-3 * time.Second)},
-			18_200_000, "Read 118 MB · 18.2 MB/s · last read 3 s ago · connected 6 min"},
-		{ider.Stats{Started: now.Add(-65 * time.Minute), BytesRead: 4096, LastRead: now.Add(-2 * time.Minute)},
-			0, "Read 4 KB · 0.0 MB/s · last read 2 min ago · connected 1 h 5 min"},
-		{ider.Stats{Started: now.Add(-12 * time.Second)}, 0, "Read 0 KB · 0.0 MB/s · connected 12 s"},
-	} {
-		if got := statsLine(c.s, c.rate, now); got != c.want {
-			t.Errorf("statsLine = %q, want %q", got, c.want)
-		}
-	}
-	for _, c := range []struct {
 		done, total int64
-		info        *mkiso.Info
+		built       bool
+		frac        float32
 		want        string
 	}{
-		{640_000_000, 1_032_000_000, nil, "62 % · 640 MB of 1.0 GB"},
-		{0, 0, nil, "0 % · 0 KB of 0 KB"},
-		{1_000_000, 1_000_000, &mkiso.Info{Files: 84, Bootable: true}, "100 % · 1 MB of 1 MB · 84 files · UEFI-bootable"},
-		{0, 0, &mkiso.Info{Files: 1}, "100 % · 0 KB of 0 KB · 1 file"},
+		{640_000_000, 1_032_000_000, false, 640_000_000.0 / 1_032_000_000, "62 %"},
+		{0, 0, false, 0, ""},
+		{1_000_000, 1_000_000, true, 1, "100 %"},
+		{0, 0, true, 1, "100 %"},
 	} {
-		if got := progressLine(c.done, c.total, c.info); got != c.want {
-			t.Errorf("progressLine = %q, want %q", got, c.want)
+		if frac, got := buildProgress(c.done, c.total, c.built); got != c.want || frac != c.frac {
+			t.Errorf("buildProgress(%d, %d, %v) = %v %q, want %v %q", c.done, c.total, c.built, frac, got, c.frac, c.want)
 		}
 	}
 }
@@ -687,11 +748,10 @@ func TestExitWaitsForUnmounting(t *testing.T) {
 	dir := sourceFolder(t)
 	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
 	h.serve(t)
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	h.wait(t, "opened")
 	<-h.peers
-	h.tapCheck(t)
+	h.tapBoot(t)
 	if len(cachedISOs(t)) != 1 {
 		t.Fatalf("folder ISO %v", cachedISOs(t))
 	}
@@ -721,8 +781,7 @@ func TestExitWaitsForACancelledFolderBuild(t *testing.T) {
 			<-release
 		}
 	}
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	<-progressed
 	interceptOf(h.d.win)()
 	test.Tap(h.question(t, "An ISO is still mounted")[1])
@@ -736,8 +795,8 @@ func TestExitWaitsForACancelledFolderBuild(t *testing.T) {
 	}
 }
 
-// TestCloseWhileSettingTheBootOptionClearsItAfterwards: the window closes while "Boot from this
-// ISO on the next start" is still being set; the boot option is cleared after it was set, not
+// TestCloseWhileSettingTheBootOptionClearsItAfterwards: the window closes while "Boot from ISO
+// on next start" is still being set; the boot option is cleared after it was set, not
 // before, so it does not stay set without the image.
 func TestCloseWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
 	dev := &session.Fake{}
@@ -751,7 +810,7 @@ func TestCloseWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
 	}
 	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
 	c := h.m.mount.c
-	test.Tap(h.m.ui.check) // NextBootFromISO waits for bootGo
+	h.tapItem(t, itemBoot) // NextBootFromISO waits for bootGo
 	interceptOf(h.d.win)()
 	test.Tap(h.question(t, "An ISO is still mounted")[1])
 	recv(t, h.closed)
@@ -790,8 +849,8 @@ func TestUnmountWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
 	}
 	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
 	c := h.m.mount.c
-	test.Tap(h.m.ui.check)
-	test.Tap(h.m.ui.unmount)
+	h.tapItem(t, itemBoot)
+	h.tapItem(t, itemUnmount)
 	select {
 	case <-c.Done():
 	case <-time.After(5 * time.Second):
@@ -812,29 +871,28 @@ func TestUnmountWhileSettingTheBootOptionClearsItAfterwards(t *testing.T) {
 	}
 }
 
-// TestClosingThePopoverKeepsTheQuestionAboveIt: closing the popover (as a KVM resume does
-// through closeMenus) while "Enable media redirection?" is shown above it keeps the question;
-// Esc (Cancel) still closes the image.
-func TestClosingThePopoverKeepsTheQuestionAboveIt(t *testing.T) {
+// TestClosingTheMenuKeepsTheQuestionAboveIt: closing the menu (as a KVM resume does through
+// closeMenus) while "Enable media redirection?" is shown above it keeps the question; Esc
+// (Cancel) still closes the image.
+func TestClosingTheMenuKeepsTheQuestionAboveIt(t *testing.T) {
 	dev := &session.Fake{}
 	h := newMediaDevice(t, dev)
 	dev.Cfg.Settings.Features.IDER = false
 	dir := sourceFolder(t)
 	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
-	h.openPopover(t)
-	test.Tap(h.m.ui.folder)
+	h.tapItem(t, itemFolder)
 	h.wait(t, "settings")
 	q := h.m.askIDER
-	if q == nil || h.m.pop == nil {
-		t.Fatal("no question over the popover")
+	if q == nil || h.m.menu == nil {
+		t.Fatal("no question over the menu")
 	}
 	h.d.closeMenus()
-	if h.m.pop != nil {
-		t.Fatal("popover still open")
+	if h.m.menu != nil {
+		t.Fatal("menu still open")
 	}
 	h.question(t, "Enable media redirection?")
 	if q.done || !q.pop.Visible() || len(h.d.win.Canvas().Overlays().List()) != 1 {
-		t.Fatal("the question went with the popover")
+		t.Fatal("the question went with the menu")
 	}
 	if f := h.d.win.Canvas().Focused(); f != nil {
 		f.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
@@ -846,18 +904,77 @@ func TestClosingThePopoverKeepsTheQuestionAboveIt(t *testing.T) {
 	}
 }
 
-// TestEscClosesThePopoverAfterTheCheckbox: the checkbox takes the focus when tapped; Esc still
-// closes the popover.
-func TestEscClosesThePopoverAfterTheCheckbox(t *testing.T) {
+// TestMountFolderHint: "Mount Folder…" shows "Mount a folder" before the folder dialog; Cancel
+// ends there, "Choose Folder…" opens the folder dialog and stores a ticked "Don’t show again",
+// after which the hint is skipped.
+func TestMountFolderHint(t *testing.T) {
 	h := newMediaDevice(t, &session.Fake{})
-	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
-	h.tapCheck(t)
-	f := h.d.win.Canvas().Focused()
-	if f == nil {
-		t.Fatal("nothing focused after the tap")
+	h.d.settings.SetHideFolderMountHint(false)
+	picked := 0
+	h.m.pickFolder = func(func(string)) { picked++ }
+
+	h.tapItem(t, itemFolder)
+	bs := h.question(t, "Mount a folder")
+	if texts(bs) != lang.L("Cancel")+"|Choose Folder…" || picked != 0 {
+		t.Fatalf("buttons %q, picked %d", texts(bs), picked)
 	}
-	f.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape})
-	if h.m.pop != nil {
-		t.Fatal("Esc did not close the popover")
+	shown, _, _ := dialogTexts(h.d.win)
+	for _, want := range []string{"The folder is mounted on the device as a CD drive.", "Read only",
+		"Each file must be smaller than 4 GB", "Large folders take a moment to prepare"} {
+		if !slices.Contains(shown, want) {
+			t.Errorf("no text %q in %q", want, shown)
+		}
 	}
+	if bs[1].Importance != widget.HighImportance {
+		t.Fatal("Choose Folder… is not the blue button")
+	}
+	check := hintCheck(t, h.d.win)
+	if check.Text != "Don’t show again" || check.Checked {
+		t.Fatalf("checkbox %q %v", check.Text, check.Checked)
+	}
+	test.Tap(bs[0]) // Cancel
+	if picked != 0 || h.d.settings.HideFolderMountHint() || h.m.phase != mediaIdle {
+		t.Fatalf("Cancel: picked %d", picked)
+	}
+
+	// Choose Folder… without the box: the hint stays.
+	h.tapItem(t, itemFolder)
+	test.Tap(h.question(t, "Mount a folder")[1])
+	if picked != 1 || h.d.settings.HideFolderMountHint() {
+		t.Fatalf("picked %d hidden %v", picked, h.d.settings.HideFolderMountHint())
+	}
+	// With the box ticked it is stored and the next time the folder dialog opens at once.
+	h.tapItem(t, itemFolder)
+	bs = h.question(t, "Mount a folder")
+	test.Tap(hintCheck(t, h.d.win))
+	test.Tap(bs[1])
+	if picked != 2 || !h.d.settings.HideFolderMountHint() {
+		t.Fatalf("picked %d hidden %v", picked, h.d.settings.HideFolderMountHint())
+	}
+	h.tapItem(t, itemFolder)
+	if picked != 3 || len(h.d.win.Canvas().Overlays().List()) != 0 {
+		t.Fatalf("hint shown again: picked %d", picked)
+	}
+	// Reset Warnings shows it again.
+	h.d.settings.ResetHiddenMessages()
+	h.tapItem(t, itemFolder)
+	h.question(t, "Mount a folder")
+	if picked != 3 {
+		t.Fatalf("picked %d", picked)
+	}
+}
+
+// hintCheck is the checkbox of the dialog on top of w.
+func hintCheck(t *testing.T, w fyne.Window) *dialogCheck {
+	t.Helper()
+	var c *dialogCheck
+	walk(w.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+		if x, ok := o.(*dialogCheck); ok {
+			c = x
+		}
+	})
+	if c == nil {
+		t.Fatal("no checkbox")
+	}
+	return c
 }

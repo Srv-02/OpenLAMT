@@ -105,7 +105,7 @@ type DeviceWindow struct {
 	consoleTypeClipboard func()             // toolbar Type Clipboard in the Console view; nil = nothing
 	mediaBtn, manageBtn  *widgets.ToolbarButton
 	onMedia              func()                   // Media button; nil = nothing
-	media                *mediaPanel              // Media popover and IDE-R session (media.go)
+	media                *mediaPanel              // Media menu and IDE-R session (media.go)
 	body                 *fyne.Container          // stage and sidebar
 	managePane           fyne.CanvasObject        // sidebar with its left line; hidden while closed
 	manageSlot           *fyne.Container          // content of the sidebar, manageWidth wide

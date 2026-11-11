@@ -55,7 +55,7 @@ func TestToolbarOrder(t *testing.T) {
 	if d.mediaBtn.Disabled() || d.manageBtn.Disabled() || d.manageBtn.Active() {
 		t.Fatal("Media and Manage must be enabled, Manage not toggled")
 	}
-	// Media calls its hook (A3 opens the popover there).
+	// Media calls its hook (media.go opens the Media menu there).
 	media := 0
 	d.onMedia = func() { media++ }
 	test.Tap(d.mediaBtn)

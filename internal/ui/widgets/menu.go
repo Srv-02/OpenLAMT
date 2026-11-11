@@ -34,8 +34,9 @@ const (
 // MenuPopup shows a fyne.Menu as the design's drop-down: own rows instead of Fyne's menu
 // widget, whose row height and symbol size follow theme sizes shared with other widgets.
 // Item fields used: Label, Icon (16 px symbol, drawn as is), Disabled, Checked (a check mark in
-// the symbol column), IsSeparator and Action. A tap outside or Escape dismisses it; Up, Down,
-// Return and Space work as in Fyne's menu.
+// the symbol column), IsSeparator and Action. An optional MenuInfo line sits above the items
+// (SetMenu). A tap outside or Escape dismisses it; Up, Down, Return and Space work as in Fyne's
+// menu.
 type MenuPopup struct {
 	widget.BaseWidget
 
@@ -44,6 +45,7 @@ type MenuPopup struct {
 	OnDismiss func()
 
 	menu   *fyne.Menu
+	info   *MenuInfo // line above the items; nil for none
 	canvas fyne.Canvas
 	rows   []*menuRow // per menu item; nil for separators
 	panel  fyne.CanvasObject
@@ -61,9 +63,26 @@ var (
 
 // NewMenuPopup returns a hidden menu for m on canvas c.
 func NewMenuPopup(m *fyne.Menu, c fyne.Canvas) *MenuPopup {
-	p := &MenuPopup{menu: m, canvas: c, active: -1}
+	p := &MenuPopup{canvas: c, active: -1}
 	p.ExtendBaseWidget(p)
+	bg := &canvas.Rectangle{CornerRadius: style.MenuRadius, StrokeWidth: 1,
+		Shadow: canvas.Shadow{BlurRadius: 25, Offset: fyne.NewPos(0, 18), Variant: canvas.DropShadow}}
+	p.bg = bg
+	p.recolor()
+	p.scroll = container.NewVScroll(&fyne.Container{Layout: menuRowsLayout{}})
+	p.panel = &fyne.Container{Layout: menuPanelLayout{}, Objects: []fyne.CanvasObject{bg, p.scroll}}
+	p.SetMenu(m, nil)
+	return p
+}
+
+// SetMenu shows the items of m below the line info (nil for none), also while the menu is
+// open (a state change of what the menu controls); the keyboard row starts over.
+func (p *MenuPopup) SetMenu(m *fyne.Menu, info *MenuInfo) {
+	p.menu, p.info, p.rows, p.active = m, info, nil, -1
 	var objs []fyne.CanvasObject
+	if info != nil {
+		objs = append(objs, info)
+	}
 	for _, it := range m.Items {
 		if it.IsSeparator {
 			p.rows = append(p.rows, nil)
@@ -74,13 +93,12 @@ func NewMenuPopup(m *fyne.Menu, c fyne.Canvas) *MenuPopup {
 		p.rows = append(p.rows, r)
 		objs = append(objs, r)
 	}
-	bg := &canvas.Rectangle{CornerRadius: style.MenuRadius, StrokeWidth: 1,
-		Shadow: canvas.Shadow{BlurRadius: 25, Offset: fyne.NewPos(0, 18), Variant: canvas.DropShadow}}
-	p.bg = bg
-	p.recolor()
-	p.scroll = container.NewVScroll(&fyne.Container{Layout: menuRowsLayout{}, Objects: objs})
-	p.panel = &fyne.Container{Layout: menuPanelLayout{}, Objects: []fyne.CanvasObject{bg, p.scroll}}
-	return p
+	p.scroll.Content.(*fyne.Container).Objects = objs
+	p.scroll.Offset = fyne.Position{}
+	p.scroll.Content.Refresh()
+	if p.shown {
+		p.Refresh()
+	}
 }
 
 // ShowAtPosition shows the menu with its top left corner at pos (canvas coordinates) and
@@ -95,15 +113,39 @@ func (p *MenuPopup) ShowAtPosition(pos fyne.Position) {
 	p.canvas.Focus(p)
 }
 
-// Dismiss closes the menu and calls OnDismiss; nothing happens if it is not shown.
+// Dismiss closes the menu and calls OnDismiss; nothing happens if it is not shown. Overlays
+// shown above the menu (a question asked while it was open) stay.
 func (p *MenuPopup) Dismiss() {
 	if !p.shown {
 		return
 	}
 	p.shown = false
-	p.canvas.Overlays().Remove(p)
+	removeOverlay(p.canvas, p)
 	if p.OnDismiss != nil {
 		p.OnDismiss()
+	}
+}
+
+// removeOverlay removes o from the overlays of c and keeps the overlays above it: Fyne's
+// OverlayStack.Remove drops everything above the removed one, without the dialogs' callbacks.
+// The focus stays where it was when something was above.
+func removeOverlay(c fyne.Canvas, o fyne.CanvasObject) {
+	ov := c.Overlays()
+	list := ov.List()
+	var above []fyne.CanvasObject
+	for i, x := range list {
+		if x == o {
+			above = append(above, list[i+1:]...)
+			break
+		}
+	}
+	focused := c.Focused()
+	ov.Remove(o)
+	for _, x := range above {
+		ov.Add(x)
+	}
+	if len(above) > 0 && focused != nil {
+		c.Focus(focused)
 	}
 }
 
@@ -126,10 +168,13 @@ func (p *MenuPopup) recolor() {
 	p.bg.Refresh()
 }
 
-// Refresh redraws the rows from the current item fields (Disabled, Checked, Icon) and the
-// panel in the colors of the current theme variant.
+// Refresh redraws the rows from the current item fields (Disabled, Checked, Icon), the info
+// line and the panel in the colors of the current theme variant.
 func (p *MenuPopup) Refresh() {
 	p.recolor()
+	if p.info != nil {
+		p.info.Refresh()
+	}
 	for _, r := range p.rows {
 		if r != nil {
 			r.Refresh()

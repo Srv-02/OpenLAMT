@@ -13,9 +13,9 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
-// Views, Media and Manage of the device window (Main.dc.html, Console.dc.html, Media.dc.html):
+// Views, Media and Manage of the device window (Main.dc.html, Console.dc.html, Extras.dc.html):
 // the KVM|Console switch shows one of two stages, both sessions may stay open; Media opens its
-// popover through onMedia; Manage toggles the device management sidebar right of the stage.
+// menu through onMedia; Manage toggles the device management sidebar right of the stage.
 
 // Segments of the view switch.
 const (

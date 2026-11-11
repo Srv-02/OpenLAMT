@@ -217,3 +217,31 @@ func TestSettingsFormAppearance(t *testing.T) {
 		t.Fatalf("reopened shows %q", got)
 	}
 }
+
+// "Don’t show again" of the hint "Mount a folder" is stored and ResetHiddenMessages, the
+// button "Reset Warnings", shows every hidden message again.
+func TestHiddenMessagesReset(t *testing.T) {
+	a := test.NewTempApp(t)
+	s := NewSettings(a.Preferences())
+	if s.HideFolderMountHint() || s.HiddenMessages() {
+		t.Fatal("a message is hidden by default")
+	}
+	s.SetHideFolderMountHint(true)
+	if !NewSettings(a.Preferences()).HideFolderMountHint() || !s.HiddenMessages() {
+		t.Fatal("not stored")
+	}
+	s.ResetHiddenMessages()
+	if s.HideFolderMountHint() || s.HiddenMessages() {
+		t.Fatal("not reset")
+	}
+	for _, k := range hiddenMessagePrefs {
+		a.Preferences().SetBool(k, true)
+		if !s.HiddenMessages() {
+			t.Fatalf("%s not counted", k)
+		}
+		s.ResetHiddenMessages()
+		if a.Preferences().Bool(k) {
+			t.Fatalf("%s not reset", k)
+		}
+	}
+}

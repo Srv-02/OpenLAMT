@@ -16,7 +16,6 @@ import (
 	models "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
 
 	"github.com/Srv-02/openlamt/internal/amt"
-	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/ider/idertest"
 	"github.com/Srv-02/openlamt/internal/kvm/kvmtest"
 	"github.com/Srv-02/openlamt/internal/session"
@@ -55,8 +54,9 @@ var (
 )
 
 // TestUIBuildShots renders the device window with device management (also Settings at 1280 x 880,
-// so the Danger zone shows), the dialogs of Settings and Users, Media, the questions of Media
-// and Console and the Console view, light, English, at the mockups' 1280 x 800, into
+// so the Danger zone shows), the dialogs of Settings and Users, the Media menu, the questions of
+// Media and Console, the Console view and the global settings, light, English, at the mockups'
+// 1280 x 800, into
 // $OPENLAMT_UI_SHOTS for review against the mockups (issues #1 and #3). Skipped without the
 // variable. The device is a session.Fake with kvmtest, idertest and soltest servers and made-up
 // data only. Run:
@@ -109,11 +109,12 @@ func TestUIBuildShots(t *testing.T) {
 	h.manageDialogs(w)
 	w.win.Close()
 
-	// 20, 21, 30: Media with nothing mounted; a folder ISO being built; IDE-R is off.
+	// 20, 44, 21, 30: the Media menu with nothing mounted; the hint before the folder dialog; a
+	// folder ISO being built; IDE-R is off.
 	md := h.d.media
 	h.dev.Cfg.Settings.Features.IDER = false
 	test.Tap(h.d.mediaBtn)
-	h.shot("20-media-idle.png", h.d.win)
+	h.shot("20-media-menu-idle.png", h.d.win)
 	folder := sourceFolder(t)
 	md.pickFolder = func(chosen func(string)) { chosen(folder) }
 	progressed, release := make(chan struct{}), make(chan struct{})
@@ -125,12 +126,15 @@ func TestUIBuildShots(t *testing.T) {
 			<-release
 		}
 	}
-	test.Tap(md.ui.folder)
+	h.tapMediaItem(md.items.folder)
+	h.shot("44-dialog-mount-folder.png", h.d.win)
+	test.Tap(hintCheck(t, h.d.win)) // "Don’t show again": 45 has a hidden message then
+	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[1])
 	<-progressed // the build waits in the hook: the window is ours
 	md.done, md.total = 640_000_000, 1_030_000_000
 	md.refreshProgress()
-	h.shot("21-media-preparing.png", h.d.win)
-	md.dismiss() // before the question: removing an overlay also removes those above it
+	h.shot("21-media-menu-preparing.png", h.d.win)
+	md.dismiss() // the question shows without the menu behind it
 	close(release)
 	h.mediaEvent("settings")
 	h.shot("30-dialog-ider-on.png", h.d.win)
@@ -142,17 +146,16 @@ func TestUIBuildShots(t *testing.T) {
 	md.pickISO = func(chosen func(string)) { chosen(iso) }
 	go func() { h.iderPeers <- h.ider.AcceptSession(t) }()
 	test.Tap(h.d.mediaBtn)
-	test.Tap(md.ui.iso)
+	h.tapMediaItem(md.items.iso)
 	h.mediaEvent("opened")
 	<-h.iderPeers
-	test.Tap(md.ui.check)
+	h.tapMediaItem(md.items.boot)
 	h.mediaEvent("boot")
-	now := md.now()
+	test.Tap(h.d.mediaBtn)
 	rate := 18_200_000.0
-	setMuted(md.ui.stats, statsLine(ider.Stats{BytesRead: 118_000_000, LastRead: now.Add(-3 * time.Second), Started: now.Add(-6 * time.Minute)}, rate, now))
+	md.line.SetDetail(formatRate(rate))
 	h.d.setMediaStatus("ISO mounted · " + formatRate(rate))
-	h.d.win.Canvas().Unfocus() // the resting state: no focus ring around the ticked checkbox
-	h.shot("22-media-mounted.png", h.d.win)
+	h.shot("22-media-menu-mounted.png", h.d.win)
 	md.dismiss()
 	h.d.showPowerMenu()
 	h.shot("23-power-menu-boot-iso.png", h.d.win)
@@ -166,9 +169,8 @@ func TestUIBuildShots(t *testing.T) {
 	h.shot("33-dialog-restart-iso.png", h.d.win)
 	test.Tap(panelButtons(h.d.win.Canvas().Overlays().Top())[0]) // Cancel
 	test.Tap(h.d.mediaBtn)
-	test.Tap(md.ui.unmount)
+	h.tapMediaItem(md.items.unmount)
 	h.mediaEvent("unmounted")
-	md.dismiss()
 
 	// 31, 40: SOL is off; after Enable the Console view with some output of the server.
 	h.dev.Cfg.Settings.Features.SOL = false
@@ -193,6 +195,12 @@ func TestUIBuildShots(t *testing.T) {
 	h.shot("43-console-fullscreen.png", h.d.win)
 	test.Tap(h.d.exitFullBtn)
 	h.d.win.Resize(uiShotSize)
+
+	// 45: the global settings with a hidden message (44 ticked "Don’t show again").
+	h.d.win.Canvas().Unfocus()
+	showSettingsDialog(h.d.win, &h.d.settings)
+	h.shot("45-global-settings-hidden-messages.png", h.d.win)
+	h.d.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
 	if len(h.errs) > 0 {
 		t.Fatalf("errors: %v", <-h.errs)
@@ -401,6 +409,19 @@ func (h *uiShots) readAgo(m *manager) {
 	m.now = func() time.Time { return at.Add(12 * time.Second) }
 	m.tick()
 	m.now = func() time.Time { return h.readAt }
+}
+
+// tapMediaItem taps the row of it in the open Media menu.
+func (h *uiShots) tapMediaItem(it *fyne.MenuItem) {
+	h.t.Helper()
+	md := h.d.media
+	for i, x := range md.shown.Items {
+		if x == it {
+			test.Tap(md.menu.Item(i))
+			return
+		}
+	}
+	h.t.Fatalf("item %v not in the Media menu", it)
 }
 
 // mediaEvent waits for the media event want (media.go onEvent).

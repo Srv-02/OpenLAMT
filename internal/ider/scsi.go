@@ -56,18 +56,6 @@ func (c *Client) sendDataToHost(dev byte, completed bool, data []byte, dma bool)
 	return c.send(cmdDataToHost, completed, true, h, data)
 }
 
-// sendGetDataFromHost asks the host for write data (AMTIDER.ts sendGetDataFromHost). The size
-// field is 16 bits wide on the wire; larger values are truncated like String.fromCharCode does
-// in the original for the low byte.
-func (c *Client) sendGetDataFromHost(dev byte, chunk int) error {
-	p := make([]byte, 23)
-	p[1], p[2] = byte(chunk), byte(chunk>>8)
-	p[4] = 0xb5
-	p[8], p[9] = byte(chunk), byte(chunk>>8)
-	p[10], p[11] = dev, 0x58
-	return c.send(cmdDataToHostReq, false, false, p)
-}
-
 // mediaBlocks is the number of 2048-byte blocks of the CD; the last block may be a partial
 // sector that is padded with zeros. Floppy: no medium, 0.
 func (c *Client) mediaBlocks(dev byte) uint64 {
@@ -75,6 +63,21 @@ func (c *Client) mediaBlocks(dev byte) uint64 {
 		return 0
 	}
 	return uint64((c.size + sectorSize - 1) / sectorSize)
+}
+
+// handleFloppy answers commands for the floppy drive (0xA0), which never has a medium (ISO only).
+// Deliberate deviation from the original (ui-toolkit and MeshCommander with floppy == null): it
+// reports GOOD for TEST_UNIT_READY, for reads (without any data) and for several other commands,
+// so the drive looks ready but delivers nothing. A Linux host then reset the drive in a loop
+// (about 2.5 RESET_OCCURRED per second, each right after a floppy READ_CAPACITY). Here every
+// medium command gets CHECK CONDITION NOT READY / MEDIUM NOT PRESENT (02/3A/00); only START_STOP
+// and ALLOW_MEDIUM_REMOVAL succeed, and GET_EVENT_STATUS_NOTIFICATION reports "no medium".
+func (c *Client) handleFloppy(cdb []byte) error {
+	switch cdb[0] {
+	case 0x1b, 0x1e: // START_STOP, ALLOW_MEDIUM_REMOVAL
+		return c.sendGood(deviceFlopp)
+	}
+	return c.sendCheckCondition(deviceFlopp, 0x02, 0x3a, 0x00)
 }
 
 // handleWritten processes COMMAND_WRITTEN (IDERDataProcessor.ts:152-166); b is the body without
@@ -90,12 +93,12 @@ func (c *Client) handleWritten(b []byte) error {
 
 // handleSCSI dispatches one CDB (IDERDataProcessor.ts handleSCSI). dma is featureRegister & 1.
 func (c *Client) handleSCSI(cdb []byte, dev byte, dma bool, flags byte) error {
+	if dev == deviceFlopp && cdb[0] != 0x4a { // GET_EVENT_STATUS_NOTIFICATION reports "no medium" below
+		return c.handleFloppy(cdb)
+	}
 	cd := dev == deviceCD
 	switch cdb[0] {
 	case 0x00: // TEST_UNIT_READY, :215-243
-		if dev == deviceFlopp {
-			return c.sendGood(dev) // TS good 02/3A/00: no floppy
-		}
 		if !c.cdReady {
 			c.cdReady = true
 			return c.sendGood(dev) // TS good 06/28/00 (unit attention): GOOD on the wire
@@ -112,9 +115,6 @@ func (c *Client) handleSCSI(cdb []byte, dev byte, dma bool, flags byte) error {
 		return c.sendGood(dev) // TS good 02/3A/00
 	case 0x1a: // MODE_SENSE_6, :271-304
 		if cdb[2] == 0x3f && cdb[3] == 0 {
-			if !cd {
-				return c.sendGood(dev) // TS good 02/3A/00: no floppy
-			}
 			return c.sendDataToHost(dev, true, []byte{0, 0x05, 0x80, 0}, dma)
 		}
 		return c.sendGood(dev) // TS good 05/24/00
@@ -142,12 +142,9 @@ func (c *Client) handleSCSI(cdb []byte, dev byte, dma bool, flags byte) error {
 	case 0xa8: // READ_12: not in the original, same as READ_10 with a 32-bit length
 		return c.readDisk(dev, binary.BigEndian.Uint32(cdb[2:]), uint64(binary.BigEndian.Uint32(cdb[6:])), dma)
 	case 0x2a, 0x2e: // WRITE_10, WRITE_AND_VERIFY, :406-412
-		if cd {
-			// Deliberate deviation (spec R1): the original asks for data (0x52), which the
-			// medium cannot take; CHECK CONDITION 07/27/00 write protected right away.
-			return c.sendCheckCondition(dev, 0x07, 0x27, 0x00)
-		}
-		return c.sendGetDataFromHost(dev, 512*int(binary.BigEndian.Uint16(cdb[7:])))
+		// Deliberate deviation (spec R1): the original asks for data (0x52), which the medium
+		// cannot take; CHECK CONDITION 07/27/00 write protected right away.
+		return c.sendCheckCondition(dev, 0x07, 0x27, 0x00)
 	case 0x43: // READ_TOC, :415-499
 		return c.handleReadTOC(cdb, dev, dma)
 	case 0x46: // GET_CONFIGURATION, :502-552

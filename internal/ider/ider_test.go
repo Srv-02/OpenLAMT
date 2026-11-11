@@ -551,24 +551,26 @@ func TestSCSI_Table(t *testing.T) {
 		{name: "READ_10 lba past end", cdb: read10(7, 1), flags: cdFlags, end: good(0xb0)},
 		{name: "READ_12 out of range", cdb: read12(0, 4), flags: cdFlags, end: good(0xb0)},
 		{name: "READ_6 out of range", cdb: cdb(0x08, 0, 0, 2, 2), flags: cdFlags, end: good(0xb0)},
-		// Floppy (0xA0), behaves like the original with floppy == null
-		{name: "floppy TUR", cdb: cdb(0x00), flags: floppyFlags, end: good(0xa0)},
-		{name: "floppy WRITE_6", cdb: cdb(0x0a), flags: floppyFlags, end: good(0xa0)},
-		{name: "floppy MODE_SENSE_6", cdb: cdb(0x1a, 0, 0x3f, 0), flags: floppyFlags, end: good(0xa0)},
+		// Floppy (0xA0): no medium is offered. Deliberate deviation from the original, which
+		// answers TUR and reads with GOOD (reads without data) and made a Linux host reset the
+		// drive in a loop: every medium command gets NOT READY / MEDIUM NOT PRESENT.
+		{name: "floppy TUR", cdb: cdb(0x00), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy WRITE_6", cdb: cdb(0x0a), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy WRITE_10", cdb: cdb(0x2a, 0, 0, 0, 0, 0, 0, 0, 1), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy MODE_SENSE_6", cdb: cdb(0x1a, 0, 0x3f, 0), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
 		{name: "floppy ALLOW_MEDIUM_REMOVAL", cdb: cdb(0x1e), flags: floppyFlags, end: good(0xa0)},
-		{name: "floppy READ_FORMAT_CAPACITIES", cdb: cdb(0x23), flags: floppyFlags, end: check(0xa0, 5, 0x24, 0)},
+		{name: "floppy START_STOP", cdb: cdb(0x1b), flags: floppyFlags, end: good(0xa0)},
+		{name: "floppy READ_FORMAT_CAPACITIES", cdb: cdb(0x23), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
 		{name: "floppy READ_CAPACITY", cdb: cdb(0x25), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
-		{name: "floppy READ_10", cdb: read10(0, 1), flags: floppyFlags, end: good(0xa0)},
-		{name: "floppy READ_6", cdb: cdb(0x08, 0, 0, 0, 1), flags: floppyFlags, end: good(0xa0)},
-		{name: "floppy READ_TOC", cdb: cdb(0x43, 0, 1), flags: floppyFlags, end: good(0xa0)},
+		{name: "floppy READ_10", cdb: read10(0, 1), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy READ_12", cdb: read12(0, 1), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy READ_6", cdb: cdb(0x08, 0, 0, 0, 1), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy READ_TOC", cdb: cdb(0x43, 0, 1), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
 		{name: "floppy GET_EVENT_STATUS_NOTIFICATION", cdb: cdb(0x4a, 0x01), flags: floppyFlags, dev: 0xa0, data: []byte{0, 0, 0x80, 0}},
-		{name: "floppy READ_DISC_INFO", cdb: cdb(0x51), flags: floppyFlags, end: check(0xa0, 5, 0x20, 0)},
-		{name: "floppy unknown opcode", cdb: cdb(0xff), flags: floppyFlags, end: check(0xa0, 5, 0x20, 0)},
-		{name: "floppy MODE_SENSE_10 recovery", cdb: mode10(0x01), flags: floppyFlags, dev: 0xa0,
-			data: []byte{0x00, 0x12, 0x24, 0x80, 0x00, 0x00, 0x00, 0x00, 0x01, 0x0a, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00}},
-		{name: "floppy MODE_SENSE_10 page 5", cdb: mode10(0x05), flags: floppyFlags, dev: 0xa0, data: modeSenseMSFloppyDiskPage},
-		{name: "floppy MODE_SENSE_10 0x3f", cdb: mode10(0x3f), flags: floppyFlags, dev: 0xa0, data: modeSenseMS3FFloppy},
-		{name: "floppy MODE_SENSE_10 0x1a", cdb: mode10(0x1a), flags: floppyFlags, end: check(0xa0, 5, 0x20, 0)},
+		{name: "floppy READ_DISC_INFO", cdb: cdb(0x51), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy unknown opcode", cdb: cdb(0xff), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy MODE_SENSE_10 recovery", cdb: mode10(0x01), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
+		{name: "floppy MODE_SENSE_10 0x3f", cdb: mode10(0x3f), flags: floppyFlags, end: check(0xa0, 2, 0x3a, 0)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f.p.Written(t, tc.cdb, tc.flags, tc.feature)
@@ -790,20 +792,6 @@ func TestRead_ErrorMidTransferEndsWithMediumError(t *testing.T) {
 	if f.c.Err() != nil {
 		t.Fatal(f.c.Err())
 	}
-}
-
-func TestWrite10_Floppy(t *testing.T) {
-	f := establish(t, newImage(4096), fixtureOpts{})
-	// As the original: GetDataFromHost (0x52) for 512 * len bytes, here with len 1.
-	f.p.Written(t, cdb(0x2a, 0, 0, 0, 0, 0, 0, 0, 1), floppyFlags, 0)
-	m := f.p.Read(t)
-	want := append([]byte{0, 0x00, 0x02, 0, 0xb5, 0, 0, 0, 0x00, 0x02, 0xa0, 0x58}, zeros(11)...)
-	if m.Cmd != 0x52 || m.Attr != 0 || !bytes.Equal(m.Payload, want) {
-		t.Fatalf("got %x", wire(m))
-	}
-	// The host then sends its data; the original answers with CHECK CONDITION 07/27/00 for 0xA0.
-	f.p.Send(t, 0x53, 0, append([]byte{0, 0x00, 0x02, 0, 0, 0}, zeros(512)...))
-	f.expectEnd(t, append(zeros(12), 0x87, 0x70, 0x03, 0, 0, 0, 0xa0, 0x51, 0x07, 0x27, 0x00))
 }
 
 func TestPingPongAndReset(t *testing.T) {

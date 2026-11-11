@@ -30,6 +30,9 @@ type manageDeps struct {
 	status     func() (amt.Status, bool) // last status read of the device window (AMT version, control mode, power)
 	loginStore session.LoginStore        // favorites manager; nil = nothing stored
 	onError    func(error)
+	// mainWin shows "New password not saved" of a write that ends after device management
+	// closed (the start window); nil drops it with the other results.
+	mainWin fyne.Window
 }
 
 // Measures of the sidebar (Main.dc.html) and the window (WindowB.dc.html).

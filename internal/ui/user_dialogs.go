@@ -64,11 +64,14 @@ func userPasswordField(p *panel, changed func()) *widgets.PasswordField {
 
 // usersWrite runs write off the Fyne thread; afterwards the user list is read again and the
 // errors are shown (writeDone). write returns the new password it tried to set ("" for none).
+// A write that ends after device management closed shows only "New password not saved", on
+// the start window (lateNotSaved).
 func (m *manager) usersWrite(v *usersPane, write func() (password string, errs []error)) {
 	go func() {
 		pw, errs := write()
 		m.later(func() {
 			if m.closed {
+				m.lateNotSaved(pw, errs)
 				return
 			}
 			m.users.reload()
@@ -81,7 +84,30 @@ func (m *manager) usersWrite(v *usersPane, write func() (password string, errs [
 // (*session.NotSavedError) or whose outcome is unknown (*amt.CredentialsUncertainError) shows
 // the new password once, so it is not lost; any other error the error dialog.
 func (v *usersPane) writeDone(password string, errs []error) {
-	show := ""
+	show, others := notSavedPassword(password, errs)
+	for _, err := range others {
+		showError(v.window(), err)
+	}
+	if show != "" {
+		v.notSaved = showNotSavedDialog(v.window(), v.m.name, show)
+	}
+}
+
+// lateNotSaved shows the new password of a write that ended after device management closed
+// (its device window was closed meanwhile) on the start window, which is brought to the front:
+// otherwise the password would be lost. Other errors are dropped with the window.
+func (m *manager) lateNotSaved(password string, errs []error) {
+	show, _ := notSavedPassword(password, errs)
+	if show == "" || m.deps.mainWin == nil {
+		return
+	}
+	m.deps.mainWin.RequestFocus()
+	showNotSavedDialog(m.deps.mainWin, m.name, show)
+}
+
+// notSavedPassword splits the errors of a write into the new password to show once ("" for
+// none) and the errors for the error dialog.
+func notSavedPassword(password string, errs []error) (show string, others []error) {
 	for _, err := range errs {
 		var ns *session.NotSavedError
 		var ue *amt.CredentialsUncertainError
@@ -91,12 +117,10 @@ func (v *usersPane) writeDone(password string, errs []error) {
 		case errors.As(err, &ue) && password != "":
 			show = password
 		default:
-			showError(v.window(), err)
+			others = append(others, err)
 		}
 	}
-	if show != "" {
-		v.notSaved = showNotSavedDialog(v.window(), v.m.name, show)
-	}
+	return show, others
 }
 
 // adminDialog is the red confirmation for the admin account with its fields.

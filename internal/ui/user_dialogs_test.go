@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -160,6 +161,50 @@ func TestNotSavedDialogShowsThePasswordOnce(t *testing.T) {
 	test.Tap(ns.done)
 	if open(h.m.parent) || ns.display.Text() != "" {
 		t.Errorf("after closing: open %v password kept %v", open(h.m.parent), ns.display.Text() != "")
+	}
+}
+
+// TestNotSavedDialogAfterTheDeviceWindowClosed: a password change that ends after the device
+// window (and with it device management) closed still shows the new password, on the start
+// window.
+func TestNotSavedDialogAfterTheDeviceWindowClosed(t *testing.T) {
+	for _, c := range []struct {
+		name  string
+		setup func(h *manageHarness)
+	}{
+		{"keychain", func(h *manageHarness) { h.m.deps.loginStore = &countingStore{err: errors.New("keychain locked")} }},
+		{"uncertain", func(h *manageHarness) {
+			h.dev.Cfg.WriteErr = &amt.CredentialsUncertainError{Username: "admin", Self: true, Err: errors.New("connection reset")}
+		}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, p := usersHarness(t, exampleUsers())
+			main := h.a.NewWindow("OpenLAMT")
+			h.m.deps.mainWin = main
+			c.setup(h)
+			test.Tap(p.table.lines[0].edit)
+			d := p.adminDlg
+			d.pw.SetText(newPassword)
+			d.repeat.SetText(newPassword)
+			d.entry.SetText(riskHost)
+			test.Tap(d.action)
+			h.m.Close() // the device window closes while the write runs
+			h.wait(t)
+			top := main.Canvas().Overlays().Top()
+			if top == nil {
+				t.Fatal("no not-saved dialog on the start window")
+			}
+			findLabel(t, top, "New password not saved")
+			found := false
+			walk(top, func(o fyne.CanvasObject) {
+				if f, ok := o.(interface{ Text() string }); ok && f.Text() == newPassword {
+					found = true
+				}
+			})
+			if !found {
+				t.Fatal("the dialog does not hold the new password")
+			}
+		})
 	}
 }
 
@@ -351,5 +396,20 @@ func TestEditUserDeleteAndOwnAccountAreNotApproved(t *testing.T) {
 	test.Tap(d.del)
 	if len(*calls) != 2 || h.dev.ConfigWrites() != nil || !open(h.m.parent) {
 		t.Fatalf("delete: calls %v writes %v", *calls, h.dev.ConfigWrites())
+	}
+}
+
+// TestDeviceManagementKnowsTheStartWindow: device windows of the start window hand it to device
+// management for the late "New password not saved".
+func TestDeviceManagementKnowsTheStartWindow(t *testing.T) {
+	q := newQuitHarness(t)
+	cfg := amt.Config{Host: "device.example.com", Username: "admin", Fingerprint: q.h.dev.FP}
+	sess, st, err := session.Open(context.Background(), cfg, nil, session.ConnectFake(q.h.dev))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := q.h.s.addDevice(sess, st, "Büro")
+	if m := d.ensureManager(); m.deps.mainWin != q.h.s.win {
+		t.Fatal("device management has no start window")
 	}
 }

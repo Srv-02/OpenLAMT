@@ -1276,6 +1276,7 @@ func (s *StartWindow) addDevice(sess *session.Session, st amt.Status, name strin
 	})
 	d.layouts = s.mgr
 	d.exitWork = s.exitWork
+	d.mainWin = s.win
 	if s.mgr != nil { // a typed nil would count as a store
 		d.loginStore = s.mgr
 	}

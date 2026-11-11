@@ -65,6 +65,7 @@ type DeviceWindow struct {
 	released                  bool              // onClosed already called
 	closed                    bool              // user closed the window
 	exitWork                  *pendingWork      // the start window's: unmounting the process waits for; nil in tests
+	mainWin                   fyne.Window       // the start window; nil in tests
 	qualityItems              map[kvm.Quality]*fyne.MenuItem
 	qualityMenu               *fyne.Menu
 	kvmQuality                kvm.Quality      // quality of the next connection

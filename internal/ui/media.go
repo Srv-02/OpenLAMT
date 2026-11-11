@@ -268,7 +268,10 @@ func (m *mediaPanel) start(path string, folder bool) {
 	m.done, m.total, m.info = 0, 0, nil
 	m.show()
 	progress := m.progressFunc(ctx)
+	work := m.d.exitWork
+	done := work.add() // a cancelled build removes its partial file before it returns
 	go func() {
+		defer done()
 		var img ider.Image
 		var info *mkiso.Info
 		var err error
@@ -285,6 +288,7 @@ func (m *mediaPanel) start(path string, folder bool) {
 			}
 			err = e
 		}
+		img = work.track(img) // until closed: a folder ISO is deleted then
 		fyne.Do(func() { m.prepared(ctx, img, info, err) })
 	}()
 }
@@ -474,7 +478,9 @@ func (m *mediaPanel) unmount() {
 	mt.detached.Store(true)
 	m.reset()
 	sess := m.d.sess
+	done := m.d.exitWork.add()
 	go func() {
+		defer done()
 		mt.c.Close()
 		var err error
 		if boot {
@@ -562,8 +568,10 @@ func (m *mediaPanel) bootSet(mt *mediaMount, on bool, err error) {
 // clearBoot clears the IDE-R boot option off the Fyne thread.
 func (m *mediaPanel) clearBoot() {
 	sess := m.d.sess
+	done := m.d.exitWork.add()
 	go func() {
 		err := sess.ClearISOBoot()
+		done()
 		fyne.Do(func() {
 			m.report(err)
 			m.event("cleared")
@@ -635,15 +643,34 @@ func (d *DeviceWindow) requestClose(closeWin func()) {
 	if m.closeAsk != nil {
 		return
 	}
+	d.askClose(closeWin, nil)
+}
+
+// askClose shows "An ISO is still mounted": Unmount and Close runs closeWin, Keep Open runs kept
+// (may be nil). A question that is already open takes over closeWin and kept instead of a second
+// one (the quit guard asks a window whose close button question is still open).
+func (d *DeviceWindow) askClose(closeWin, kept func()) {
+	m := d.media
+	onClose := func() {
+		m.closeAsk = nil
+		closeWin()
+	}
+	onKeep := func() {
+		m.closeAsk = nil
+		if kept != nil {
+			kept()
+		}
+	}
+	if m.closeAsk != nil {
+		m.closeAsk.spec.onAction, m.closeAsk.spec.onCancel = onClose, onKeep
+		return
+	}
 	d.releaseKeys()
 	args := map[string]any{"ISO": m.name, "Name": d.name}
 	m.closeAsk = showQuestion(d.win, icons.Warning, toneWarning, lang.L("An ISO is still mounted"),
 		lang.L("“{{.ISO}}” is mounted on “{{.Name}}”. Closing the window unmounts it. If the device is installing or flashing from it right now, that will fail.", args),
-		lang.L("Keep Open"), lang.L("Unmount and Close"), func() {
-			m.closeAsk = nil
-			closeWin()
-		})
-	m.closeAsk.spec.onCancel = func() { m.closeAsk = nil }
+		lang.L("Keep Open"), lang.L("Unmount and Close"), onClose)
+	m.closeAsk.spec.onCancel = onKeep
 }
 
 // --- Popover ---

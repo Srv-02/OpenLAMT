@@ -677,3 +677,61 @@ func TestRateMeterUsesTheLastSeconds(t *testing.T) {
 		t.Fatalf("rate after idle %v", r.rate())
 	}
 }
+
+// TestExitWaitsForUnmounting: after "Unmount and Close" the work the process waits for at exit
+// ends only once the folder ISO is deleted and the boot option cleared.
+func TestExitWaitsForUnmounting(t *testing.T) {
+	dev := &session.Fake{}
+	h := newMediaDevice(t, dev)
+	h.d.exitWork = &pendingWork{}
+	dir := sourceFolder(t)
+	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
+	h.serve(t)
+	h.openPopover(t)
+	test.Tap(h.m.ui.folder)
+	h.wait(t, "opened")
+	<-h.peers
+	h.tapCheck(t)
+	if len(cachedISOs(t)) != 1 {
+		t.Fatalf("folder ISO %v", cachedISOs(t))
+	}
+	interceptOf(h.d.win)()
+	test.Tap(h.question(t, "An ISO is still mounted")[1])
+	if !h.d.exitWork.wait(5 * time.Second) {
+		t.Fatal("unmounting did not finish")
+	}
+	if _, cl := dev.ISOCalls(); cl != 1 || len(cachedISOs(t)) != 0 {
+		t.Fatalf("at exit: ClearISOBoot %d, images %v", cl, cachedISOs(t))
+	}
+}
+
+// TestExitWaitsForACancelledFolderBuild: a folder ISO that is still being built when the window
+// closes is removed before the process may exit.
+func TestExitWaitsForACancelledFolderBuild(t *testing.T) {
+	h := newMediaDevice(t, &session.Fake{})
+	h.d.exitWork = &pendingWork{}
+	dir := sourceFolder(t)
+	h.m.pickFolder = func(chosen func(string)) { chosen(dir) }
+	progressed, release := make(chan struct{}), make(chan struct{})
+	first := true
+	h.m.onBuildProgress = func(done, total int64) {
+		if first {
+			first = false
+			progressed <- struct{}{}
+			<-release
+		}
+	}
+	h.openPopover(t)
+	test.Tap(h.m.ui.folder)
+	<-progressed
+	interceptOf(h.d.win)()
+	test.Tap(h.question(t, "An ISO is still mounted")[1])
+	recv(t, h.closed)
+	if h.d.exitWork.wait(10 * time.Millisecond) {
+		t.Fatal("did not wait for the build")
+	}
+	close(release)
+	if !h.d.exitWork.wait(5*time.Second) || len(cachedISOs(t)) != 0 {
+		t.Fatalf("images %v", cachedISOs(t))
+	}
+}

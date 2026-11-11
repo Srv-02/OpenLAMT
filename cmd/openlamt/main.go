@@ -3,6 +3,7 @@ package main
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 
@@ -44,6 +45,11 @@ func main() {
 	start.EnableUpdateCheck()
 	start.EnableCoffeeNudge()
 	start.Window().ShowAndRun()
+	// The device windows unmount their ISOs on goroutines: deleting a folder ISO and clearing
+	// the next-start boot option must not be cut off by the process exit.
+	if !start.WaitForCleanup() {
+		fyne.LogError("quitting", errors.New("unmounting did not finish in time"))
+	}
 }
 
 // initLanguage loads the translations in the language stored in the settings (System by default);

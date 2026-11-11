@@ -64,6 +64,7 @@ type DeviceWindow struct {
 	aborted                   bool              // certificate mismatch: session is dead
 	released                  bool              // onClosed already called
 	closed                    bool              // user closed the window
+	exitWork                  *pendingWork      // the start window's: unmounting the process waits for; nil in tests
 	qualityItems              map[kvm.Quality]*fyne.MenuItem
 	qualityMenu               *fyne.Menu
 	kvmQuality                kvm.Quality      // quality of the next connection
@@ -253,15 +254,18 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	return d
 }
 
-// shutdown stops the poller, unmounts a mounted image (clearing its boot option unless the
-// session was aborted) and then drops the idle WS-Man sockets. Off the Fyne thread, because
-// Stop waits for a running status read; the order matters, so a read cannot re-pool a socket
-// after Close. The session is not used after Close (KVM keeps its own connection).
+// shutdown unmounts a mounted image (clearing its boot option unless the session was aborted),
+// stops the poller and then drops the idle WS-Man sockets. Off the Fyne thread, because Stop
+// waits for a running status read; the unmount comes first, so the process, which waits for it
+// at exit (exitWork), does not wait behind a slow read too. Close comes last, so a read cannot
+// re-pool a socket after it. The session is not used after Close (KVM keeps its own connection).
 func (d *DeviceWindow) shutdown() {
 	unmount := d.media.release(!d.aborted)
+	done := d.exitWork.add()
 	go func() {
-		d.poller.Stop()
 		unmount()
+		done()
+		d.poller.Stop()
 		d.sess.Close()
 	}()
 }

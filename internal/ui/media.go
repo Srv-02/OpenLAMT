@@ -85,7 +85,7 @@ type mediaPanel struct {
 	items mediaItems         // items of the open menu's state; zero while it is closed
 
 	// Hooks, replaced in tests.
-	pickISO, pickFolder func(chosen func(path string))  // Fyne file and folder dialogs
+	pickISO, pickFolder func(chosen func(path string))  // file and folder dialogs: native on macOS and Windows, else Fyne
 	ticker              func(each func()) (stop func()) // 1 s statistics while mounted
 	now                 func() time.Time                // clock of the read rate
 	onBuildProgress     func(done, total int64)         // called on the build goroutine; nil in production
@@ -101,6 +101,9 @@ type mediaItems struct {
 func newMediaPanel(d *DeviceWindow) *mediaPanel {
 	m := &mediaPanel{d: d, ticker: secondTicker, now: time.Now}
 	m.pickISO, m.pickFolder = m.dialogISO, m.dialogFolder
+	if iso, folder, ok := m.nativePickers(); ok {
+		m.pickISO, m.pickFolder = iso, folder
+	}
 	return m
 }
 

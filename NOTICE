@@ -17,13 +17,16 @@ It uses and includes code derived from the following projects:
   https://github.com/fyne-io/fyne
 - go-keyring, Copyright (c) 2016 Zalando SE, MIT License
   https://github.com/zalando/go-keyring
+- zenity (macOS and Windows builds only: the native file and folder dialogs),
+  Copyright (c) 2019-2026 Nuno Cruces, MIT License
+  https://github.com/ncruces/zenity
 - Inter 4.1 (font files Inter-Regular.ttf, Inter-SemiBold.ttf, embedded unmodified),
   Copyright (c) 2016 The Inter Project Authors, SIL Open Font License 1.1
   https://github.com/rsms/inter
   (license text: internal/ui/style/fonts/OFL.txt)
 
 Third-party Go modules included in the binary (build target macOS arm64, Windows x64,
-Linux x64; the union of all three; go-wsman-messages, Fyne and go-keyring are listed above):
+Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenity are listed above):
 
 - Go standard library, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://go.dev

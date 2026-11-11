@@ -35,6 +35,7 @@ var credits = []credit{
 	{"MeshCommander", "Apache-2.0", "https://github.com/Ylianst/MeshCommander"},
 	{"Fyne", "BSD-3-Clause", "https://github.com/fyne-io/fyne"},
 	{"go-keyring", "MIT", "https://github.com/zalando/go-keyring"},
+	{"zenity", "MIT", "https://github.com/ncruces/zenity"},
 	{"Inter", "OFL-1.1", "https://github.com/rsms/inter"},
 }
 

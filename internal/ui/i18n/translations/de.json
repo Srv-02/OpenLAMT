@@ -399,5 +399,6 @@
   "Application": "Anwendung",
   "Application {{.App}} · event {{.Event}}": "Anwendung {{.App}} · Ereignis {{.Event}}",
   "Details": "Details",
-  "{{.Log}} · entry {{.N}} of {{.Count}}": "{{.Log}} · Eintrag {{.N}} von {{.Count}}"
+  "{{.Log}} · entry {{.N}} of {{.Count}}": "{{.Log}} · Eintrag {{.N}} von {{.Count}}",
+  "ISO images": "ISO-Abbilder"
 }

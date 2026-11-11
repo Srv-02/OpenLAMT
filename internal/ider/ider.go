@@ -98,7 +98,6 @@ type Stats struct {
 	BytesRead int64     // image data bytes sent to the host (a padded last sector counts in full)
 	Reads     int64     // served READ_6/READ_10/READ_12 commands
 	LastRead  time.Time // zero = nothing read yet
-	Attached  bool      // REGS_STATUS (STATUS_DATA type 2) bit 1: AMT reports the drive as active
 }
 
 var (
@@ -180,7 +179,6 @@ type Client struct {
 	bytesRead atomic.Int64
 	reads     atomic.Int64
 	lastRead  atomic.Int64 // unix nanoseconds, 0 = never
-	attached  atomic.Bool
 
 	closing  atomic.Bool
 	mu       sync.Mutex
@@ -427,8 +425,9 @@ func (c *Client) handleStatusData(b []byte) error {
 		if value&1 != 0 {
 			return c.sendToggle()
 		}
-	case 2: // REGS_STATUS
-		c.attached.Store(value&2 != 0)
+	case 2: // REGS_STATUS: only a reply to a status query, which neither the original nor this
+		// client sends (MeshCommander has it commented out); measured: AMT 16 never sends it
+		// unsolicited, so it carries no information here.
 	case 3: // REGS_TOGGLE: Dial evaluates the first reply; later ones are ignored like the original
 		if !c.toggled {
 			c.toggled, c.toggleV = true, value
@@ -492,7 +491,6 @@ func (c *Client) Stats() Stats {
 		ImageSize: c.size,
 		BytesRead: c.bytesRead.Load(),
 		Reads:     c.reads.Load(),
-		Attached:  c.attached.Load(),
 	}
 	if ns := c.lastRead.Load(); ns != 0 {
 		s.LastRead = time.Unix(0, ns)

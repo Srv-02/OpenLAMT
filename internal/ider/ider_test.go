@@ -290,7 +290,7 @@ func TestDial_SessionSetupWire(t *testing.T) {
 	if f.c.Err() != nil || img.closed.Load() != 0 {
 		t.Fatalf("err %v closed %d", f.c.Err(), img.closed.Load())
 	}
-	if s := f.c.Stats(); s.ImageSize != 4096 || s.Started.IsZero() || s.Reads != 0 || !s.LastRead.IsZero() || s.Attached {
+	if s := f.c.Stats(); s.ImageSize != 4096 || s.Started.IsZero() || s.Reads != 0 || !s.LastRead.IsZero() {
 		t.Fatalf("stats %+v", s)
 	}
 }
@@ -827,8 +827,7 @@ func TestPingPongAndReset(t *testing.T) {
 func TestStats(t *testing.T) {
 	img := newImage(10 * 2048)
 	f := establish(t, img, fixtureOpts{})
-	f.p.StatusData(t, 2, 2) // REGS_STATUS bit 1
-	waitFor(t, func() bool { return f.c.Stats().Attached })
+	f.p.StatusData(t, 2, 2) // REGS_STATUS is accepted and ignored
 	f.p.Written(t, read10(0, 4), cdFlags, 0)
 	f.readTransfer(t, 0xb0, false, 8192, 4*2048)
 	f.p.Written(t, read10(4, 1), cdFlags, 0)
@@ -839,8 +838,9 @@ func TestStats(t *testing.T) {
 	if s.BytesRead != 5*2048 || s.ImageSize != int64(len(img.data)) || s.LastRead.IsZero() || s.LastRead.After(before) {
 		t.Fatalf("stats %+v", s)
 	}
-	f.p.StatusData(t, 2, 0)
-	waitFor(t, func() bool { return !f.c.Stats().Attached })
+	if f.c.Err() != nil {
+		t.Fatal(f.c.Err())
+	}
 }
 
 func TestClose(t *testing.T) {

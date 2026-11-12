@@ -127,9 +127,10 @@ jobs:
           path: ${{ steps.go-cache.outputs.paths }}
       - name: Install Fyne dependencies (Linux)
         if: runner.os == 'Linux'
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
       - name: go test
         # Stays on every platform: tests on real macOS and Windows have found failures the
         # Linux CI did not see.

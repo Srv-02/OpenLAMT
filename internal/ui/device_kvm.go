@@ -214,7 +214,8 @@ func (d *DeviceWindow) resumeAfterPower(action amt.PowerAction, err error) {
 		return
 	}
 	d.resumeNow, d.resumeTries = false, 0
-	d.resumeNeedOff = action == amt.PowerOff || action == amt.PowerShutdown
+	// An unreadable power state (powerDenied) cannot show the device as off: only the wait counts.
+	d.resumeNeedOff = (action == amt.PowerOff || action == amt.PowerShutdown) && !d.powerDenied
 	d.armResume()
 }
 
@@ -227,9 +228,9 @@ func (d *DeviceWindow) armResume() {
 
 // resumeCheck runs at every status read and connects KVM again (connectKVM with resume: the
 // quality of the next connection, no wake key, no error dialog) once a pending resume may: the
-// device is on, the wait is over and, after Power Off or Shutdown, it was read as off before.
+// device is on (or its power state may not be read, powerDenied: then it is assumed on), the wait is over and, after Power Off or Shutdown, it was read as off before.
 func (d *DeviceWindow) resumeCheck() {
-	if !d.resumeKVM || d.resumeAt.IsZero() || !d.powerKnown || d.powerBusy || d.aborted || d.closed ||
+	if !d.resumeKVM || d.resumeAt.IsZero() || !(d.powerKnown || d.powerDenied) || d.powerBusy || d.aborted || d.closed ||
 		d.kvmClient != nil || d.kvmBusy || d.kvmReconnecting {
 		return
 	}
@@ -237,7 +238,7 @@ func (d *DeviceWindow) resumeCheck() {
 		d.resumeNeedOff = false
 	}
 	switch {
-	case d.powerState == models.PowerStateOn && !d.resumeNeedOff && !time.Now().Before(d.resumeAt):
+	case (d.powerDenied || d.powerState == models.PowerStateOn) && !d.resumeNeedOff && !time.Now().Before(d.resumeAt):
 		d.resumeKVM, d.resumeNow = false, false
 		d.connectKVM(true)
 	case d.resumeNow: // the action failed and the device is not on: nothing to come back to

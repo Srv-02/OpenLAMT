@@ -607,7 +607,7 @@ func (w *manageWindow) relayoutHead() {
 // last status read: "192.0.2.10 · AMT 16.1 · ACM".
 func (w *manageWindow) refreshHead() {
 	st, known := w.m.status()
-	w.dot.SetState(powerDot(known, st.PowerState))
+	w.dot.SetState(powerDot(known && st.Allowed(amt.StatusPower), st.PowerState))
 	sub := w.m.deps.host
 	if v := majorMinor(st.AMTVersion); known && v != "" {
 		sub += " · AMT " + v

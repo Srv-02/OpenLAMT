@@ -58,6 +58,7 @@ type DeviceWindow struct {
 	emptyBtn                  *widgets.PrimaryButton
 	powerState                models.PowerState // last read state, valid if powerKnown
 	powerKnown, powerBusy     bool              // powerBusy: a power action runs
+	powerDenied               bool              // read, but the account may not see the power state; powerKnown is false then
 	canShutdown               bool              // the device lists Off - Soft Graceful (12) in its power states
 	content                   fyne.CanvasObject // normal window content
 	kvmArea                   *fyne.Container   // holds the view (moved out in full screen)
@@ -305,14 +306,16 @@ func (d *DeviceWindow) apply(st amt.Status, err error) {
 	case err != nil && isMismatch(err):
 		d.abort(err)
 	case err != nil:
-		d.powerKnown = false
+		d.powerKnown, d.powerDenied = false, false
 		d.showPower()
 		d.setMessage(describe(err))
 	default:
-		d.powerState, d.powerKnown = st.PowerState, true
+		d.powerKnown = st.Allowed(amt.StatusPower)
+		d.powerDenied = !d.powerKnown
+		d.powerState = st.PowerState
 		d.canShutdown = slices.Contains(st.PowerStates, power.PowerOffSoftGraceful)
 		d.showPower()
-		d.setVersion(st.AMTVersion, string(st.ControlMode))
+		d.setVersion(st)
 		d.setMessage("")
 	}
 	d.lastStatus, d.statusKnown = st, !d.aborted && err == nil
@@ -341,7 +344,7 @@ func (d *DeviceWindow) abort(err error) {
 	d.aborted = true
 	d.forgetResume()
 	d.shutdown()
-	d.powerKnown = false
+	d.powerKnown, d.powerDenied = false, false
 	d.closeMenus()
 	d.showPower()
 	d.setKVMControls()

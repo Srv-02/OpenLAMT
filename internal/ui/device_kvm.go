@@ -175,16 +175,17 @@ func (d *DeviceWindow) connectKVM(resume bool) {
 }
 
 // autoConnect connects KVM once per opened window (Show), at the first successful status read
-// after the favorite's override is known: only when the device is on and the override, else
-// the global setting, asks for it. A device that is off, or any other state, ends the single
-// chance without an attempt; failed reads wait for the next one. The consent dialog appears as
-// for a click.
+// after the favorite's override is known: only when the device is on, or the account may not
+// read the power state (a KVM-only account), and the override, else the global setting, asks
+// for it. A device that is off, or any other state, ends the single chance without an attempt;
+// failed reads wait for the next one. The consent dialog appears as for a click. With a denied
+// power state a device that is off gives the normal KVM error, as for a click.
 func (d *DeviceWindow) autoConnect() {
-	if !d.autoWait || !d.autoLoaded || !d.powerKnown || d.aborted || d.closed {
+	if !d.autoWait || !d.autoLoaded || !(d.powerKnown || d.powerDenied) || d.aborted || d.closed {
 		return
 	}
 	d.autoWait = false
-	if d.powerState == models.PowerStateOn && d.settings.AutoConnectFor(d.autoOverride) {
+	if (d.powerDenied || d.powerState == models.PowerStateOn) && d.settings.AutoConnectFor(d.autoOverride) {
 		d.connectKVM(false)
 	}
 }

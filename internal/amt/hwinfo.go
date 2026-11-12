@@ -105,8 +105,10 @@ func xmlOf(m *client.Message) string {
 }
 
 // hwClass enumerates one CIM class. A missing class (SOAP fault on Enumerate) yields no items and no error,
-// AccessDenied yields ErrAccessDenied, everything else aborts with the class name.
-func hwClass[T any](class string, enum func() (string, error), pull func(string) ([]T, string, error)) ([]T, error) {
+// AccessDenied yields ErrAccessDenied, everything else aborts with the class name. For a core class
+// (one every supported firmware has) the DestinationUnreachable fault of the Enumerate call is a
+// missing permission, not a missing class, and yields ErrAccessDenied too (see coreClassDenied).
+func hwClass[T any](class string, core bool, enum func() (string, error), pull func(string) ([]T, string, error)) ([]T, error) {
 	enumFailed := false
 	items, err := enumeratePull(func() (string, error) {
 		ctx, err := enum()
@@ -118,6 +120,9 @@ func hwClass[T any](class string, enum func() (string, error), pull func(string)
 	}
 	if denied := accessDenied(err, "hardware info: "+class); errors.Is(denied, ErrAccessDenied) {
 		return nil, denied
+	}
+	if core && enumFailed && coreClassDenied(err) {
+		return nil, fmt.Errorf("hardware info: %s: %w", class, ErrAccessDenied)
 	}
 	var amtErr *amterror.AMTError
 	if enumFailed && errors.As(err, &amtErr) {
@@ -132,7 +137,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 	var hw HardwareInfo
 	c := d.msgs.CIM
 
-	pkgs, err := hwClass("CIM_ComputerSystemPackage",
+	pkgs, err := hwClass("CIM_ComputerSystemPackage", true,
 		func() (string, error) {
 			r, err := c.ComputerSystemPackage.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -148,7 +153,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 		hw.System.UUID = formatPlatformGUID(pkgs[0].PlatformGUID)
 	}
 
-	chassisItems, err := hwClass("CIM_Chassis",
+	chassisItems, err := hwClass("CIM_Chassis", true,
 		func() (string, error) {
 			r, err := c.Chassis.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -169,7 +174,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 		hw.System.ChassisType = enumText(ch.ChassisPackageType.String())
 	}
 
-	cards, err := hwClass("CIM_Card",
+	cards, err := hwClass("CIM_Card", false,
 		func() (string, error) {
 			r, err := c.Card.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -191,7 +196,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 		}
 	}
 
-	biosItems, err := hwClass("CIM_BIOSElement",
+	biosItems, err := hwClass("CIM_BIOSElement", false,
 		func() (string, error) {
 			r, err := c.BIOSElement.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -218,7 +223,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 		}
 	}
 
-	procs, err := hwClass("CIM_Processor",
+	procs, err := hwClass("CIM_Processor", false,
 		func() (string, error) {
 			r, err := c.Processor.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -233,7 +238,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 
 	// The Chip enumeration continues with CIM_PhysicalMemory items (a CIM subclass); the
 	// CIM_Chip item parser drops them.
-	chips, err := hwClass("CIM_Chip",
+	chips, err := hwClass("CIM_Chip", false,
 		func() (string, error) {
 			r, err := c.Chip.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -261,7 +266,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 		hw.CPUs = append(hw.CPUs, cpu)
 	}
 
-	mems, err := hwClass("CIM_PhysicalMemory",
+	mems, err := hwClass("CIM_PhysicalMemory", false,
 		func() (string, error) {
 			r, err := c.PhysicalMemory.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -291,7 +296,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 		hw.Memory = append(hw.Memory, mod)
 	}
 
-	drives, err := hwClass("CIM_MediaAccessDevice",
+	drives, err := hwClass("CIM_MediaAccessDevice", false,
 		func() (string, error) {
 			r, err := c.MediaAccessDevice.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err
@@ -311,7 +316,7 @@ func (d *Device) HardwareInfo() (HardwareInfo, error) {
 		hw.Drives = append(hw.Drives, Drive{ID: strings.TrimSpace(dr.DeviceID), CapacityBytes: dr.MaxMediaSize * 1000})
 	}
 
-	sw, err := hwClass("CIM_SoftwareIdentity",
+	sw, err := hwClass("CIM_SoftwareIdentity", false,
 		func() (string, error) {
 			r, err := c.SoftwareIdentity.Enumerate()
 			return r.Body.EnumerateResponse.EnumerationContext, err

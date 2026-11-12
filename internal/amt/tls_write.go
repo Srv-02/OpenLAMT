@@ -132,7 +132,7 @@ func (d *Device) tlsBinding() (string, bool, error) {
 // holds and the one it presents for TLS. Nothing is written.
 func (d *Device) TLSCertificates() ([]Certificate, error) {
 	const op = "read certificates"
-	certs, err := pullObjects(classPublicKeyCert, func() (*client.Message, string, error) {
+	certs, err := pullObjects(classPublicKeyCert, false, func() (*client.Message, string, error) {
 		r, err := d.msgs.AMT.PublicKeyCertificate.Enumerate()
 		return r.Message, r.Body.EnumerateResponse.EnumerationContext, err
 	}, func(ctx string) (*client.Message, error) {
@@ -142,7 +142,7 @@ func (d *Device) TLSCertificates() ([]Certificate, error) {
 	if err != nil {
 		return nil, writeError(op, err)
 	}
-	keys, err := pullObjects(classKeyPair, func() (*client.Message, string, error) {
+	keys, err := pullObjects(classKeyPair, false, func() (*client.Message, string, error) {
 		r, err := d.msgs.AMT.PublicPrivateKeyPair.Enumerate()
 		return r.Message, r.Body.EnumerateResponse.EnumerationContext, err
 	}, func(ctx string) (*client.Message, error) {

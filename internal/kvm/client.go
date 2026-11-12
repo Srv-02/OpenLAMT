@@ -40,6 +40,7 @@ var ErrClosed = errors.New("kvm: session closed")
 // Client is one authenticated KVM session with a running read loop.
 type Client struct {
 	conn    net.Conn
+	raw     net.Conn // underlying TCP connection, see abort
 	wmu     sync.Mutex
 	fb      *Framebuffer
 	name    string
@@ -97,7 +98,7 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 	conn, br := rc.Conn, rc.R
 
 	c := &Client{
-		conn: conn, fb: newFramebuffer(w, h), name: name, quality: cfg.Quality, started: time.Now(),
+		conn: conn, raw: rc.Raw, fb: newFramebuffer(w, h), name: name, quality: cfg.Quality, started: time.Now(),
 		frameCh: make(chan struct{}), done: make(chan struct{}),
 	}
 	s := newSession(br, c.send, c.fb, cfg.Quality)
@@ -141,7 +142,18 @@ func (c *Client) finish(err error) {
 		close(c.done)
 	}
 	c.mu.Unlock()
-	c.conn.Close()
+	c.abort()
+}
+
+// abort closes the raw connection. tls.Conn.Close would first send close_notify with its own
+// 5 s write deadline, which blocks when the peer stopped reading.
+func (c *Client) abort() {
+	if c.raw == nil {
+		_ = c.conn.Close()
+		return
+	}
+	_ = c.raw.SetDeadline(time.Unix(1, 0))
+	_ = c.raw.Close()
 }
 
 // Size returns the current screen size.
@@ -215,7 +227,7 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	c.closed = true
 	c.mu.Unlock()
-	c.conn.Close()
+	c.abort()
 	<-c.done
 	return nil
 }

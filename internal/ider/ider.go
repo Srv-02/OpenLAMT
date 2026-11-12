@@ -519,8 +519,8 @@ func (c *Client) finish(err error) {
 	}
 	c.mu.Unlock()
 	_ = c.raw.SetDeadline(time.Unix(1, 0))
-	c.conn.Close()
-	c.stopPinger() // after the past deadline, so a ping blocked in Write returns at once
+	_ = c.raw.Close() // not c.conn: tls.Conn.Close would block up to 5 s sending close_notify
+	c.stopPinger()    // after the past deadline, so a ping blocked in Write returns at once
 	imgErr := c.img.Close()
 	c.mu.Lock()
 	c.imgErr = imgErr
@@ -563,7 +563,7 @@ func (c *Client) Stats() Stats {
 func (c *Client) Close() error {
 	c.closing.Store(true)
 	_ = c.raw.SetDeadline(time.Unix(1, 0))
-	c.conn.Close()
+	_ = c.raw.Close() // not c.conn: tls.Conn.Close would block up to 5 s sending close_notify
 	<-c.done
 	c.mu.Lock()
 	defer c.mu.Unlock()

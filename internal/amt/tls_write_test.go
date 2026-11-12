@@ -176,6 +176,7 @@ func TestTLSCertificatesWithoutBinding(t *testing.T) {
 }
 
 func TestSetTLSNeedsConfirmation(t *testing.T) {
+	testCerts(t)
 	for name, c := range map[string]struct {
 		change TLSChange
 		fields []string

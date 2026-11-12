@@ -101,6 +101,8 @@ func TestDescribeNetworkErrors(t *testing.T) {
 		// A connection the OS aborted after the TCP user timeout (read or write on the open socket) ...
 		{&net.OpError{Op: "read", Net: "tcp", Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.10"), Port: 16994}, Err: os.NewSyscallError("read", syscall.ETIMEDOUT)}, "192.0.2.10 is unreachable or the connection timed out."},
 		{fmt.Errorf("sol: %w", &net.OpError{Op: "write", Net: "tcp", Err: errnoTimedOut[len(errnoTimedOut)-1]}), "The device is unreachable or the connection timed out."},
+		// Windows may report the expired TCP user timeout as WSAECONNABORTED; the list is empty elsewhere.
+		{fmt.Errorf("kvm: %w", &net.OpError{Op: "read", Net: "tcp", Err: abortedErrno()}), "The device is unreachable or the connection timed out."},
 		// ... but a dial that ran into ETIMEDOUT is only "did not answer".
 		{&net.OpError{Op: "dial", Net: "tcp", Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.10"), Port: 16993}, Err: syscall.ETIMEDOUT}, "192.0.2.10 did not answer in time."},
 		{tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"}, "The device does not speak TLS on this port."},
@@ -111,6 +113,15 @@ func TestDescribeNetworkErrors(t *testing.T) {
 			t.Errorf("describe(%v)\n got %q\nwant %q", c.err, got, c.want)
 		}
 	}
+}
+
+// abortedErrno is the platform's errnoAborted entry (WSAECONNABORTED on Windows), or ETIMEDOUT
+// where the list is empty, so that the case runs on every platform.
+func abortedErrno() error {
+	if len(errnoAborted) > 0 {
+		return errnoAborted[0]
+	}
+	return syscall.ETIMEDOUT
 }
 
 // TestDescribeRealRefusedDial checks the error chain of a real dial against a closed port.

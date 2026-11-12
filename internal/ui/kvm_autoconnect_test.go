@@ -78,7 +78,7 @@ func autoDeviceSetup(t *testing.T, dev *sessionFake, global bool, store fakeFavo
 		}
 		drain()
 		if h.d.kvmClient != nil {
-			test.Tap(h.d.kvm)
+			tapKVM(h.d)
 			drain()
 		}
 	})
@@ -175,7 +175,7 @@ func TestAutoConnectWaitsForFirstSuccessfulStatus(t *testing.T) {
 	h.d.apply(powerOn, nil)
 	wantConnected(t, h)
 	// Disconnect: the chance is used up, a further status does not reconnect.
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	recv(t, h.changed)
 	h.d.apply(powerOn, nil)
 	time.Sleep(150 * time.Millisecond)
@@ -199,7 +199,7 @@ func TestAutoConnectNotAfterManualClickBeforeQualityLoaded(t *testing.T) {
 	dev := &sessionFake{St: powerOn, Consent: true, ConsentCode: "123456"}
 	h, loaded := autoDeviceSetup(t, dev, true, fakeFavorites{block: block}, nil)
 	h.d.apply(powerOn, nil)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	answer := <-h.asked
 	answer("", false)  // cancel the consent dialog
 	recv(t, h.changed) // kvmOpened with the cancelled connect: the channel orders its writes before the reads below
@@ -219,7 +219,7 @@ func TestAdoptQualityDuringConnectReconnectsAfterOpen(t *testing.T) {
 	setReconnect(t, time.Hour, 10*time.Millisecond)
 	dev := &sessionFake{Consent: true, ConsentCode: "123456"}
 	h := newKVMDevice(t, dev, kvmtest.Options{})
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	answer := <-h.asked
 	h.d.adoptQuality(kvm.QualityLow)
 	if !h.d.adoptPending || h.d.kvmQuality != kvm.QualityLow {
@@ -234,6 +234,6 @@ func TestAdoptQualityDuringConnectReconnectsAfterOpen(t *testing.T) {
 	if q := dev.Qualities(); len(q) != 2 || q[0] != kvm.QualityHigh || q[1] != kvm.QualityLow {
 		t.Fatalf("qualities %v", q)
 	}
-	test.Tap(h.d.kvm) // end the session and wait for its end, so nothing runs when the window closes
+	tapKVM(h.d) // end the session and wait for its end, so nothing runs when the window closes
 	recv(t, h.changed)
 }

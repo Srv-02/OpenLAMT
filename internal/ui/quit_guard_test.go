@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
 
 	"fyne.io/fyne/v2"
@@ -53,7 +54,11 @@ func (q *quitHarness) mainClosed() bool { return q.quits > 0 }
 
 func (q *quitHarness) addDevice(name string, kvmBusy bool) *DeviceWindow {
 	d := &DeviceWindow{win: q.h.s.app.NewWindow(name), kvmBusy: kvmBusy}
-	d.win.SetOnClosed(func() { q.closed[name] = true })
+	d.win.SetOnClosed(func() { // like addDevice of the start window
+		q.closed[name] = true
+		d.closed = true
+		delete(q.h.s.open, name)
+	})
 	d.win.SetCloseIntercept(func() { q.h.s.requestClose(d.win) })
 	q.h.s.open[name] = d
 	return d
@@ -214,5 +219,136 @@ func TestProductionWindowsRouteCloseRequestsThroughTheGuard(t *testing.T) {
 	q.pass(d2.win, q.h.s.win) // Cmd+Q: every window gets its request
 	if _, _, shown := q.dialog(); !shown {
 		t.Fatal("quit with a KVM session did not ask")
+	}
+}
+
+// mountOn marks an image as mounted on d (no IDE-R session: the quit guard only asks).
+func mountOn(d *DeviceWindow, iso string) {
+	d.media = &mediaPanel{d: d, phase: mediaMounted, name: iso}
+}
+
+// isoQuestion returns Keep Open and Unmount and Close of the ISO question on d, or nil.
+func isoQuestion(d *DeviceWindow) []*escButton {
+	top := d.win.Canvas().Overlays().Top()
+	if top == nil || d.media == nil || d.media.closeAsk == nil {
+		return nil
+	}
+	return panelButtons(top)
+}
+
+func TestQuitWithISOAsksOnTheDeviceWindow(t *testing.T) {
+	q := newQuitHarness(t)
+	a := q.addDevice("a", false)
+	mountOn(a, "alpine-standard.iso")
+	q.quit()
+	bs := isoQuestion(a)
+	if len(bs) != 2 || q.mainClosed() || q.closed["a"] {
+		t.Fatalf("no ISO question: buttons %d quits %d closed %v", len(bs), q.quits, q.closed)
+	}
+	if _, _, shown := q.dialog(); shown {
+		t.Fatal("KVM question on the main window as well")
+	}
+	q.quit()        // a second Cmd+Q while the question is open adds nothing
+	test.Tap(bs[0]) // Keep Open: the quit stops
+	if q.mainClosed() || q.closed["a"] || q.h.s.quitAsking || a.media.closeAsk != nil {
+		t.Fatalf("Keep Open: quits %d closed %v asking %v", q.quits, q.closed, q.h.s.quitAsking)
+	}
+	q.quit()
+	bs = isoQuestion(a)
+	if len(bs) != 2 {
+		t.Fatal("no question at the second quit")
+	}
+	test.Tap(bs[1]) // Unmount and Close: the window closes, then the app quits
+	if !q.closed["a"] || q.quits != 1 {
+		t.Fatalf("Unmount and Close: quits %d closed %v", q.quits, q.closed)
+	}
+}
+
+// TestQuitAsksISOFirstThenKVMForTheOthers: every window with an ISO is asked in turn (one
+// question per window), then the KVM question counts only the windows that are still open.
+func TestQuitAsksISOFirstThenKVMForTheOthers(t *testing.T) {
+	englishUI(t)
+	q := newQuitHarness(t)
+	a := q.addDevice("a", true) // ISO and KVM: only the ISO question
+	mountOn(a, "a.iso")
+	b := q.addDevice("b", false)
+	mountOn(b, "b.iso")
+	q.addDevice("c", true)
+	q.quit()
+	asked := 0
+	for i := 0; i < 2; i++ {
+		var d *DeviceWindow
+		for _, x := range []*DeviceWindow{a, b} {
+			if isoQuestion(x) != nil {
+				if d != nil {
+					t.Fatal("two ISO questions at once")
+				}
+				d = x
+			}
+		}
+		if d == nil {
+			t.Fatalf("question %d missing", i+1)
+		}
+		if _, _, shown := q.dialog(); shown {
+			t.Fatal("KVM question before the ISO questions are answered")
+		}
+		test.Tap(isoQuestion(d)[1])
+		asked++
+	}
+	if !q.closed["a"] || !q.closed["b"] || q.mainClosed() {
+		t.Fatalf("closed %v quits %d", q.closed, q.quits)
+	}
+	_, action, shown := q.dialog()
+	if !shown || labelText(q.h.s.win, "KVM session") != "A KVM session is still open. It is closed when you quit." {
+		t.Fatalf("KVM question: shown %v text %q", shown, labelText(q.h.s.win, "KVM session"))
+	}
+	test.Tap(action)
+	if q.quits != 1 {
+		t.Fatalf("quits %d", q.quits)
+	}
+}
+
+// TestQuitTakesOverAnOpenISOQuestion: the question of a red close button that is still open
+// becomes the quit's question instead of a second one.
+func TestQuitTakesOverAnOpenISOQuestion(t *testing.T) {
+	q := newQuitHarness(t)
+	a := q.addDevice("a", false)
+	mountOn(a, "a.iso")
+	q.pass(a.win) // red button
+	first := a.media.closeAsk
+	if first == nil {
+		t.Fatal("no question")
+	}
+	q.quit()
+	if a.media.closeAsk != first || len(a.win.Canvas().Overlays().List()) != 1 {
+		t.Fatalf("second question: %d overlays", len(a.win.Canvas().Overlays().List()))
+	}
+	test.Tap(isoQuestion(a)[1])
+	if !q.closed["a"] || q.quits != 1 {
+		t.Fatalf("quits %d closed %v", q.quits, q.closed)
+	}
+}
+
+func TestPendingWorkWaitsWithATimeLimit(t *testing.T) {
+	var nilWork *pendingWork
+	if !nilWork.wait(time.Millisecond) {
+		t.Fatal("nil work is idle")
+	}
+	nilWork.add()()
+	p := &pendingWork{}
+	if !p.wait(time.Millisecond) {
+		t.Fatal("no work is idle")
+	}
+	done := p.add()
+	if p.wait(10 * time.Millisecond) {
+		t.Fatal("did not wait for the work")
+	}
+	go func() { time.Sleep(10 * time.Millisecond); done(); done() }()
+	if !p.wait(5 * time.Second) {
+		t.Fatal("work done but still waiting")
+	}
+	p.add()()
+	if !p.wait(time.Millisecond) {
+		t.Fatal("reuse")
 	}
 }

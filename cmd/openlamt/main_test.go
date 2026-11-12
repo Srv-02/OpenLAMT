@@ -1,12 +1,15 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"testing"
 
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/test"
 
+	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/ui"
 	"github.com/Srv-02/openlamt/internal/ui/i18n"
 )
@@ -53,5 +56,25 @@ func TestInitLanguageDefaultIsSystem(t *testing.T) {
 		if got := lang.L("Settings"); got != want {
 			t.Errorf("system %s: %q, want %q", sys, got, want)
 		}
+	}
+}
+
+// TestCleanMediaCacheRemovesLeftoverISOs: the start removes folder ISOs of an earlier run.
+func TestCleanMediaCacheRemovesLeftoverISOs(t *testing.T) {
+	cache := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", cache) // Linux
+	t.Setenv("HOME", cache)           // macOS
+	t.Setenv("LocalAppData", cache)   // Windows
+	cd, err := mkiso.CacheDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	left := filepath.Join(cd, "1234.iso")
+	if err := os.WriteFile(left, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cleanMediaCache()
+	if _, err := os.Stat(left); !os.IsNotExist(err) {
+		t.Fatalf("leftover ISO still there: %v", err)
 	}
 }

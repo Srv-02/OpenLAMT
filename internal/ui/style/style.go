@@ -43,6 +43,8 @@ const (
 	ColorNameDangerTile     fyne.ThemeColorName = "openlamt-danger-tile"      // rgba(255,69,58,0.16) confirm dialog icon tile
 	ColorNameErrorText      fyne.ThemeColorName = "openlamt-error-text"       // red warning text (dark #FF6961, light #D70015); "error" stays the red button fill
 	ColorNameLetterbox      fyne.ThemeColorName = "openlamt-letterbox"        // #0B0B0C area around the framebuffer
+	ColorNameConsole        fyne.ThemeColorName = "openlamt-console"          // #0B0D10 SOL console stage, dark in both variants (Console.dc.html)
+	ColorNameConsoleText    fyne.ThemeColorName = "openlamt-console-text"     // #D7DAE0 SOL console text, light in both variants (Console.dc.html)
 	ColorNameEmptyStateTile fyne.ThemeColorName = "openlamt-empty-state-tile" // #1C1C1E icon tile of the "not connected" state
 	ColorNameWhite          fyne.ThemeColorName = "openlamt-white"            // #FFFFFF text on accent, selected row
 	ColorNameDialogCard     fyne.ThemeColorName = "openlamt-dialog-card"      // #232326 cards inside the About and settings dialogs
@@ -59,6 +61,43 @@ const (
 	ColorNameTagline        fyne.ThemeColorName = "openlamt-tagline"          // #D1D1D6 tagline of the About dialog
 	ColorNameMenuPanel      fyne.ThemeColorName = "openlamt-menu-panel"       // #2C2C2F (97 %) popup menu panel
 	ColorNameMenuShadow     fyne.ThemeColorName = "openlamt-menu-shadow"      // rgba(0,0,0,0.55) shadow of the popup menu
+)
+
+// Design-only color names of the device management design (Main, WindowB, Settings, Dialogs,
+// Danger .dc.html). The comments give the light values of the mockups; the dark values are
+// derived. Existing tokens cover the rest: the navigation background is ColorNameSidebar, the
+// selected navigation item "selection", table outlines ColorNameCardBorder, table row lines
+// ColorNameCardSeparator, the green status dot style.StatusColor.
+const (
+	ColorNameSegment          fyne.ThemeColorName = "openlamt-segment"            // #EDEDF0 segmented control track
+	ColorNameSegmentActive    fyne.ThemeColorName = "openlamt-segment-active"     // #FFFFFF selected segment
+	ColorNameSegmentShadow    fyne.ThemeColorName = "openlamt-segment-shadow"     // rgba(0,0,0,0.14) shadow under the selected segment
+	ColorNameAccentText       fyne.ThemeColorName = "openlamt-accent-text"        // #0A64D6 text and symbol of a selected segment or toggled toolbar item
+	ColorNameAccentTint       fyne.ThemeColorName = "openlamt-accent-tint"        // #E8F1FE toggled toolbar item (Manage), info question tile
+	ColorNameSidePanel        fyne.ThemeColorName = "openlamt-side-panel"         // #FBFBFC device management sidebar
+	ColorNameTableHeader      fyne.ThemeColorName = "openlamt-table-header"       // #F7F7F8 log table header row
+	ColorNameControlBorder    fyne.ThemeColorName = "openlamt-control-border"     // #D9D9DE chips, filter field, inputs, secondary buttons
+	ColorNameControlText      fyne.ThemeColorName = "openlamt-control-text"       // #3A3A3C captions of segments and chips
+	ColorNameChipActive       fyne.ThemeColorName = "openlamt-chip-active"        // #1C1C1E selected filter chip
+	ColorNameChipActiveText   fyne.ThemeColorName = "openlamt-chip-active-text"   // #FFFFFF text of a selected filter chip
+	ColorNameSeverityInfo     fyne.ThemeColorName = "openlamt-severity-info"      // #6E6E73 event log dot "Info"
+	ColorNameSeverityWarning  fyne.ThemeColorName = "openlamt-severity-warning"   // #C75300 event log dot "Warning"
+	ColorNameSeverityCritical fyne.ThemeColorName = "openlamt-severity-critical"  // #C2001A event log dot "Critical"
+	ColorNameDanger           fyne.ThemeColorName = "openlamt-danger"             // #C2001A danger button fill, border of a mistyped confirmation
+	ColorNameDangerDisabled   fyne.ThemeColorName = "openlamt-danger-disabled"    // #EBC2C8 disabled danger button
+	ColorNameDangerSurface    fyne.ThemeColorName = "openlamt-danger-surface"     // #FDE8EA danger zone card, red warning box
+	ColorNameDangerZoneBorder fyne.ThemeColorName = "openlamt-danger-zone-border" // #E9A3AD danger zone card border
+	ColorNameDangerBoxBorder  fyne.ThemeColorName = "openlamt-danger-box-border"  // #F0B8C0 red warning box border
+	ColorNameDangerZoneText   fyne.ThemeColorName = "openlamt-danger-zone-text"   // #A3001A danger zone heading and text
+	ColorNameDangerBoxText    fyne.ThemeColorName = "openlamt-danger-box-text"    // #7A0014 red warning box text
+	ColorNameSignedInSurface  fyne.ThemeColorName = "openlamt-signed-in-surface"  // #FFF5F6 Edit button of the signed-in account (Users.dc.html)
+	ColorNameSignedInBorder   fyne.ThemeColorName = "openlamt-signed-in-border"   // #E7B3BA its border; its text is ColorNameDangerZoneText
+	ColorNameWarningSurface   fyne.ThemeColorName = "openlamt-warning-surface"    // #FFF1E5 orange warning box, orange question tile
+	ColorNameWarningBorder    fyne.ThemeColorName = "openlamt-warning-border"     // #F3CFAE orange warning box border
+	ColorNameWarningText      fyne.ThemeColorName = "openlamt-warning-text"       // #6B2C00 orange warning box text
+	ColorNameWarningIcon      fyne.ThemeColorName = "openlamt-warning-icon"       // #9A3F00 symbol in the orange question tile
+	ColorNameFilterClear      fyne.ThemeColorName = "openlamt-filter-clear"       // #C7C7CC round clear button of the filter field
+	ColorNameCodeBackground   fyne.ThemeColorName = "openlamt-code-background"    // #F2F2F4 behind the phrase in "Type … to confirm"
 )
 
 // Design-only text size names.
@@ -179,6 +218,8 @@ var darkColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameDangerTile:     color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.16)},
 	ColorNameErrorText:      rgb(0xFF6961), // 4.94:1 on #2C2C2F; #D70015 is 2.59:1
 	ColorNameLetterbox:      rgb(0x0B0B0C),
+	ColorNameConsole:        rgb(0x0B0D10), // derived: the light value, a terminal stays dark
+	ColorNameConsoleText:    rgb(0xD7DAE0), // derived: the light value, as the background
 	ColorNameEmptyStateTile: rgb(0x1C1C1E),
 	ColorNameWhite:          rgb(0xFFFFFF),
 	ColorNameDialogCard:     rgb(0x232326),
@@ -195,6 +236,37 @@ var darkColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameTagline:        rgb(0xD1D1D6),
 	ColorNameMenuPanel:      color.NRGBA{R: 0x2C, G: 0x2C, B: 0x2F, A: 0xF7},
 	ColorNameMenuShadow:     black(0.55),
+
+	// device management design, all derived
+	ColorNameSegment:          white(0.08),
+	ColorNameSegmentActive:    white(0.18),
+	ColorNameSegmentShadow:    black(0.40),
+	ColorNameAccentText:       rgb(0x4DA3FF),
+	ColorNameAccentTint:       color.NRGBA{R: 0x0A, G: 0x84, B: 0xFF, A: alpha(0.20)},
+	ColorNameSidePanel:        rgb(0x242426),
+	ColorNameTableHeader:      rgb(0x262628),
+	ColorNameControlBorder:    white(0.16),
+	ColorNameControlText:      rgb(0xD1D1D6),
+	ColorNameChipActive:       rgb(0xF5F5F7),
+	ColorNameChipActiveText:   rgb(0x1C1C1E),
+	ColorNameSeverityInfo:     rgb(0x98989D),
+	ColorNameSeverityWarning:  rgb(0xFF9F0A),
+	ColorNameSeverityCritical: rgb(0xFF6961),
+	ColorNameDanger:           rgb(0xD70015),
+	ColorNameDangerDisabled:   rgb(0x5A1E25),
+	ColorNameDangerSurface:    color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.12)},
+	ColorNameDangerZoneBorder: color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.45)},
+	ColorNameDangerBoxBorder:  color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.35)},
+	ColorNameDangerZoneText:   rgb(0xFF6961),
+	ColorNameDangerBoxText:    rgb(0xFF8A80),
+	ColorNameSignedInSurface:  color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.08)},
+	ColorNameSignedInBorder:   color.NRGBA{R: 0xFF, G: 0x45, B: 0x3A, A: alpha(0.40)},
+	ColorNameWarningSurface:   color.NRGBA{R: 0xFF, G: 0x9F, B: 0x0A, A: alpha(0.12)},
+	ColorNameWarningBorder:    color.NRGBA{R: 0xFF, G: 0x9F, B: 0x0A, A: alpha(0.40)},
+	ColorNameWarningText:      rgb(0xFFC78A),
+	ColorNameWarningIcon:      rgb(0xFF9F0A),
+	ColorNameFilterClear:      rgb(0x636366),
+	ColorNameCodeBackground:   white(0.10),
 }
 
 // lightColors is the light color table (issue #51). Values come from the light design handoff
@@ -257,6 +329,8 @@ var lightColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameDangerTile:     color.NRGBA{R: 0xFF, G: 0x3B, B: 0x30, A: alpha(0.12)}, // derived
 	ColorNameErrorText:      rgb(0xD70015),                                          // 5.38:1 on white
 	ColorNameLetterbox:      rgb(0xE3E3E6),
+	ColorNameConsole:        rgb(0x0B0D10),
+	ColorNameConsoleText:    rgb(0xD7DAE0),
 	ColorNameEmptyStateTile: rgb(0xF2F2F4), // derived
 	ColorNameWhite:          rgb(0xFFFFFF),
 	ColorNameDialogCard:     rgb(0xF5F5F7),
@@ -273,6 +347,37 @@ var lightColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameTagline:        rgb(0x3A3A3C), // derived
 	ColorNameMenuPanel:      rgb(0xFFFFFF),
 	ColorNameMenuShadow:     black(0.18), // derived
+
+	// device management design (mockups)
+	ColorNameSegment:          rgb(0xEDEDF0),
+	ColorNameSegmentActive:    rgb(0xFFFFFF),
+	ColorNameSegmentShadow:    black(0.14),
+	ColorNameAccentText:       rgb(0x0A64D6),
+	ColorNameAccentTint:       rgb(0xE8F1FE),
+	ColorNameSidePanel:        rgb(0xFBFBFC),
+	ColorNameTableHeader:      rgb(0xF7F7F8),
+	ColorNameControlBorder:    rgb(0xD9D9DE),
+	ColorNameControlText:      rgb(0x3A3A3C),
+	ColorNameChipActive:       rgb(0x1C1C1E),
+	ColorNameChipActiveText:   rgb(0xFFFFFF),
+	ColorNameSeverityInfo:     rgb(0x6E6E73),
+	ColorNameSeverityWarning:  rgb(0xC75300),
+	ColorNameSeverityCritical: rgb(0xC2001A),
+	ColorNameDanger:           rgb(0xC2001A),
+	ColorNameDangerDisabled:   rgb(0xEBC2C8),
+	ColorNameDangerSurface:    rgb(0xFDE8EA),
+	ColorNameDangerZoneBorder: rgb(0xE9A3AD),
+	ColorNameDangerBoxBorder:  rgb(0xF0B8C0),
+	ColorNameDangerZoneText:   rgb(0xA3001A),
+	ColorNameDangerBoxText:    rgb(0x7A0014),
+	ColorNameSignedInSurface:  rgb(0xFFF5F6),
+	ColorNameSignedInBorder:   rgb(0xE7B3BA),
+	ColorNameWarningSurface:   rgb(0xFFF1E5),
+	ColorNameWarningBorder:    rgb(0xF3CFAE),
+	ColorNameWarningText:      rgb(0x6B2C00),
+	ColorNameWarningIcon:      rgb(0x9A3F00),
+	ColorNameFilterClear:      rgb(0xC7C7CC),
+	ColorNameCodeBackground:   rgb(0xF2F2F4),
 }
 
 // variant is the current theme variant: theme.VariantLight, anything else counts as dark.

@@ -46,17 +46,17 @@ func sameActions(a, b []amt.PowerAction) bool {
 }
 
 // The Power menu offers only what applies to the power state; an unknown state offers all.
-// Shutdown additionally needs Off - Soft Graceful (12) in the device's power states.
+// Shutdown additionally needs Off - Soft Graceful (12) in the device's power states, Boot from
+// ISO a mounted ISO (none here; media_test.go).
 func TestPowerMenuFollowsPowerState(t *testing.T) {
 	englishUI(t)
 	h := newDevice(t, test.NewTempApp(t), &session.Fake{FP: fp}, true)
 	d := h.d
 	for _, states := range [][]power.PowerState{{5, 8, 2, 10, 11}, {2, 5, 8, 10, 11, 12}} {
 		graceful := slices.Contains(states, power.PowerOffSoftGraceful)
-		all := powerOrder
-		if !graceful {
-			all = slices.DeleteFunc(slices.Clone(powerOrder), func(a amt.PowerAction) bool { return a == amt.PowerShutdown })
-		}
+		all := slices.DeleteFunc(slices.Clone(powerOrder), func(a amt.PowerAction) bool {
+			return a == amt.BootToISO || a == amt.PowerShutdown && !graceful
+		})
 		on := []amt.PowerAction{amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS}
 		if graceful {
 			on = []amt.PowerAction{amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.PowerShutdown}
@@ -335,17 +335,17 @@ func TestEmptyStateAndStatusBar(t *testing.T) {
 	}
 	test.Tap(d.emptyBtn)
 	answer := <-h.asked
-	if d.emptyBtn.Text != lang.L("Cancel") || d.kvmLine.Text != "Connecting KVM…" || !d.kvm.Active() {
+	if d.emptyBtn.Text != lang.L("Cancel") || d.kvmLine.Text != "Connecting KVM…" || !d.kvmOn() {
 		t.Fatalf("connecting: %q %q", d.emptyBtn.Text, d.kvmLine.Text)
 	}
 	answer("123456", true)
 	recv(t, h.changed)
 	recv(t, h.frames)
-	if d.emptyState.Visible() || d.kvmLine.Text != "KVM connected" || !d.kvm.Active() {
+	if d.emptyState.Visible() || d.kvmLine.Text != "KVM connected" || !d.kvmOn() {
 		t.Fatalf("connected: empty=%v line=%q", d.emptyState.Visible(), d.kvmLine.Text)
 	}
 	h.disconnect(t)
-	if !d.emptyState.Visible() || d.kvmLine.Text != "KVM session closed." || d.kvm.Active() {
+	if !d.emptyState.Visible() || d.kvmLine.Text != "KVM session closed." || d.kvmOn() {
 		t.Fatalf("closed: empty=%v line=%q", d.emptyState.Visible(), d.kvmLine.Text)
 	}
 
@@ -379,37 +379,37 @@ func TestKVMLockedWhileOff(t *testing.T) {
 	d := h.d
 	for _, st := range []models.PowerState{models.PowerStateOffSoft, models.PowerStateOffHard} {
 		d.apply(amt.Status{PowerState: st}, nil)
-		if !d.emptyState.Visible() || d.emptyBtnBox.Visible() || !d.kvm.Disabled() {
-			t.Fatalf("%v: empty %v, button %v, KVM disabled %v", st, d.emptyState.Visible(), d.emptyBtnBox.Visible(), d.kvm.Disabled())
+		if !d.emptyState.Visible() || d.emptyBtnBox.Visible() || d.kvmToggleEnabled() {
+			t.Fatalf("%v: empty %v, button %v, KVM disabled %v", st, d.emptyState.Visible(), d.emptyBtnBox.Visible(), !d.kvmToggleEnabled())
 		}
 		if got := d.emptyText.String(); got != "Büro is powered off. Power it on to connect KVM." {
 			t.Errorf("%v: %q", st, got)
 		}
 	}
-	test.Tap(d.kvm)
+	tapKVM(d)
 	if d.kvmBusy || d.kvmClient != nil {
 		t.Fatal("KVM connects while the device is off")
 	}
 	for _, st := range []models.PowerState{models.PowerStateOn, models.PowerStateSleepDeep, models.PowerStateHibernate, models.PowerState(99)} {
 		d.apply(amt.Status{PowerState: st}, nil)
-		if !d.emptyBtnBox.Visible() || d.kvm.Disabled() {
-			t.Fatalf("%v: button %v, KVM disabled %v", st, d.emptyBtnBox.Visible(), d.kvm.Disabled())
+		if !d.emptyBtnBox.Visible() || !d.kvmToggleEnabled() {
+			t.Fatalf("%v: button %v, KVM disabled %v", st, d.emptyBtnBox.Visible(), !d.kvmToggleEnabled())
 		}
 	}
 	d.apply(amt.Status{PowerState: models.PowerStateOffSoft}, nil)
 	d.apply(amt.Status{}, errors.New("read failed")) // unknown again: connecting is possible
-	if !d.emptyBtnBox.Visible() || d.kvm.Disabled() {
+	if !d.emptyBtnBox.Visible() || !d.kvmToggleEnabled() {
 		t.Fatal("unknown state locks KVM")
 	}
 
 	d.apply(amt.Status{PowerState: models.PowerStateOn}, nil)
 	h.connect(t, true)
 	d.apply(amt.Status{PowerState: models.PowerStateOffSoft}, nil)
-	if d.kvm.Disabled() || !d.kvm.Active() {
+	if !d.kvmToggleEnabled() || !d.kvmOn() {
 		t.Fatal("open session cannot be closed while the device reads as off")
 	}
 	h.disconnect(t)
-	if !d.emptyState.Visible() || d.emptyBtnBox.Visible() || !d.kvm.Disabled() {
+	if !d.emptyState.Visible() || d.emptyBtnBox.Visible() || d.kvmToggleEnabled() {
 		t.Fatal("after closing: KVM not locked while off")
 	}
 }

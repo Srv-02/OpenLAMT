@@ -23,11 +23,12 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
-// DeviceWindow shows one connected device (design SessionA/SessionA2, issue #44): a toolbar
-// (Power menu, KVM, Quality, Keyboard, Ctrl+Alt+Del, Type Clipboard, Full Screen), banners for
-// the TLS warning and a failed status read, the KVM area with its empty state, and a status
-// bar (device_chrome.go builds these). KVM logic is in device_kvm.go. The status is polled by
-// a session.Poller.
+// DeviceWindow shows one connected device (design SessionA/SessionA2, issue #44, Main.dc.html):
+// a toolbar (Power menu, KVM|Console, Media, Quality, Ctrl+Alt+Del, Type Clipboard, Keyboard,
+// Manage, Full Screen), banners for the TLS warning and a failed status read, the KVM or
+// Console stage, the device management sidebar and a status bar (device_chrome.go and
+// device_views.go build these). KVM logic is in device_kvm.go. The status is polled by a
+// session.Poller.
 type DeviceWindow struct {
 	win      fyne.Window
 	sess     *session.Session
@@ -63,6 +64,8 @@ type DeviceWindow struct {
 	aborted                   bool              // certificate mismatch: session is dead
 	released                  bool              // onClosed already called
 	closed                    bool              // user closed the window
+	exitWork                  *pendingWork      // the start window's: unmounting the process waits for; nil in tests
+	mainWin                   fyne.Window       // the start window; nil in tests
 	qualityItems              map[kvm.Quality]*fyne.MenuItem
 	qualityMenu               *fyne.Menu
 	kvmQuality                kvm.Quality      // quality of the next connection
@@ -87,6 +90,40 @@ type DeviceWindow struct {
 	resuming                  bool             // the pending connect is a resume: no wake key, no error dialog
 	resumedClient             *kvm.Client      // session of the last resume; an early error counts as a failed attempt
 
+	// Views, Media and Manage (device_views.go), only touched on the Fyne thread.
+	toolbarItems         *fyne.Container    // the toolbar buttons and dividers, in order
+	viewSwitch           *widgets.Segmented // KVM | Console
+	barSwitch            *widgets.Segmented // KVM | Console in the full screen bar, follows viewSwitch
+	stage                *fyne.Container    // kvmStage and consolePane in the window; empty in full screen
+	consoleView          bool               // the Console view is shown (consoleActive)
+	kvmStage             fyne.CanvasObject  // letterbox, KVM view and empty state
+	consolePane          fyne.CanvasObject  // dark background and consoleStage
+	consoleStage         *fyne.Container    // content of the Console view; empty until the console fills it
+	onConsoleSelected    func()             // the user switched to the Console view; nil = nothing
+	onConsoleReselected  func()             // the user tapped the selected Console segment; nil = nothing
+	consoleCtrlAltDel    func()             // toolbar Ctrl+Alt+Del in the Console view; nil = nothing
+	consoleTypeClipboard func()             // toolbar Type Clipboard in the Console view; nil = nothing
+	mediaBtn, manageBtn  *widgets.ToolbarButton
+	onMedia              func()                   // Media button; nil = nothing
+	media                *mediaPanel              // Media menu and IDE-R session (media.go)
+	body                 *fyne.Container          // stage and sidebar
+	managePane           fyne.CanvasObject        // sidebar with its left line; hidden while closed
+	manageSlot           *fyne.Container          // content of the sidebar, manageWidth wide
+	manageContent        func() fyne.CanvasObject // builds the sidebar content at the first opening; nil = empty
+	manageBuilt          bool                     // manageContent was called
+	mediaLine            *ellipsisText            // "ISO mounted · …" in the status bar; hidden while empty
+	consoleLine          *ellipsisText            // "Console connected" in the status bar; hidden while empty
+	con                  serialConsole            // the serial console of the Console view (console.go)
+	manageEdge           fyne.CanvasObject        // left line of the sidebar; hidden once the content brings its own
+
+	// Device management (manage.go), only touched on the Fyne thread.
+	app         fyne.App
+	manager     *manager           // created at the first opening of the sidebar; nil before
+	loginStore  session.LoginStore // favorites manager for device management; nil = nothing stored
+	lastStatus  amt.Status         // last status read, valid if statusKnown
+	statusKnown bool               // the last status read succeeded and the session is not aborted
+	onManager   func(*manager)     // test hook: the device management was created; nil in production
+
 	// Keyboard menu (device_keyboard.go), only touched on the Fyne thread.
 	keyboardMenu    *fyne.Menu
 	layoutItems     map[string]*fyne.MenuItem // by stored layout name; "" is Default
@@ -97,27 +134,27 @@ type DeviceWindow struct {
 	onKeyboardSaved func() // test hook, nil in production
 
 	// KVM state, only touched on the Fyne thread.
-	view                          *kvmView
-	kvm, fullBtn, cadBtn, clipBtn *widgets.ToolbarButton
-	exitFullBtn, barCad, barClip  *widgets.ToolbarButton
-	quality                       *widgets.ToolbarButton
-	kvmStatus                     *statusText // transient KVM message; empty shows the plain state
-	bar                           *dragBar
-	barLayer                      *fyne.Container
-	kvmClient                     *kvm.Client                      // running session or nil
-	kvmCancel                     context.CancelFunc               // pending connect (dial or consent) or nil
-	kvmBusy                       bool                             // connect in progress
-	kvmReconnecting               bool                             // AMT dropped the session, reconnect pending (kvmClient nil)
-	qualitySwitch                 *kvm.Client                      // session closed for a new quality; kvmEnded reconnects
-	idleTimer                     *time.Timer                      // ends the KVM session without input; nil = never
-	idleAfter                     time.Duration                    // timeout of idleTimer
-	idleExpired                   time.Duration                    // set when idleTimer ended the session, for the status
-	idleTimeout                   func() time.Duration             // test hook; nil = settings
-	wake                          func(*kvm.Client, time.Duration) // wakeScreen; nil in most tests (no extra key messages)
-	lastInput                     time.Time                        // last local input (touchIdle)
-	fullScreen                    bool
-	askConsent                    func(answer func(code string, ok bool)) (hide func()) // dialog; replaced in tests
-	onTypeClipboard               func()                                                // "Type clipboard" dialog (type_clipboard.go); nil keeps the buttons disabled
+	view                         *kvmView
+	fullBtn, cadBtn, clipBtn     *widgets.ToolbarButton
+	exitFullBtn, barCad, barClip *widgets.ToolbarButton
+	quality                      *widgets.ToolbarButton
+	kvmStatus                    *statusText // transient KVM message; empty shows the plain state
+	bar                          *dragBar
+	barLayer                     *fyne.Container
+	kvmClient                    *kvm.Client                      // running session or nil
+	kvmCancel                    context.CancelFunc               // pending connect (dial or consent) or nil
+	kvmBusy                      bool                             // connect in progress
+	kvmReconnecting              bool                             // AMT dropped the session, reconnect pending (kvmClient nil)
+	qualitySwitch                *kvm.Client                      // session closed for a new quality; kvmEnded reconnects
+	idleTimer                    *time.Timer                      // ends the KVM session without input; nil = never
+	idleAfter                    time.Duration                    // timeout of idleTimer
+	idleExpired                  time.Duration                    // set when idleTimer ended the session, for the status
+	idleTimeout                  func() time.Duration             // test hook; nil = settings
+	wake                         func(*kvm.Client, time.Duration) // wakeScreen; nil in most tests (no extra key messages)
+	lastInput                    time.Time                        // last local input (touchIdle)
+	fullScreen                   bool
+	askConsent                   func(answer func(code string, ok bool)) (hide func()) // dialog; replaced in tests
+	onTypeClipboard              func()                                                // "Type clipboard" dialog (type_clipboard.go); nil keeps the buttons disabled
 
 	// "Type clipboard" (type_clipboard.go), only touched on the Fyne thread.
 	typing         *typeJob             // pending or running "Type clipboard" or nil
@@ -150,8 +187,8 @@ func (s *statusText) SetText(t string) {
 	}
 }
 
-// powerOrder is the order of the Power menu; separators follow PowerOff and BootToBIOS.
-var powerOrder = []amt.PowerAction{amt.PowerOn, amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.PowerShutdown}
+// powerOrder is the order of the Power menu; separators follow PowerOff and BootToISO.
+var powerOrder = []amt.PowerAction{amt.PowerOn, amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.BootToISO, amt.PowerShutdown}
 
 // powerStateText is the power state in the status bar.
 func powerStateText(ps models.PowerState) string {
@@ -179,13 +216,18 @@ func isAsleep(ps models.PowerState) bool {
 // NewDeviceWindow builds the window; onClosed runs once when the user closes it or the session
 // is aborted after a certificate mismatch (the poller is stopped on a goroutine before that).
 func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Status, settings Settings, onClosed func()) *DeviceWindow {
-	d := &DeviceWindow{win: a.NewWindow(name), sess: sess, settings: settings, name: name,
+	d := &DeviceWindow{win: a.NewWindow(name), app: a, sess: sess, settings: settings, name: name,
 		onClosed: onClosed, goos: runtime.GOOS, kvmStatus: &statusText{},
 		readClipboard: defaultReadClipboard, detectLayout: func() typing.Layout { return typing.DetectLocalLayout(string(lang.SystemLocale())) }, typeDelay: typing.DefaultDelay}
 	d.onError = d.showErrorDialog
 	d.confirm = d.confirmDialog
 	d.kvmStatus.changed = d.refreshKVMLine
+	d.media = newMediaPanel(d)
+	d.onMedia = d.media.toggle
+	d.manageContent = func() fyne.CanvasObject { return d.ensureManager().Sidebar() }
 
+	d.buildViewControls()
+	d.buildConsole()
 	d.buildKVM()
 	d.content = d.buildContent()
 	d.poller = session.NewPoller(sess, settings.PollInterval(), func(st amt.Status, err error) {
@@ -196,6 +238,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	d.win.SetPadded(false) // toolbar and status bar reach the window edges, as in the design
 	d.win.SetContent(d.content)
 	d.win.Resize(fyne.NewSize(1120, 760))
+	d.win.SetCloseIntercept(func() { d.requestClose(d.win.Close) }) // the start window routes it through its quit guard
 	d.win.SetOnClosed(func() {
 		// Without a session, connect or reconnect in flight nothing touches the view any more;
 		// otherwise kvmOpened or endKVM frees it once that event has arrived.
@@ -204,6 +247,8 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 		d.forgetResume()
 		d.shutdown()
 		d.release()
+		d.closeConsole()
+		d.closeManager()
 		d.disconnectKVM() // last: kvmEnded then only clears state (closed window)
 		if idle {
 			d.view.free()
@@ -212,11 +257,17 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 	return d
 }
 
-// shutdown stops the poller and then drops the idle WS-Man sockets. Off the Fyne thread, because
-// Stop waits for a running status read; the order matters, so a read cannot re-pool a socket
-// after Close. The session is not used afterwards (KVM keeps its own connection).
+// shutdown unmounts a mounted image (clearing its boot option unless the session was aborted),
+// stops the poller and then drops the idle WS-Man sockets. Off the Fyne thread, because Stop
+// waits for a running status read; the unmount comes first, so the process, which waits for it
+// at exit (exitWork), does not wait behind a slow read too. Close comes last, so a read cannot
+// re-pool a socket after it. The session is not used after Close (KVM keeps its own connection).
 func (d *DeviceWindow) shutdown() {
+	unmount := d.media.release(!d.aborted)
+	done := d.exitWork.add()
 	go func() {
+		unmount()
+		done()
 		d.poller.Stop()
 		d.sess.Close()
 	}()
@@ -264,6 +315,7 @@ func (d *DeviceWindow) apply(st amt.Status, err error) {
 		d.setVersion(st.AMTVersion, string(st.ControlMode))
 		d.setMessage("")
 	}
+	d.lastStatus, d.statusKnown = st, !d.aborted && err == nil
 	d.autoConnect()
 	d.resumeCheck()
 	if d.onStatus != nil {
@@ -298,11 +350,17 @@ func (d *DeviceWindow) abort(err error) {
 	if !d.closed {
 		d.onError(err)
 	}
+	d.closeConsole()
+	d.closeManager()
 	d.disconnectKVM() // last: the frame loop reports kvmEnded on the Fyne thread afterwards
 }
 
 func (d *DeviceWindow) run(action amt.PowerAction) {
 	if !d.powerAllowed(action) {
+		return
+	}
+	if action == amt.BootToISO { // asks with its own question (media.go)
+		d.media.askBoot()
 		return
 	}
 	if action.Destructive() && !d.onlyPowersOn(action) {
@@ -406,12 +464,15 @@ func (d *DeviceWindow) setPowerBusy(busy bool) {
 // powerAllowed reports whether the Power menu offers action in the current state. Unknown
 // state (failed read) offers everything, as before the redesign. Shutdown also needs the device
 // to list Off - Soft Graceful (12), which AMT does only while LMS runs; unknown power states
-// (not read yet or failed) lock it.
+// (not read yet or failed) lock it. Boot from ISO needs a mounted image.
 func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 	if d.aborted || d.powerBusy {
 		return false
 	}
 	if action == amt.PowerShutdown && !d.canShutdown {
+		return false
+	}
+	if action == amt.BootToISO && !d.media.mounted() {
 		return false
 	}
 	if !d.powerKnown {
@@ -421,7 +482,7 @@ func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 	case d.powerState == models.PowerStateOn:
 		return action != amt.PowerOn
 	case isOff(d.powerState):
-		return action == amt.PowerOn || action == amt.BootToBIOS // BootToBIOS powers on a machine that is off
+		return action == amt.PowerOn || action == amt.BootToBIOS || action == amt.BootToISO // both power on a machine that is off
 	}
 	return true // sleeping, hibernating or a state without a name: every action applies
 }

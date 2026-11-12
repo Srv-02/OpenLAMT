@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:e="http://schemas.xmlsoap.org/ws/2004/09/enumeration"
+    xmlns:h="http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TLSSettingData">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000001</b:MessageID>
+        <c:ResourceURI>http://intel.com/wbem/wscim/1/amt-schema/1/AMT_TLSSettingData</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <e:PullResponse><e:Items><h:AMT_TLSSettingData><h:AcceptNonSecureConnections>false</h:AcceptNonSecureConnections><h:ElementName>Intel(r) AMT 802.3 TLS Settings</h:ElementName><h:Enabled>true</h:Enabled><h:InstanceID>Intel(r) AMT 802.3 TLS Settings</h:InstanceID><h:MutualAuthentication>false</h:MutualAuthentication><h:NonSecureConnectionsSupported>false</h:NonSecureConnectionsSupported></h:AMT_TLSSettingData><h:AMT_TLSSettingData><h:AcceptNonSecureConnections>true</h:AcceptNonSecureConnections><h:ElementName>Intel(r) AMT LMS TLS Settings</h:ElementName><h:Enabled>false</h:Enabled><h:InstanceID>Intel(r) AMT LMS TLS Settings</h:InstanceID><h:MutualAuthentication>false</h:MutualAuthentication><h:NonSecureConnectionsSupported>true</h:NonSecureConnectionsSupported><h:TrustedCN>ca.example.com</h:TrustedCN></h:AMT_TLSSettingData></e:Items><e:EndOfSequence></e:EndOfSequence></e:PullResponse>
+    </a:Body>
+</a:Envelope>

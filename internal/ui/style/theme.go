@@ -77,3 +77,19 @@ func (t ErrorTextTheme) Color(name fyne.ThemeColorName, v fyne.ThemeVariant) col
 	}
 	return t.Theme.Color(name, v)
 }
+
+// ConsoleTheme wraps a theme for the serial console (Console.dc.html): Fyne's foreground and
+// background become ColorNameConsoleText and ColorNameConsole, so the terminal draws light text
+// on its dark stage in both variants.
+type ConsoleTheme struct{ fyne.Theme }
+
+// Color returns the console colors for foreground and background and Theme's colors otherwise.
+func (t ConsoleTheme) Color(name fyne.ThemeColorName, v fyne.ThemeVariant) color.Color {
+	switch name {
+	case theme.ColorNameForeground:
+		name = ColorNameConsoleText
+	case theme.ColorNameBackground:
+		name = ColorNameConsole
+	}
+	return t.Theme.Color(name, v)
+}

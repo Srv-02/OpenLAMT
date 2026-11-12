@@ -23,6 +23,18 @@ func same(a, b color.Color) bool {
 	return ar == br && ag == bg && ab == bb && aa == ba
 }
 
+// The settings of device management draw a switch that is on in green (Settings.dc.html .sw).
+func TestSwitchOnColor(t *testing.T) {
+	themedApp(t)
+	s := NewSwitch(nil)
+	s.OnColor = "success"
+	test.NewTempWindow(t, s)
+	s.SetChecked(true)
+	if r := test.WidgetRenderer(s).(*switchRenderer); !same(r.track.FillColor, style.Color("success")) {
+		t.Errorf("track %v", r.track.FillColor)
+	}
+}
+
 func TestSwitch(t *testing.T) {
 	themedApp(t)
 	var got []bool
@@ -85,8 +97,9 @@ func TestToolbarButton(t *testing.T) {
 	}
 
 	b.SetActive(true)
-	if r.icon.Resource() != icons.Get(icons.KVM, icons.Accent) || !same(r.bg.FillColor, style.Color(style.ColorNameActive)) {
-		t.Error("active: symbol not accent or background missing")
+	if r.icon.Resource() != icons.Get(icons.KVM, icons.AccentText) || !same(r.bg.FillColor, style.Color(style.ColorNameAccentTint)) ||
+		!same(r.caption.Color, style.Color(style.ColorNameAccentText)) {
+		t.Error("active: symbol or caption not accent text, or background not the accent tint (Main.dc.html .tb.on)")
 	}
 	b.SetActive(false)
 	b.SetOpen(true)

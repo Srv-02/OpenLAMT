@@ -19,6 +19,8 @@ type Switch struct {
 	OnChanged func(bool)
 	// OnEscape, if set, runs on Esc while the switch has the focus (a dialog closes).
 	OnEscape func()
+	// OnColor names the track color while on; "" is the accent ("primary").
+	OnColor fyne.ThemeColorName
 
 	checked bool
 	focused bool
@@ -127,7 +129,11 @@ func (r *switchRenderer) Refresh() {
 	s := r.s
 	track := style.Color(style.ColorNameSwitchOff)
 	if s.checked {
-		track = style.Color("primary")
+		on := s.OnColor
+		if on == "" {
+			on = "primary"
+		}
+		track = style.Color(on)
 	}
 	knob := style.Color(style.ColorNameWhite)
 	if s.Disabled() {

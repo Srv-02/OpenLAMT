@@ -30,19 +30,48 @@ const (
 	panelTileSize   float32 = 40
 	panelTileRadius float32 = 10
 	panelIconSize   float32 = 22
+	panelFormGap    float32 = 12 // between the parts of a flush panel (Forms.dc.html .dlg gap)
+)
+
+// tileTone is the color of a panel's symbol tile.
+type tileTone int
+
+const (
+	toneDanger  tileTone = iota // red tile, red symbol (delete, power, quit)
+	toneInfo                    // blue tile, accent symbol (Dialogs.dc.html: enable IDE-R or SOL, restart from ISO)
+	toneWarning                 // orange tile, orange symbol (Dialogs.dc.html: an ISO is still mounted)
+)
+
+// Tile of the device management questions (Dialogs.dc.html .ico): 36 px, radius 9, a 20 px
+// symbol with stroke 1.8, above the title.
+const (
+	questionTileSize   float32 = 36
+	questionTileRadius float32 = 9
+	questionIconSize   float32 = 20
+	questionIconStroke float32 = 1.8
 )
 
 // panelSpec describes a panel dialog.
 type panelSpec struct {
-	icon     icons.Name // symbol in the red tile; "" for none
-	danger   bool       // the action destroys something: red button, no Enter, Cancel has the focus
-	noEnter  bool       // Enter never confirms and Cancel has the focus, without the red button (trusting a certificate)
-	title    string
-	action   string // text of the main button
-	cancel   string // text of the Cancel button; "" for none
-	onAction func() // runs after the dialog closed through the main button; may be nil
-	onCancel func() // runs after it closed any other way; may be nil
-	keep     bool   // the main button (and Enter) runs onAction without closing; onAction closes with p.close
+	icon icons.Name // symbol in the tile; "" for none
+	tone tileTone   // colors of the tile
+	// tileAbove puts a 36 px tile above the title (Dialogs.dc.html) instead of a 40 px tile left of it.
+	tileAbove bool
+	// redButton draws the main button in the red of the device management design (Danger.dc.html):
+	// #C2001A, light red while disabled.
+	redButton bool
+	danger    bool // the action destroys something: red button, no Enter, Cancel has the focus
+	noEnter   bool // Enter never confirms and Cancel has the focus, without the red button (trusting a certificate)
+	title     string
+	action    string // text of the main button
+	cancel    string // text of the Cancel button; "" for none
+	onAction  func() // runs after the dialog closed through the main button; may be nil
+	onCancel  func() // runs after it closed any other way; may be nil
+	keep      bool   // the main button (and Enter) runs onAction without closing; onAction closes with p.close
+	// flush lines the title up with content that has no inner padding of its own (warning boxes,
+	// fields: the device management dialogs of Danger.dc.html and Forms.dc.html) and spaces the
+	// parts panelFormGap apart. Texts with an inner padding go through flushText.
+	flush bool
 }
 
 // panel is a shown panel dialog.
@@ -80,19 +109,43 @@ func showPanel(parent fyne.Window, spec panelSpec, build func(p *panel) []fyne.C
 		p.cancel = newEscButton(spec.cancel, func() { p.finish(false) })
 		buttons = append(buttons, p.cancel)
 	}
-	buttons = append(buttons, p.action)
+	var action fyne.CanvasObject = p.action
+	if spec.redButton {
+		action = container.NewThemeOverride(p.action, dangerButtonTheme{overrideTheme})
+	}
+	buttons = append(buttons, action)
 
 	head := widget.NewLabelWithStyle(spec.title, fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 	head.SizeName = theme.SizeNameSubHeadingText
 	head.Wrapping = fyne.TextWrapWord
 	col := container.NewVBox(append([]fyne.CanvasObject{head}, body...)...)
+	if spec.flush {
+		col = container.New(layout.NewCustomPaddedVBoxLayout(panelFormGap), append([]fyne.CanvasObject{flushText(head)}, body...)...)
+	}
 	var content fyne.CanvasObject = col
 	if spec.icon != "" {
-		tileBg := style.BindRect(&canvas.Rectangle{CornerRadius: panelTileRadius}, style.ColorNameDangerTile, "")
-		tileBg.SetMinSize(fyne.NewSquareSize(panelTileSize))
-		img := widgets.NewSymbol(icons.GetStroke(spec.icon, icons.Danger, 2), panelIconSize)
-		tile := container.NewVBox(container.NewStack(tileBg, container.NewCenter(img)))
-		content = container.NewBorder(nil, nil, tile, nil, col)
+		size, radius, iconSize, stroke := panelTileSize, panelTileRadius, panelIconSize, float32(2)
+		if spec.tileAbove {
+			size, radius, iconSize, stroke = questionTileSize, questionTileRadius, questionIconSize, questionIconStroke
+		}
+		fill, variant := style.ColorNameDangerTile, icons.Danger
+		switch spec.tone {
+		case toneInfo:
+			fill, variant = style.ColorNameAccentTint, icons.AccentText
+		case toneWarning:
+			fill, variant = style.ColorNameWarningSurface, icons.WarningIcon
+		}
+		tileBg := style.BindRect(&canvas.Rectangle{CornerRadius: radius}, fill, "")
+		tileBg.SetMinSize(fyne.NewSquareSize(size))
+		img := widgets.NewSymbol(icons.GetStroke(spec.icon, variant, stroke), iconSize)
+		tile := container.NewStack(tileBg, container.NewCenter(img))
+		if spec.tileAbove {
+			// the tile starts where the text of the labels below starts (they have an inner padding)
+			inset := container.New(layout.NewCustomPaddedLayout(0, 0, theme.InnerPadding(), 0), tile)
+			content = container.NewVBox(append([]fyne.CanvasObject{container.NewHBox(inset), head}, body...)...)
+		} else {
+			content = container.NewBorder(nil, nil, container.NewVBox(tile), nil, col)
+		}
 	}
 	scroll := scrollBody(dialogSpec{flex: -1}, content)
 	p.frame = container.New(&panelLayout{scroll: scroll}, scroll, container.NewHBox(buttons...))
@@ -112,6 +165,13 @@ func showPanel(parent fyne.Window, spec panelSpec, build func(p *panel) []fyne.C
 		c.Unfocus() // Enter must reach the dialog, not a field of the window behind it
 	}
 	return p
+}
+
+// flushText takes the inner padding of a label or rich text away on the left, top and bottom,
+// so its text lines up with the unpadded content of a flush panel.
+func flushText(o fyne.CanvasObject) fyne.CanvasObject {
+	pad := theme.InnerPadding()
+	return container.New(layout.NewCustomPaddedLayout(-pad, -pad, -pad, 0), o)
 }
 
 // act is the main button: it closes the dialog and runs onAction, or with keep only runs it.

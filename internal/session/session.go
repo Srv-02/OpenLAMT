@@ -11,16 +11,26 @@ import (
 	power "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/power"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
+	"github.com/Srv-02/openlamt/internal/sol"
 )
 
 // Device is the part of *amt.Device that the GUI uses.
 type Device interface {
 	Status() (amt.Status, error)
+	HardwareInfo() (amt.HardwareInfo, error)
+	EventLog() ([]amt.EventLogEntry, error)
+	AuditLog() ([]amt.AuditLogEntry, error)
+	ConfigDevice
 	Power(amt.PowerAction) error
 	PowerStates() ([]power.PowerState, error)
 	Fingerprint() string
 	OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.ConsentPrompt) (*kvm.Client, error)
+	OpenIDER(ctx context.Context, img ider.Image, start ider.StartMode, prompt amt.ConsentPrompt) (*ider.Client, error)
+	NextBootFromISO() error
+	ClearISOBoot() error
+	OpenSOL(ctx context.Context, prompt amt.ConsentPrompt) (*sol.Client, error)
 }
 
 var _ Device = (*amt.Device)(nil)
@@ -41,9 +51,10 @@ var ErrAuth = errors.New("authentication failed: wrong username or password")
 
 // Session owns one connected device. All WS-Man calls go through its mutex.
 type Session struct {
-	cfg amt.Config
-	dev Device
-	mu  sync.Mutex
+	cfgMu sync.Mutex // guards cfg: account and certificate changes replace login and pin
+	cfg   amt.Config
+	dev   Device
+	mu    sync.Mutex
 }
 
 // Open connects and reads the status once to verify the password. The returned Config
@@ -64,9 +75,23 @@ func Open(ctx context.Context, cfg amt.Config, prompt amt.TrustPrompt, connect C
 }
 
 // classify maps the WS-Man client's 401 error to ErrAuth; everything else passes through.
+// *amt.CredentialsUncertainError and *amt.CertificateUncertainError keep their type; only their
+// cause is classified.
 func classify(err error) error {
 	if err == nil {
 		return nil
+	}
+	var ue *amt.CredentialsUncertainError
+	if errors.As(err, &ue) {
+		c := *ue
+		c.Err = classify(ue.Err)
+		return &c
+	}
+	var ce *amt.CertificateUncertainError
+	if errors.As(err, &ce) {
+		c := *ce
+		c.Err = classify(ce.Err)
+		return &c
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "wsman.Client post received: 401") {
@@ -82,17 +107,25 @@ func classify(err error) error {
 }
 
 // Close releases idle connections of a session that is no longer used (e.g. an attempt the
-// user cancelled). Devices without idle connections ignore it.
+// user cancelled). Devices without idle connections ignore it. It waits for a running device
+// call, so call it off the Fyne thread when the session may be busy.
 func (s *Session) Close() {
+	s.mu.Lock() // an account or certificate change may be replacing the device's transport
+	defer s.mu.Unlock()
 	if c, ok := s.dev.(interface{ CloseIdleConnections() }); ok {
 		c.CloseIdleConnections()
 	}
 }
 
-// Config returns host, user, password (in memory) and the confirmed fingerprint.
-func (s *Session) Config() amt.Config { return s.cfg }
+// Config returns host, user, password (in memory) and the confirmed fingerprint. After an
+// accepted change of the session's own login or of the TLS certificate it returns the new values.
+func (s *Session) Config() amt.Config {
+	s.cfgMu.Lock()
+	defer s.cfgMu.Unlock()
+	return s.cfg
+}
 
-func (s *Session) Fingerprint() string { return s.cfg.Fingerprint }
+func (s *Session) Fingerprint() string { return s.Config().Fingerprint }
 
 func (s *Session) Status() (amt.Status, error) {
 	s.mu.Lock()
@@ -126,4 +159,32 @@ func (s *Session) OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.C
 		return nil, classify(err)
 	}
 	return c, nil
+}
+
+// OpenIDER mounts img via IDE-R like OpenKVM opens KVM: the mutex is held during the WS-Man
+// steps and the consent prompt; the returned client has its own socket and is used without the
+// session afterwards. Image ownership passes to the client only on success; on error the caller
+// still owns img.
+func (s *Session) OpenIDER(ctx context.Context, img ider.Image, start ider.StartMode, prompt amt.ConsentPrompt) (*ider.Client, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	c, err := s.dev.OpenIDER(ctx, img, start, prompt)
+	if err != nil {
+		return nil, classify(err)
+	}
+	return c, nil
+}
+
+// NextBootFromISO sets the IDE-R boot option without a power command (see amt.Device.NextBootFromISO).
+func (s *Session) NextBootFromISO() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return classify(s.dev.NextBootFromISO())
+}
+
+// ClearISOBoot switches the IDE-R boot option off again (see amt.Device.ClearISOBoot).
+func (s *Session) ClearISOBoot() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return classify(s.dev.ClearISOBoot())
 }

@@ -27,11 +27,17 @@ type ButtonMetrics struct {
 	// the theme's "button" color (white 12 %). NeutralBorder names the token of its 1 px
 	// border (none by default). Tokens, so the button follows the theme variant.
 	Neutral, NeutralBorder fyne.ThemeColorName
+	// Regular draws the text in the regular weight instead of semibold.
+	Regular bool
+	// NeutralText names the token of the text of a button that is not HighImportance or
+	// DangerImportance; the default is "foreground" (the light red Edit of the signed-in user).
+	NeutralText fyne.ThemeColorName
 }
 
 // PrimaryButton is the accent button with text and an optional symbol, in the design's
-// measurements. Importance is HighImportance (accent) or anything else (neutral, e.g. the
-// Cancel state of the Connect KVM button). The symbol is a resource of package icons, drawn
+// measurements. Importance is HighImportance (accent), DangerImportance (the full red button of
+// Danger.dc.html and the danger zone: white semibold text, light red while disabled) or
+// anything else (neutral, e.g. the Cancel state of the Connect KVM button). The symbol is a resource of package icons, drawn
 // by Symbol with the stroke it was requested with (the design uses 2).
 type PrimaryButton struct {
 	widget.DisableableWidget
@@ -40,7 +46,10 @@ type PrimaryButton struct {
 	Importance widget.Importance
 	// IconTrailing puts the symbol after the text (Connect); otherwise before it.
 	IconTrailing bool
-	OnTapped     func()
+	// Leading starts symbol and text at the left padding instead of centring them (the
+	// full-width buttons of the Media popover).
+	Leading  bool
+	OnTapped func()
 	// OnEscape, if set, runs on Esc while the button has the focus (a dialog closes).
 	OnEscape func()
 	// Metrics changes the measures; nil keeps the 36 px button of the manager and the toolbar.
@@ -93,6 +102,8 @@ func (b *PrimaryButton) metrics() ButtonMetrics {
 			m.Neutral = o.Neutral
 		}
 		m.NeutralBorder = o.NeutralBorder
+		m.Regular = o.Regular
+		m.NeutralText = o.NeutralText
 	}
 	return m
 }
@@ -152,6 +163,7 @@ func (r *primaryButtonRenderer) hasIcon() bool { return r.b.icon != nil }
 
 func (r *primaryButtonRenderer) MinSize() fyne.Size {
 	m := r.b.metrics()
+	r.text.TextStyle.Bold = !m.Regular
 	w := 2*m.PaddingH + fyne.MeasureText(r.b.Text, m.TextSize, r.text.TextStyle).Width
 	if r.hasIcon() {
 		w += m.Gap + m.IconSize
@@ -171,6 +183,9 @@ func (r *primaryButtonRenderer) Layout(size fyne.Size) {
 		content += m.Gap + m.IconSize
 	}
 	x := (size.Width - content) / 2
+	if r.b.Leading {
+		x = m.PaddingH
+	}
 	textPos := fyne.NewPos(x, (size.Height-r.text.MinSize().Height)/2)
 	iconPos := fyne.NewPos(x, (size.Height-m.IconSize)/2)
 	if r.hasIcon() {
@@ -191,10 +206,20 @@ func (r *primaryButtonRenderer) Refresh() {
 	m := b.metrics()
 	high := b.Importance == widget.HighImportance
 	fill, fg := style.Color(m.Neutral), style.Color("foreground")
+	if m.NeutralText != "" {
+		fg = style.Color(m.NeutralText)
+	}
 	if high {
 		fill, fg = style.Color("primary"), style.Color(style.ColorNameWhite)
 	}
-	if b.Disabled() {
+	danger := b.Importance == widget.DangerImportance
+	if danger {
+		fill, fg = style.Color(style.ColorNameDanger), style.Color(style.ColorNameWhite)
+	}
+	switch {
+	case b.Disabled() && danger:
+		fill = style.Color(style.ColorNameDangerDisabled)
+	case b.Disabled():
 		fill, fg = style.Color("disabledButton"), style.Color("disabled")
 	}
 	for _, o := range []*canvas.Rectangle{r.bg, r.over, r.focus} {
@@ -202,7 +227,7 @@ func (r *primaryButtonRenderer) Refresh() {
 	}
 	r.bg.FillColor = fill
 	r.bg.StrokeColor, r.bg.StrokeWidth = color.Transparent, 0
-	if !high && m.NeutralBorder != "" && !b.Disabled() {
+	if !high && !danger && m.NeutralBorder != "" && !b.Disabled() {
 		r.bg.StrokeColor, r.bg.StrokeWidth = style.Color(m.NeutralBorder), 1
 	}
 	r.bg.Refresh()
@@ -216,6 +241,7 @@ func (r *primaryButtonRenderer) Refresh() {
 	r.focus.Refresh()
 	r.text.Text = b.Text
 	r.text.TextSize = m.TextSize
+	r.text.TextStyle.Bold = !m.Regular
 	r.text.Color = fg
 	r.text.Refresh()
 	r.icon.Translucency = 0

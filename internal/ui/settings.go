@@ -27,6 +27,9 @@ const (
 	prefUpdateCheck     = "update_check"
 	prefColorBlind      = "color_blind"
 
+	// "Don’t show again" of the hints; every one belongs in hiddenMessagePrefs.
+	prefHideFolderMountHint = "hide_folder_mount_hint"
+
 	// DefaultKVMIdleTimeout ends an unattended KVM session after half an hour.
 	DefaultKVMIdleTimeout = 30 * time.Minute
 )
@@ -177,3 +180,33 @@ func (s Settings) ColorBlind() bool { return s.prefs.BoolWithFallback(prefColorB
 
 // SetColorBlind stores the setting; applyAppearance makes the open windows follow it.
 func (s Settings) SetColorBlind(on bool) { s.prefs.SetBool(prefColorBlind, on) }
+
+// hiddenMessagePrefs are the preferences of every message that "Don’t show again" hides;
+// ResetHiddenMessages shows them all again.
+var hiddenMessagePrefs = []string{prefHideFolderMountHint}
+
+// HideFolderMountHint is whether "Mount Folder…" skips the hint "Mount a folder"; off by default.
+func (s Settings) HideFolderMountHint() bool {
+	return s.prefs.BoolWithFallback(prefHideFolderMountHint, false)
+}
+
+// SetHideFolderMountHint stores "Don’t show again" of the hint "Mount a folder".
+func (s Settings) SetHideFolderMountHint(on bool) { s.prefs.SetBool(prefHideFolderMountHint, on) }
+
+// HiddenMessages reports whether "Don’t show again" hides any message.
+func (s Settings) HiddenMessages() bool {
+	for _, k := range hiddenMessagePrefs {
+		if s.prefs.BoolWithFallback(k, false) {
+			return true
+		}
+	}
+	return false
+}
+
+// ResetHiddenMessages shows every message hidden with "Don’t show again" again (the setting
+// "Hidden messages").
+func (s Settings) ResetHiddenMessages() {
+	for _, k := range hiddenMessagePrefs {
+		s.prefs.RemoveValue(k)
+	}
+}

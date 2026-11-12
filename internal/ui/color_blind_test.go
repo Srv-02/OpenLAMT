@@ -72,7 +72,7 @@ func TestSettingsColorBlindRow(t *testing.T) {
 			style.SetVariant(v)
 			showSettingsDialog(s.win, &s.settings)
 			rows := settingsCardRows(t, s.win)
-			if len(rows) != 9 || !hasText(rows[1], "Appearance") || !hasText(rows[3], "Check for updates") {
+			if len(rows) != 10 || !hasText(rows[1], "Appearance") || !hasText(rows[3], "Check for updates") {
 				t.Fatalf("%d rows, order wrong", len(rows))
 			}
 			row := rows[2]

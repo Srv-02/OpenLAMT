@@ -2,6 +2,7 @@ package icons
 
 import (
 	"io/fs"
+	"slices"
 	"strings"
 	"testing"
 
@@ -22,8 +23,8 @@ func TestAllSymbolsEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 26 || len(All) != 24 || len(Filled) != 2 {
-		t.Fatalf("%d files, %d stroked, %d filled; want 26, 24, 2", len(entries), len(All), len(Filled))
+	if len(entries) != 37 || len(All) != 35 || len(Filled) != 2 {
+		t.Fatalf("%d files, %d stroked, %d filled; want 37, 35, 2", len(entries), len(All), len(Filled))
 	}
 	for _, n := range Filled {
 		b, err := files.ReadFile("svg/" + string(n) + ".svg")
@@ -135,7 +136,8 @@ func TestLightVariantUsesOtherStrokeColors(t *testing.T) {
 		t.Error("filled symbols are not the light design colors")
 	}
 	// Light strokes are dark and the dark ones are light: the two tables really differ.
-	for _, v := range []Variant{Foreground, Toolbar, Muted, Secondary, Disabled, Accent, MenuOpen, Danger, Link, LinkHover, HeartPink, StarYellow} {
+	for _, v := range []Variant{Foreground, Toolbar, Muted, Secondary, Disabled, Accent, MenuOpen, Danger, Link, LinkHover, HeartPink, StarYellow,
+		AccentText, WarningIcon, WarningText, DangerText} {
 		if lightColors[v] == variantColors[v] {
 			t.Errorf("%s: light equals dark", v)
 		}
@@ -191,5 +193,24 @@ func TestRenderFollowsThemeVariant(t *testing.T) {
 	l := Render(spec, 24, 24).RGBAAt(12, 12)
 	if d == l || l.R != 0xFF || l.G != 0x2D || l.B != 0x55 {
 		t.Errorf("dark %v light %v", d, l)
+	}
+}
+
+// TestDeviceManagementSymbols pins the symbols and stroke colors of the device management design
+// (Main.dc.html, WindowB.dc.html, Media.dc.html, Dialogs.dc.html, Danger.dc.html).
+func TestDeviceManagementSymbols(t *testing.T) {
+	for _, n := range []Name{Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings} {
+		if !slices.Contains(All, n) {
+			t.Errorf("%s missing in All", n)
+		}
+		if img := Render(Spec{n, Foreground, DefaultStroke}, 24, 24); img == nil {
+			t.Errorf("%s does not render", n)
+		}
+	}
+	want := map[Variant]string{AccentText: "#0A64D6", WarningIcon: "#9A3F00", WarningText: "#6B2C00", DangerText: "#7A0014"}
+	for v, light := range want {
+		if lightColors[v] != light || variantColors[v] == "" || !slices.Contains(Variants, v) {
+			t.Errorf("%s: light %s dark %s, want light %s", v, lightColors[v], variantColors[v], light)
+		}
 	}
 }

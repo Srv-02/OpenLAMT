@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope" xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/08/addressing/fault</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000001</b:MessageID>
+    </a:Header>
+    <a:Body>
+        <a:Fault>
+            <a:Code>
+                <a:Value>a:Sender</a:Value>
+                <a:Subcode><a:Value>b:AccessDenied</a:Value></a:Subcode>
+            </a:Code>
+            <a:Reason><a:Text xml:lang="en-US">The sender is not authorized.</a:Text></a:Reason>
+            <a:Detail></a:Detail>
+        </a:Fault>
+    </a:Body>
+</a:Envelope>

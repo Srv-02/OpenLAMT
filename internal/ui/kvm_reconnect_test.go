@@ -45,7 +45,7 @@ func snapshots(h *kvmHarness) chan kvmSnap {
 	h.d.onKVMChanged = func() {
 		d := h.d
 		ch <- kvmSnap{client: d.kvmClient, reconnecting: d.kvmReconnecting, status: d.kvmStatus.Text,
-			kvmOn: d.kvm.Active(), cadOff: d.cadBtn.Disabled(), fullOff: d.fullBtn.Disabled(),
+			kvmOn: d.kvmOn(), cadOff: d.cadBtn.Disabled(), fullOff: d.fullBtn.Disabled(),
 			image: d.view.img.Image != nil, red: d.view.front != nil && d.view.front.RGBAAt(1, 1).R >= 240,
 			idleTimer: d.idleTimer, lastInput: d.lastInput, errs: len(h.errs),
 			freed: d.view.client == nil && d.view.front == nil && d.view.back == nil && d.view.img.Image == nil}
@@ -81,7 +81,7 @@ func TestKVMReconnectsWhenAMTDropsSession(t *testing.T) {
 		kvmtest.Options{CloseAfter: 150 * time.Millisecond, CloseConns: 3})
 	h.d.idleTimeout = func() time.Duration { return time.Hour }
 	snaps := snapshots(h)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	opened := next(t, snaps)
 	recv(t, h.frames)
 	if opened.client == nil || opened.idleTimer == nil {
@@ -111,7 +111,7 @@ func TestKVMReconnectsWhenAMTDropsSession(t *testing.T) {
 		t.Fatalf("connections %d", n)
 	}
 	// The fourth session stays; "Disconnect KVM" ends it for good.
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	s := next(t, snaps)
 	if s.client != nil || s.reconnecting || s.status != "KVM session closed." || s.image || s.idleTimer != nil {
 		t.Fatalf("after disconnect: %+v", s)
@@ -127,7 +127,7 @@ func TestKVMNoReconnectForShortSession(t *testing.T) {
 	setReconnect(t, time.Hour, 10*time.Millisecond)
 	h := newKVMDevice(t, &sessionFake{}, kvmtest.Options{CloseAfter: 100 * time.Millisecond})
 	snaps := snapshots(h)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	if s := next(t, snaps); s.client == nil {
 		t.Fatalf("opened: %+v", s)
 	}
@@ -146,7 +146,7 @@ func TestKVMDisconnectDuringReconnect(t *testing.T) {
 	setReconnect(t, 20*time.Millisecond, time.Hour)
 	h := newKVMDevice(t, &sessionFake{}, kvmtest.Options{CloseAfter: 100 * time.Millisecond})
 	snaps := snapshots(h)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	next(t, snaps) // opened
 	recv(t, h.frames)
 	s := next(t, snaps)
@@ -154,7 +154,7 @@ func TestKVMDisconnectDuringReconnect(t *testing.T) {
 		t.Fatalf("no reconnect: %+v", s)
 	}
 	running(t, "reconnecting", s)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	s = next(t, snaps)
 	if s.reconnecting || s.client != nil || s.status != "KVM session closed." || s.kvmOn || s.image || s.errs != 0 {
 		t.Fatalf("after disconnect: %+v", s)
@@ -170,7 +170,7 @@ func TestKVMCloseWindowDuringReconnectFreesView(t *testing.T) {
 	setReconnect(t, 20*time.Millisecond, time.Hour)
 	h := newKVMDevice(t, &sessionFake{}, kvmtest.Options{CloseAfter: 100 * time.Millisecond})
 	snaps := snapshots(h)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	next(t, snaps) // opened
 	recv(t, h.frames)
 	if s := next(t, snaps); !s.reconnecting || s.freed {
@@ -201,7 +201,7 @@ func TestKVMQualitySwitchReconnects(t *testing.T) {
 	h.d.wake = wakeScreen
 	h.d.idleTimeout = func() time.Duration { return time.Hour }
 	snaps := snapshots(h)
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	opened := next(t, snaps)
 	recv(t, h.frames)
 	waitInput(t, h.srv, 4) // the two wake keys of "Connect KVM"
@@ -271,7 +271,7 @@ func TestKVMQualitySwitchReconnects(t *testing.T) {
 	if h.srv.Connections() != 3 || len(h.errs) != 0 {
 		t.Fatalf("connections=%d errs=%d", h.srv.Connections(), len(h.errs))
 	}
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	if s := next(t, snaps); s.client != nil || s.status != "KVM session closed." {
 		t.Fatalf("after disconnect: %+v", s)
 	}
@@ -288,7 +288,7 @@ func TestKVMDisconnectDuringQualitySwitch(t *testing.T) {
 		h.d.disconnectKVM()
 		h.frames <- struct{}{}
 	}
-	test.Tap(h.d.kvm)
+	tapKVM(h.d)
 	next(t, snaps)
 	recv(t, h.frames)
 	s := next(t, snaps)

@@ -108,7 +108,7 @@ func TestFormQualityChangeReconnectsRunningSession(t *testing.T) {
 	if q := dev.Qualities(); q[0] != kvm.QualityHigh || q[1] != kvm.QualityLow {
 		t.Fatalf("qualities %v", q)
 	}
-	test.Tap(d.kvm) // end the session and wait for its end, so nothing runs when the window closes
+	tapKVM(d) // end the session and wait for its end, so nothing runs when the window closes
 	recv(t, changed)
 }
 

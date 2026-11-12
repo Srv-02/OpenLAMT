@@ -2,10 +2,12 @@ package ui
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/test"
 
@@ -214,5 +216,58 @@ func TestSettingsRowOrder(t *testing.T) {
 	}
 	if !slices.Equal(got, settingsOrder) {
 		t.Fatalf("Tab order %q, want %q", got, settingsOrder)
+	}
+}
+
+// The last row "Hidden messages" explains itself and has "Reset Warnings" at the right, which is
+// disabled while nothing is hidden and resets at once (not on Save).
+func TestSettingsHiddenMessagesRow(t *testing.T) {
+	englishUI(t)
+	h := newStart(t)
+	s := h.s
+	showSettingsDialog(s.win, &s.settings)
+	texts, _, buttons := dialogTexts(s.win)
+	reset := buttons["Reset Warnings"]
+	if reset == nil || !reset.Disabled() {
+		t.Fatal("Reset Warnings missing or enabled without a hidden message")
+	}
+	i := slices.Index(texts, "Hidden messages")
+	if i < 0 || i < slices.Index(texts, "Type clipboard layout") {
+		t.Fatalf("Hidden messages is not the last row: %q", texts)
+	}
+	const full = "Show all messages again that were hidden with “Don’t show again”."
+	var lines []string
+	for _, x := range texts[i+1:] {
+		if x == "" || !strings.Contains(full, x) {
+			break
+		}
+		lines = append(lines, x)
+	}
+	if got := strings.Join(lines, " "); got != full {
+		t.Fatalf("explanation %q", got)
+	}
+	// The explanation stays left of the button.
+	var label fyne.CanvasObject
+	walk(s.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+		if x, ok := o.(*canvas.Text); ok && strings.HasPrefix(x.Text, "Show all messages") {
+			label = x
+		}
+	})
+	abs := fyne.CurrentApp().Driver().AbsolutePositionForObject
+	if right := abs(label).X + label.MinSize().Width; right > abs(reset).X {
+		t.Fatalf("explanation ends at %v, button starts at %v", right, abs(reset).X)
+	}
+	s.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyEscape})
+
+	s.settings.SetHideFolderMountHint(true)
+	showSettingsDialog(s.win, &s.settings)
+	_, _, buttons = dialogTexts(s.win)
+	reset = buttons["Reset Warnings"]
+	if reset.Disabled() {
+		t.Fatal("Reset Warnings disabled with a hidden message")
+	}
+	test.Tap(reset)
+	if s.settings.HideFolderMountHint() || !reset.Disabled() || s.win.Canvas().Overlays().Top() == nil {
+		t.Fatal("Reset Warnings did not reset at once, or closed the dialog")
 	}
 }

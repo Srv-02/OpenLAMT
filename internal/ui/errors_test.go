@@ -63,7 +63,7 @@ func TestDescribeKVMErrors(t *testing.T) {
 	cases := map[error]string{
 		&amt.ConsentError{Step: "SendOptInCode", ReturnValue: 2}:                    "The device did not accept the consent code. Check the six digits on the device screen and try again.",
 		&amt.ConsentError{Step: "StartOptIn", ReturnValue: 2}:                       "The device could not start the consent request (return value 2). Try again.",
-		&amt.KVMError{Step: "KVMRedirectionSAP.RequestStateChange", ReturnValue: 1}: "The device refused to turn on KVM (return value 1). KVM may be disabled in the AMT settings of the device.",
+		&amt.KVMError{Step: "KVMRedirectionSAP.RequestStateChange", ReturnValue: 1}: "The device refused to enable KVM (return value 1). KVM may be disabled in the AMT settings of the device.",
 		amt.ErrConsentRequired:                               "The device requires user consent, but no consent code was entered.",
 		fmt.Errorf("wrapped: %w", amt.ErrInvalidConsentCode): "The consent code must be six digits.",
 		kvm.ErrClosed:                                        "KVM session closed.",
@@ -88,8 +88,8 @@ func TestDescribeNetworkErrors(t *testing.T) {
 		err  error
 		want string
 	}{
-		{dialErr(16992, syscall.ECONNREFUSED), `192.0.2.10 does not accept connections without TLS on port 16992. Many devices only allow TLS: turn on “Use TLS” and connect again.`},
-		{dialErr(16993, syscall.ECONNREFUSED), `192.0.2.10 does not accept TLS connections on port 16993. If TLS is not set up on the device, turn off “Use TLS” and connect again.`},
+		{dialErr(16992, syscall.ECONNREFUSED), `192.0.2.10 does not accept connections without TLS on port 16992. Many devices only allow TLS: enable “Use TLS” and connect again.`},
+		{dialErr(16993, syscall.ECONNREFUSED), `192.0.2.10 does not accept TLS connections on port 16993. If TLS is not set up on the device, disable “Use TLS” and connect again.`},
 		{dialErr(16992, syscall.EHOSTUNREACH), "192.0.2.10 cannot be reached from this computer."},
 		{dialErr(16993, syscall.ECONNRESET), "192.0.2.10 closed the connection unexpectedly. Connect again."},
 		{dialErr(16992, errnoRefused[len(errnoRefused)-1]), "does not accept connections without TLS"},

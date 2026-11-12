@@ -60,6 +60,7 @@ func TestPowerActionStrings(t *testing.T) {
 		{PowerCycle, "cycle", true},
 		{BootToBIOS, "bios", true},
 		{PowerShutdown, "shutdown", true},
+		{BootToISO, "iso", true},
 	}
 	for _, c := range cases {
 		if c.a.String() != c.name || c.a.Destructive() != c.destructive {

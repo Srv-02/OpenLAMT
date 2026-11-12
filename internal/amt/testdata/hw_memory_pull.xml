@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:g="http://schemas.xmlsoap.org/ws/2004/09/enumeration"
+    xmlns:h="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PhysicalMemory">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000001</b:MessageID>
+        <c:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_PhysicalMemory</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <g:PullResponse>
+            <g:Items>
+                <h:CIM_PhysicalMemory>
+                    <h:BankLabel>BANK 0</h:BankLabel>
+                    <h:Manufacturer>Example Memory</h:Manufacturer>
+                    <h:PartNumber>EXM-16G-5600  </h:PartNumber>
+                    <h:SerialNumber>MEM-0001</h:SerialNumber>
+                    <h:Capacity>17179869184</h:Capacity>
+                    <h:ConfiguredMemoryClockSpeed>5600</h:ConfiguredMemoryClockSpeed>
+                    <h:MaxMemorySpeed>6400</h:MaxMemorySpeed>
+                    <h:MemoryType>34</h:MemoryType>
+                    <h:FormFactor>13</h:FormFactor>
+                </h:CIM_PhysicalMemory>
+                <h:CIM_PhysicalMemory>
+                    <h:BankLabel>BANK 1</h:BankLabel>
+                    <h:Manufacturer>Example Memory</h:Manufacturer>
+                    <h:PartNumber>EXM-16G-5600</h:PartNumber>
+                    <h:SerialNumber>MEM-0002</h:SerialNumber>
+                    <h:Capacity>17179869184</h:Capacity>
+                    <h:MaxMemorySpeed>6400</h:MaxMemorySpeed>
+                    <h:MemoryType>99</h:MemoryType>
+                </h:CIM_PhysicalMemory>
+            </g:Items>
+            <g:EndOfSequence></g:EndOfSequence>
+        </g:PullResponse>
+    </a:Body>
+</a:Envelope>

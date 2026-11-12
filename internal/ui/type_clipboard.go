@@ -254,9 +254,7 @@ func (job *typeJob) run(layout typing.Layout, lookupErr error) {
 func (job *typeJob) fail(err error) {
 	job.close()
 	if d := job.d; !d.closed {
-		if d.kvmClient != nil {
-			d.win.Canvas().Focus(d.view) // the button tap took the focus
-		}
+		d.focusView() // the button tap took the focus
 		if err != nil {
 			d.onError(err)
 		}
@@ -282,8 +280,8 @@ func (job *typeJob) finish(err error) {
 	wasRunning := !job.stopping && !job.closed
 	job.sending = false
 	job.close()
-	if d := job.d; !d.closed && d.kvmClient != nil {
-		d.win.Canvas().Focus(d.view)
+	if d := job.d; !d.closed {
+		d.focusView()
 	}
 	if wasRunning && err != nil && !errors.Is(err, context.Canceled) && !job.d.closed {
 		// The send error names the keysym of the current character: never show it.
@@ -329,4 +327,5 @@ func (d *DeviceWindow) setTypingButtons(running bool) {
 	}
 	d.clipBtn.SetCaption(text)
 	d.barClip.SetCaption(text)
+	d.syncClipButtons() // in the Console view the end of the job may grey them out
 }

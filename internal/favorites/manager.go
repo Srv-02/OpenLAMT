@@ -3,6 +3,7 @@ package favorites
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 
 	"github.com/Srv-02/openlamt/internal/keychain"
@@ -229,4 +230,91 @@ func (m *Manager) setField(host, username string, change func(*Favorite)) error 
 		return nil
 	}
 	return m.store.Save(list)
+}
+
+// ChangeLogin follows an account change the device accepted (new name and/or password of
+// oldUser on host): a stored password moves to host/newUser with the new value, a stored pin
+// moves along (the certificate is the same), and a favorite host/oldUser is renamed. Entries
+// that do not exist are not created: a password the user chose not to save stays unsaved.
+// The new password is written first, so no later failure loses it; removing the old entries is
+// best effort (the old password no longer works on the device). A favorite host/newUser that
+// already exists returns ErrExists before anything changes. Keychain failures return
+// *KeychainError.
+func (m *Manager) ChangeLogin(host, oldUser, newUser, newPassword string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	list, err := m.store.Load()
+	if err != nil {
+		return err
+	}
+	moved := newUser != oldUser
+	if moved && index(list, host, newUser) >= 0 {
+		return ErrExists
+	}
+	_, err = m.keys.Get(host, oldUser)
+	hasPassword := err == nil
+	if err != nil && !errors.Is(err, keychain.ErrNotFound) {
+		return &KeychainError{Err: err}
+	}
+	if hasPassword {
+		if err := m.keys.Set(host, newUser, newPassword); err != nil {
+			return &KeychainError{Err: err}
+		}
+	}
+	if !moved {
+		return nil
+	}
+	var errs []error
+	pin, err := m.keys.GetFingerprint(host, oldUser)
+	pinMoved := false
+	switch {
+	case err == nil:
+		err = m.keys.SetFingerprint(host, newUser, pin)
+		pinMoved = err == nil
+		errs = append(errs, err)
+	case !errors.Is(err, keychain.ErrNotFound):
+		errs = append(errs, err)
+	}
+	if i := index(list, host, oldUser); i >= 0 {
+		list[i].Username = newUser
+		if err := m.store.Save(list); err != nil {
+			return errors.Join(keychainErr(errs...), err)
+		}
+	}
+	if hasPassword {
+		_ = m.keys.Delete(host, oldUser)
+	}
+	if pinMoved {
+		_ = m.keys.DeleteFingerprint(host, oldUser)
+	}
+	return keychainErr(errs...)
+}
+
+// ChangeFingerprint follows a certificate change the device accepted: every pin oldFP stored
+// for host/user or for a favorite of host is replaced by newFP. Other pins (another certificate)
+// and logins without a stored pin stay as they are (the next connection asks again).
+func (m *Manager) ChangeFingerprint(host, user, oldFP, newFP string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	list, err := m.store.Load()
+	if err != nil {
+		return err
+	}
+	users := []string{user}
+	for _, f := range list {
+		if f.Host == host && !slices.Contains(users, f.Username) {
+			users = append(users, f.Username)
+		}
+	}
+	var errs []error
+	for _, u := range users {
+		pin, err := m.keys.GetFingerprint(host, u)
+		switch {
+		case err == nil && pin == oldFP:
+			errs = append(errs, m.keys.SetFingerprint(host, u, newFP))
+		case err != nil && !errors.Is(err, keychain.ErrNotFound):
+			errs = append(errs, err)
+		}
+	}
+	return keychainErr(errs...)
 }

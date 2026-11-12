@@ -27,7 +27,7 @@ func shutdownDevice(t *testing.T, ps models.PowerState, states []power.PowerStat
 	return h
 }
 
-// The Power menu: Power On, Power Off | Reset, Power Cycle, Reboot to BIOS | Shutdown.
+// The Power menu: Power On, Power Off | Reset, Power Cycle, Reboot to BIOS, Boot from ISO | Shutdown.
 func TestPowerMenuOrder(t *testing.T) {
 	h := shutdownDevice(t, models.PowerStateOn, statesLMS, nil)
 	var got []string
@@ -38,7 +38,7 @@ func TestPowerMenuOrder(t *testing.T) {
 		}
 		got = append(got, it.Label)
 	}
-	want := []string{"Power On", "Power Off…", "|", "Reset…", "Power Cycle…", "Reboot to BIOS…", "|", "Shutdown…"}
+	want := []string{"Power On", "Power Off…", "|", "Reset…", "Power Cycle…", "Reboot to BIOS…", "Boot from ISO…", "|", "Shutdown…"}
 	if strings.Join(got, ", ") != strings.Join(want, ", ") {
 		t.Fatalf("menu %q, want %q", got, want)
 	}

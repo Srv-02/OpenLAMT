@@ -77,17 +77,16 @@ func (d *DeviceWindow) buildKVM() {
 		d.releaseKeys()
 		return showConsentDialog(d.win, answer)
 	}
-	d.kvm = widgets.NewToolbarButton(icons.KVM, "KVM", d.toggleKVM)
 	d.buildQualityMenu()
 	d.fullBtn = widgets.NewToolbarButton(icons.Fullscreen, lang.L("Full Screen"), func() { d.setFullScreen(true) })
-	d.cadBtn = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.ctrlAltDel)
-	d.clipBtn = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.typeClipboard)
+	d.cadBtn = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.toolbarCtrlAltDel)
+	d.clipBtn = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.toolbarTypeClipboard)
 	d.kvmArea = container.NewStack(d.view)
 
 	d.exitFullBtn = widgets.NewToolbarButton(icons.Fullscreen, lang.L("Exit Full Screen"), func() { d.setFullScreen(false) })
-	d.barCad = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.ctrlAltDel)
-	d.barClip = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.typeClipboard)
-	d.bar = newDragBar(d.exitFullBtn, d.barCad, d.barClip)
+	d.barCad = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.toolbarCtrlAltDel)
+	d.barClip = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.toolbarTypeClipboard)
+	d.bar = newDragBar(d.barSwitch, d.exitFullBtn, d.barCad, d.barClip)
 	d.barLayer = d.bar.layer()
 	d.onTypeClipboard = d.startTyping
 	d.view.onInput = d.touchIdle
@@ -95,30 +94,52 @@ func (d *DeviceWindow) buildKVM() {
 	d.setKVMControls()
 }
 
-// setKVMControls enables the controls for the current state: the KVM toggle is on while a
-// session runs or connects, and locked while the device is off and nothing runs or connects
-// (an open session can always be closed, a connect cancelled); the quality can be changed
-// except while a connect or reconnect is pending (a running session reconnects with it, switchQuality); full screen and Ctrl+Alt+Del need a session; "Type clipboard" additionally needs its
-// hook (set in buildKVM). Status bar and empty state follow.
+// setKVMControls enables the controls for the current state: the view switch is locked only
+// after an abort (the selected KVM segment connects or disconnects, kvmToggleEnabled); the
+// quality can be changed in the KVM view except while a connect or reconnect is pending (a
+// running session reconnects with it, switchQuality); full screen needs the session of the
+// shown view (fullScreenAllowed); Ctrl+Alt+Del needs a session; "Type clipboard" additionally
+// needs its hook (set in buildKVM). In the Console view Ctrl+Alt+Del goes to the console and
+// stays enabled; Type Clipboard follows syncClipButtons. The full screen bar mirrors the
+// toolbar. Manage follows syncManageBtn. Status bar and empty state follow.
 func (d *DeviceWindow) setKVMControls() {
 	connected := d.kvmClient != nil || d.kvmReconnecting // a reconnect keeps the controls as they are
-	enable := func(w *widgets.ToolbarButton, on bool) {
+	console := d.consoleView
+	enable := func(w fyne.Disableable, on bool) {
 		if on && !d.aborted {
 			w.Enable()
 		} else {
 			w.Disable()
 		}
 	}
-	d.kvm.SetActive((connected || d.kvmBusy) && !d.aborted)
-	enable(d.kvm, connected || d.kvmBusy || !d.poweredOff())
-	enable(d.quality, !d.kvmBusy && !d.kvmReconnecting)
-	enable(d.fullBtn, connected)
-	enable(d.cadBtn, connected)
-	enable(d.barCad, connected)
-	enable(d.clipBtn, connected && d.onTypeClipboard != nil)
-	enable(d.barClip, connected && d.onTypeClipboard != nil)
+	enable(d.viewSwitch, true)
+	enable(d.barSwitch, true)
+	enable(d.mediaBtn, true)
+	enable(d.quality, !console && !d.kvmBusy && !d.kvmReconnecting)
+	enable(d.fullBtn, d.fullScreenAllowed())
+	enable(d.cadBtn, connected || console)
+	enable(d.barCad, connected || console)
+	d.syncClipButtons()
+	d.syncManageBtn()
 	d.refreshKVMLine()
 	d.refreshEmptyState()
+}
+
+// syncClipButtons enables both Type Clipboard buttons (window and full screen bar): in the KVM
+// view with a KVM session and the typing hook, in the Console view with a console session. A
+// running KVM typing job keeps them enabled in both views, as they read "Stop typing" then.
+func (d *DeviceWindow) syncClipButtons() {
+	on := (d.kvmClient != nil || d.kvmReconnecting) && d.onTypeClipboard != nil
+	if d.consoleView {
+		on = d.con.out != nil
+	}
+	for _, b := range []*widgets.ToolbarButton{d.clipBtn, d.barClip} {
+		if (on || d.typing != nil) && !d.aborted {
+			b.Enable()
+		} else {
+			b.Disable()
+		}
+	}
 }
 
 func (d *DeviceWindow) toggleKVM() {
@@ -298,7 +319,7 @@ func (d *DeviceWindow) kvmOpened(c *kvm.Client, err error) {
 		d.kvmClient = c
 		d.kvmStatus.SetText("")
 		d.setKVMControls()
-		d.win.Canvas().Focus(d.view)
+		d.focusView()
 		idle := d.startIdle()
 		d.view.bind(c, true)
 		if idle != nil {
@@ -309,6 +330,7 @@ func (d *DeviceWindow) kvmOpened(c *kvm.Client, err error) {
 		} else if d.wake != nil {
 			go d.wake(c, wakeRepeat) // read here on the UI thread, not in the goroutine
 		}
+		d.sendPendingCAD() // Ctrl+Alt+Del of the Console view that started this connect
 		if d.onKVMChanged != nil {
 			d.onKVMChanged()
 		}
@@ -330,6 +352,7 @@ func (d *DeviceWindow) kvmOpened(c *kvm.Client, err error) {
 	if d.closed {
 		d.view.free() // a connect cancelled by closing the window: nothing uses the view any more
 	}
+	d.con.cadPending = false // the console's Ctrl+Alt+Del had no session to go to
 	d.setKVMControls()
 	if d.onKVMChanged != nil {
 		d.onKVMChanged()
@@ -487,6 +510,7 @@ func (d *DeviceWindow) kvmReopened(ctx context.Context, c *kvm.Client, err error
 	case err == nil && !cancelled:
 		d.kvmClient = c
 		d.view.bind(c, false) // the last image stays until the first frame
+		d.sendPendingCAD()
 		if d.onKVMChanged != nil {
 			d.onKVMChanged()
 		}
@@ -510,6 +534,7 @@ func (d *DeviceWindow) kvmReopened(ctx context.Context, c *kvm.Client, err error
 // endKVM finishes a session that is over (no reconnect): view, full screen, status, controls.
 func (d *DeviceWindow) endKVM(err error) {
 	d.stopIdle()
+	d.con.cadPending = false
 	d.closeTyping() // also when the server ended the session; nothing left to type into
 	if d.closed {   // the window is gone: no widget work, only the state
 		d.view.free() // the frame loop has ended (kvmEnded) or never ran (reconnect, cancel)
@@ -519,7 +544,9 @@ func (d *DeviceWindow) endKVM(err error) {
 		return
 	}
 	d.view.detach()
-	d.setFullScreen(false)
+	if !d.consoleView { // full screen of the Console view stays
+		d.setFullScreen(false)
+	}
 	idle := d.idleExpired
 	d.idleExpired = 0
 	switch {
@@ -540,7 +567,7 @@ func (d *DeviceWindow) ctrlAltDel() {
 	if c := d.kvmClient; c != nil {
 		d.touchIdle()
 		_ = c.CtrlAltDel()
-		d.win.Canvas().Focus(d.view)
+		d.focusView()
 	}
 }
 
@@ -597,24 +624,36 @@ func (d *DeviceWindow) typeClipboard() {
 	}
 }
 
-// setFullScreen shows only the view with the drag bar on top (every key goes to the remote,
-// so the bar is the way back), or restores the normal content.
+// fullScreenAllowed reports whether Full Screen may start: the shown view needs its session.
+func (d *DeviceWindow) fullScreenAllowed() bool {
+	if d.consoleView {
+		return d.con.client != nil
+	}
+	return d.kvmClient != nil
+}
+
+// setFullScreen shows only the stages with the drag bar on top (every key goes to the remote,
+// so the bar is the way back), or restores the normal content. The bar's switch changes the
+// view in full screen as the toolbar's does in the window.
 func (d *DeviceWindow) setFullScreen(on bool) {
-	if on == d.fullScreen || (on && d.kvmClient == nil) {
+	if on == d.fullScreen || (on && !d.fullScreenAllowed()) {
 		return
 	}
 	d.fullScreen = on
 	if on {
-		d.kvmArea.Remove(d.view)
-		d.win.SetContent(container.NewStack(d.view, d.barLayer))
+		d.stage.RemoveAll()
+		d.win.SetContent(container.NewStack(d.kvmStage, d.consolePane, d.barLayer))
 		d.win.SetFullScreen(true)
 		d.bar.recentre()
 	} else {
 		d.win.SetFullScreen(false)
 		d.win.SetContent(d.content)
-		d.kvmArea.Add(d.view)
+		d.stage.Objects = []fyne.CanvasObject{d.kvmStage, d.consolePane}
+		d.stage.Refresh()
 	}
-	if d.kvmClient != nil {
-		d.win.Canvas().Focus(d.view)
+	if d.consoleView {
+		d.focusConsole()
+	} else {
+		d.focusView()
 	}
 }

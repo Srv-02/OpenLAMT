@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Srv-02/openlamt/internal/kvm/kvmtest"
+	"github.com/Srv-02/openlamt/internal/redir"
 )
 
 // startRFB connects, runs the redirection handshake and rfbHandshake against the fake server.
@@ -26,10 +27,13 @@ func startRFB(t *testing.T, o kvmtest.Options, q Quality) (*bufio.Reader, net.Co
 	srv := kvmtest.Start(t, o)
 	conn := dialRedirection(t, srv)
 	br := bufio.NewReader(conn)
-	if err := redirectionHandshake(struct {
+	if err := redir.Handshake(struct {
 		io.Reader
 		io.Writer
-	}{br, conn}, "admin", "pw", nil); err != nil {
+	}{br, conn}, redir.KVM, "admin", "pw", nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := kvmStart(br, conn); err != nil {
 		t.Fatal(err)
 	}
 	w, h, name, err := rfbHandshake(br, conn, q)

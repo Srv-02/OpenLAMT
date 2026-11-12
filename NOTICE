@@ -9,32 +9,41 @@ It uses and includes code derived from the following projects:
   https://github.com/device-management-toolkit/go-wsman-messages
 - ui-toolkit, Copyright Intel Corporation, Apache License 2.0
   https://github.com/device-management-toolkit/ui-toolkit
-  (KVM client code ported from TypeScript to Go at commit e1eb6980963b1e59df45e05edf94b68dd5c36920; ported files are marked in their header)
+  (KVM client code, IDE-R client code (AMTIDER.ts, IDERDataProcessor.ts, Constants.ts) and Serial-over-LAN client code (AMTRedirector.ts) ported from TypeScript to Go at commit e1eb6980963b1e59df45e05edf94b68dd5c36920; ported files are marked in their header)
 - MeshCommander, Ylian Saint-Hilaire and contributors, Apache License 2.0
   https://github.com/Ylianst/MeshCommander
-  (KVM session logic ported from amt-desktop-0.0.2.js and index.html; ported files are marked in their header)
+  (KVM session logic ported from amt-desktop-0.0.2.js and index.html; IDE-R behavior cross-checked against amt-ider-ws-0.0.1.js; Serial-over-LAN behavior cross-checked against amt-redir-ws-0.1.0.js; ported files are marked in their header)
 - Fyne, Copyright (C) 2018 Fyne.io developers, BSD 3-Clause License
   https://github.com/fyne-io/fyne
 - go-keyring, Copyright (c) 2016 Zalando SE, MIT License
   https://github.com/zalando/go-keyring
+- zenity (macOS and Windows builds only: the native file and folder dialogs),
+  Copyright (c) 2019-2026 Nuno Cruces, MIT License
+  https://github.com/ncruces/zenity
 - Inter 4.1 (font files Inter-Regular.ttf, Inter-SemiBold.ttf, embedded unmodified),
   Copyright (c) 2016 The Inter Project Authors, SIL Open Font License 1.1
   https://github.com/rsms/inter
   (license text: internal/ui/style/fonts/OFL.txt)
 
 Third-party Go modules included in the binary (build target macOS arm64, Windows x64,
-Linux x64; the union of all three; go-wsman-messages, Fyne and go-keyring are listed above):
+Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenity are listed above):
 
 - Go standard library, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://go.dev
 - fyne.io/systray, Copyright 2014 Brave New Software Project, Inc., Apache License 2.0
   https://github.com/fyne-io/systray
+- github.com/ActiveState/termtest/conpty (Windows builds only), Copyright (c) 2020, ActiveState Software, BSD 3-Clause License
+  https://github.com/ActiveState/termtest
 - github.com/anthonynsimon/bild, Copyright (c) 2021 Anthony Najjar Simon, MIT License
   https://github.com/anthonynsimon/bild
+- github.com/Azure/go-ansiterm (Windows builds only), Copyright (c) 2015 Microsoft Corporation, MIT License
+  https://github.com/Azure/go-ansiterm
 - github.com/BurntSushi/toml, Copyright (c) 2013 TOML authors, MIT License
   https://github.com/BurntSushi/toml
 - github.com/clipperhouse/uax29/v2, Copyright (c) 2020 Matt Sherman, MIT License
   https://github.com/clipperhouse/uax29
+- github.com/creack/pty (macOS and Linux builds only), Copyright (c) 2011 Keith Rarick, MIT License
+  https://github.com/creack/pty
 - github.com/danieljoos/wincred (Windows builds only), Copyright (c) 2014 Daniel Joos, MIT License
   https://github.com/danieljoos/wincred
 - github.com/fsnotify/fsnotify, Copyright (c) 2012 The Go Authors; Copyright (c) fsnotify Authors, BSD 3-Clause License
@@ -43,6 +52,8 @@ Linux x64; the union of all three; go-wsman-messages, Fyne and go-keyring are li
   https://github.com/fyne-io/image
 - github.com/fyne-io/oksvg, Copyright (c) 2018, Steven R Wiley, BSD 3-Clause License
   https://github.com/fyne-io/oksvg
+- github.com/fyne-io/terminal, Copyright (C) 2021 Fyne.io developers, BSD 3-Clause License
+  https://github.com/fyne-io/terminal
 - github.com/FyshOS/fancyfs, Copyright (C) 2025 FyshOS developers, BSD 3-Clause License
   https://github.com/FyshOS/fancyfs
 - github.com/go-gl/gl, Copyright (c) 2014 Eric Woroshow, MIT License

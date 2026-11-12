@@ -48,7 +48,8 @@ type StartWindow struct {
 	closeReqs   []fyne.Window
 	closeQueued bool
 	quitAsking  bool
-	quitApp     func() // closes the master window: its SetOnClosed closes the device windows
+	quitApp     func()       // closes the master window: its SetOnClosed closes the device windows
+	exitWork    *pendingWork // unmounting of closed device windows; WaitForCleanup waits for it
 
 	items  []favorites.Favorite
 	shown  []favorites.Favorite // items matching the search
@@ -122,7 +123,7 @@ func NewStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 // newStartWindow is NewStartWindow; tests pass a setup that runs before the favorites are
 // loaded, the first one is selected and the background probe starts.
 func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, connect session.ConnectFunc, setup func(*StartWindow)) *StartWindow {
-	s := &StartWindow{later: fyne.Do, app: a, win: a.NewWindow("OpenLAMT"), mgr: mgr, keys: keys, settings: NewSettings(a.Preferences()),
+	s := &StartWindow{later: fyne.Do, exitWork: &pendingWork{}, app: a, win: a.NewWindow("OpenLAMT"), mgr: mgr, keys: keys, settings: NewSettings(a.Preferences()),
 		open: map[string]*DeviceWindow{}, busy: map[string]string{}, probes: map[string]probeResult{}, saved: map[string]bool{}, savedGen: map[string]int{},
 		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}}
 	s.onError = func(err error) { showError(s.win, err) }
@@ -146,7 +147,8 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 	s.buildDetail()
 	s.win.SetPadded(false) // sidebar and detail pane reach the window edges, as in the design
 	s.win.SetContent(container.New(sidebarLayout{}, s.buildSidebar(), s.detail))
-	s.win.Resize(fyne.NewSize(1000, 660))
+	// 760 like the device window: the settings dialog (700) fits without scrolling.
+	s.win.Resize(fyne.NewSize(1000, 760))
 	// Master window: closing it quits the app, so a TrustPrompt dialog still open on it cannot
 	// keep the process alive (the connector goroutine waits for the answer). Device windows are
 	// closed first (the glfw driver runs onClosed before it quits) so that every KVM session
@@ -1274,6 +1276,11 @@ func (s *StartWindow) addDevice(sess *session.Session, st amt.Status, name strin
 		}
 	})
 	d.layouts = s.mgr
+	d.exitWork = s.exitWork
+	d.mainWin = s.win
+	if s.mgr != nil { // a typed nil would count as a store
+		d.loginStore = s.mgr
+	}
 	d.onFavoriteChanged = s.reload // the read-only view and edit mode show the stored quality
 	d.onStatus = func(st amt.Status, known bool) {
 		if s.open[k] == d { // a late read of a closed window does not count

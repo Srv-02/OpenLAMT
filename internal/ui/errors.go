@@ -56,7 +56,7 @@ func describe(err error) string {
 	case errors.As(err, &ce):
 		return lang.L("The device could not start the consent request (return value {{.Code}}). Try again.", map[string]any{"Code": ce.ReturnValue})
 	case errors.As(err, &kvmErr):
-		return lang.L("The device refused to turn on KVM (return value {{.Code}}). KVM may be disabled in the AMT settings of the device.", map[string]any{"Code": kvmErr.ReturnValue})
+		return lang.L("The device refused to enable KVM (return value {{.Code}}). KVM may be disabled in the AMT settings of the device.", map[string]any{"Code": kvmErr.ReturnValue})
 	case errors.Is(err, amt.ErrConsentRequired):
 		return lang.L("The device requires user consent, but no consent code was entered.")
 	case errors.Is(err, amt.ErrInvalidConsentCode):
@@ -135,13 +135,13 @@ func describeNetwork(err error) (string, bool) {
 	case errors.As(err, &dns):
 		return lang.L("The name {{.Host}} could not be found. Check the host name, or use the IP address of the device.", map[string]any{"Host": dns.Name}), true
 	case isErrno(err, errnoRefused) && port == amt.PortPlain:
-		return lang.L("{{.Host}} does not accept connections without TLS on port {{.Port}}. Many devices only allow TLS: turn on “Use TLS” and connect again.", args), true
+		return lang.L("{{.Host}} does not accept connections without TLS on port {{.Port}}. Many devices only allow TLS: enable “Use TLS” and connect again.", args), true
 	case isErrno(err, errnoRefused) && port == amt.PortTLS:
-		return lang.L("{{.Host}} does not accept TLS connections on port {{.Port}}. If TLS is not set up on the device, turn off “Use TLS” and connect again.", args), true
+		return lang.L("{{.Host}} does not accept TLS connections on port {{.Port}}. If TLS is not set up on the device, disable “Use TLS” and connect again.", args), true
 	case isErrno(err, errnoRefused):
 		return lang.L("{{.Host}} refused the connection on port {{.Port}}. Check that the address belongs to the AMT interface of the device.", args), true
 	case errors.As(err, &rec): // from the fingerprint fetch, without a dial error around it
-		return lang.L("The device does not speak TLS on this port. Turn off “Use TLS” and connect again."), true
+		return lang.L("The device does not speak TLS on this port. Disable “Use TLS” and connect again."), true
 	case isErrno(err, errnoUnreachable):
 		return lang.L("{{.Host}} cannot be reached from this computer. Check the address and the network; on macOS, OpenLAMT also needs access under Privacy & Security, Local Network.", args), true
 	case isTimeout(err):

@@ -298,13 +298,22 @@ func TestSettingsErrors(t *testing.T) {
 				t.Errorf("err = %v", err)
 			}
 		})
-		t.Run(class+" unreachable on Pull stays an error", func(t *testing.T) {
+		// The fault of a Pull is the one of a missing class, never a missing permission: the
+		// section stays empty, Settings does not fail and above all does not report ErrAccessDenied.
+		t.Run(class+" unreachable on Pull is not access denied", func(t *testing.T) {
 			seq := settingsSeq()
 			seq["Pull|"+class] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
 			d, _ := cfgDevice(seq)
-			_, err := d.Settings()
-			if err != nil && errors.Is(err, ErrAccessDenied) {
-				t.Errorf("err = %v", err)
+			s, err := d.Settings()
+			if err != nil {
+				t.Fatalf("err = %v, want none (a fault on Pull leaves the section empty)", err)
+			}
+			available := s.Network.Available
+			if class == "AMT_TLSSettingData" {
+				available = s.TLS.Remote.Available
+			}
+			if available {
+				t.Errorf("section of %s is available, want empty: %+v", class, s)
 			}
 		})
 	}

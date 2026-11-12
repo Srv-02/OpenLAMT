@@ -224,3 +224,44 @@ func TestCloseWindowEndsResume(t *testing.T) {
 		t.Fatalf("OpenKVM calls %d", len(dev.Qualities()))
 	}
 }
+
+// Without the right to read the power state (powerDenied) a refused action must not cost the
+// session either: KVM connects again at once (the wait is an hour here).
+func TestDeniedPowerStateRefusedActionResumesKVM(t *testing.T) {
+	resumeWait(t, time.Hour)
+	dev := &sessionFake{St: amt.Status{Denied: amt.StatusPower}, PowerErr: errors.New("refused")}
+	h := newKVMDevice(t, dev, kvmtest.Options{})
+	h.connect(t, true)
+	if !h.d.powerDenied {
+		t.Fatal("precondition: power state denied")
+	}
+	h.d.execute(amt.PowerOff)
+	recv(t, h.actionDone)
+	recv(t, h.changed) // closed
+	recv(t, h.changed) // connected again
+	if h.d.kvmClient == nil || len(dev.Qualities()) != 2 {
+		t.Fatalf("not resumed: client %v calls %d", h.d.kvmClient, len(dev.Qualities()))
+	}
+	h.disconnect(t)
+}
+
+// After a successful action KVM connects again once the wait is over, even after Power Off:
+// the device cannot be read as off, so nothing else can be waited for.
+func TestDeniedPowerStateResumesKVMAfterWait(t *testing.T) {
+	resumeWait(t, 60*time.Millisecond)
+	dev := &sessionFake{St: amt.Status{Denied: amt.StatusPower}}
+	h := newKVMDevice(t, dev, kvmtest.Options{})
+	h.connect(t, true)
+	start := time.Now()
+	h.d.execute(amt.PowerOff)
+	recv(t, h.actionDone)
+	recv(t, h.changed) // closed
+	recv(t, h.changed) // connected again
+	if h.d.kvmClient == nil || len(dev.Qualities()) != 2 || len(h.errs) != 0 {
+		t.Fatalf("not resumed: client %v calls %d", h.d.kvmClient, len(dev.Qualities()))
+	}
+	if time.Since(start) < kvmResumeWait {
+		t.Fatal("reconnected before the wait was over")
+	}
+	h.disconnect(t)
+}

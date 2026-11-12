@@ -98,6 +98,11 @@ func TestDescribeNetworkErrors(t *testing.T) {
 		{fmt.Errorf("x: %w", &net.DNSError{Name: "device.example.com", Err: "no such host", IsNotFound: true}), "The name device.example.com could not be found."},
 		{fmt.Errorf("fetch: %w", context.DeadlineExceeded), "The device did not answer in time."},
 		{&net.OpError{Op: "dial", Net: "tcp", Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.10"), Port: 16993}, Err: os.ErrDeadlineExceeded}, "192.0.2.10 did not answer in time."},
+		// A connection the OS aborted after the TCP user timeout (read or write on the open socket) ...
+		{&net.OpError{Op: "read", Net: "tcp", Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.10"), Port: 16994}, Err: os.NewSyscallError("read", syscall.ETIMEDOUT)}, "192.0.2.10 is unreachable or the connection timed out."},
+		{fmt.Errorf("sol: %w", &net.OpError{Op: "write", Net: "tcp", Err: errnoTimedOut[len(errnoTimedOut)-1]}), "The device is unreachable or the connection timed out."},
+		// ... but a dial that ran into ETIMEDOUT is only "did not answer".
+		{&net.OpError{Op: "dial", Net: "tcp", Addr: &net.TCPAddr{IP: net.ParseIP("192.0.2.10"), Port: 16993}, Err: syscall.ETIMEDOUT}, "192.0.2.10 did not answer in time."},
 		{tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"}, "The device does not speak TLS on this port."},
 		{errors.New("something odd"), "Unexpected error: something odd"},
 	}

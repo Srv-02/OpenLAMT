@@ -173,7 +173,7 @@ func TestConsoleOpensWhenSOLIsOn(t *testing.T) {
 		t.Fatalf("sent %q", got)
 	}
 
-	// Output of the host lands in the terminal; the device ends the session: no message.
+	// Output of the host lands in the terminal; the device ends the session: the message says so.
 	h.sync()
 	p.Data(t, []byte("\x1b[1mserver login:\x1b[0m "))
 	p.EndReply(t)
@@ -181,8 +181,11 @@ func TestConsoleOpensWhenSOLIsOn(t *testing.T) {
 	if txt := h.d.con.term.Text(); !strings.Contains(txt, "server login:") {
 		t.Fatalf("terminal text %q", txt)
 	}
-	if h.d.consoleLine.Text != "" || h.d.consoleLine.Visible() || len(h.errs) != 0 {
-		t.Fatalf("after the end: status %q, errs %d", h.d.consoleLine.Text, len(h.errs))
+	if err := <-h.errs; !errors.Is(err, sol.ErrClosedByDevice) || !strings.Contains(describe(err), "The device closed the serial console.") {
+		t.Fatalf("the device ended the session: error %v", err)
+	}
+	if h.d.consoleLine.Text != "" || h.d.consoleLine.Visible() {
+		t.Fatalf("after the end: status %q", h.d.consoleLine.Text)
 	}
 	if !h.d.consoleActive() {
 		t.Fatal("the view must stay on Console")
@@ -260,6 +263,9 @@ func TestConsoleConsentAndOpenErrors(t *testing.T) {
 	h.sync()
 	h.peer(t).EndReply(t)
 	h.waitEnded(t)
+	if err := <-h.errs; !errors.Is(err, sol.ErrClosedByDevice) { // the device ended the session: reported
+		t.Fatalf("end by device: %v", err)
+	}
 
 	boom := errors.New("boom")
 	h.dev.SOL.Err = boom

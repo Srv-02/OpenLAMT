@@ -432,5 +432,6 @@
   "Application {{.App}} · event {{.Event}}": "Application {{.App}} · event {{.Event}}",
   "Details": "Details",
   "{{.Log}} · entry {{.N}} of {{.Count}}": "{{.Log}} · entry {{.N}} of {{.Count}}",
-  "ISO images": "ISO images"
+  "ISO images": "ISO images",
+  "{{.Host}} is unreachable or the connection timed out.": "{{.Host}} is unreachable or the connection timed out."
 }

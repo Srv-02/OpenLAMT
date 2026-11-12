@@ -303,7 +303,7 @@ func (d *DeviceWindow) consoleEnded(c *sol.Client, err error) {
 			d.setFullScreen(false)
 		}
 		d.setKVMControls()
-		if !d.aborted && err != nil && !errors.Is(err, sol.ErrClosed) && !errors.Is(err, sol.ErrClosedByDevice) {
+		if !d.aborted && err != nil && !errors.Is(err, sol.ErrClosed) {
 			d.onError(err)
 		}
 	}

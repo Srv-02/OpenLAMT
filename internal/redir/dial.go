@@ -48,6 +48,7 @@ func Dial(ctx context.Context, cfg Config, p Protocol, after func(r *bufio.Reade
 	if err != nil {
 		return nil, err
 	}
+	applyUserTimeout(raw)
 	conn := net.Conn(raw)
 	// The deadline goes on the raw connection; it also aborts blocked TLS reads and writes.
 	stop := context.AfterFunc(ctx, func() { _ = raw.SetDeadline(time.Unix(1, 0)) })

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -52,12 +53,19 @@ func newAMTServer(t *testing.T, useTLS bool, user, pass string, routes map[strin
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		// A "400:" prefix sends the file as an HTTP 400 SOAP fault, like AMT does for a refused
+		// request of an authenticated sender.
+		status := http.StatusOK
+		if rest, ok := strings.CutPrefix(name, "400:"); ok {
+			name, status = rest, http.StatusBadRequest
+		}
 		data, err := os.ReadFile(filepath.Join("testdata", name))
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		w.Header().Set("Content-Type", "application/soap+xml; charset=utf-8")
+		w.WriteHeader(status)
 		_, _ = w.Write(data)
 	})
 	var ts *httptest.Server

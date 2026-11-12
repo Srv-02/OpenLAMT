@@ -280,11 +280,32 @@ func TestSettingsErrors(t *testing.T) {
 	t.Run("missing optional class leaves the section empty", func(t *testing.T) {
 		seq := settingsSeq()
 		seq["Get|AMT_EnvironmentDetectionSettingData"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
-		seq["Enumerate|AMT_TLSSettingData"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
 		d, _ := cfgDevice(seq)
 		s, err := d.Settings()
-		if err != nil || s.Environment.Available || s.TLS.Remote.Available || !s.Network.Available {
+		if err != nil || s.Environment.Available || !s.Network.Available || !s.TLS.Remote.Available {
 			t.Errorf("s = %+v, err %v", s, err)
 		}
 	})
+	// Issue #48: AMT answers an Enumerate without the permission with the same fault as for a
+	// missing class. For the core classes of a section that means "not allowed".
+	for _, class := range []string{"AMT_EthernetPortSettings", "AMT_TLSSettingData"} {
+		t.Run(class+" unreachable on Enumerate is access denied", func(t *testing.T) {
+			seq := settingsSeq()
+			seq["Enumerate|"+class] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
+			d, _ := cfgDevice(seq)
+			_, err := d.Settings()
+			if !errors.Is(err, ErrAccessDenied) || !strings.Contains(err.Error(), class) {
+				t.Errorf("err = %v", err)
+			}
+		})
+		t.Run(class+" unreachable on Pull stays an error", func(t *testing.T) {
+			seq := settingsSeq()
+			seq["Pull|"+class] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
+			d, _ := cfgDevice(seq)
+			_, err := d.Settings()
+			if err != nil && errors.Is(err, ErrAccessDenied) {
+				t.Errorf("err = %v", err)
+			}
+		})
+	}
 }

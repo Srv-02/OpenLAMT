@@ -179,9 +179,15 @@ func getObject(class string, get func() (*client.Message, error)) (*cimObject, e
 }
 
 // pullObjects enumerates every instance of class.
-func pullObjects(class string, enum func() (*client.Message, string, error), pull func(string) (*client.Message, error)) ([]*cimObject, error) {
+//
+// core marks a class every supported firmware has: the DestinationUnreachable fault of the
+// Enumerate call (never of a Pull) then means a missing permission and yields ErrAccessDenied.
+func pullObjects(class string, core bool, enum func() (*client.Message, string, error), pull func(string) (*client.Message, error)) ([]*cimObject, error) {
 	return enumeratePull(func() (string, error) {
 		_, ctx, err := enum()
+		if core && coreClassDenied(err) {
+			return "", fmt.Errorf("settings: %s: %w", class, ErrAccessDenied)
+		}
 		return ctx, err
 	}, func(ctx string) ([]*cimObject, string, error) {
 		m, err := pull(ctx)
@@ -202,7 +208,7 @@ func (d *Device) generalObject() (*cimObject, error) {
 
 // wiredObject returns the first port that is not wireless, nil if there is none.
 func (d *Device) wiredObject() (*cimObject, error) {
-	objs, err := pullObjects(classEthernet, func() (*client.Message, string, error) {
+	objs, err := pullObjects(classEthernet, true, func() (*client.Message, string, error) {
 		r, err := d.msgs.AMT.EthernetPortSettings.Enumerate()
 		return r.Message, r.Body.EnumerateResponse.EnumerationContext, err
 	}, func(ctx string) (*client.Message, error) {
@@ -249,7 +255,7 @@ func (d *Device) envDetectObject() (*cimObject, error) {
 }
 
 func (d *Device) tlsObjects() ([]*cimObject, error) {
-	return pullObjects(classTLS, func() (*client.Message, string, error) {
+	return pullObjects(classTLS, true, func() (*client.Message, string, error) {
 		r, err := d.msgs.AMT.TLSSettingData.Enumerate()
 		return r.Message, r.Body.EnumerateResponse.EnumerationContext, err
 	}, func(ctx string) (*client.Message, error) {

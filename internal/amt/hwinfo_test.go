@@ -142,6 +142,32 @@ func TestHardwareInfoClassMissing(t *testing.T) {
 	}
 }
 
+// Issue #48: the Enumerate of a core class refused for lack of permission carries the same fault
+// as a missing class and must surface as ErrAccessDenied (stopping at the first class).
+func TestHardwareInfoCoreClassUnreachableIsAccessDenied(t *testing.T) {
+	for _, class := range []string{"CIM_ComputerSystemPackage", "CIM_Chassis"} {
+		t.Run(class, func(t *testing.T) {
+			seq := hwSeq()
+			seq["Enumerate|"+class] = []seqResp{{err: faultErr(t, "unreachable_fault.xml")}}
+			d, _ := hwDevice(seq)
+			got, err := d.HardwareInfo()
+			if !errors.Is(err, ErrAccessDenied) || !strings.Contains(err.Error(), class) || !reflect.DeepEqual(got, HardwareInfo{}) {
+				t.Fatalf("got %+v, %v", got, err)
+			}
+		})
+	}
+}
+
+func TestHardwareInfoCoreClassPullFaultIsNotAccessDenied(t *testing.T) {
+	seq := hwSeq()
+	seq["Pull|CIM_Chassis"] = []seqResp{{err: faultErr(t, "unreachable_fault.xml")}}
+	d, _ := hwDevice(seq)
+	_, err := d.HardwareInfo()
+	if err == nil || errors.Is(err, ErrAccessDenied) || !strings.Contains(err.Error(), "CIM_Chassis") {
+		t.Fatalf("got %v", err)
+	}
+}
+
 func TestHardwareInfoPullFaultIsAbort(t *testing.T) {
 	seq := hwSeq()
 	seq["Pull|CIM_Chip"] = []seqResp{{file: "hw_chip_pull_1.xml"}, {err: faultErr(t, "unreachable_fault.xml")}}

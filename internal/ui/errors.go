@@ -250,6 +250,8 @@ func describeNetwork(err error) (string, bool) {
 		return lang.L("The device does not speak TLS on this port. Disable “Use TLS” and connect again."), true
 	case isErrno(err, errnoUnreachable):
 		return lang.L("{{.Host}} cannot be reached from this computer. Check the address and the network; on macOS, OpenLAMT also needs access under Privacy & Security, Local Network.", args), true
+	case connectionLost(err):
+		return lang.L("{{.Host}} is unreachable or the connection timed out.", args), true
 	case isTimeout(err):
 		return lang.L("{{.Host}} did not answer in time. Check the address and that the device is connected to the network.", args), true
 	case isErrno(err, errnoReset), errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
@@ -288,6 +290,14 @@ func isErrno(err error, list []syscall.Errno) bool {
 		}
 	}
 	return false
+}
+
+// connectionLost reports an established connection that the operating system aborted because sent
+// data stayed unacknowledged (TCP user timeout, see redir.UserTimeout). A dial that timed out is
+// not one: it is a plain "did not answer in time".
+func connectionLost(err error) bool {
+	var op *net.OpError
+	return errors.As(err, &op) && op.Op != "dial" && isErrno(op.Err, errnoTimedOut)
 }
 
 func isTimeout(err error) bool {

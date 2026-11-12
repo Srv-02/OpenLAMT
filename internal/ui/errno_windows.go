@@ -7,5 +7,6 @@ import "syscall"
 var (
 	errnoRefused     = []syscall.Errno{syscall.ECONNREFUSED, 10061} // WSAECONNREFUSED
 	errnoUnreachable = []syscall.Errno{syscall.EHOSTUNREACH, syscall.ENETUNREACH, 10065, 10051}
+	errnoTimedOut    = []syscall.Errno{syscall.ETIMEDOUT, 10060} // WSAETIMEDOUT; Go does not report it as a timeout
 	errnoReset       = []syscall.Errno{syscall.ECONNRESET, syscall.ECONNABORTED, 10054, 10053}
 )

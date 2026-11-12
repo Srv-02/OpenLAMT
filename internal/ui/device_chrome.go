@@ -176,8 +176,10 @@ func (d *DeviceWindow) buildStatusBar() fyne.CanvasObject {
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(0, 0, statusPad, statusPad), row))
 }
 
-// setVersion shows "AMT <version>" and "Control mode <mode>"; empty values hide their part.
-func (d *DeviceWindow) setVersion(version, mode string) {
+// setVersion shows "AMT <version>" and "Control mode <mode>"; empty values hide their part. A
+// part the account may not read shows "not allowed" instead.
+func (d *DeviceWindow) setVersion(st amt.Status) {
+	version, mode := st.AMTVersion, string(st.ControlMode)
 	set := func(t *ellipsisText, s string) {
 		t.SetText(s)
 		if s == "" {
@@ -191,6 +193,12 @@ func (d *DeviceWindow) setVersion(version, mode string) {
 	}
 	if mode != "" {
 		mode = lang.L("Control mode {{.Mode}}", map[string]any{"Mode": mode})
+	}
+	if !st.Allowed(amt.StatusVersion) {
+		version = lang.L("AMT: not allowed")
+	}
+	if !st.Allowed(amt.StatusControlMode) {
+		mode = lang.L("Control mode: not allowed")
 	}
 	set(d.version, version)
 	set(d.mode, mode)
@@ -208,8 +216,11 @@ func (d *DeviceWindow) relayoutStatus() {
 // menu items, the KVM controls and the empty state.
 func (d *DeviceWindow) showPower() {
 	text := lang.L("Unknown")
-	if d.powerKnown {
+	switch {
+	case d.powerKnown:
 		text = powerStateText(d.powerState)
+	case d.powerDenied:
+		text = lang.L("Power: not allowed")
 	}
 	d.power.SetText(text)
 	d.relayoutStatus()

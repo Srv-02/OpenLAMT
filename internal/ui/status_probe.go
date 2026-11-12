@@ -33,7 +33,7 @@ type probeResult struct {
 
 // readProbe is the result of a successful status read.
 func readProbe(st amt.Status) probeResult {
-	return probeResult{dot: powerDot(true, st.PowerState), st: st, read: true}
+	return probeResult{dot: powerDot(st.Allowed(amt.StatusPower), st.PowerState), st: st, read: true}
 }
 
 // known reports whether the probe read the device.

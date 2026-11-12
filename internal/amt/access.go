@@ -39,3 +39,19 @@ func accessDenied(err error, op string) error {
 	}
 	return err
 }
+
+// IsAccessDenied reports whether err is ErrAccessDenied, an AccessDenied SOAP fault or an HTTP 403.
+func IsAccessDenied(err error) bool {
+	return err != nil && errors.Is(accessDenied(err, ""), ErrAccessDenied)
+}
+
+// coreClassDenied reports a missing permission for a read of a class that every supported
+// firmware has: the SOAP fault AccessDenied (Get) or DestinationUnreachable (Enumerate) that
+// AMT 16 sends with HTTP 400 to an authenticated sender. Only SOAP faults count: an HTTP 403
+// or any other status is not proven to follow a successful login and keeps failing Status.
+// Never use it for optional classes: there DestinationUnreachable means the class is missing.
+func coreClassDenied(err error) bool {
+	var amtErr *amterror.AMTError
+	return errors.As(err, &amtErr) &&
+		(strings.Contains(amtErr.SubCode, "AccessDenied") || strings.Contains(amtErr.SubCode, "DestinationUnreachable"))
+}

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/amterror"
 	models "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
 )
 
@@ -163,5 +164,64 @@ func TestOpenStatusErrorClosesIdleConnections(t *testing.T) {
 	}
 	if f.IdleClosed() != 1 {
 		t.Fatalf("CloseIdleConnections calls = %d, want 1", f.IdleClosed())
+	}
+}
+
+func TestOpenLimitedAccountPassesDenied(t *testing.T) {
+	all := amt.StatusPower | amt.StatusVersion | amt.StatusControlMode
+	dev := &Fake{St: amt.Status{Denied: all}}
+	s, st, err := Open(ctx, amt.Config{Host: "device.example.com"}, nil, ConnectFake(dev))
+	if err != nil || s == nil {
+		t.Fatalf("Open failed: %v", err)
+	}
+	if st.Denied != all {
+		t.Fatalf("Denied = %b", st.Denied)
+	}
+}
+
+func TestOpenForbiddenStatusFails(t *testing.T) {
+	libErr := fmt.Errorf("%w: %v\n%v", errors.New("wsman.Client post received"), "403 Forbidden", "<html>secret body</html>")
+	dev := &Fake{StatusErr: fmt.Errorf("enumerate power state: %w", libErr)}
+	s, _, err := Open(ctx, amt.Config{Host: "device.example.com"}, nil, ConnectFake(dev))
+	if s != nil || !errors.Is(err, amt.ErrAccessDenied) || errors.Is(err, ErrAuth) || strings.Contains(err.Error(), "secret body") {
+		t.Fatalf("s=%v err=%v", s, err)
+	}
+}
+
+func TestClassifyAccessDenied(t *testing.T) {
+	denied := amterror.NewAMTError("e:AccessDenied", "The caller is not authorized: fault detail", "")
+	unreachable := amterror.NewAMTError("b:DestinationUnreachable", "No route.", "")
+	wrapped := fmt.Errorf("read audit log: %w", amt.ErrAccessDenied)
+
+	got := classify(fmt.Errorf("power on: %w", denied))
+	if !errors.Is(got, amt.ErrAccessDenied) || errors.Is(got, ErrAuth) || strings.Contains(got.Error(), "fault detail") {
+		t.Fatalf("raw fault: %v", got)
+	}
+	if got := classify(wrapped); got != wrapped {
+		t.Fatalf("wrapped error changed: %v", got)
+	}
+	unreachableErr := fmt.Errorf("get power capabilities: %w", unreachable)
+	if got := classify(unreachableErr); got != unreachableErr {
+		t.Fatalf("DestinationUnreachable must stay unchanged: %v", got)
+	}
+	forbidden := fmt.Errorf("%w: %v\n%v", errors.New("wsman.Client post received"), "403 Forbidden", "<html>x</html>")
+	if got := classify(forbidden); !errors.Is(got, amt.ErrAccessDenied) || errors.Is(got, ErrAuth) {
+		t.Fatalf("403: %v", got)
+	}
+	unauthorized := fmt.Errorf("%w: %v\n%v", errors.New("wsman.Client post received"), "401 Unauthorized", "")
+	if got := classify(unauthorized); !errors.Is(got, ErrAuth) {
+		t.Fatalf("401: %v", got)
+	}
+}
+
+func TestSessionPowerRawFaultBecomesAccessDenied(t *testing.T) {
+	dev := &Fake{}
+	s, _, err := Open(ctx, amt.Config{Host: "device.example.com"}, nil, ConnectFake(dev))
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev.PowerErr = fmt.Errorf("power on: %w", amterror.NewAMTError("e:AccessDenied", "x", ""))
+	if err := s.Power(amt.PowerOn); !errors.Is(err, amt.ErrAccessDenied) {
+		t.Fatalf("power: %v", err)
 	}
 }

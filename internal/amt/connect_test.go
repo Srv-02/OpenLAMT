@@ -159,3 +159,45 @@ func TestConnect_TransportIdleTimeout(t *testing.T) {
 		t.Fatalf("IdleConnTimeout = %v", d.transport.IdleConnTimeout)
 	}
 }
+
+func limitedRoutes() map[string]string {
+	r := statusRoutes()
+	r["Enumerate|CIM_ServiceAvailableToElement"] = "400:unreachable_fault.xml"
+	r["Enumerate|CIM_SoftwareIdentity"] = "400:unreachable_fault.xml"
+	r["Get|AMT_SetupAndConfigurationService"] = "400:access_denied_fault.xml"
+	return r
+}
+
+func TestConnect_LimitedAccountStatus(t *testing.T) {
+	ts := newAMTServer(t, true, "kvm", "secret-1", limitedRoutes())
+	cfg := Config{Host: "device.example.com", Username: "kvm", Password: "secret-1", UseTLS: true,
+		Fingerprint: fingerprintOf(ts.Certificate().Raw), dialContext: dialTo(ts)}
+	d, err := Connect(context.Background(), cfg, noPrompt(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := d.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := StatusPower | StatusVersion | StatusControlMode; st.Denied != want {
+		t.Fatalf("Denied = %b, want %b", st.Denied, want)
+	}
+}
+
+func TestConnect_LimitedAccountWrongPassword(t *testing.T) {
+	ts := newAMTServer(t, true, "kvm", "secret-1", limitedRoutes())
+	cfg := Config{Host: "device.example.com", Username: "kvm", Password: "Geheim-42", UseTLS: true,
+		Fingerprint: fingerprintOf(ts.Certificate().Raw), dialContext: dialTo(ts)}
+	d, err := Connect(context.Background(), cfg, noPrompt(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := d.Status()
+	if err == nil || !strings.Contains(err.Error(), "401") {
+		t.Fatalf("want a 401 error, got %+v %v", st, err)
+	}
+	if coreClassDenied(err) {
+		t.Fatal("a 401 must never count as a permission fault")
+	}
+}

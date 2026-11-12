@@ -2,10 +2,12 @@ package session
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"testing"
 	"time"
 
+	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/amterror"
 	power "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/power"
 
 	"github.com/Srv-02/openlamt/internal/amt"
@@ -290,5 +292,21 @@ func TestPollerRefreshPowerStates(t *testing.T) {
 	nextResult(t, results)
 	if r := nextResult(t, results); r.st.PowerStates != nil {
 		t.Fatalf("failed refresh kept the old states: %+v", r)
+	}
+}
+
+func TestPollerReadsDeniedPowerStatesOnce(t *testing.T) {
+	// amt.PowerStates passes the raw fault through; classify turns it into ErrAccessDenied.
+	raw := fmt.Errorf("get power capabilities: %w", amterror.NewAMTError("e:AccessDenied", "x", ""))
+	dev := &Fake{StatesErr: raw}
+	p, results := startPoller(t, dev, time.Hour)
+	for i := 0; i < 3; i++ {
+		p.Refresh()
+		if r := nextResult(t, results); r.st.PowerStates != nil {
+			t.Fatalf("states = %v, want nil", r.st.PowerStates)
+		}
+	}
+	if n := dev.StatesCalls(); n != 1 {
+		t.Fatalf("%d power state reads, want 1", n)
 	}
 }

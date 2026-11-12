@@ -398,6 +398,10 @@ func (s *StartWindow) refreshStatusRow() {
 		return
 	}
 	s.statusDot.SetState(r.dot)
+	if r.read && !r.st.Allowed(amt.StatusPower) {
+		s.statusText.SetText(lang.L("Not allowed for this account")) // read, but the account may not see the power state
+		return
+	}
 	s.statusText.SetText(powerStatusText(r.dot))
 }
 
@@ -984,7 +988,7 @@ func (s *StartWindow) refreshMeta() {
 	}
 	if f, ok := s.selected(); ok && s.mode != modeNew {
 		if r, ok := s.probes[s.selKey]; ok && r.known() {
-			if r.st.AMTVersion != "" {
+			if r.st.AMTVersion != "" { // empty when denied
 				add(text("AMT " + r.st.AMTVersion))
 			}
 			if r.st.ControlMode == amt.ControlModeAdmin || r.st.ControlMode == amt.ControlModeClient {

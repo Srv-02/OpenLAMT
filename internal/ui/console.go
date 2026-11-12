@@ -291,7 +291,8 @@ func guardTerminal(run func(*terminal.Terminal, *sol.Client, io.WriteCloser) err
 }
 
 // consoleEnded runs on the Fyne thread once the terminal of c has stopped. The device ending the
-// session and Close (window closed, abort) are silent; any other cause is shown.
+// session cleanly and Close (window closed, abort) are silent; any other cause is shown, including
+// a connection that dropped or was aborted after the TCP user timeout.
 func (d *DeviceWindow) consoleEnded(c *sol.Client, err error) {
 	if d.con.client != c {
 		return

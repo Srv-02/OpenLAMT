@@ -297,7 +297,7 @@ func isErrno(err error, list []syscall.Errno) bool {
 // not one: it is a plain "did not answer in time".
 func connectionLost(err error) bool {
 	var op *net.OpError
-	return errors.As(err, &op) && op.Op != "dial" && isErrno(op.Err, errnoTimedOut)
+	return errors.As(err, &op) && op.Op != "dial" && (isErrno(op.Err, errnoTimedOut) || isErrno(op.Err, errnoAborted))
 }
 
 func isTimeout(err error) bool {

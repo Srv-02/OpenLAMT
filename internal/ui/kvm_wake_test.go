@@ -69,13 +69,16 @@ func TestKVMConnectWakesScreenTwice(t *testing.T) {
 
 // A session that ends before wakeRepeat is over gets no second wake key.
 func TestKVMDisconnectBeforeSecondWakeSendsNoMore(t *testing.T) {
-	setWakeRepeat(t, 200*time.Millisecond)
+	setWakeRepeat(t, 500*time.Millisecond)
 	h := newKVMDevice(t, &sessionFake{}, kvmtest.Options{})
 	h.d.wake = wakeScreen
 	h.connect(t, true)
+	// Disconnect only after the first wake has arrived: the wake goroutine starts at the same
+	// first frame as the disconnect, and a Close between its press and release cuts the pair.
+	waitInput(t, h.srv, 2)
 	h.disconnect(t)
-	time.Sleep(300 * time.Millisecond)
-	if keys := keysPerConnection(h.srv); len(keys) != 1 || (len(keys[0]) != 0 && !isWakePair(keys[0])) {
+	time.Sleep(700 * time.Millisecond)
+	if keys := keysPerConnection(h.srv); len(keys) != 1 || !isWakePair(keys[0]) {
 		t.Fatalf("keys %x", keys)
 	}
 }

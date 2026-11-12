@@ -58,7 +58,9 @@ type Session struct {
 }
 
 // Open connects and reads the status once to verify the password. The returned Config
-// carries the confirmed fingerprint.
+// carries the confirmed fingerprint. The only requirement is that Status returns without an
+// error: a part the account may not read is reported in Status.Denied, and AMT answers such a
+// refusal only after the Digest login succeeded, while wrong credentials give 401 (ErrAuth).
 func Open(ctx context.Context, cfg amt.Config, prompt amt.TrustPrompt, connect ConnectFunc) (*Session, amt.Status, error) {
 	dev, err := connect(ctx, cfg, prompt)
 	if err != nil {
@@ -74,7 +76,8 @@ func Open(ctx context.Context, cfg amt.Config, prompt amt.TrustPrompt, connect C
 	return s, st, nil
 }
 
-// classify maps the WS-Man client's 401 error to ErrAuth; everything else passes through.
+// classify maps the WS-Man client's 401 error to ErrAuth and a missing permission to
+// amt.ErrAccessDenied; everything else passes through.
 // *amt.CredentialsUncertainError and *amt.CertificateUncertainError keep their type; only their
 // cause is classified.
 func classify(err error) error {
@@ -96,6 +99,14 @@ func classify(err error) error {
 	msg := err.Error()
 	if strings.Contains(msg, "wsman.Client post received: 401") {
 		return ErrAuth
+	}
+	// A missing permission (SOAP fault AccessDenied or HTTP 403) is not a wrong password. Which
+	// faults Status tolerates is decided there (amt.coreClassDenied), not here.
+	if amt.IsAccessDenied(err) {
+		if errors.Is(err, amt.ErrAccessDenied) {
+			return err // already wrapped by amt, keeps its operation text
+		}
+		return amt.ErrAccessDenied // like ErrAuth: the fault text is replaced
 	}
 	// The library appends the HTTP body to the status line; keep only the status line.
 	if strings.Contains(msg, "wsman.Client post received") {

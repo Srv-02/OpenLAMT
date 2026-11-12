@@ -201,11 +201,13 @@ func (p *Poller) read() {
 	}
 }
 
-// readStates reads the supported power states; a failure leaves them unknown (nil).
+// readStates reads the supported power states; a failure leaves them unknown (nil) and is
+// retried by the next run. A refused read (limited account) counts as read: it stays empty and
+// is not asked again, so the device does not receive a refused request on every run.
 func (p *Poller) readStates() {
 	states, err := p.s.PowerStates()
 	if err != nil {
 		states = nil
 	}
-	p.states, p.statesKnown = states, err == nil
+	p.states, p.statesKnown = states, err == nil || errors.Is(err, amt.ErrAccessDenied)
 }

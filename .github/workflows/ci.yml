@@ -17,9 +17,11 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install Fyne dependencies
+        # A stuck Ubuntu mirror once held this step for about 10 minutes: fail fast and retry.
+        timeout-minutes: 5
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
       - name: govulncheck
         # Text mode: only there does govulncheck exit with 3 on findings (json/sarif always 0).
         # Runs after the apt step because loading the packages needs the cgo headers.
@@ -30,5 +32,30 @@ jobs:
         run: test -z "$(gofmt -l cmd internal)"
       - name: go vet
         run: go vet ./...
+
+  test:
+    # Same platforms as release.yml, so platform-specific failures block the pull request
+    # instead of the release. gofmt (CRLF on Windows), go vet and govulncheck stay on Linux.
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Install Fyne dependencies (Linux)
+        if: runner.os == 'Linux'
+        timeout-minutes: 5
+        run: |
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
       - name: go test
         run: go test ./...

@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -114,15 +115,12 @@ func TestSanitizeName(t *testing.T) {
 func TestBuildPlain(t *testing.T) {
 	src := filepath.Join(t.TempDir(), "myfolder")
 	long := strings.Repeat("l", 99) + ".txt" // 103 units
-	want, dirs := writeTree(t, src, []spec{
+	specs := []spec{
 		{disk: "readme.txt", data: []byte("hello world")},
 		{disk: "empty.bin", data: nil},
 		{disk: "docs/Übersicht Äpfel.txt", data: randBytes(1, 3000)},
 		{disk: "nfd/Ä.txt", want: "nfd/Ä.txt", data: randBytes(2, 10)},
-		{disk: "sp/a:b?.txt", want: "sp/a_b_.txt", data: randBytes(3, 5)},
-		{disk: "sp/x*y.txt", want: "sp/x_y.txt", data: randBytes(4, 5)},
 		{disk: "sp/semi;colon.txt", want: "sp/semi_colon.txt", data: randBytes(5, 5)},
-		{disk: "trail/foo.", want: "trail/foo_", data: randBytes(6, 5)},
 		{disk: "sizes/s2047", data: randBytes(7, 2047)},
 		{disk: "sizes/s2048", data: randBytes(8, 2048)},
 		{disk: "sizes/s2049", data: randBytes(9, 2049)},
@@ -135,7 +133,21 @@ func TestBuildPlain(t *testing.T) {
 		{disk: "many/abcdefghi.txt", data: randBytes(16, 1)},
 		{disk: "many/abcdefghj.txt", data: randBytes(17, 1)},
 		{disk: "emptydir/"},
-	})
+	}
+	wantDirs := 11 // root excluded
+	if runtime.GOOS != "windows" {
+		// Windows forbids ':', '?' and '*' in names (on NTFS "a:b" names a stream of the file
+		// "a") and drops a trailing dot, so these names cannot exist there; TestSanitizeName
+		// covers their mapping on every system.
+		specs = append(specs,
+			spec{disk: "sp/a:b?.txt", want: "sp/a_b_.txt", data: randBytes(3, 5)},
+			spec{disk: "sp/x*y.txt", want: "sp/x_y.txt", data: randBytes(4, 5)},
+			spec{disk: "trail/foo.", want: "trail/foo_", data: randBytes(6, 5)},
+		)
+	} else {
+		wantDirs-- // no "trail"
+	}
+	want, dirs := writeTree(t, src, specs)
 	var progress [][2]int64
 	path, info, err := buildToFile(t, src, Options{Progress: func(d, tot int64) { progress = append(progress, [2]int64{d, tot}) }})
 	if err != nil {
@@ -147,8 +159,8 @@ func TestBuildPlain(t *testing.T) {
 	if info.Files != len(want) {
 		t.Fatalf("Info.Files = %d, want %d", info.Files, len(want))
 	}
-	if info.Dirs != 11 { // root excluded
-		t.Fatalf("Info.Dirs = %d, want 11", info.Dirs)
+	if info.Dirs != wantDirs {
+		t.Fatalf("Info.Dirs = %d, want %d", info.Dirs, wantDirs)
 	}
 	verifyISO(t, path, want, verifyOpts{pvdVolume: "myfolder", jolVolume: "myfolder", extraDirs: dirs, isoSizeInf: info.Size})
 	if len(progress) == 0 {
@@ -435,8 +447,9 @@ func TestSymlinkSkipped(t *testing.T) {
 func cacheEnv(t *testing.T) string {
 	t.Helper()
 	c := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", c)
-	t.Setenv("HOME", c)
+	t.Setenv("XDG_CACHE_HOME", c) // Linux
+	t.Setenv("HOME", c)           // macOS
+	t.Setenv("LocalAppData", c)   // Windows
 	return c
 }
 
@@ -454,6 +467,9 @@ func TestBuildTempAndClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Close also when a check fails: on Windows an open file cannot be removed, and the
+	// TempDir cleanup of cacheEnv would fail on it.
+	t.Cleanup(func() { img.Close() })
 	cd, err := CacheDir()
 	if err != nil {
 		t.Fatal(err)
@@ -461,8 +477,13 @@ func TestBuildTempAndClose(t *testing.T) {
 	if filepath.Dir(img.Path()) != cd || !strings.HasSuffix(cd, filepath.Join("OpenLAMT", "ider")) {
 		t.Fatalf("path %q, cache %q", img.Path(), cd)
 	}
-	if st, err := os.Stat(cd); err != nil || st.Mode().Perm() != 0o700 {
+	st, err := os.Stat(cd)
+	if err != nil || !st.IsDir() {
 		t.Fatalf("cache dir: %v %v", st, err)
+	}
+	// Windows reports no Unix permission bits; MkdirAll ignores the mode there.
+	if runtime.GOOS != "windows" && st.Mode().Perm() != 0o700 {
+		t.Fatalf("cache dir mode %v, want 0700", st.Mode().Perm())
 	}
 	if img.Size() != info.Size {
 		t.Fatalf("Size %d != %d", img.Size(), info.Size)

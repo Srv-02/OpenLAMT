@@ -357,6 +357,7 @@
   "Add domain": "Domäne hinzufügen",
   "Add": "Hinzufügen",
   "With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them.": "Mit dynamischem DNS ist das Gerät unter seinem bisherigen Namen eventuell nicht mehr zu finden. Favoriten mit diesem Namen funktionieren erst wieder, wenn du sie bearbeitest.",
+  "Favorites that use the name stop working until you edit them.": "Favoriten mit diesem Namen funktionieren erst wieder, wenn du sie bearbeitest.",
   "Change Name": "Namen ändern",
   "Turn off AMT on the network?": "AMT im Netzwerk ausschalten?",
   "This cannot be undone remotely.": "Das lässt sich aus der Ferne nicht rückgängig machen.",

@@ -158,7 +158,7 @@ func TestSettingsHostNameDialog(t *testing.T) {
 	if !hasText(top, "New host name") || f.Text != "labserver" || d.action.Text != "Change Name" || h.m.parent.Canvas().Focused() != f {
 		t.Errorf("field %q button %q focus %v", f.Text, d.action.Text, h.m.parent.Canvas().Focused() == f)
 	}
-	if !hasRichText(t, top, "With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them.", false) ||
+	if !hasRichText(t, top, "Favorites that use the name stop working until you edit them.", false) ||
 		!same(d.warnBox.FillColor, style.Color(style.ColorNameWarningSurface)) {
 		t.Error("orange warning box")
 	}
@@ -188,6 +188,34 @@ func TestSettingsHostNameDialog(t *testing.T) {
 	}
 	if p.hostText.Text != "lab01" || p.domainText.Text != "example.com" {
 		t.Errorf("after the write: %q %q", p.hostText.Text, p.domainText.Text)
+	}
+}
+
+// The name warning mentions Dynamic DNS only when the device has it on (also by the DHCP server).
+func TestSettingsNameWarningFollowsDynamicDNS(t *testing.T) {
+	const short = "Favorites that use the name stop working until you edit them."
+	const long = "With Dynamic DNS, the device may no longer be found under its current name. " + short
+	for _, tc := range []struct {
+		mode amt.DDNSMode
+		want string
+	}{{amt.DDNSOff, short}, {amt.DDNSClient, long}, {amt.DDNSByDHCPServer, long}} {
+		for _, domain := range []bool{false, true} {
+			h, p := settingsHarness(t, func(f *session.Fake) { f.Cfg.Settings.General.DynamicDNS = tc.mode })
+			if domain {
+				test.Tap(p.changeDomain)
+			} else {
+				test.Tap(p.changeHost)
+			}
+			top := h.m.parent.Canvas().Overlays().Top()
+			other := long
+			if tc.want == long {
+				other = short
+			}
+			if !hasRichText(t, top, tc.want, false) || hasRichText(t, top, other, false) {
+				t.Errorf("mode %v domain %v: warning is not %q", tc.mode, domain, tc.want)
+			}
+			p.dialog.Dismiss()
+		}
 	}
 }
 

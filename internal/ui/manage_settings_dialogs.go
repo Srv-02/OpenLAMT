@@ -30,6 +30,11 @@ func (p *settingsPane) openName(domain bool) {
 	if domain {
 		title, label, button, value = lang.L("Change domain"), lang.L("New domain"), lang.L("Change Domain"), cur.DomainName
 	}
+	// Without Dynamic DNS the device keeps its address, only favorites that use the name break
+	warning := lang.L("Favorites that use the name stop working until you edit them.")
+	if cur.DynamicDNS != amt.DDNSOff {
+		warning = lang.L("With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them.")
+	}
 	var field *dialogEntry
 	change := func() amt.GeneralChange {
 		v := strings.TrimSpace(field.Text)
@@ -40,7 +45,7 @@ func (p *settingsPane) openName(domain bool) {
 	}
 	p.dialog = showOrangeConfirm(p.window(), orangeSpec{
 		op: amt.OpHostName, host: p.m.confirmHost(), device: p.m.confirmDevice(), title: title,
-		warning: lang.L("With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them."),
+		warning: warning,
 		lead: func(d *riskDialog) []fyne.CanvasObject {
 			field = d.newEntry(false)
 			field.SetText(value)

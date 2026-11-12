@@ -357,6 +357,7 @@
   "Add domain": "Add domain",
   "Add": "Add",
   "With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them.": "With Dynamic DNS, the device may no longer be found under its current name. Favorites that use the name stop working until you edit them.",
+  "Favorites that use the name stop working until you edit them.": "Favorites that use the name stop working until you edit them.",
   "Change Name": "Change Name",
   "Turn off AMT on the network?": "Turn off AMT on the network?",
   "This cannot be undone remotely.": "This cannot be undone remotely.",

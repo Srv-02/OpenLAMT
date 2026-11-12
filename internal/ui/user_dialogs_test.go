@@ -36,16 +36,6 @@ func (s *countingStore) ChangeFingerprint(host, user, oldFP, newFP string) error
 
 var _ session.LoginStore = (*countingStore)(nil)
 
-// captureUsersNotApproved records the calls of usersNotApproved during the test.
-func captureUsersNotApproved(t *testing.T) *[]string {
-	t.Helper()
-	var calls []string
-	prev := usersNotApprovedHook
-	usersNotApprovedHook = func(what string) { calls = append(calls, what) }
-	t.Cleanup(func() { usersNotApprovedHook = prev })
-	return &calls
-}
-
 func TestAdminDialogNeedsValidFieldsAndTheHost(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	store := &countingStore{}
@@ -379,14 +369,22 @@ func TestEditUserNotSavedAfterPasswordChange(t *testing.T) {
 	}
 }
 
-func TestEditOwnAccountIsNotApproved(t *testing.T) {
-	calls := captureUsersNotApproved(t)
+// Editing the own, non-admin account has no dialog yet (issue #32): its Edit is disabled like
+// that of a "$$" account and opens nothing.
+func TestEditOwnAccountIsDisabled(t *testing.T) {
 	list := exampleUsers()
 	list.Users[0].Self = true
 	h, p := usersHarness(t, list)
-	test.Tap(p.table.lines[1].edit) // own account (not the admin)
-	if p.userDlg != nil || open(h.m.parent) || len(*calls) != 1 {
-		t.Fatalf("own account: dialog %v calls %v", p.userDlg != nil, *calls)
+	own := p.table.lines[1] // own account (not the admin)
+	if !own.edit.Disabled() || own.row.editable {
+		t.Fatal("Edit of the own, non-admin account is enabled")
+	}
+	test.Tap(own.edit)
+	if p.userDlg != nil || open(h.m.parent) {
+		t.Fatal("Edit of the own account opened a dialog")
+	}
+	if p.table.lines[0].edit.Disabled() || p.table.lines[2].edit.Disabled() {
+		t.Error("the admin row and other users must stay editable")
 	}
 }
 

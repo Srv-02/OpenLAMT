@@ -22,17 +22,6 @@ import (
 // the device in a table Name | Status | Access | Permissions | Edit, "+ Add user" in the page
 // head (window) or above the table (sidebar). The dialogs are in user_dialogs.go.
 
-// usersNotApprovedHook, if set, sees every call of usersNotApproved (tests).
-var usersNotApprovedHook func(what string)
-
-// usersNotApproved stands for a step of the Users page that has no approved design yet: it
-// shows nothing. Each call site carries a TODO(design).
-func usersNotApproved(what string) {
-	if usersNotApprovedHook != nil {
-		usersNotApprovedHook(what)
-	}
-}
-
 // permGroup is one permission checkbox of the user dialog (Forms.dc.html) and the realms it
 // stands for. Realms outside every group are kept unchanged and are not named in the table.
 type permGroup struct {
@@ -109,7 +98,9 @@ func userRows(l amt.UserList, login string) []userRow {
 	}
 	for _, u := range l.Users {
 		r := userRow{name: u.Name, access: accessText(u.Access), perms: permissionsText(u.Realms), user: &u,
-			signedIn: u.Self, editable: u.Name != "" && !u.System}
+			// Editing the own, non-admin account has no approved design yet (issue #32): its Edit
+			// is disabled like that of a "$$" account.
+			signedIn: u.Self, editable: u.Name != "" && !u.System && !u.Self}
 		if u.Name == "" {
 			r.name = u.KerberosSID
 		}
@@ -199,9 +190,7 @@ func (p *usersPane) edit(r userRow) {
 	case r.admin:
 		p.adminDlg = p.m.showAdminDialog(p, r.name, r.signedIn)
 	case r.user.Self:
-		// TODO(design): the orange confirmation (amt.OpOwnAccount) before the own account is
-		// changed has no approved design.
-		usersNotApproved("edit own account")
+		// Edit is disabled for the own, non-admin account until it has a dialog (issue #32).
 	default:
 		p.userDlg = p.m.showUserDialog(p, r.user)
 	}

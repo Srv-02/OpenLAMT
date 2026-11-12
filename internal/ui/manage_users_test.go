@@ -74,8 +74,8 @@ func TestUserRowTexts(t *testing.T) {
 		t.Errorf("unknown enabled state shows %q", got)
 	}
 	self := amt.User{Handle: 9, Name: "ops", Self: true, Enabled: true, EnabledKnown: true, Realms: []amt.Realm{amt.RealmRedirection}}
-	if r := userRows(amt.UserList{Admin: "admin", Users: []amt.User{self}}, "ops"); r[0].signedIn || !r[1].signedIn {
-		t.Errorf("signed-in marks: admin %v ops %v", r[0].signedIn, r[1].signedIn)
+	if r := userRows(amt.UserList{Admin: "admin", Users: []amt.User{self}}, "ops"); r[0].signedIn || !r[1].signedIn || r[1].editable {
+		t.Errorf("signed-in marks: admin %v ops %v, own Edit enabled %v (issue #32)", r[0].signedIn, r[1].signedIn, r[1].editable)
 	}
 }
 

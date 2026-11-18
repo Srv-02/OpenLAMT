@@ -35,7 +35,7 @@ func resourceURI(class string) string {
 // cimObject is one instance as the device returned it: every property in device order with
 // its text, so a Put sends back the complete object with only the changed values replaced
 // (as MeshCommander does). The library's request structs cannot be used for this: they drop
-// false booleans (omitempty) and omit properties they do not model.
+// zero integers (omitempty) and omit properties they do not model.
 type cimObject struct {
 	class string
 	props []cimProp

@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/amterror"
 	client "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/client"
 )
 
@@ -316,7 +317,8 @@ func commitOutput(xmlOutput string) error {
 // A new certificate changes the pin of this connection: the device switches to the fingerprint
 // of the chosen certificate, which it read through the pinned connection (Fingerprint returns it;
 // the session stores it). The same holds for a binding an earlier failed call left staged, which
-// this commit activates. If the answer to CommitChanges is lost, a fresh TLS handshake that
+// this commit activates. A SOAP fault on CommitChanges is an answer: the commit failed and the pin
+// stays. If the answer to CommitChanges is lost, a fresh TLS handshake that
 // presents exactly that certificate within tlsProbeWindow counts as applied; otherwise
 // *CertificateUncertainError names the fingerprint to expect.
 func (d *Device) SetTLS(c TLSChange, confirm Confirmation) error {
@@ -387,6 +389,10 @@ func (d *Device) SetTLS(c TLSChange, confirm Confirmation) error {
 	var me *MethodError
 	if errors.As(cerr, &me) {
 		return cerr
+	}
+	var fault *amterror.AMTError
+	if errors.As(err, &fault) { // a SOAP fault is the device's answer: rejected, nothing to probe
+		return writeError(op, err)
 	}
 	if err == nil {
 		err = cerr

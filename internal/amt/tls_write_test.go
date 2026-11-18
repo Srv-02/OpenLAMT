@@ -357,6 +357,19 @@ func TestSetTLSCommitErrors(t *testing.T) {
 	if !errors.As(err, &ce) || ce.Fingerprint != fingerprintOf(certB.der) || d.Fingerprint() != fingerprintOf(certA.der) {
 		t.Fatalf("commit without answer and without proof: %v, pin changed %v", err, d.Fingerprint() != fingerprintOf(certA.der))
 	}
+	// a fault is an answer: no uncertainty, the old pin stays
+	for name, tc := range map[string]struct {
+		file   string
+		denied bool
+	}{"access denied": {"access_denied_fault.xml", true}, "other fault": {"unreachable_fault.xml", false}} {
+		seq["CommitChanges|AMT_SetupAndConfigurationService"] = []cfgResp{{err: faultErr(t, tc.file)}}
+		d, _ = tlsDevice(t, seq)
+		err := d.SetTLS(TLSChange{Certificate: ptr(certB.id)}, confirmed(OpTLS))
+		if err == nil || errors.Is(err, ErrCertificateUncertain) || errors.Is(err, ErrAccessDenied) != tc.denied || d.Fingerprint() != fingerprintOf(certA.der) {
+			t.Errorf("%s on commit: %v, pin changed %v", name, err, d.Fingerprint() != fingerprintOf(certA.der))
+		}
+	}
+
 	seq["CommitChanges|AMT_SetupAndConfigurationService"] = []cfgResp{{err: errors.New("connection reset by peer")}}
 	d, _ = tlsDevice(t, seq)
 	if err := d.SetTLS(TLSChange{LocalEnabled: ptr(true)}, confirmed(OpTLS)); err == nil || errors.Is(err, ErrCertificateUncertain) {
@@ -382,7 +395,8 @@ type certServer struct {
 	cur, next  *httptest.Server
 	switched   atomic.Bool
 	dropCommit bool
-	noSwitch   bool // CommitChanges does not take effect
+	noSwitch   bool   // CommitChanges does not take effect
+	faultBody  string // CommitChanges answers with this SOAP fault (HTTP 400)
 }
 
 func (cs *certServer) serve(w http.ResponseWriter, r *http.Request) {
@@ -417,6 +431,11 @@ func (cs *certServer) serve(w http.ResponseWriter, r *http.Request) {
 		file("cfg_put_ok.xml")
 	case "CommitChanges|AMT_SetupAndConfigurationService":
 		cs.switched.Store(!cs.noSwitch)
+		if cs.faultBody != "" {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, cs.faultBody)
+			return
+		}
 		if cs.dropCommit {
 			conn, _, _ := w.(http.Hijacker).Hijack()
 			conn.Close()
@@ -493,6 +512,25 @@ func TestSetTLSCertificateNotCommitted(t *testing.T) {
 		if err := d.SetTLS(TLSChange{Certificate: ptr(certB.id)}, confirmed(OpTLS)); !errors.Is(err, ErrCertificateUncertain) || d.Fingerprint() != fingerprintOf(certA.der) {
 			t.Fatalf("%s: unproven commit: %v, pin switched %v", name, err, d.Fingerprint() != fingerprintOf(certA.der))
 		}
+	}
+}
+
+// A fault on CommitChanges is the device's answer: SetTLS returns it at once. It does not probe the
+// new certificate, even though the new listener is up (the fake switches to it).
+func TestSetTLSCommitFaultDoesNotProbe(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("testdata", "access_denied_fault.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs, cfg := newCertServers(t, false)
+	cs.faultBody = string(b)
+	d, err := Connect(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = d.SetTLS(TLSChange{Certificate: ptr(certB.id)}, confirmed(OpTLS))
+	if !errors.Is(err, ErrAccessDenied) || errors.Is(err, ErrCertificateUncertain) || d.Fingerprint() != fingerprintOf(certA.der) {
+		t.Fatalf("fault: %v, pin changed %v", err, d.Fingerprint() != fingerprintOf(certA.der))
 	}
 }
 

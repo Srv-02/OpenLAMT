@@ -4,7 +4,7 @@ go 1.27.4
 
 require (
 	fyne.io/fyne/v2 v2.8.2
-	github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.5
+	github.com/device-management-toolkit/go-wsman-messages/v2 v2.51.2
 	github.com/fyne-io/oksvg v0.2.1-0.20260918172519-a9af55fa95d9
 	github.com/fyne-io/terminal v0.0.0-20261023210238-45431670057e
 	github.com/go-gl/glfw/v3.4/glfw v0.1.0-pre.2

@@ -291,8 +291,8 @@ func (c TLSChange) Check(cur TLSSettings, certs []Certificate) ([]string, error)
 	return fields, nil
 }
 
-// commitOutput checks CommitChanges_OUTPUT/ReturnValue (the library reads another method's
-// output for it).
+// commitOutput reads CommitChanges_OUTPUT/ReturnValue from the raw answer: the library checks it
+// too, but its error carries only text, and an answer without the output counts as success there.
 func commitOutput(xmlOutput string) error {
 	var out struct {
 		RV *int `xml:"Body>CommitChanges_OUTPUT>ReturnValue"`
@@ -383,12 +383,13 @@ func (d *Device) SetTLS(c TLSChange, confirm Confirmation) error {
 		}
 	}
 	r, err := d.msgs.AMT.SetupAndConfigurationService.CommitChanges()
+	cerr := commitOutput(xmlOf(r.Message)) // the library error carries only text
+	var me *MethodError
+	if errors.As(cerr, &me) {
+		return cerr
+	}
 	if err == nil {
-		err = commitOutput(xmlOf(r.Message))
-		var me *MethodError
-		if errors.As(err, &me) {
-			return err
-		}
+		err = cerr
 	}
 	if err != nil && !d.presents(newPin) {
 		if newPin != "" {

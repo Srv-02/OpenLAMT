@@ -196,8 +196,8 @@ func digestPassword(name, realm, password string) string {
 }
 
 // authOutput checks that the response has <method>_OUTPUT and returns its ReturnValue; a
-// non-zero value is a *MethodError. It reads the raw XML, because the library has no response
-// field for UpdateUserAclEntryEx.
+// non-zero value is a *MethodError. It reads the raw XML, because the library does not
+// check ReturnValue for these methods.
 func authOutput(m *client.Message, method string) (int, error) {
 	var env struct {
 		Body struct {

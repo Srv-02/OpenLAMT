@@ -280,6 +280,23 @@ func TestParseAuditRecord(t *testing.T) {
 	}
 }
 
+func TestSidString(t *testing.T) {
+	for _, n := range []int{0, 1, 7} {
+		if s := sidString(make([]byte, n)); s != "" {
+			t.Errorf("%d bytes: %q, want empty", n, s)
+		}
+	}
+	if s := sidString([]byte{1, 0, 0, 0, 0, 0, 0, 5, 21}); s != "S-1-5" { // 9 bytes: no sub-authority
+		t.Errorf("9 bytes: %q", s)
+	}
+	if s := sidString(exampleSID()); s != "S-1-5-21-1000-2000-3000" {
+		t.Errorf("example: %q", s)
+	}
+	if s := sidString(append(exampleSID(), 1, 2)); s != "S-1-5-21-1000-2000-3000" { // trailing partial sub-authority
+		t.Errorf("trailing bytes: %q", s)
+	}
+}
+
 func TestAuditLogMissingReadRecordsOutput(t *testing.T) {
 	body := []byte(`<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"><a:Body></a:Body></a:Envelope>`)
 	d, _ := auditDevice(func(string) ([]byte, error) { return body, nil })

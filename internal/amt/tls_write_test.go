@@ -504,3 +504,38 @@ func TestTLSChangeApplyCopies(t *testing.T) {
 		t.Error("Apply must not share the slice")
 	}
 }
+
+func TestSetTLSCommitOutcome(t *testing.T) {
+	settings := TLSChange{LocalEnabled: ptr(true)}
+	commit := "CommitChanges|AMT_SetupAndConfigurationService"
+	run := func(r cfgResp) (*Device, error) {
+		seq := tlsSeq(t, false)
+		seq[commit] = []cfgResp{r}
+		d, _ := tlsDevice(t, seq)
+		return d, d.SetTLS(settings, confirmed(OpTLS))
+	}
+
+	// rejected settings commit: the device's return value, not the library's text
+	d, err := run(cfgResp{body: commitBody("2057")})
+	var me *MethodError
+	if !errors.As(err, &me) || me.Method != "CommitChanges" || me.ReturnValue != 2057 {
+		t.Fatalf("rejected: %v", err)
+	}
+	if errors.Is(err, ErrCertificateUncertain) || d.Fingerprint() != fingerprintOf(certA.der) {
+		t.Errorf("rejected: %v, pin changed %v", err, d.Fingerprint() != fingerprintOf(certA.der))
+	}
+
+	// a fault keeps its meaning
+	if _, err := run(cfgResp{err: faultErr(t, "access_denied_fault.xml")}); !errors.Is(err, ErrAccessDenied) || errors.Is(err, ErrIncompleteResponse) {
+		t.Errorf("fault: %v", err)
+	}
+	// a transport error keeps its text
+	if _, err := run(cfgResp{err: errors.New("connection reset by peer")}); err == nil || errors.Is(err, ErrIncompleteResponse) || !strings.Contains(err.Error(), "connection reset by peer") {
+		t.Errorf("transport: %v", err)
+	}
+	// an answer without CommitChanges_OUTPUT is no success, although the library reports none
+	empty := `<?xml version="1.0" encoding="UTF-8"?><a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"><a:Header/><a:Body/></a:Envelope>`
+	if _, err := run(cfgResp{body: empty}); !errors.Is(err, ErrIncompleteResponse) {
+		t.Errorf("no output: %v", err)
+	}
+}

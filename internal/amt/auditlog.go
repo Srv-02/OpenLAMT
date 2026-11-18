@@ -54,8 +54,8 @@ type auditPage struct {
 	ReturnValue int
 }
 
-// readAuditPage sends ReadRecords through the library, which may panic while decoding a record,
-// and parses the stored answer itself.
+// readAuditPage sends ReadRecords through the library, which may panic while decoding a record's
+// extended data, and parses the stored answer itself.
 func (d *Device) readAuditPage(start int) (auditPage, error) {
 	cp := &auditCapture{WSMan: d.msgs.Client}
 	func() {
@@ -186,16 +186,8 @@ func parseAuditRecord(b []byte) AuditLogEntry {
 	return e
 }
 
-// sidString renders a binary Kerberos SID; the library function panics on fewer than 8 bytes.
-func sidString(sid []byte) (s string) {
-	if len(sid) < 8 {
-		return ""
-	}
-	defer func() {
-		if recover() != nil {
-			s = ""
-		}
-	}()
+// sidString renders a binary Kerberos SID ("" for fewer than 8 bytes).
+func sidString(sid []byte) string {
 	return common.GetSidString(string(sid))
 }
 

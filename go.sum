@@ -22,8 +22,8 @@ github.com/danieljoos/wincred v1.2.3 h1:v7dZC2x32Ut3nEfRH+vhoZGvN72+dQ/snVXo/vMF
 github.com/danieljoos/wincred v1.2.3/go.mod h1:6qqX0WNrS4RzPZ1tnroDzq9kY3fu1KwE7MRLQK4X0bs=
 github.com/dchest/jsmin v1.0.0 h1:Y2hWXmGZiRxtl+VcTksyucgTlYxnhPzTozCwx9gy9zI=
 github.com/dchest/jsmin v1.0.0/go.mod h1:AVBIund7Mr7lKXT70hKT2YgL3XEXUaUk5iw9DZ8b0Uc=
-github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.5 h1:GhoBdwKwUXv2SkUz42hBiIuH3LvEc22SFz27an4uB40=
-github.com/device-management-toolkit/go-wsman-messages/v2 v2.50.5/go.mod h1:1CwXpsKcv4JRlFyPvbv3g30LB1cwIA/4rtKyO5KgrKc=
+github.com/device-management-toolkit/go-wsman-messages/v2 v2.51.2 h1:4SP29pjzyegSf4Jl97nV8/EuS02Cj04/XSVHqr+maq0=
+github.com/device-management-toolkit/go-wsman-messages/v2 v2.51.2/go.mod h1:1CwXpsKcv4JRlFyPvbv3g30LB1cwIA/4rtKyO5KgrKc=
 github.com/fsnotify/fsnotify v1.9.0 h1:2Ml+OJNzbYCTzsxtv8vKSFD9PbJjmhYF14k/jKC7S9k=
 github.com/fsnotify/fsnotify v1.9.0/go.mod h1:8jBTzvmWwFyi3Pb8djgCCO5IBqzKJ/Jwo8TRcHyHii0=
 github.com/fyne-io/gl-js v0.2.1-0.20260315212741-029c47fd27e8 h1:0kdPD/GEntpWmZEK5Zu/xE6Tr37jYCVDf9QP8lA/QK8=

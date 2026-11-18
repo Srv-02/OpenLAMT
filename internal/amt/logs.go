@@ -1,7 +1,6 @@
 package amt
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
@@ -51,7 +50,9 @@ type EventLogEntry struct {
 }
 
 // EventLog reads the AMT event log (at most 390 entries, one request), newest first.
-// Records the device pads with zero bytes are dropped.
+// Records the device pads with zero bytes are dropped, and so are records the library
+// cannot decode (invalid Base64, shorter than 21 bytes): the result can hold fewer
+// entries than the device returned.
 func (d *Device) EventLog() ([]EventLogEntry, error) {
 	resp, err := d.msgs.AMT.MessageLog.GetRecords(1, messagelog.MaxAMTRecords)
 	if err != nil {
@@ -70,14 +71,14 @@ func (d *Device) EventLog() ([]EventLogEntry, error) {
 	}
 
 	var entries []EventLogEntry
-	for i, rec := range out.RecordArray {
-		if i >= len(out.RawEventData) || i >= len(out.RefinedEventData) {
+	for i, raw := range out.RawEventData {
+		if i >= len(out.RefinedEventData) {
 			break
 		}
-		if allZero(rec) {
+		if isPadding(raw) {
 			continue
 		}
-		raw, refined := out.RawEventData[i], out.RefinedEventData[i]
+		refined := out.RefinedEventData[i]
 		source := refined.Entity
 		if source == "Unspecified" || source == "Unknown" {
 			source = ""
@@ -96,13 +97,17 @@ func (d *Device) EventLog() ([]EventLogEntry, error) {
 	return entries, nil
 }
 
-// allZero reports whether the Base64 record decodes to zero bytes only (any length).
-func allZero(b64 string) bool {
-	b, err := base64.StdEncoding.DecodeString(b64)
-	if err != nil {
+// isPadding reports whether a decoded record is all zero, as AMT pads the log with such records.
+func isPadding(r messagelog.RawEventData) bool {
+	for _, v := range []uint8{r.DeviceAddress, r.EventSensorType, r.EventType, r.EventOffset, r.EventSourceType, r.EventSeverity, r.SensorNumber, r.Entity, r.EntityInstance} {
+		if v != 0 {
+			return false
+		}
+	}
+	if r.TimeStamp != 0 {
 		return false
 	}
-	for _, c := range b {
+	for _, c := range r.EventData {
 		if c != 0 {
 			return false
 		}

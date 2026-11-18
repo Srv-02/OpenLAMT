@@ -83,6 +83,52 @@ func TestEventLog(t *testing.T) {
 	}
 }
 
+func TestEventLogMalformedRecords(t *testing.T) {
+	boot := [8]byte{0, 19}
+	zero := base64.StdEncoding.EncodeToString(make([]byte, 21))
+	short := base64.StdEncoding.EncodeToString([]byte{1, 2, 3, 4, 5})
+	resp := getRecordsXML(0,
+		eventRecord(1767225600, 15, 2, 0, 34, boot), // newest, BIOS boot
+		"not base64!",
+		short,
+		zero,
+		eventRecord(1767225000, 15, 0, 16, 35, [8]byte{}), // older, ME critical
+	)
+	d, _ := eventDevice(resp, nil)
+	got, err := d.EventLog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2: %+v", len(got), got)
+	}
+	if got[0].Source != "BIOS" || got[0].Description != "Starting operating system boot process" || got[0].EventData != boot ||
+		!got[0].Time.Equal(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("first %+v", got[0])
+	}
+	if got[1].Source != "Intel(r) ME" || got[1].Severity != SeverityCritical || !got[1].Time.Equal(time.Unix(1767225000, 0).UTC()) {
+		t.Errorf("second %+v", got[1])
+	}
+}
+
+func TestEventLogPadding(t *testing.T) {
+	// time 0 with a sensor type is a record, not padding
+	d, _ := eventDevice(getRecordsXML(0, eventRecord(0, 15, 0, 0, 34, [8]byte{})), nil)
+	if got, err := d.EventLog(); err != nil || len(got) != 1 {
+		t.Fatalf("time 0: %v %v", got, err)
+	}
+	// only data bytes set is a record too
+	d, _ = eventDevice(getRecordsXML(0, eventRecord(0, 0, 0, 0, 0, [8]byte{7: 1})), nil)
+	if got, err := d.EventLog(); err != nil || len(got) != 1 {
+		t.Fatalf("data only: %v %v", got, err)
+	}
+	// a page of unreadable records is empty, not an error
+	d, _ = eventDevice(getRecordsXML(0, "not base64!", base64.StdEncoding.EncodeToString([]byte{1})), nil)
+	if got, err := d.EventLog(); err != nil || len(got) != 0 {
+		t.Fatalf("unreadable: %v %v", got, err)
+	}
+}
+
 func TestEventLogUnspecifiedSource(t *testing.T) {
 	for _, entity := range []uint8{0, 2} {
 		d, _ := eventDevice(getRecordsXML(0, eventRecord(1767225600, 15, 0, 0, entity, [8]byte{0, 1})), nil)

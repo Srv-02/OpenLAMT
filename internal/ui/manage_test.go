@@ -40,7 +40,9 @@ func newManageHarness(t *testing.T, dev *session.Fake) *manageHarness {
 		st: amt.Status{PowerState: models.PowerStateOn, AMTVersion: "16.1.25", ControlMode: amt.ControlModeAdmin}}
 	parent := a.NewWindow("Lab")
 	h.m = newManager(a, parent, s, "Lab", manageDeps{host: "192.0.2.10", status: func() (amt.Status, bool) { return h.st, h.known }})
-	h.m.tickEvery = 0 // tests call tick themselves
+	fixed := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+	h.m.now = func() time.Time { return fixed } // reads take 0.0 s, whatever the runner does
+	h.m.tickEvery = 0                           // tests call tick themselves
 	h.m.later = func(f func()) { h.loaded <- f }
 	t.Cleanup(h.m.Close)
 	return h
@@ -397,5 +399,19 @@ func TestManageButtonsRegularText(t *testing.T) {
 		if !b.Metrics.Regular {
 			t.Errorf("%s is semibold", name)
 		}
+	}
+}
+
+func TestManageReadTimeComesFromManagerClock(t *testing.T) {
+	englishUI(t)
+	h := newManageHarness(t, &session.Fake{FP: fp, HW: exampleHW()})
+	t0 := time.Date(2026, 11, 11, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	h.m.now = func() time.Time { calls++; return t0.Add(time.Duration(calls) * 300 * time.Millisecond) }
+	h.m.Sidebar()
+	h.wait(t)
+	// calls: start (1), end (2); the stamp in done() is the third call.
+	if h.m.hw.took != 300*time.Millisecond {
+		t.Fatalf("took %v", h.m.hw.took)
 	}
 }

@@ -301,7 +301,7 @@ func TestAppearanceSwitchesOpenWindows(t *testing.T) {
 	}
 	save := func(label string) {
 		t.Helper()
-		showSettingsDialog(h.s.win, &h.s.settings)
+		showSettingsDialog(h.s.win, &h.s.settings, h.s.checkUpdateNow)
 		_, drops, _ := settingsParts(t, h.s.win)
 		drops[1].SetSelected(label) // appearance
 		_, _, buttons := dialogTexts(h.s.win)

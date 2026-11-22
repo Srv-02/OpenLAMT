@@ -49,7 +49,7 @@ func versionDialogs(t *testing.T) map[string]string {
 	out := map[string]string{}
 	for name, show := range map[string]func(){
 		"about":    func() { showAboutDialog(h.s.win, h.s.app) },
-		"settings": func() { showSettingsDialog(h.s.win, &h.s.settings) },
+		"settings": func() { showSettingsDialog(h.s.win, &h.s.settings, h.s.checkUpdateNow) },
 		"coffee":   func() { showCoffeeDialog(h.s.win, h.s.app) },
 	} {
 		show()

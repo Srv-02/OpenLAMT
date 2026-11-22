@@ -33,6 +33,14 @@ const (
 // ErrDigest reports a downloaded file whose SHA-256 differs from the one GitHub states.
 var ErrDigest = errors.New("update: checksum mismatch")
 
+// StatusError is an answer of the release API other than 200.
+type StatusError struct {
+	Code   int
+	Status string // "403 Forbidden"
+}
+
+func (e *StatusError) Error() string { return "update: release API answered " + e.Status }
+
 // Asset is one file of a release.
 type Asset struct {
 	Name   string `json:"name"`
@@ -90,7 +98,7 @@ func (c Checker) Latest(ctx context.Context) (Release, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return Release{}, fmt.Errorf("update: release API answered %s", resp.Status)
+		return Release{}, &StatusError{Code: resp.StatusCode, Status: resp.Status}
 	}
 	var r Release
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxReleaseJSON)).Decode(&r); err != nil {

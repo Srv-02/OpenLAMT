@@ -176,7 +176,7 @@ func TestCreditsAreListedInNotice(t *testing.T) {
 func TestSettingsDialogFooterSupportAndAbout(t *testing.T) {
 	englishUI(t)
 	h := newStart(t)
-	showSettingsDialog(h.s.win, &h.s.settings)
+	showSettingsDialog(h.s.win, &h.s.settings, h.s.checkUpdateNow)
 	texts, links, _ := dialogTexts(h.s.win)
 	all := strings.Join(texts, "|")
 	if !strings.Contains(all, "OpenLAMT") {
@@ -240,7 +240,7 @@ func TestAboutShots(t *testing.T) {
 		defer f.Close()
 		shotPNG(t, f, h.s.win)
 	}
-	showSettingsDialog(h.s.win, &h.s.settings)
+	showSettingsDialog(h.s.win, &h.s.settings, h.s.checkUpdateNow)
 	save("settings.png")
 	showAboutDialog(h.s.win, h.s.app)
 	save("about.png")

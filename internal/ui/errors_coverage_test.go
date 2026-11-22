@@ -149,6 +149,7 @@ var errorExceptions = map[string]string{
 	"ider.ErrClosed":          "the user's own unmount; media.go skips the report",
 	"sol.ErrClosed":           "the user's own close; console.go skips the report",
 	"kvm.ErrUnmappedKey":      "key events ignore the error; typing plans only contain mapped keys",
+	"update.StatusError":      "shown in the row \"Check for updates\" (updateFailReason), not in the error dialog",
 	"typing.ErrNotSendable":   "unreachable: type_clipboard.go only sends plans with typeable characters",
 	"typing.ErrUnknownLayout": "unreachable: resolveLayout only returns known layouts",
 }

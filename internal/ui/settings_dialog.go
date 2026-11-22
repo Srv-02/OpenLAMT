@@ -21,13 +21,14 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
-// Geometry of the settings dialog (Settings.html, one 45 px row added for the language, one for
-// the appearance and one for the update check, 45 for the two-line row "Color blind mode", 60
-// for the last row "Hidden messages" of Extras.dc.html): 600 x 700, padding 20/22/18, 16
-// between the blocks, a number field of 56 x 26.
+// Geometry of the settings dialog (gesamtdesign V8): 600 x 760, padding 20/22/18, 16 between the
+// blocks, a number field of 56 x 26. The title, the footer and the buttons stay in place, the
+// sections between them scroll.
 const (
 	settingsWidth  float32 = 600
-	settingsHeight float32 = 700
+	settingsHeight float32 = 760
+
+	settingsSectionGap float32 = 16 // between two sections
 
 	numberFieldWidth  float32 = 56
 	numberFieldHeight float32 = 26
@@ -330,13 +331,134 @@ func settingsFooter(parent fyne.Window, a fyne.App) fyne.CanvasObject {
 	return container.New(layout.NewCustomPaddedVBoxLayout(14), line, row)
 }
 
+// updateStatusSize is the text size of the second line of the row "Check for updates".
+var updateStatusSize = style.Size(style.SizeNameSecondaryText)
+
+// updateRow is the row "Check for updates": a label with a status line, the button "Check Now"
+// and the switch. The status line shows what the switch does, then "Checking…", then the result
+// of the check (green or red) in the row itself.
+type updateRow struct {
+	obj      fyne.CanvasObject
+	label    *fyne.Container
+	button   *widgets.PrimaryButton
+	width    float32 // the room of the status line
+	relayout func()  // makes the dialog fit the new height of the row
+	checkNow func(report func(updateCheckResult))
+}
+
+func newUpdateRow(sw *widgets.Switch, checkNow func(report func(updateCheckResult)), onEscape func(), relayout func()) *updateRow {
+	r := &updateRow{checkNow: checkNow, relayout: relayout}
+	r.button = dialogButton(lang.L("Check Now"), false, 14, r.start)
+	r.button.OnEscape = onEscape
+	if checkNow == nil {
+		r.button.Disable()
+	}
+	r.label = container.New(layout.NewCustomPaddedVBoxLayout(1))
+	// The button grows to "Checking…"; the status line wraps at the width left beside it.
+	btn := fyne.MeasureText(lang.L("Checking…"), 13, fyne.TextStyle{Bold: true}).Width + 2*14
+	r.width = settingsWidth - 2*22 - 2*rowPadH - max(btn, r.button.MinSize().Width) - sw.MinSize().Width - 2*16 - 2
+	r.set(lang.L("Checks GitHub for a new version at start."), style.ColorNameTextSecondary)
+	r.obj = container.New(layout.NewCustomPaddedLayout(colorBlindPadV, colorBlindPadV, rowPadH, rowPadH),
+		container.New(&rowLayout{gap: 16, fill: 0}, r.label, r.button, sw))
+	return r
+}
+
+// set shows text in the status line below the label.
+func (r *updateRow) set(text string, c fyne.ThemeColorName) {
+	lines := []fyne.CanvasObject{designText(lang.L("Check for updates"), style.Size("text"), "foreground", false)}
+	for _, l := range wrapWords(text, updateStatusSize, r.width) {
+		lines = append(lines, designText(l, updateStatusSize, c, false))
+	}
+	r.label.Objects = lines
+	r.label.Refresh()
+	if r.relayout != nil {
+		r.relayout()
+	}
+}
+
+// start is a tap on "Check Now": the button is locked while GitHub is asked.
+func (r *updateRow) start() {
+	r.button.SetText(lang.L("Checking…"))
+	r.button.Disable()
+	r.set(lang.L("Checking…"), style.ColorNameTextSecondary)
+	r.checkNow(func(res updateCheckResult) {
+		r.button.SetText(lang.L("Check Now"))
+		r.button.Enable()
+		switch res.state {
+		case updateCheckLatest:
+			r.set(res.text, "success")
+		case updateCheckFailed:
+			r.set(res.text, style.ColorNameErrorText)
+		default: // the update dialog opens
+			r.set(lang.L("Checks GitHub for a new version at start."), style.ColorNameTextSecondary)
+		}
+	})
+}
+
+// settingsDialog is what the sections of the settings dialog build from. Each section is one
+// method that returns its heading and card; showSettingsDialog lists them in display order, so
+// a new feature adds its section there and one method here.
+type settingsDialog struct {
+	parent   fyne.Window
+	app      fyne.App
+	s        *Settings
+	f        *settingsForm
+	d        *designDialog
+	checkNow func(report func(updateCheckResult))
+	relayout func()
+	update   *updateRow
+}
+
+// section is a heading (12 px semibold, secondary) above a card of rows, like the pages of the
+// device management.
+func (c *settingsDialog) section(title string, rows ...fyne.CanvasObject) fyne.CanvasObject {
+	card := widgets.NewFormCard(rows...)
+	card.Background = style.ColorNameDialogCard
+	return settingsGroup(title, style.ColorNameTextSecondary, card)
+}
+
+func (c *settingsDialog) generalSection() fyne.CanvasObject {
+	return c.section(lang.L("General"),
+		settingsRow(lang.L("Language"), c.f.language),
+		settingsRow(lang.L("Appearance"), c.f.appearance),
+		colorBlindRow(c.f.colorBlind))
+}
+
+func (c *settingsDialog) updatesSection() fyne.CanvasObject {
+	c.update = newUpdateRow(c.f.updates, c.checkNow, c.d.Close, func() {
+		if c.relayout != nil {
+			c.relayout()
+		}
+	})
+	return c.section(lang.L("Updates"), c.update.obj)
+}
+
+func (c *settingsDialog) devicesSection() fyne.CanvasObject {
+	unit := designText(lang.L("seconds"), style.Size("text"), style.ColorNameTextSecondary, false)
+	interval := container.New(&rowLayout{gap: 8, fill: -1}, numberField(c.f.interval), unit)
+	return c.section(lang.L("Devices"), settingsRow(lang.L("Poll interval"), interval))
+}
+
+func (c *settingsDialog) remoteScreenSection() fyne.CanvasObject {
+	return c.section(lang.L("Remote screen"),
+		settingsRow(lang.L("KVM quality"), c.f.quality),
+		settingsRow(lang.L("KVM auto-connect"), c.f.autoKVM),
+		settingsRow(lang.L("Disconnect KVM without input after"), c.f.idle),
+		settingsRow(lang.L("Type clipboard layout"), c.f.layout))
+}
+
+func (c *settingsDialog) dataSection() fyne.CanvasObject {
+	hidden, _ := hiddenMessagesRow(c.s, c.d.Close)
+	return c.section(lang.L("Data"), hidden)
+}
+
 // showSettingsDialog shows the global settings on parent; Save stays disabled while the
-// interval is invalid.
-func showSettingsDialog(parent fyne.Window, s *Settings) {
+// interval is invalid. checkNow runs the manual update check of the row "Check for updates".
+func showSettingsDialog(parent fyne.Window, s *Settings, checkNow func(report func(updateCheckResult))) {
 	a := fyne.CurrentApp()
 	f := newSettingsForm(s)
 	showDesignDialog(parent, dialogSpec{width: settingsWidth, height: settingsHeight, padTop: 20, padRight: 22 - scrollInset,
-		padBottom: 18, padL: 22 - scrollInset, gap: 16, flex: 0},
+		padBottom: 18, padL: 22 - scrollInset, gap: 16, flex: 1},
 		func(d *designDialog) []fyne.CanvasObject {
 			save := dialogButton(lang.L("Save"), true, 18, nil)
 			cancel := dialogButton(lang.L("Cancel"), false, 16, d.Close)
@@ -370,28 +492,25 @@ func showSettingsDialog(parent fyne.Window, s *Settings) {
 			f.layout.OnEscape, f.idle.OnEscape, f.quality.OnEscape, f.autoKVM.OnEscape, f.language.OnEscape, f.appearance.OnEscape, f.colorBlind.OnEscape, f.updates.OnEscape = d.Close, d.Close, d.Close, d.Close, d.Close, d.Close, d.Close, d.Close
 			save.OnEscape, cancel.OnEscape = d.Close, d.Close
 			sync()
-			hidden, _ := hiddenMessagesRow(s, d.Close)
 
-			// The rows run top to bottom in the order of the spec; Tab follows the same order,
+			// The sections run top to bottom in this order; Tab follows the same order,
 			// because Fyne moves the focus through the widget tree.
-			unit := designText(lang.L("seconds"), style.Size("text"), style.ColorNameTextSecondary, false)
-			interval := container.New(&rowLayout{gap: 8, fill: -1}, numberField(f.interval), unit)
-			card := widgets.NewFormCard(
-				settingsRow(lang.L("Language"), f.language),
-				settingsRow(lang.L("Appearance"), f.appearance),
-				colorBlindRow(f.colorBlind),
-				settingsRow(lang.L("Check for updates"), f.updates),
-				settingsRow(lang.L("Poll interval"), interval),
-				settingsRow(lang.L("KVM quality"), f.quality),
-				settingsRow(lang.L("KVM auto-connect"), f.autoKVM),
-				settingsRow(lang.L("Disconnect KVM without input after"), f.idle),
-				settingsRow(lang.L("Type clipboard layout"), f.layout),
-				hidden)
-			card.Background = style.ColorNameDialogCard
+			c := &settingsDialog{parent: parent, app: a, s: s, f: f, d: d, checkNow: checkNow}
+			var sections []fyne.CanvasObject
+			for _, build := range []func() fyne.CanvasObject{
+				c.generalSection, c.updatesSection, c.devicesSection, c.remoteScreenSection, c.dataSection,
+			} {
+				sections = append(sections, build())
+			}
 			title := designText(lang.L("Settings"), style.Size("subHeadingText"), "foreground", true)
 			buttons := container.New(&rowLayout{gap: 8, fill: 0}, spacer(), cancel, save)
-			// Title, card and footer scroll, so the buttons stay reachable in a small window.
-			body := scrollBody(dialogSpec{gap: 16, flex: 2}, title, card, spacer(), settingsFooter(parent, a))
-			return []fyne.CanvasObject{body, buttons}
+			// The sections scroll; title, footer and buttons stay in place.
+			body := scrollBody(dialogSpec{gap: settingsSectionGap, flex: -1}, sections...)
+			c.relayout = func() { body.Content.Refresh(); body.Refresh() }
+			// The scroll area keeps scrollInset free at its sides; the fixed parts align with it.
+			pad := func(o fyne.CanvasObject) fyne.CanvasObject {
+				return container.New(layout.NewCustomPaddedLayout(0, 0, scrollInset, scrollInset), o)
+			}
+			return []fyne.CanvasObject{pad(title), body, pad(settingsFooter(parent, a)), pad(buttons)}
 		})
 }

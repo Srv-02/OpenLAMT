@@ -164,7 +164,7 @@ func seriesManager(t *testing.T, dir string, apply func(fyne.App)) {
 	test.Tap(s.delBtn)
 	shot("dialog-delete-confirm")
 	closeOverlays(s.win)
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	shot("dialog-settings")
 	closeOverlays(s.win)
 	// Color blind mode: the detail card and the settings with the setting on.
@@ -172,7 +172,7 @@ func seriesManager(t *testing.T, dir string, apply func(fyne.App)) {
 	s.settings.SetColorBlind(true)
 	apply(s.app)
 	shot("manager-favorite-colorblind")
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	shot("dialog-settings-colorblind")
 	closeOverlays(s.win)
 	s.settings.SetColorBlind(false)

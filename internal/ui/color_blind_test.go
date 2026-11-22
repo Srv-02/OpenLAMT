@@ -43,7 +43,7 @@ func TestSettingsColorBlindDefaultAndStore(t *testing.T) {
 	}
 }
 
-// settingsCardRows returns the rows of the card in the open settings dialog.
+// settingsCardRows returns the rows of the first card ("General") in the open settings dialog.
 func settingsCardRows(t *testing.T, w fyne.Window) []fyne.CanvasObject {
 	t.Helper()
 	var card *widgets.FormCard
@@ -58,7 +58,7 @@ func settingsCardRows(t *testing.T, w fyne.Window) []fyne.CanvasObject {
 	return card.Rows()
 }
 
-// TestSettingsColorBlindRow: the row sits between Appearance and Check for updates, has the
+// TestSettingsColorBlindRow: the row sits below Appearance, last in "General", has the
 // two-line label, four preview dots (on, standby, off, unknown) in the color-blind palette of the
 // current variant, also while the setting is off, and a switch.
 func TestSettingsColorBlindRow(t *testing.T) {
@@ -70,9 +70,9 @@ func TestSettingsColorBlindRow(t *testing.T) {
 			h := newStart(t)
 			s := h.s
 			style.SetVariant(v)
-			showSettingsDialog(s.win, &s.settings)
+			showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 			rows := settingsCardRows(t, s.win)
-			if len(rows) != 10 || !hasText(rows[1], "Appearance") || !hasText(rows[3], "Check for updates") {
+			if len(rows) != 3 || !hasText(rows[1], "Appearance") {
 				t.Fatalf("%d rows, order wrong", len(rows))
 			}
 			row := rows[2]
@@ -179,7 +179,7 @@ func TestColorBlindModeSwitchesOpenWindows(t *testing.T) {
 	}
 	save := func(colorBlind bool, appearance string) {
 		t.Helper()
-		showSettingsDialog(h.s.win, &h.s.settings)
+		showSettingsDialog(h.s.win, &h.s.settings, h.s.checkUpdateNow)
 		_, drops, _ := settingsParts(t, h.s.win)
 		drops[1].SetSelected(appearance) // appearance
 		var sw *widgets.Switch

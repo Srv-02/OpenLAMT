@@ -301,7 +301,6 @@
   "Both": "Beides",
   "Administrator": "Administrator",
   "System account": "Systemkonto",
-  "Signed-in account. Changing its name or password can lock you out of this device.": "Angemeldetes Konto. Wenn du Name oder Passwort änderst, kannst du dich von diesem Gerät aussperren.",
   "Power control": "Ein- und Ausschalten",
   "KVM, media, console": "KVM, Medien, Konsole",
   "Change the signed-in admin account": "Angemeldetes Admin-Konto ändern",

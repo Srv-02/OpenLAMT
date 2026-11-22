@@ -301,7 +301,6 @@
   "Both": "Both",
   "Administrator": "Administrator",
   "System account": "System account",
-  "Signed-in account. Changing its name or password can lock you out of this device.": "Signed-in account. Changing its name or password can lock you out of this device.",
   "Power control": "Power control",
   "KVM, media, console": "KVM, media, console",
   "Change the signed-in admin account": "Change the signed-in admin account",

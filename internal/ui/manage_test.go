@@ -29,9 +29,15 @@ type manageHarness struct {
 
 func newManageHarness(t *testing.T, dev *session.Fake) *manageHarness {
 	t.Helper()
+	return newManageHarnessTLS(t, dev, true)
+}
+
+// newManageHarnessTLS is newManageHarness with a session that does or does not use TLS.
+func newManageHarnessTLS(t *testing.T, dev *session.Fake, useTLS bool) *manageHarness {
+	t.Helper()
 	a := test.NewTempApp(t)
 	a.Settings().SetTheme(style.Theme{})
-	cfg := amt.Config{Host: "device.example.com", Username: "admin", UseTLS: true, Fingerprint: dev.FP}
+	cfg := amt.Config{Host: "device.example.com", Username: "admin", UseTLS: useTLS, Fingerprint: dev.FP}
 	s, _, err := session.Open(context.Background(), cfg, nil, session.ConnectFake(dev))
 	if err != nil {
 		t.Fatal(err)

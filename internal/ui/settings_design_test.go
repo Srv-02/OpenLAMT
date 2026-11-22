@@ -38,7 +38,7 @@ func TestSettingsSaveDisabledForInvalidInterval(t *testing.T) {
 	englishUI(t)
 	h := newStart(t)
 	s := h.s
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	entry, drops, _ := settingsParts(t, s.win)
 	_, _, buttons := dialogTexts(s.win)
 	save := buttons[lang.L("Save")]
@@ -78,7 +78,7 @@ func TestSettingsCancelAndEscKeepValues(t *testing.T) {
 		"Esc on switch": func() { _, _, sw := settingsParts(t, s.win); sw.TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape}) },
 		"Esc on choice": func() { _, d, _ := settingsParts(t, s.win); d[0].TypedKey(&fyne.KeyEvent{Name: fyne.KeyEscape}) },
 	} {
-		showSettingsDialog(s.win, &s.settings)
+		showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 		e, d, sw := settingsParts(t, s.win)
 		e.SetText("99")
 		d[3].SetSelected("Never") // idle
@@ -98,7 +98,7 @@ func TestSettingsDropdownMenuChoosesOption(t *testing.T) {
 	englishUI(t)
 	h := newStart(t)
 	s := h.s
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	_, drops, _ := settingsParts(t, s.win)
 	layout := drops[4]
 	test.Tap(layout)
@@ -127,13 +127,13 @@ func TestSettingsLanguageSaveShowsRestartHint(t *testing.T) {
 		}
 		return false
 	}
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	_, _, buttons := dialogTexts(s.win)
 	test.Tap(buttons[lang.L("Save")])
 	if s.win.Canvas().Overlays().Top() != nil {
 		t.Fatal("unchanged language: a dialog stayed open")
 	}
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	_, drops, _ := settingsParts(t, s.win)
 	drops[0].SetSelected("Deutsch") // language
 	_, _, buttons = dialogTexts(s.win)
@@ -157,7 +157,7 @@ func TestSettingsRowOrder(t *testing.T) {
 	englishUI(t)
 	h := newStart(t)
 	s := h.s
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 
 	texts, _, _ := dialogTexts(s.win)
 	var labels []string
@@ -225,7 +225,7 @@ func TestSettingsHiddenMessagesRow(t *testing.T) {
 	englishUI(t)
 	h := newStart(t)
 	s := h.s
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	texts, _, buttons := dialogTexts(s.win)
 	reset := buttons["Reset Warnings"]
 	if reset == nil || !reset.Disabled() {
@@ -260,7 +260,7 @@ func TestSettingsHiddenMessagesRow(t *testing.T) {
 	s.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyEscape})
 
 	s.settings.SetHideFolderMountHint(true)
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	_, _, buttons = dialogTexts(s.win)
 	reset = buttons["Reset Warnings"]
 	if reset.Disabled() {

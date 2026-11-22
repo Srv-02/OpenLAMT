@@ -361,7 +361,7 @@ func TestSettingsButtonOpensGlobalSettings(t *testing.T) {
 func TestSettingsDialogStoresGlobalSettings(t *testing.T) {
 	h := newStart(t)
 	s := h.s
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	var entry *escEntry
 	var drops []*widgets.Dropdown
 	var switches []*widgets.Switch
@@ -464,7 +464,7 @@ func TestManagerShots(t *testing.T) {
 	test.Tap(s.delBtn)
 	shot("manager-delete.png")
 	test.Tap(overlayButton(t, s.win, lang.L("Cancel")))
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	shot("manager-settings.png")
 }
 

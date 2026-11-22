@@ -145,7 +145,7 @@ func TestAutoConnectShots(t *testing.T) {
 		}
 	}
 	s.settings.SetKVMAutoConnect(true)
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	shot("settings.png")
 	s.win.Canvas().Overlays().Remove(s.win.Canvas().Overlays().Top())
 	addFavorites(t, h, favorites.Favorite{Name: "Lab-Server", Host: "192.0.2.10", Username: "admin", UseTLS: true, AutoConnect: favorites.AutoConnectOn})

@@ -44,7 +44,7 @@ func TestEveryLayoutIsOfferedAndStoredByCode(t *testing.T) {
 func TestSettingsStoreNewLayoutCodes(t *testing.T) {
 	h := newStart(t)
 	s := h.s
-	showSettingsDialog(s.win, &s.settings)
+	showSettingsDialog(s.win, &s.settings, s.checkUpdateNow)
 	_, drops, _ := settingsParts(t, s.win)
 	layout := drops[4] // the last row, "Type clipboard layout"
 	if got := len(layout.Options); got != 1+len(typing.Layouts()) {

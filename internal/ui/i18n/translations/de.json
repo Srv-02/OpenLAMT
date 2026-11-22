@@ -438,5 +438,19 @@
   "Details": "Details",
   "{{.Log}} · entry {{.N}} of {{.Count}}": "{{.Log}} · Eintrag {{.N}} von {{.Count}}",
   "ISO images": "ISO-Abbilder",
-  "{{.Host}} is unreachable or the connection timed out.": "{{.Host}} ist nicht erreichbar oder Connection Timeout."
+  "{{.Host}} is unreachable or the connection timed out.": "{{.Host}} ist nicht erreichbar oder Connection Timeout.",
+  "Updates": "Updates",
+  "Devices": "Geräte",
+  "Remote screen": "Fernbildschirm",
+  "Data": "Daten",
+  "Check Now": "Jetzt prüfen",
+  "Checking…": "Prüfe …",
+  "Checks GitHub for a new version at start.": "Fragt beim Start GitHub nach einer neuen Version.",
+  "You are using the latest version ({{.Version}}).": "Du nutzt die neueste Version ({{.Version}}).",
+  "Could not check for updates: {{.Reason}}": "Die Update-Prüfung ist fehlgeschlagen: {{.Reason}}",
+  "this build has no release version.": "dieser Build hat keine Release-Version.",
+  "GitHub's rate limit is reached. Try again later.": "Das Anfrage-Limit von GitHub ist erreicht. Versuche es später erneut.",
+  "GitHub answered with HTTP {{.Status}}. Try again later.": "GitHub antwortete mit HTTP {{.Status}}. Versuche es später erneut.",
+  "GitHub did not answer. Try again later.": "GitHub antwortet nicht. Versuche es später erneut.",
+  "GitHub could not be reached. Try again later.": "GitHub ist nicht erreichbar. Versuche es später erneut."
 }

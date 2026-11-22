@@ -128,7 +128,7 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}}
 	s.onError = func(err error) { showError(s.win, err) }
 	s.openDevice = s.showDevice
-	s.showSettings = func() { showSettingsDialog(s.win, &s.settings) }
+	s.showSettings = func() { showSettingsDialog(s.win, &s.settings, s.checkUpdateNow) }
 	s.lookupPassword = s.lookupPasswordAsync
 	s.conn = newConnector(s.win, mgr, keys, connect)
 	// A password saved while connecting (dialog, "Save password") is also in the keychain when

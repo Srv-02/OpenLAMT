@@ -198,7 +198,7 @@ func TestUIBuildShots(t *testing.T) {
 
 	// 45: the global settings with a hidden message (44 ticked "Don’t show again").
 	h.d.win.Canvas().Unfocus()
-	showSettingsDialog(h.d.win, &h.d.settings)
+	showSettingsDialog(h.d.win, &h.d.settings, nil)
 	h.shot("45-global-settings-hidden-messages.png", h.d.win)
 	h.d.win.Canvas().OnTypedKey()(&fyne.KeyEvent{Name: fyne.KeyEscape})
 

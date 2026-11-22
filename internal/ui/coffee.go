@@ -105,7 +105,7 @@ func (s *StartWindow) coffeeFire() {
 		return
 	}
 	if u := s.updates; u != nil {
-		if u.pending {
+		if u.pending || u.waiting {
 			u.coffeeWaiting = true
 			return
 		}

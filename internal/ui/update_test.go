@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/test"
@@ -47,6 +48,9 @@ func newFakeGitHub(t *testing.T, tag string) *fakeGitHub {
 		}
 	}))
 	t.Cleanup(g.srv.Close)
+	prevAsync, prevRetry := updateAsync, updateRetryEvery
+	updateAsync, updateRetryEvery = func(f func()) { f() }, time.Hour
+	t.Cleanup(func() { updateAsync, updateRetryEvery = prevAsync, prevRetry })
 	sum := sha256.Sum256(g.pkg)
 	g.rel = update.Release{Tag: tag, HTMLURL: "https://example.com/releases/" + tag,
 		Body:   "## What's Changed\n* Language and appearance in the settings by @someone in https://example.com/pull/1\n* Windows icon in Explorer",

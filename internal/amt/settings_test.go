@@ -294,6 +294,22 @@ func TestSettingsErrors(t *testing.T) {
 			t.Errorf("err = %v", err)
 		}
 	})
+	// as before issue #58: another fault on Enumerate is a missing class, the section is hidden
+	for _, class := range []string{"AMT_EthernetPortSettings", "AMT_TLSSettingData"} {
+		t.Run(class+" other fault on Enumerate hides the section", func(t *testing.T) {
+			seq := settingsSeq()
+			seq["Enumerate|"+class] = []cfgResp{{err: otherFault(t)}}
+			d, _ := cfgDevice(seq)
+			s, err := d.Settings()
+			available := s.Network.Available
+			if class == "AMT_TLSSettingData" {
+				available = s.TLS.Remote.Available
+			}
+			if err != nil || available || s.Unreadable != 0 {
+				t.Errorf("err %v available %v unreadable %b", err, available, s.Unreadable)
+			}
+		})
+	}
 	t.Run("missing optional class leaves the section empty", func(t *testing.T) {
 		seq := settingsSeq()
 		seq["Get|AMT_EnvironmentDetectionSettingData"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}

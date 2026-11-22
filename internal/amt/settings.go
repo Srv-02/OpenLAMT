@@ -440,7 +440,8 @@ func (d *Device) Settings() (Settings, error) {
 	read := false     // a section was read
 	var refused error // the refusal of the first unreadable section
 
-	// section runs one read and sorts its error; core marks a class every firmware has
+	// section runs one read and sorts its error. core marks AMT_GeneralSettings, the one Get of a
+	// class every firmware has (the enumerated core classes map their refusal in pullObjects).
 	section := func(part SettingsPart, class string, core bool, fn func() error) error {
 		err := fn()
 		switch {
@@ -472,7 +473,7 @@ func (d *Device) Settings() (Settings, error) {
 			}
 			return err
 		}},
-		{SettingsNetwork, classEthernet, true, func() error {
+		{SettingsNetwork, classEthernet, false, func() error {
 			o, err := d.wiredObject()
 			s.Network = networkFrom(o)
 			return err

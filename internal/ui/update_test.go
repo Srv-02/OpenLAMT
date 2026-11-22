@@ -51,11 +51,13 @@ func newFakeGitHub(t *testing.T, tag string) *fakeGitHub {
 	g.rel = update.Release{Tag: tag, HTMLURL: "https://example.com/releases/" + tag,
 		Body:   "## What's Changed\n* Language and appearance in the settings by @someone in https://example.com/pull/1\n* Windows icon in Explorer",
 		Assets: []update.Asset{{Name: "OpenLAMT-" + tag + "-" + platformSuffix(), URL: g.srv.URL + "/pkg", Digest: "sha256:" + hex.EncodeToString(sum[:])}}}
-	prevURL, prevDir, prevOS, prevArch := updateURL, downloadsDir, updateGOOS, updateGOARCH
-	updateURL, updateGOOS, updateGOARCH = g.srv.URL+"/latest", "linux", "amd64"
+	prevURL, prevDir, prevOS, prevArch, prevAppImage := updateURL, downloadsDir, updateGOOS, updateGOARCH, updateAppImage
+	updateURL, updateGOOS, updateGOARCH, updateAppImage = g.srv.URL+"/latest", "linux", "amd64", false
 	dir := t.TempDir()
 	downloadsDir = func() (string, error) { return dir, nil }
-	t.Cleanup(func() { updateURL, downloadsDir, updateGOOS, updateGOARCH = prevURL, prevDir, prevOS, prevArch })
+	t.Cleanup(func() {
+		updateURL, downloadsDir, updateGOOS, updateGOARCH, updateAppImage = prevURL, prevDir, prevOS, prevArch, prevAppImage
+	})
 	return g
 }
 

@@ -15,9 +15,10 @@
 Download the file for your system from the [Releases page](https://github.com/Srv-02/openlamt/releases):
 
 ```text
-macOS (Apple Silicon)   OpenLAMT-<version>-macos-arm64.zip
+macOS (Apple Silicon)   OpenLAMT-<version>-macos-arm64.dmg
 Windows (x64)           OpenLAMT-<version>-windows-x64.zip
-Linux (x64)             OpenLAMT-<version>-linux-x64.deb
+Linux (x64)             OpenLAMT-<version>-linux-x64.AppImage  (any distribution)
+                        OpenLAMT-<version>-linux-x64.deb       (Debian, Ubuntu and derivatives)
 ```
 
 Start OpenLAMT and connect to your first device with **Quick Connect**. The builds are not code-signed, so macOS and Windows warn on the first launch: see [Manual install](#manual-install).
@@ -93,7 +94,7 @@ English or German, light, dark or system appearance, and status colors for red-g
 ### Requirements
 
 - Devices with Intel AMT enabled and reachable over the network (ports `16992` to `16995`).
-- macOS on Apple Silicon (arm64), Windows on x64 or Linux on x64 (`.deb`). macOS on Intel, Windows on arm64 and Linux on arm64 are not supported.
+- macOS on Apple Silicon (arm64), Windows on x64 or Linux on x64 (`.AppImage` or `.deb`). macOS on Intel, Windows on arm64 and Linux on arm64 are not supported.
 - Linux: a Secret Service provider such as GNOME Keyring or KeePassXC to save passwords.
 - Media and Console use the AMT features media redirection (IDE-R) and Serial over LAN (SOL). If one of them is disabled on the device, OpenLAMT asks whether to enable it.
 
@@ -101,8 +102,8 @@ English or German, light, dark or system appearance, and status colors for red-g
 
 **macOS**
 
-1. Download `OpenLAMT-<version>-macos-arm64.zip` from the [Releases page](https://github.com/Srv-02/openlamt/releases).
-2. Unzip it and drag `OpenLAMT.app` to `/Applications`.
+1. Download `OpenLAMT-<version>-macos-arm64.dmg` from the [Releases page](https://github.com/Srv-02/openlamt/releases).
+2. Open the disk image and drag `OpenLAMT.app` onto the `Applications` shortcut next to it.
 3. The app has only an ad-hoc signature, so Gatekeeper blocks the first launch. On macOS 15 Sequoia and later, right click > Open no longer works around this. Try to open the app once, then click "Open Anyway" for OpenLAMT in System Settings > Privacy & Security. Or remove the quarantine attribute in a terminal:
 
    ```sh
@@ -115,7 +116,19 @@ English or German, light, dark or system appearance, and status colors for red-g
 2. Unzip it and start `OpenLAMT.exe`. No installer is needed.
 3. The executable is not code-signed, so Windows SmartScreen shows "Windows protected your PC" on the first launch. Click "More info" and then "Run anyway".
 
-**Linux**
+**Linux: AppImage (any distribution)**
+
+1. Download `OpenLAMT-<version>-linux-x64.AppImage` from the [Releases page](https://github.com/Srv-02/openlamt/releases).
+2. Make it executable and start it:
+
+   ```sh
+   chmod +x OpenLAMT-<version>-linux-x64.AppImage
+   ./OpenLAMT-<version>-linux-x64.AppImage
+   ```
+
+3. The AppImage needs the system's OpenGL and X11 or Wayland libraries, which a desktop installation has, and a running Secret Service provider such as GNOME Keyring or KeePassXC to save passwords. It was built on Ubuntu 22.04, so it runs on distributions with glibc 2.35 or newer. If your system lacks FUSE 2, run it with `--appimage-extract-and-run`. To update, download the new AppImage and replace the old file; OpenLAMT offers the AppImage when it runs as one.
+
+**Linux: .deb (Debian, Ubuntu and derivatives)**
 
 1. Download `OpenLAMT-<version>-linux-x64.deb` from the [Releases page](https://github.com/Srv-02/openlamt/releases).
 2. Install it (Debian, Ubuntu and derivatives). apt resolves the required libraries (OpenGL, X11 or Wayland):
@@ -187,6 +200,12 @@ To build the Linux `.deb` from the binary (`dpkg-deb` is required):
 ```sh
 go build -ldflags '-s -w' -o openlamt ./cmd/openlamt
 packaging/linux/build-deb.sh openlamt 1.1.0 OpenLAMT_1.1.0_amd64.deb
+```
+
+To build the Linux AppImage from the binary, put [appimagetool](https://github.com/AppImage/appimagetool) in the `PATH` (or set `APPIMAGETOOL`):
+
+```sh
+packaging/linux/build-appimage.sh openlamt OpenLAMT-1.1.0-linux-x64.AppImage
 ```
 
 ## Credits

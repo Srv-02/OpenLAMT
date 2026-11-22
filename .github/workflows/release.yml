@@ -48,7 +48,7 @@ jobs:
             goos: windows
             goarch: amd64
             platform: windows-x64
-          - os: ubuntu-latest # x64
+          - os: ubuntu-22.04 # x64; old glibc, so that the AppImage runs on older distributions too
             goos: linux
             goarch: amd64
             platform: linux-x64
@@ -174,7 +174,53 @@ jobs:
           codesign --force --deep -s - OpenLAMT.app
           codesign --verify --deep --strict OpenLAMT.app
 
+      - name: Create disk image (macOS)
+        if: runner.os == 'macOS'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          # The image shows OpenLAMT.app next to a shortcut to /Applications. ditto keeps the
+          # signature, symlinks and extended attributes of the bundle.
+          dmg="dist/OpenLAMT-${TAG}-${PLATFORM}.dmg"
+          stage="$RUNNER_TEMP/dmg-root"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          ditto OpenLAMT.app "$stage/OpenLAMT.app"
+          ln -s /Applications "$stage/Applications"
+          # hdiutil fails now and then with "Resource busy" on the runners.
+          for attempt in 1 2 3 4 5; do
+            if hdiutil create -volname OpenLAMT -srcfolder "$stage" -format UDZO -ov "$dmg"; then
+              break
+            fi
+            if [[ "$attempt" -eq 5 ]]; then
+              echo "hdiutil create failed five times" >&2
+              exit 1
+            fi
+            echo "hdiutil create failed (attempt $attempt), retrying" >&2
+            sleep $((attempt * 5))
+          done
+          # Verify what users get: the image mounts, holds the shortcut and a valid signature.
+          hdiutil verify "$dmg"
+          mnt="$RUNNER_TEMP/dmg-mnt"
+          mkdir -p "$mnt"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg"
+          ok=1
+          ls -la "$mnt"
+          test -L "$mnt/Applications" || ok=0
+          [[ "$(readlink "$mnt/Applications")" == /Applications ]] || ok=0
+          codesign --verify --deep --strict "$mnt/OpenLAMT.app" || ok=0
+          for attempt in 1 2 3 4 5; do
+            hdiutil detach "$mnt" && break
+            sleep 3
+            [[ "$attempt" -eq 5 ]] && hdiutil detach -force "$mnt"
+          done
+          if [[ "$ok" -ne 1 ]]; then
+            echo "The disk image failed verification" >&2
+            exit 1
+          fi
       - name: Create archive (macOS)
+        # Bridge release: versions up to v1.1.1 look only for the .zip. Dropped in the release
+        # after the bridge release (issue #60).
         if: runner.os == 'macOS'
         env:
           PLATFORM: ${{ matrix.platform }}
@@ -222,6 +268,29 @@ jobs:
           packaging/linux/build-deb.sh openlamt "${TAG#v}" "dist/OpenLAMT-${TAG}-${PLATFORM}.deb"
           dpkg-deb -I "dist/OpenLAMT-${TAG}-${PLATFORM}.deb"
           dpkg-deb -c "dist/OpenLAMT-${TAG}-${PLATFORM}.deb"
+
+      - name: Build AppImage (Linux)
+        if: runner.os == 'Linux'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          # Pinned: appimagetool 1.9.1 (2025-11-18), x86_64.
+          APPIMAGETOOL_URL: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/appimagetool" "$APPIMAGETOOL_URL"
+          echo "$APPIMAGETOOL_SHA256  $RUNNER_TEMP/appimagetool" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/appimagetool"
+          out="dist/OpenLAMT-${TAG}-${PLATFORM}.AppImage"
+          APPIMAGETOOL="$RUNNER_TEMP/appimagetool" packaging/linux/build-appimage.sh openlamt "$out"
+          ls -l "$out"
+          # The glibc the binary needs bounds the distributions it runs on.
+          objdump -T openlamt | grep -o 'GLIBC_[0-9.]*' | sort -uV | tail -1
+          # Check the image: it unpacks and holds the files an AppImage needs.
+          (cd "$RUNNER_TEMP" && "$GITHUB_WORKSPACE/$out" --appimage-extract >/dev/null)
+          test -x "$RUNNER_TEMP/squashfs-root/AppRun"
+          test -f "$RUNNER_TEMP/squashfs-root/openlamt.desktop"
+          test -f "$RUNNER_TEMP/squashfs-root/openlamt.png"
+          test -x "$RUNNER_TEMP/squashfs-root/usr/bin/openlamt"
 
       - uses: actions/upload-artifact@v7
         if: env.SAVE_CACHE != 'true'

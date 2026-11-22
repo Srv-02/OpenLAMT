@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 )
 
@@ -101,9 +102,11 @@ func TestLatestErrors(t *testing.T) {
 
 func TestAssetFor(t *testing.T) {
 	r := Release{Tag: "v0.2.0", Assets: []Asset{
-		{Name: "OpenLAMT-v0.2.0-macos-arm64.zip", URL: "https://example.com/mac"},
+		{Name: "OpenLAMT-v0.2.0-macos-arm64.dmg", URL: "https://example.com/mac"},
+		{Name: "OpenLAMT-v0.2.0-macos-arm64.zip", URL: "https://example.com/maczip"},
 		{Name: "OpenLAMT-v0.2.0-windows-x64.zip", URL: "https://example.com/win"},
 		{Name: "OpenLAMT-v0.2.0-linux-x64.deb", URL: "https://example.com/deb"},
+		{Name: "OpenLAMT-v0.2.0-linux-x64.AppImage", URL: "https://example.com/appimage"},
 	}}
 	for _, c := range []struct{ goos, goarch, want string }{
 		{"darwin", "arm64", "https://example.com/mac"},
@@ -120,6 +123,49 @@ func TestAssetFor(t *testing.T) {
 	}
 	if _, ok := AssetFor(Release{Tag: "v0.2.0"}, "linux", "amd64"); ok {
 		t.Error("a release without assets has none")
+	}
+}
+
+func TestAssetForRunning(t *testing.T) {
+	r := Release{Tag: "v0.2.0", Assets: []Asset{
+		{Name: "OpenLAMT-v0.2.0-linux-x64.deb", URL: "https://example.com/deb"},
+		{Name: "OpenLAMT-v0.2.0-linux-x64.AppImage", URL: "https://example.com/appimage"},
+	}}
+	if a, ok := AssetForRunning(r, "linux", "amd64", true); !ok || a.URL != "https://example.com/appimage" {
+		t.Errorf("an AppImage updates to the AppImage: %+v %v", a, ok)
+	}
+	if a, ok := AssetForRunning(r, "linux", "amd64", false); !ok || a.URL != "https://example.com/deb" {
+		t.Errorf("an installed app updates to the .deb: %+v %v", a, ok)
+	}
+	if a, ok := AssetForRunning(Release{Tag: "v0.2.0", Assets: r.Assets[:1]}, "linux", "amd64", true); ok {
+		t.Errorf("a release without an AppImage has none for an AppImage, got %+v", a)
+	}
+	// APPIMAGE is only meaningful on Linux.
+	if _, ok := AssetForRunning(Release{Tag: "v0.2.0", Assets: []Asset{{Name: "OpenLAMT-v0.2.0-macos-arm64.dmg", URL: "u"}}}, "darwin", "arm64", true); !ok {
+		t.Error("appImage must not change other platforms")
+	}
+}
+
+func TestDownloadAppImageIsExecutable(t *testing.T) {
+	srv := assetServer(t, []byte("x"))
+	dir := t.TempDir()
+	p, err := Checker{}.Download(context.Background(), Asset{Name: "OpenLAMT-v0.2.0-linux-x64.AppImage", URL: srv.URL + "/pkg"}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		if fi, _ := os.Stat(p); fi.Mode().Perm() != 0o755 {
+			t.Errorf("mode %v, want 0755", fi.Mode().Perm())
+		}
+	}
+	p2, err := Checker{}.Download(context.Background(), Asset{Name: "OpenLAMT-v0.2.0-linux-x64.deb", URL: srv.URL + "/pkg"}, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS != "windows" {
+		if fi, _ := os.Stat(p2); fi.Mode().Perm()&0o111 != 0 {
+			t.Errorf("a .deb must not become executable: %v", fi.Mode().Perm())
+		}
 	}
 }
 

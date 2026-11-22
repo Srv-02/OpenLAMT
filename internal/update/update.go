@@ -210,13 +210,16 @@ func run(s string) (string, string) {
 	return s[:i], s[i:]
 }
 
-// platformName is the suffix the release workflow gives the package of goos/goarch.
-func platformName(goos, goarch string) (string, bool) {
+// platformName is the suffix the release workflow gives the package of goos/goarch. On Linux,
+// appImage selects the AppImage instead of the .deb.
+func platformName(goos, goarch string, appImage bool) (string, bool) {
 	switch {
 	case goos == "darwin" && goarch == "arm64":
-		return "macos-arm64.zip", true
+		return "macos-arm64.dmg", true
 	case goos == "windows" && goarch == "amd64":
 		return "windows-x64.zip", true
+	case goos == "linux" && goarch == "amd64" && appImage:
+		return "linux-x64.AppImage", true
 	case goos == "linux" && goarch == "amd64":
 		return "linux-x64.deb", true
 	}
@@ -224,10 +227,17 @@ func platformName(goos, goarch string) (string, bool) {
 }
 
 // AssetFor returns the package of goos/goarch, named as the release workflow names it
-// (OpenLAMT-<tag>-macos-arm64.zip, -windows-x64.zip, -linux-x64.deb); false when the platform
+// (OpenLAMT-<tag>-macos-arm64.dmg, -windows-x64.zip, -linux-x64.deb); false when the platform
 // has no package or the release lacks it.
 func AssetFor(r Release, goos, goarch string) (Asset, bool) {
-	suffix, ok := platformName(goos, goarch)
+	return AssetForRunning(r, goos, goarch, false)
+}
+
+// AssetForRunning is AssetFor for the running app: appImage is true when OpenLAMT runs as an
+// AppImage (environment variable APPIMAGE set). Then the update is the new AppImage on Linux,
+// because the .deb would not replace the file the user runs.
+func AssetForRunning(r Release, goos, goarch string, appImage bool) (Asset, bool) {
+	suffix, ok := platformName(goos, goarch, appImage)
 	if !ok || !Valid(r.Tag) {
 		return Asset{}, false
 	}
@@ -318,6 +328,12 @@ func (c Checker) Download(ctx context.Context, a Asset, dir string) (string, err
 	}
 	if want, ok := strings.CutPrefix(a.Digest, "sha256:"); ok && !strings.EqualFold(want, hex.EncodeToString(h.Sum(nil))) {
 		return "", ErrDigest
+	}
+	if strings.HasSuffix(name, ".AppImage") {
+		// CreateTemp makes the file 0600; an AppImage is run directly, so it must be executable.
+		if err := os.Chmod(tmp.Name(), 0o755); err != nil {
+			return "", err
+		}
 	}
 	dest := freeName(dir, name)
 	if err := os.Rename(tmp.Name(), dest); err != nil {

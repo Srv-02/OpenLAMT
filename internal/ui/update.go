@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -29,6 +30,8 @@ var (
 	downloadsDir = update.DownloadsDir
 	updateGOOS   = runtime.GOOS
 	updateGOARCH = runtime.GOARCH
+	// updateAppImage is true when OpenLAMT runs as an AppImage: the AppImage runtime sets APPIMAGE.
+	updateAppImage = os.Getenv("APPIMAGE") != ""
 )
 
 type updateNotice struct {
@@ -129,7 +132,7 @@ func (s *StartWindow) showUpdateAvailable(n *updateNotice, rel update.Release) *
 	var dl context.CancelFunc = func() {}
 	download := func() {
 		applyStop()
-		asset, ok := update.AssetFor(rel, updateGOOS, updateGOARCH)
+		asset, ok := update.AssetForRunning(rel, updateGOOS, updateGOARCH, updateAppImage)
 		if !ok {
 			p.close()
 			if rel.HTMLURL != "" {

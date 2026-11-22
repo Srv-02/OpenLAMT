@@ -1,0 +1,15 @@
+{
+  "Signed-in account. Changing its name, password or permissions can lock you out of this device.": "Signed-in account. Changing its name, password or permissions can lock you out of this device.",
+  "Edit your account": "Edit your account",
+  "OpenLAMT is signed in to {{.Name}} with this account.": "OpenLAMT is signed in to {{.Name}} with this account.",
+  "Password: changed": "Password: changed",
+  "{{.Permission}} added": "{{.Permission}} added",
+  "{{.Permission}} removed": "{{.Permission}} removed",
+  "Change your own account?": "Change your own account?",
+  "OpenLAMT signs in to {{.Name}} with this account. A wrong name or password, or a removed permission, can lock you out until an administrator fixes it.": "OpenLAMT signs in to {{.Name}} with this account. A wrong name or password, or a removed permission, can lock you out until an administrator fixes it.",
+  "Send the password without TLS?": "Send the password without TLS?",
+  "The connection to {{.Name}} has no TLS. The password travels as a digest that works like the password itself. Anyone who captures it on the network can sign in as {{.User}}.": "The connection to {{.Name}} has no TLS. The password travels as a digest that works like the password itself. Anyone who captures it on the network can sign in as {{.User}}.",
+  "Send the key without TLS?": "Send the key without TLS?",
+  "The connection to {{.Name}} has no TLS. The key travels unencrypted. Anyone who captures it on the network can use it.": "The connection to {{.Name}} has no TLS. The key travels unencrypted. Anyone who captures it on the network can use it.",
+  "Send Anyway": "Send Anyway"
+}

@@ -29,6 +29,7 @@ const (
 
 	// "Don’t show again" of the hints; every one belongs in hiddenMessagePrefs.
 	prefHideFolderMountHint = "hide_folder_mount_hint"
+	prefHideTLSWarning      = "hide_tls_warning"
 
 	// DefaultKVMIdleTimeout ends an unattended KVM session after half an hour.
 	DefaultKVMIdleTimeout = 30 * time.Minute
@@ -183,7 +184,7 @@ func (s Settings) SetColorBlind(on bool) { s.prefs.SetBool(prefColorBlind, on) }
 
 // hiddenMessagePrefs are the preferences of every message that "Don’t show again" hides;
 // ResetHiddenMessages shows them all again.
-var hiddenMessagePrefs = []string{prefHideFolderMountHint}
+var hiddenMessagePrefs = []string{prefHideFolderMountHint, prefHideTLSWarning}
 
 // HideFolderMountHint is whether "Mount Folder…" skips the hint "Mount a folder"; off by default.
 func (s Settings) HideFolderMountHint() bool {
@@ -192,6 +193,13 @@ func (s Settings) HideFolderMountHint() bool {
 
 // SetHideFolderMountHint stores "Don’t show again" of the hint "Mount a folder".
 func (s Settings) SetHideFolderMountHint(on bool) { s.prefs.SetBool(prefHideFolderMountHint, on) }
+
+// HideTLSWarning is whether the question "Send the password without TLS?" is skipped; off by
+// default.
+func (s Settings) HideTLSWarning() bool { return s.prefs.BoolWithFallback(prefHideTLSWarning, false) }
+
+// SetHideTLSWarning stores "Don’t show again" of the question "Send the password without TLS?".
+func (s Settings) SetHideTLSWarning(on bool) { s.prefs.SetBool(prefHideTLSWarning, on) }
 
 // HiddenMessages reports whether "Don’t show again" hides any message.
 func (s Settings) HiddenMessages() bool {

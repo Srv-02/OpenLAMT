@@ -98,9 +98,7 @@ func userRows(l amt.UserList, login string) []userRow {
 	}
 	for _, u := range l.Users {
 		r := userRow{name: u.Name, access: accessText(u.Access), perms: permissionsText(u.Realms), user: &u,
-			// Editing the own, non-admin account has no approved design yet (issue #32): its Edit
-			// is disabled like that of a "$$" account.
-			signedIn: u.Self, editable: u.Name != "" && !u.System && !u.Self}
+			signedIn: u.Self, editable: u.Name != "" && !u.System}
 		if u.Name == "" {
 			r.name = u.KerberosSID
 		}
@@ -131,6 +129,7 @@ type usersPane struct {
 	adminDlg  *adminDialog
 	userDlg   *userDialog
 	deleteDlg *riskDialog
+	ownDlg    *riskDialog
 	notSaved  *notSavedDialog
 }
 
@@ -143,7 +142,7 @@ func (m *manager) usersPane(compact bool) *managePane {
 	p := &usersPane{m: m, compact: compact, table: newUserTable(compact), err: newManageError()}
 	p.add = newManageButton(lang.L("+ Add user"), p.openAdd)
 	p.footnote = widget.NewRichText(cellSeg("*", style.ColorNameDanger, style.SizeNameSmallText, true),
-		cellSeg(" "+lang.L("Signed-in account. Changing its name or password can lock you out of this device."),
+		cellSeg(" "+lang.L("Signed-in account. Changing its name, password or permissions can lock you out of this device."),
 			style.ColorNameTextSecondary, style.SizeNameSmallText, false))
 	p.footnote.Wrapping = fyne.TextWrapWord
 
@@ -189,8 +188,6 @@ func (p *usersPane) edit(r userRow) {
 	switch {
 	case r.admin:
 		p.adminDlg = p.m.showAdminDialog(p, r.name, r.signedIn)
-	case r.user.Self:
-		// Edit is disabled for the own, non-admin account until it has a dialog (issue #32).
 	default:
 		p.userDlg = p.m.showUserDialog(p, r.user)
 	}

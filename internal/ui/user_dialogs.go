@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"cmp"
 	"errors"
 	"slices"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -181,11 +183,13 @@ func (m *manager) showAdminDialog(v *usersPane, current string, signedIn bool) *
 				store = m.deps.loginStore
 			}
 			forget()
-			m.usersWrite(v, func() (string, []error) {
-				if err := m.sess.SetAdminAccount(change, c, store); err != nil {
-					return change.Password, []error{err}
-				}
-				return change.Password, nil
+			m.warnWithoutTLS(v.window(), secretPassword, cmp.Or(change.Name, current), func() {
+				m.usersWrite(v, func() (string, []error) {
+					if err := m.sess.SetAdminAccount(change, c, store); err != nil {
+						return change.Password, []error{err}
+					}
+					return change.Password, nil
+				})
 			})
 		},
 		onCancel: forget,
@@ -219,6 +223,10 @@ func (m *manager) showUserDialog(v *usersPane, u *amt.User) *userDialog {
 	if u != nil {
 		title, button = lang.L("Edit user"), lang.L("Save")
 	}
+	own := u != nil && u.Self
+	if own {
+		title = lang.L("Edit your account")
+	}
 	d.panel = showPanel(v.window(), panelSpec{
 		title: title, action: button, cancel: lang.L("Cancel"), flush: true,
 		onAction: func() { d.write(m, v) },
@@ -239,14 +247,21 @@ func (m *manager) showUserDialog(v *usersPane, u *amt.User) *userDialog {
 			d.initial = append(d.initial, on)
 			checks = append(checks, c)
 		}
-		objs := []fyne.CanvasObject{
+		var objs []fyne.CanvasObject
+		if own {
+			objs = append(objs, formHint(lang.L("OpenLAMT is signed in to {{.Name}} with this account.", map[string]any{"Name": m.name})))
+		}
+		objs = append(objs,
 			formField(lang.L("User name"), framedEntry(d.name)),
 			container.NewGridWithColumns(2, formField(lang.L("Password"), d.pw), formField(lang.L("Repeat password"), d.repeat)),
-			formHint(passwordHint()),
-		}
+			formHint(passwordHint()))
 		if u != nil {
 			d.name.SetText(u.Name)
 			d.access.SetSelected(slices.Index(accessOrder, u.Access))
+		}
+		// The own account has neither "Enabled" nor "Delete User…": the device refuses both for
+		// the account of the connection (amt.User.Protected; design V19).
+		if u != nil && !own {
 			d.enabled = widgets.NewSwitch(nil)
 			d.enabled.SetChecked(u.Enabled)
 			d.enabled.OnChanged = func(bool) { d.validate() }
@@ -366,40 +381,120 @@ func (d *userDialog) forget() {
 	d.repeat.SetText("")
 }
 
-// write runs Add (AddUser) or Edit (UpdateUser, then SetUserEnabled).
+// write runs Add (AddUser) or Edit (UpdateUser, then SetUserEnabled). A password the device
+// receives without TLS asks first (warnWithoutTLS, issue #37); the own account then asks for the
+// orange confirmation (amt.OpOwnAccount, issue #32). Nothing is written before both.
 func (d *userDialog) write(m *manager, v *usersPane) {
 	spec := amt.UserSpec{Name: d.name.Text, Password: d.pw.Text(), Access: d.accessValue(), Realms: d.realms()}
 	update, enable := d.needsUpdate(), d.enabledChanged()
+	on := d.enabled != nil && d.enabled.Checked()
+	changes := d.changeLines()
 	d.forget()
 	if d.edit == nil {
-		m.usersWrite(v, func() (string, []error) {
-			if _, err := m.sess.AddUser(spec); err != nil {
-				return "", []error{err}
-			}
-			return "", nil
+		m.warnWithoutTLS(v.window(), secretPassword, spec.Name, func() {
+			m.usersWrite(v, func() (string, []error) {
+				if _, err := m.sess.AddUser(spec); err != nil {
+					return "", []error{err}
+				}
+				return "", nil
+			})
 		})
 		return
 	}
-	h, on, store := d.edit.Handle, d.enabled.Checked(), m.deps.loginStore
-	m.usersWrite(v, func() (string, []error) {
-		var errs []error
-		if update {
-			err := m.sess.UpdateUser(h, spec, amt.Confirmation{}, store)
-			var ns *session.NotSavedError
-			if err != nil && !errors.As(err, &ns) {
-				return spec.Password, []error{err}
+	h, store, own := d.edit.Handle, m.deps.loginStore, d.edit.Self
+	run := func(c amt.Confirmation) {
+		m.usersWrite(v, func() (string, []error) {
+			var errs []error
+			if update {
+				err := m.sess.UpdateUser(h, spec, c, store)
+				var ns *session.NotSavedError
+				if err != nil && !errors.As(err, &ns) {
+					return spec.Password, []error{err}
+				}
+				if err != nil {
+					errs = append(errs, err) // the account changed; Enabled follows
+				}
 			}
-			if err != nil {
-				errs = append(errs, err) // the account changed; Enabled follows
+			if enable {
+				if err := m.sess.SetUserEnabled(h, on); err != nil {
+					errs = append(errs, err)
+				}
 			}
+			return spec.Password, errs
+		})
+	}
+	next := func() { run(amt.Confirmation{}) }
+	if own {
+		next = func() { m.confirmOwnAccount(v, changes, run) }
+	}
+	if update && spec.Password != "" {
+		m.warnWithoutTLS(v.window(), secretPassword, spec.Name, next)
+		return
+	}
+	next()
+}
+
+// accessName is the access permission as the Access segments name it.
+func accessName(a amt.AccessPermission) string {
+	return []string{lang.L("Network"), lang.L("Local"), lang.L("Both")}[slices.Index(accessOrder, a)]
+}
+
+// changeLines lists what Save changes on the edited account, one line per kind, for the orange
+// confirmation of the own account: "Name: old → new", "Password: changed", "Access: old → new",
+// "Permissions: Settings removed, Hardware added".
+func (d *userDialog) changeLines() []string {
+	u := d.edit
+	if u == nil {
+		return nil
+	}
+	var lines []string
+	if d.name.Text != u.Name {
+		lines = append(lines, lang.L("Name")+": "+u.Name+" → "+d.name.Text)
+	}
+	if d.pw.Text() != "" {
+		lines = append(lines, lang.L("Password: changed"))
+	}
+	if a := d.accessValue(); a != u.Access && slices.Contains(accessOrder, u.Access) {
+		lines = append(lines, lang.L("Access")+": "+accessName(u.Access)+" → "+accessName(a))
+	}
+	var perms []string
+	for i, g := range permGroups() {
+		switch now := d.checks[i].Checked; {
+		case now && !d.initial[i]:
+			perms = append(perms, lang.L("{{.Permission}} added", map[string]any{"Permission": g.label}))
+		case !now && d.initial[i]:
+			perms = append(perms, lang.L("{{.Permission}} removed", map[string]any{"Permission": g.label}))
 		}
-		if enable {
-			if err := m.sess.SetUserEnabled(h, on); err != nil {
-				errs = append(errs, err)
+	}
+	if len(perms) > 0 {
+		lines = append(lines, lang.L("Permissions")+": "+strings.Join(perms, ", "))
+	}
+	return lines
+}
+
+// confirmOwnAccount asks for the orange confirmation before the signed-in account is changed
+// (Users.dc.html "Change your own account?"): the changes as a list and the checkbox that names
+// the device. run gets amt.ConfirmChecked's confirmation for amt.OpOwnAccount.
+func (m *manager) confirmOwnAccount(v *usersPane, changes []string, run func(amt.Confirmation)) *riskDialog {
+	v.ownDlg = showOrangeConfirm(v.window(), orangeSpec{
+		op: amt.OpOwnAccount, host: m.deps.host, device: deviceLabel(m.name, m.deps.host),
+		title: lang.L("Change your own account?"),
+		warning: lang.L("OpenLAMT signs in to {{.Name}} with this account. A wrong name or password, or a removed permission, can lock you out until an administrator fixes it.",
+			map[string]any{"Name": m.name}),
+		extra: func(*riskDialog) []fyne.CanvasObject {
+			var segs []*widget.TextSegment
+			for i, l := range changes {
+				if i > 0 {
+					l = "\n" + l
+				}
+				segs = append(segs, textSeg(l, style.ColorNameControlText, false))
 			}
-		}
-		return spec.Password, errs
+			return []fyne.CanvasObject{flushText(richLine(segs...))}
+		},
+		button:    lang.L("Change Account"),
+		onConfirm: run,
 	})
+	return v.ownDlg
 }
 
 // checkTexts returns the captions of the permission checkboxes (tests).

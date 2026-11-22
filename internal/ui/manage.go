@@ -171,6 +171,7 @@ type manager struct {
 	onPopOut func()
 	users    *manageSource[amt.UserList] // created by the first Users pane
 	closed   bool
+	tlsAsk   *panel // the last "without TLS" question (tests)
 
 	now       func() time.Time
 	tickEvery time.Duration // 0: no clock (tests call tick)

@@ -33,8 +33,14 @@ func exampleUsers() amt.UserList {
 // address the red confirmation asks for is the session's host.
 func usersHarness(t *testing.T, list amt.UserList) (*manageHarness, *usersPane) {
 	t.Helper()
+	return usersHarnessTLS(t, list, true)
+}
+
+// usersHarnessTLS is usersHarness with a session that does or does not use TLS.
+func usersHarnessTLS(t *testing.T, list amt.UserList, useTLS bool) (*manageHarness, *usersPane) {
+	t.Helper()
 	englishUI(t)
-	h := newManageHarness(t, &session.Fake{FP: fp, Cfg: session.FakeConfig{Users: list}})
+	h := newManageHarnessTLS(t, &session.Fake{FP: fp, Cfg: session.FakeConfig{Users: list}}, useTLS)
 	h.m.deps.host = riskHost
 	h.m.Sidebar()
 	h.wait(t) // hardware
@@ -74,8 +80,8 @@ func TestUserRowTexts(t *testing.T) {
 		t.Errorf("unknown enabled state shows %q", got)
 	}
 	self := amt.User{Handle: 9, Name: "ops", Self: true, Enabled: true, EnabledKnown: true, Realms: []amt.Realm{amt.RealmRedirection}}
-	if r := userRows(amt.UserList{Admin: "admin", Users: []amt.User{self}}, "ops"); r[0].signedIn || !r[1].signedIn || r[1].editable {
-		t.Errorf("signed-in marks: admin %v ops %v, own Edit enabled %v (issue #32)", r[0].signedIn, r[1].signedIn, r[1].editable)
+	if r := userRows(amt.UserList{Admin: "admin", Users: []amt.User{self}}, "ops"); r[0].signedIn || !r[1].signedIn || !r[1].editable {
+		t.Errorf("signed-in marks: admin %v ops %v, own Edit enabled %v", r[0].signedIn, r[1].signedIn, r[1].editable)
 	}
 }
 
@@ -117,7 +123,7 @@ func TestUsersPageTable(t *testing.T) {
 	if p.table.lines[1].edit.Metrics.NeutralText != "" {
 		t.Error("other Edit buttons are not red")
 	}
-	if !p.footnote.Visible() || richText(p.footnote) != "* Signed-in account. Changing its name or password can lock you out of this device." {
+	if !p.footnote.Visible() || richText(p.footnote) != "* Signed-in account. Changing its name, password or permissions can lock you out of this device." {
 		t.Errorf("footnote %v %q", p.footnote.Visible(), richText(p.footnote))
 	}
 	if p.add.Text != "+ Add user" || !p.add.Visible() {

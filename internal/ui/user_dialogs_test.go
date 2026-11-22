@@ -369,25 +369,6 @@ func TestEditUserNotSavedAfterPasswordChange(t *testing.T) {
 	}
 }
 
-// Editing the own, non-admin account has no dialog yet (issue #32): its Edit is disabled like
-// that of a "$$" account and opens nothing.
-func TestEditOwnAccountIsDisabled(t *testing.T) {
-	list := exampleUsers()
-	list.Users[0].Self = true
-	h, p := usersHarness(t, list)
-	own := p.table.lines[1] // own account (not the admin)
-	if !own.edit.Disabled() || own.row.editable {
-		t.Fatal("Edit of the own, non-admin account is enabled")
-	}
-	test.Tap(own.edit)
-	if p.userDlg != nil || open(h.m.parent) {
-		t.Fatal("Edit of the own account opened a dialog")
-	}
-	if p.table.lines[0].edit.Disabled() || p.table.lines[2].edit.Disabled() {
-		t.Error("the admin row and other users must stay editable")
-	}
-}
-
 // Extras.dc.html: "Delete User…" in Edit user asks with a plain text and the checkbox.
 func TestDeleteUserAsksAndRemoves(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())

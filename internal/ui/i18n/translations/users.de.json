@@ -1,0 +1,15 @@
+{
+  "Signed-in account. Changing its name, password or permissions can lock you out of this device.": "Angemeldetes Konto. Wenn du Name, Passwort oder Berechtigungen änderst, kannst du dich von diesem Gerät aussperren.",
+  "Edit your account": "Eigenes Konto bearbeiten",
+  "OpenLAMT is signed in to {{.Name}} with this account.": "OpenLAMT ist mit diesem Konto an „{{.Name}}“ angemeldet.",
+  "Password: changed": "Passwort: geändert",
+  "{{.Permission}} added": "{{.Permission}} hinzugefügt",
+  "{{.Permission}} removed": "{{.Permission}} entfernt",
+  "Change your own account?": "Eigenes Konto ändern?",
+  "OpenLAMT signs in to {{.Name}} with this account. A wrong name or password, or a removed permission, can lock you out until an administrator fixes it.": "OpenLAMT meldet sich mit diesem Konto an „{{.Name}}“ an. Ein falscher Name oder ein falsches Passwort oder eine entfernte Berechtigung kann dich aussperren, bis ein Administrator das behebt.",
+  "Send the password without TLS?": "Passwort ohne TLS senden?",
+  "The connection to {{.Name}} has no TLS. The password travels as a digest that works like the password itself. Anyone who captures it on the network can sign in as {{.User}}.": "Die Verbindung zu „{{.Name}}“ hat kein TLS. Das Passwort wird als Digest übertragen, der wie das Passwort selbst funktioniert. Wer ihn im Netzwerk mitschneidet, kann sich als {{.User}} anmelden.",
+  "Send the key without TLS?": "Schlüssel ohne TLS senden?",
+  "The connection to {{.Name}} has no TLS. The key travels unencrypted. Anyone who captures it on the network can use it.": "Die Verbindung zu „{{.Name}}“ hat kein TLS. Der Schlüssel wird unverschlüsselt übertragen. Wer ihn im Netzwerk mitschneidet, kann ihn benutzen.",
+  "Send Anyway": "Trotzdem senden"
+}

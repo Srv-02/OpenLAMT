@@ -27,14 +27,25 @@ const (
 	// SegmentedTabs are the tabs of the device management sidebar (Main.dc.html .tab): segments
 	// of equal width over the full width, 12 px text, track radius 9 with 3 px padding, segments
 	// radius 7 and 6 px high padding. Where equal widths do not fit the longest caption (German),
-	// the segments share the width in proportion to their captions.
+	// the segments share the width in proportion to their captions. A segment may be natural
+	// (SegmentOption.Natural) and carry a trailing symbol (SegmentOption.Icon).
 	SegmentedTabs
 )
 
-// SegmentOption is one segment: a symbol (SegmentedToolbar only) and a caption.
+// Trailing symbol of a tab segment (the chevron of "More"): size and gap to the caption.
+const (
+	trailingSize float32 = 14
+	trailingGap  float32 = 3
+)
+
+// SegmentOption is one segment: a symbol and a caption. The symbol sits above the caption in
+// SegmentedToolbar, after it in SegmentedTabs and is not drawn in SegmentedText.
 type SegmentOption struct {
 	Icon  icons.Name
 	Label string
+	// Natural (SegmentedTabs only) keeps the segment at its minimum width (caption, symbol and
+	// padding); the other segments share the rest.
+	Natural bool
 }
 
 // TextOptions returns options with the given captions and no symbol.
@@ -114,6 +125,17 @@ func (s *Segmented) SetSelected(i int) {
 	s.Refresh()
 }
 
+// Len returns the number of segments.
+func (s *Segmented) Len() int { return len(s.options) }
+
+// Label returns the caption of segment i, "" for an index out of range.
+func (s *Segmented) Label(i int) string {
+	if i < 0 || i >= len(s.options) {
+		return ""
+	}
+	return s.options[i].Label
+}
+
 // SetLabel changes the caption of segment i.
 func (s *Segmented) SetLabel(i int, label string) {
 	if i < 0 || i >= len(s.options) {
@@ -188,6 +210,9 @@ func (s *Segmented) contentSize(o SegmentOption) fyne.Size {
 	if s.style == SegmentedToolbar {
 		return fyne.NewSize(max(ts.Width, style.ToolbarIconSize), tbIconRow+tbGap+ts.Height)
 	}
+	if s.style == SegmentedTabs && o.Icon != "" {
+		return fyne.NewSize(ts.Width+trailingGap+trailingSize, max(ts.Height, trailingSize))
+	}
 	return ts
 }
 
@@ -209,24 +234,35 @@ func (s *Segmented) frame() float32 {
 
 // layoutWidths returns the width of every segment at the current size: the extra width shared
 // equally; tabs of equal width while the widest caption fits, else in proportion to their
-// captions.
+// captions. Natural tab segments keep their minimum width and do not take part.
 func (s *Segmented) layoutWidths() []float32 {
 	widths := s.segmentWidths()
 	room := s.Size().Width - s.frame()
-	var sum, widest float32
-	for _, w := range widths {
+	var sum, widest, nat float32
+	count := 0
+	for i, w := range widths {
+		if s.style == SegmentedTabs && s.options[i].Natural {
+			nat += w
+			continue
+		}
 		sum += w
+		count++
 		widest = max(widest, w)
 	}
-	n := float32(max(1, len(widths)))
+	room -= nat
+	n := float32(max(1, count))
 	switch {
 	case s.style == SegmentedTabs && widest*n <= room:
 		for i := range widths {
-			widths[i] = room / n
+			if !s.options[i].Natural {
+				widths[i] = room / n
+			}
 		}
 	case s.style == SegmentedTabs && sum > 0:
 		for i, w := range widths {
-			widths[i] = max(0, room) * w / sum
+			if !s.options[i].Natural {
+				widths[i] = max(0, room) * w / sum
+			}
 		}
 	default:
 		extra := max(0, room-sum) / n
@@ -340,7 +376,13 @@ func (r *segmentedRenderer) Layout(size fyne.Size) {
 			p.icon.Resize(fyne.NewSquareSize(style.ToolbarIconSize))
 			y += tbIconRow + tbGap
 		}
-		p.text.Move(fyne.NewPos(b.pos.X+(b.size.Width-ts.Width)/2, y))
+		x := b.pos.X + (b.size.Width-ts.Width)/2
+		if s.style == SegmentedTabs && s.options[i].Icon != "" {
+			x = b.pos.X + (b.size.Width-cs.Width)/2 // caption and symbol centered as one unit
+			p.icon.Move(fyne.NewPos(x+ts.Width+trailingGap, b.pos.Y+(b.size.Height-trailingSize)/2))
+			p.icon.Resize(fyne.NewSquareSize(trailingSize))
+		}
+		p.text.Move(fyne.NewPos(x, y))
 		p.text.Resize(ts)
 	}
 }
@@ -378,7 +420,10 @@ func (r *segmentedRenderer) Refresh() {
 		p.text.Text = s.options[i].Label
 		p.text.Color = text
 		p.text.Refresh()
-		if s.style == SegmentedToolbar && s.options[i].Icon != "" {
+		if s.style == SegmentedTabs && !s.Disabled() && on {
+			variant = icons.Foreground
+		}
+		if s.style != SegmentedText && s.options[i].Icon != "" {
 			p.icon.SetResource(icons.Get(s.options[i].Icon, variant))
 			setVisible(p.icon, true)
 		} else {

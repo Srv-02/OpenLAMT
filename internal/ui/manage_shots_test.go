@@ -16,6 +16,7 @@ import (
 
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/session"
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 )
 
@@ -90,4 +91,53 @@ func TestManageShots(t *testing.T) {
 	shot("manage-window-users-dark.png", w.win)
 	test.Tap(w.nav[1])
 	shot("manage-window-events-dark.png", w.win)
+}
+
+// TestManageMoreShots renders the sidebar with the open More menu and the window navigation
+// with test-only pages (Alpha, Beta: More; Gamma: Diagnostics), light, into $OPENLAMT_SHOTS.
+func TestManageMoreShots(t *testing.T) {
+	dir := os.Getenv("OPENLAMT_SHOTS")
+	if dir == "" {
+		t.Skip("OPENLAMT_SHOTS not set")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	shot := func(name string, w fyne.Window) {
+		t.Helper()
+		f, err := os.Create(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err := png.Encode(f, w.Canvas().Capture()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	englishUI(t)
+	restoreDarkVariant(t)
+	withManagePages(t,
+		testPageDef(sectionMore, 10, "Alpha", icons.Settings),
+		testPageDef(sectionMore, 20, "Beta", icons.Server),
+		testPageDef(sectionDiagnostics, 10, "Gamma", icons.Key))
+	h := newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
+	switchVariant(h.a, theme.VariantLight)
+	device := h.m.parent // the More menu opens on the parent window
+
+	device.SetPadded(false)
+	scaleWindow(device)
+	stage := style.BindRect(canvas.NewRectangle(nil), style.ColorNameLetterbox, "")
+	device.SetContent(container.NewBorder(nil, nil, nil, h.m.Sidebar(), stage))
+	device.Resize(fyne.NewSize(1280, 800))
+	h.wait(t)
+	h.m.side.tabs.Tap(5)
+	shot("manage-sidebar-more-menu.png", device)
+	h.m.side.morePopup.Item(1).Tapped(nil)
+	shot("manage-sidebar-more-page.png", device)
+
+	h.m.OpenWindow()
+	w := h.m.win
+	scaleWindow(w.win)
+	w.win.Resize(fyne.NewSize(1280, 800))
+	shot("manage-window-more-nav.png", w.win)
 }

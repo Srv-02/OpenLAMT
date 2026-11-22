@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
@@ -131,6 +132,11 @@ type usersPane struct {
 	deleteDlg *riskDialog
 	ownDlg    *riskDialog
 	notSaved  *notSavedDialog
+}
+
+func init() {
+	registerManagePage(managePageDef{section: sectionMain, order: 50, icon: icons.Users, build: (*manager).usersPane,
+		names: func() (string, string) { return lang.L("Users"), lang.L("Users") }})
 }
 
 // usersPane builds the Users page. The data (m.users) is shared by both views and read when

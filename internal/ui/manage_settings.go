@@ -235,8 +235,8 @@ func (p *settingsPane) render() {
 }
 
 // show puts s into the controls. A section the account may not read (amt.Settings.Unreadable)
-// keeps its rows: its texts show "N/A", its switches and segmented controls stay in the off or
-// first position and lock disables them.
+// keeps its rows: its texts show "N/A", its switches stay off, its segmented controls have no
+// selected segment and lock disables them.
 func (p *settingsPane) show(s amt.Settings) {
 	na := lang.L("N/A")
 	g := s.General
@@ -261,7 +261,14 @@ func (p *settingsPane) show(s amt.Settings) {
 	n := s.Network
 	netRead := s.Readable(amt.SettingsNetwork)
 	setShown(p.networkBox, n.Available || !netRead)
-	p.address.SetSelected(map[bool]int{true: 0, false: 1}[n.DHCP || !netRead])
+	switch {
+	case !netRead:
+		p.address.SetSelected(widgets.NoSelection)
+	case n.DHCP:
+		p.address.SetSelected(0)
+	default:
+		p.address.SetSelected(1)
+	}
 	p.ipText.Text = ipSummary(n)
 	if !netRead {
 		p.ipText.Text = na
@@ -275,7 +282,11 @@ func (p *settingsPane) show(s amt.Settings) {
 	p.kvm.SetChecked(f.KVM)
 	p.ider.SetChecked(f.IDER)
 	p.sol.SetChecked(f.SOL)
-	p.consent.SetSelected(int(s.Consent.Policy))
+	if s.Readable(amt.SettingsConsent) {
+		p.consent.SetSelected(int(s.Consent.Policy))
+	} else {
+		p.consent.SetSelected(widgets.NoSelection)
+	}
 	p.features.sync()
 
 	clockRead := s.Readable(amt.SettingsClock)

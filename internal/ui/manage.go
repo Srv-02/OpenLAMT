@@ -111,11 +111,11 @@ func (s *manageSource[T]) reload() {
 	s.started, s.loading = true, true
 	s.reads++
 	s.notify()
-	read := s.read
+	read, now := s.read, s.m.now // now is read here, on the Fyne thread: tests replace it
 	go func() {
-		start := time.Now()
+		start := now()
 		v, err := read()
-		took := time.Since(start)
+		took := now().Sub(start)
 		s.m.later(func() { s.done(v, err, took) })
 	}()
 }

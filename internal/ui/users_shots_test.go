@@ -64,7 +64,7 @@ func TestUsersShots(t *testing.T) {
 	p := w.view.panes[4].impl.(*usersPane)
 	shot("users-window.png", w.win)
 
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -85,7 +85,7 @@ func TestUsersShots(t *testing.T) {
 	shot("users-dialog-add.png", w.win)
 	a.Dismiss()
 
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	shot("users-dialog-edit.png", w.win)
 	p.userDlg.Dismiss()
 

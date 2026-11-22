@@ -377,7 +377,7 @@ func (h *uiShots) manageDialogs(w *manageWindow) {
 	up := w.view.panes[4].impl.(*usersPane)
 
 	// 36: the checkbox not ticked yet: the button stays disabled
-	test.Tap(up.table.lines[0].edit)
+	test.Tap(up.table.lines[0].action)
 	ad := up.adminDlg
 	ad.pw.SetText(newPassword)
 	ad.repeat.SetText(newPassword)
@@ -399,7 +399,7 @@ func (h *uiShots) manageDialogs(w *manageWindow) {
 	a.Dismiss()
 
 	// 38: Edit user "helpdesk"; 48: its "Delete User…" with the box ticked (Extras.dc.html)
-	test.Tap(up.table.lines[1].edit)
+	test.Tap(up.table.lines[1].action)
 	h.shot("38-dialog-edit-user.png", w.win)
 	test.Tap(up.userDlg.del)
 	test.Tap(up.deleteDlg.check)

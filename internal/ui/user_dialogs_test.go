@@ -40,7 +40,7 @@ func TestAdminDialogNeedsValidFieldsAndTheHost(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	store := &countingStore{}
 	h.m.deps.loginStore = store
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	d := p.adminDlg
 	if d == nil || !open(h.m.parent) {
 		t.Fatal("no admin dialog")
@@ -94,7 +94,7 @@ func TestAdminDialogWithoutKeychainPassesNoStore(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	store := &countingStore{}
 	h.m.deps.loginStore = store
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	d := p.adminDlg
 	test.Tap(d.keychain)
 	d.pw.SetText(newPassword)
@@ -112,14 +112,14 @@ func TestAdminDialogOfAnotherAccount(t *testing.T) {
 	list := exampleUsers()
 	list.Admin = "root"
 	h, p := usersHarness(t, list)
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	findLabel(t, h.m.parent.Canvas().Overlays().Top(), "Change the admin account")
 }
 
 func TestNotSavedDialogShowsThePasswordOnce(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	h.m.deps.loginStore = &countingStore{err: errors.New("keychain locked")}
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -172,7 +172,7 @@ func TestNotSavedDialogAfterTheDeviceWindowClosed(t *testing.T) {
 			main := h.a.NewWindow("OpenLAMT")
 			h.m.deps.mainWin = main
 			c.setup(h)
-			test.Tap(p.table.lines[0].edit)
+			test.Tap(p.table.lines[0].action)
 			d := p.adminDlg
 			d.pw.SetText(newPassword)
 			d.repeat.SetText(newPassword)
@@ -201,7 +201,7 @@ func TestNotSavedDialogAfterTheDeviceWindowClosed(t *testing.T) {
 func TestUncertainCredentialsShowTheNotSavedDialog(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	h.dev.Cfg.WriteErr = &amt.CredentialsUncertainError{Username: "admin", Self: true, Err: errors.New("connection reset")}
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -217,7 +217,7 @@ func TestUncertainCredentialsShowTheNotSavedDialog(t *testing.T) {
 func TestAdminDialogOtherErrorsUseTheErrorDialog(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	h.dev.Cfg.WriteErr = errors.New("example failure")
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -285,7 +285,7 @@ func TestAddUserDialog(t *testing.T) {
 
 func TestEditUserTogglesEnabledWithoutPassword(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
-	test.Tap(p.table.lines[2].edit) // user1, disabled
+	test.Tap(p.table.lines[2].action) // user1, disabled
 	d := p.userDlg
 	top := h.m.parent.Canvas().Overlays().Top()
 	findLabel(t, top, "Edit user")
@@ -312,7 +312,7 @@ func TestEditUserTogglesEnabledWithoutPassword(t *testing.T) {
 
 func TestEditUserKeepsUnmappedRealmsAndNeedsThePassword(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
-	test.Tap(p.table.lines[2].edit) // user1 with realm 9 outside the mapping
+	test.Tap(p.table.lines[2].action) // user1 with realm 9 outside the mapping
 	d := p.userDlg
 	test.Tap(d.checks[0]) // Power control
 	if !d.action.Disabled() {
@@ -338,7 +338,7 @@ func TestEditUserPartialGroupStaysUntouched(t *testing.T) {
 	list := exampleUsers()
 	list.Users[1].Realms = []amt.Realm{amt.RealmPTAdministration, amt.RealmEventLogReader}
 	h, p := usersHarness(t, list)
-	test.Tap(p.table.lines[2].edit)
+	test.Tap(p.table.lines[2].action)
 	d := p.userDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -353,7 +353,7 @@ func TestEditUserPartialGroupStaysUntouched(t *testing.T) {
 func TestEditUserNotSavedAfterPasswordChange(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	h.m.deps.loginStore = &countingStore{err: errors.New("keychain locked")}
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -372,7 +372,7 @@ func TestEditUserNotSavedAfterPasswordChange(t *testing.T) {
 // Extras.dc.html: "Delete User…" in Edit user asks with a plain text and the checkbox.
 func TestDeleteUserAsksAndRemoves(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
-	test.Tap(p.table.lines[1].edit) // helpdesk
+	test.Tap(p.table.lines[1].action) // helpdesk
 	d := p.userDlg
 	if d.del == nil || d.del.Text != "Delete User…" || d.del.Importance != widget.DangerImportance {
 		t.Fatal("no red Delete User… button")
@@ -406,14 +406,14 @@ func TestDeleteUserAsksAndRemoves(t *testing.T) {
 			t.Fatal("helpdesk still there")
 		}
 	}
-	if len(p.table.lines) != 4 || p.table.lines[1].row.name == "helpdesk" {
+	if len(p.table.lines) != 4 || richText(p.table.lines[1].cells[0]) == "helpdesk" {
 		t.Errorf("table not reloaded: %d lines", len(p.table.lines))
 	}
 }
 
 func TestDeleteUserCancelReturnsToEdit(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	test.Tap(d.del)
 	p.deleteDlg.Dismiss()
@@ -430,7 +430,7 @@ func TestDeleteUserCancelReturnsToEdit(t *testing.T) {
 func TestDeleteUserErrorUsesTheErrorDialog(t *testing.T) {
 	h, p := usersHarness(t, exampleUsers())
 	h.dev.Cfg.WriteErr = errors.New("example failure")
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	test.Tap(p.userDlg.del)
 	test.Tap(p.deleteDlg.check)
 	test.Tap(p.deleteDlg.action)

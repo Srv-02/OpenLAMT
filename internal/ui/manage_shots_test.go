@@ -141,3 +141,36 @@ func TestManageMoreShots(t *testing.T) {
 	w.win.Resize(fyne.NewSize(1280, 800))
 	shot("manage-window-more-nav.png", w.win)
 }
+
+// TestManageListShots renders a test-only list page (empty state, footer, Refresh) in the
+// management window, light, into $OPENLAMT_SHOTS.
+func TestManageListShots(t *testing.T) {
+	dir := os.Getenv("OPENLAMT_SHOTS")
+	if dir == "" {
+		t.Skip("OPENLAMT_SHOTS not set")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	englishUI(t)
+	restoreDarkVariant(t)
+	tl := &testList{}
+	add := newManageButton("+ Add thing", func() {})
+	withManagePages(t, testListDef(tl, true, true, true, add))
+	h := newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
+	switchVariant(h.a, theme.VariantLight)
+	h.m.OpenWindow()
+	w := h.m.win
+	scaleWindow(w.win)
+	w.win.Resize(fyne.NewSize(1280, 800))
+	test.Tap(w.nav[5])
+	h.wait(t)
+	f, err := os.Create(filepath.Join(dir, "manage-window-list-empty.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, w.win.Canvas().Capture()); err != nil {
+		t.Fatal(err)
+	}
+}

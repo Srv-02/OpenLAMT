@@ -70,17 +70,14 @@ func userPasswordField(p *panel, changed func()) *widgets.PasswordField {
 // A write that ends after device management closed shows only "New password not saved", on
 // the start window (lateNotSaved).
 func (m *manager) usersWrite(v *usersPane, write func() (password string, errs []error)) {
-	go func() {
+	type result struct {
+		pw   string
+		errs []error
+	}
+	manageWrite(m, m.users, func() result {
 		pw, errs := write()
-		m.later(func() {
-			if m.closed {
-				m.lateNotSaved(pw, errs)
-				return
-			}
-			m.users.reload()
-			v.writeDone(pw, errs)
-		})
-	}()
+		return result{pw, errs}
+	}, func(r result) { v.writeDone(r.pw, r.errs) }, func(r result) { m.lateNotSaved(r.pw, r.errs) })
 }
 
 // writeDone shows the errors of a write: a change the keychain did not take

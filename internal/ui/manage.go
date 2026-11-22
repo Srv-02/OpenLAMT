@@ -670,7 +670,7 @@ func newManageWindow(m *manager, page int) *manageWindow {
 				items = append(items, w.navSep)
 			case sectionDiagnostics:
 				w.navHeading = designText(lang.L("Diagnostics"), 11, style.ColorNameTextSecondary, true)
-				items = append(items, container.New(layout.NewCustomPaddedLayout(8, 0, 10, 0), w.navHeading))
+				items = append(items, container.New(layout.NewCustomPaddedLayout(8, 0, navPadH, 0), w.navHeading))
 			}
 			prev = p.section
 		}

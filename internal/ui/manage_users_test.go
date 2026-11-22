@@ -109,18 +109,18 @@ func TestUsersPageTable(t *testing.T) {
 		t.Errorf("helpdesk permissions %q", got)
 	}
 	sys := p.table.lines[3]
-	if !sys.edit.Disabled() || sys.cells[0].Segments[0].(*widget.TextSegment).Style.ColorName != style.ColorNameTextSecondary {
+	if !sys.action.Disabled() || sys.cells[0].Segments[0].(*widget.TextSegment).Style.ColorName != style.ColorNameTextSecondary {
 		t.Error("$$ row must be gray with Edit disabled")
 	}
-	if !p.table.lines[4].edit.Disabled() || p.table.lines[1].edit.Disabled() {
+	if !p.table.lines[4].action.Disabled() || p.table.lines[1].action.Disabled() {
 		t.Error("Kerberos Edit disabled, helpdesk Edit enabled")
 	}
-	admin := p.table.lines[0].edit.Metrics
+	admin := p.table.lines[0].action.Metrics
 	if admin.Neutral != style.ColorNameSignedInSurface || admin.NeutralBorder != style.ColorNameSignedInBorder ||
 		admin.NeutralText != style.ColorNameDangerZoneText {
 		t.Errorf("signed-in Edit metrics %+v", admin)
 	}
-	if p.table.lines[1].edit.Metrics.NeutralText != "" {
+	if p.table.lines[1].action.Metrics.NeutralText != "" {
 		t.Error("other Edit buttons are not red")
 	}
 	if !p.footnote.Visible() || richText(p.footnote) != "* Signed-in account. Changing its name, password or permissions can lock you out of this device." {
@@ -150,7 +150,7 @@ func TestUsersFootnoteOnlyForTheSignedInAccount(t *testing.T) {
 	if p.footnote.Visible() {
 		t.Error("footnote without a signed-in account")
 	}
-	if richText(p.table.lines[0].cells[0]) != "root" || p.table.lines[0].edit.Metrics.NeutralText != "" {
+	if richText(p.table.lines[0].cells[0]) != "root" || p.table.lines[0].action.Metrics.NeutralText != "" {
 		t.Error("admin row of another account is not marked")
 	}
 }
@@ -193,4 +193,4 @@ func richText(rt *widget.RichText) string {
 	return s
 }
 
-var _ fyne.Widget = (*userTable)(nil)
+var _ fyne.Widget = (*listTable)(nil)

@@ -12,7 +12,25 @@ import (
 	"fyne.io/fyne/v2/lang"
 )
 
+// keysOf returns the keys of one language over all its files: `<lang>.json` and
+// `<feature>.<lang>.json`. keysOf(t, "en.json") and keysOf(t, "en") both mean English.
 func keysOf(t *testing.T, name string) map[string]string {
+	t.Helper()
+	language := strings.TrimSuffix(name, ".json")
+	files, err := languageFiles(language)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := map[string]string{}
+	for _, f := range files {
+		for k, v := range keysOfFile(t, f) {
+			all[k] = v
+		}
+	}
+	return all
+}
+
+func keysOfFile(t *testing.T, name string) map[string]string {
 	t.Helper()
 	b, err := translations.ReadFile("translations/" + name)
 	if err != nil {
@@ -25,19 +43,91 @@ func keysOf(t *testing.T, name string) map[string]string {
 	return m
 }
 
+// featureOf maps a file name to its feature: "" for en.json and de.json.
+func featureOf(name string) string {
+	for _, l := range Languages {
+		if name == l+".json" {
+			return ""
+		}
+		if f, ok := strings.CutSuffix(name, "."+l+".json"); ok {
+			return f
+		}
+	}
+	return "?"
+}
+
+// TestNoDuplicateKeysAcrossFiles: a key lives in one file per language; the files pair up
+// (every `<feature>.en.json` has its `<feature>.de.json`), and each text of a file equals its key.
+func TestNoDuplicateKeysAcrossFiles(t *testing.T) {
+	entries, err := translations.ReadDir("translations")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := map[string]string{} // language + key -> file
+	features := map[string]map[string]bool{}
+	for _, e := range entries {
+		name := e.Name()
+		f := featureOf(name)
+		if f == "?" {
+			t.Errorf("%s is not <lang>.json or <feature>.<lang>.json for a shipped language", name)
+			continue
+		}
+		language := name[strings.LastIndex(strings.TrimSuffix(name, ".json"), ".")+1 : len(name)-len(".json")]
+		if features[f] == nil {
+			features[f] = map[string]bool{}
+		}
+		features[f][language] = true
+		for k := range keysOfFile(t, name) {
+			if prev, dup := owner[language+"\x00"+k]; dup {
+				t.Errorf("key %q is in %s and %s", k, prev, name)
+			}
+			owner[language+"\x00"+k] = name
+		}
+	}
+	for f, langs := range features {
+		for _, l := range Languages {
+			if !langs[l] {
+				t.Errorf("feature %q has no %s file", f, l)
+			}
+		}
+	}
+}
+
 func TestSameKeysInAllLanguages(t *testing.T) {
 	en, de := keysOf(t, "en.json"), keysOf(t, "de.json")
 	for k, v := range en {
 		if _, ok := de[k]; !ok {
-			t.Errorf("de.json lacks %q", k)
+			t.Errorf("German texts lack %q", k)
 		}
 		if k != v {
-			t.Errorf("en.json: text of %q must equal the key, got %q", k, v)
+			t.Errorf("English texts: text of %q must equal the key, got %q", k, v)
 		}
 	}
 	for k := range de {
 		if _, ok := en[k]; !ok {
-			t.Errorf("en.json lacks %q", k)
+			t.Errorf("English texts lack %q", k)
+		}
+	}
+}
+
+// TestFeatureFilesPairKeys: every key of a feature file exists in both files of its pair.
+func TestFeatureFilesPairKeys(t *testing.T) {
+	entries, _ := translations.ReadDir("translations")
+	for _, e := range entries {
+		f := featureOf(e.Name())
+		if f == "" || f == "?" {
+			continue
+		}
+		en, de := keysOfFile(t, f+".en.json"), keysOfFile(t, f+".de.json")
+		for k := range en {
+			if _, ok := de[k]; !ok {
+				t.Errorf("%s.de.json lacks %q", f, k)
+			}
+		}
+		for k := range de {
+			if _, ok := en[k]; !ok {
+				t.Errorf("%s.en.json lacks %q", f, k)
+			}
 		}
 	}
 }
@@ -114,5 +204,21 @@ func TestFallbackReturnsKey(t *testing.T) {
 	}
 	if got := lang.L("Connecting to {{.Name}}", map[string]any{"Name": "device.example.com"}); got != "Connecting to device.example.com" {
 		t.Fatalf("template fallback: %q", got)
+	}
+}
+
+// TestLanguageFilesIncludeFeatureFiles: Init's forced language reads every file of the language,
+// not only <lang>.json.
+func TestLanguageFilesIncludeFeatureFiles(t *testing.T) {
+	got, err := languageFiles("de")
+	if err != nil {
+		t.Fatal(err)
+	}
+	has := map[string]bool{}
+	for _, f := range got {
+		has[f] = true
+	}
+	if !has["de.json"] || !has["help.de.json"] || has["en.json"] || has["help.en.json"] {
+		t.Errorf("de files: %v", got)
 	}
 }

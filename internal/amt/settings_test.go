@@ -9,7 +9,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/amterror"
 )
+
+var allSettingsParts = []SettingsPart{SettingsGeneral, SettingsNetwork, SettingsFeatures, SettingsKVM,
+	SettingsConsent, SettingsTLS, SettingsClock, SettingsEnvironment}
 
 // cfgResp is one canned answer of cfgWSMan: a testdata file, an inline body or an error.
 type cfgResp struct {
@@ -134,14 +139,9 @@ func fixedNow(t *testing.T, at time.Time) {
 	t.Cleanup(func() { timeNow = old })
 }
 
-func TestSettingsFull(t *testing.T) {
-	fixedNow(t, time.Unix(1767225590, 0)) // device clock (Ta0 1767225600) is 10 s ahead
-	d, f := cfgDevice(settingsSeq())
-	got, err := d.Settings()
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := Settings{
+// fullSettings is what Settings decodes from settingsSeq at fixedNow(1767225590).
+func fullSettings() Settings {
+	return Settings{
 		General: GeneralSettings{
 			HostName: "amt-test", DomainName: "example.com", SharedFQDN: false,
 			HostOSFQDN: "host-test.example.com", DigestRealm: "Digest:00000000000000000000000000000000",
@@ -166,8 +166,23 @@ func TestSettingsFull(t *testing.T) {
 		Clock:       ClockInfo{Available: true, Time: time.Unix(1767225600, 0).UTC(), Offset: 10 * time.Second},
 		Environment: EnvironmentDetection{Available: true, Domains: []string{"intranet.example.com"}},
 	}
-	if !reflect.DeepEqual(got, want) {
+}
+
+// TestSettingsFull is the admin case: every section is read and none is marked unreadable.
+func TestSettingsFull(t *testing.T) {
+	fixedNow(t, time.Unix(1767225590, 0)) // device clock (Ta0 1767225600) is 10 s ahead
+	d, f := cfgDevice(settingsSeq())
+	got, err := d.Settings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := fullSettings(); !reflect.DeepEqual(got, want) {
 		t.Errorf("Settings:\n got %+v\nwant %+v", got, want)
+	}
+	for _, p := range allSettingsParts {
+		if !got.Readable(p) {
+			t.Errorf("part %b unreadable for an admin account", p)
+		}
 	}
 	assertNoWrites(t, f)
 }
@@ -252,20 +267,22 @@ func TestSettingsDecodesStates(t *testing.T) {
 	}
 }
 
+// otherFault is a SOAP fault that is neither AccessDenied nor DestinationUnreachable.
+func otherFault(t *testing.T) error {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "unreachable_fault.xml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return amterror.DecodeAMTErrorString(strings.Replace(string(b), "DestinationUnreachable", "InternalError", 1))
+}
+
 func TestSettingsErrors(t *testing.T) {
-	t.Run("access denied", func(t *testing.T) {
+	t.Run("general settings fault other than a refusal is fatal", func(t *testing.T) {
 		seq := settingsSeq()
-		seq["Get|IPS_OptInService"] = []cfgResp{{err: faultErr(t, "access_denied_fault.xml")}}
+		seq["Get|AMT_GeneralSettings"] = []cfgResp{{err: otherFault(t)}}
 		d, _ := cfgDevice(seq)
-		if _, err := d.Settings(); !errors.Is(err, ErrAccessDenied) {
-			t.Errorf("err = %v", err)
-		}
-	})
-	t.Run("general settings fault is fatal", func(t *testing.T) {
-		seq := settingsSeq()
-		seq["Get|AMT_GeneralSettings"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
-		d, _ := cfgDevice(seq)
-		if _, err := d.Settings(); err == nil || !strings.Contains(err.Error(), "AMT_GeneralSettings") {
+		if _, err := d.Settings(); err == nil || !strings.Contains(err.Error(), "AMT_GeneralSettings") || errors.Is(err, ErrAccessDenied) {
 			t.Errorf("err = %v", err)
 		}
 	})
@@ -282,39 +299,117 @@ func TestSettingsErrors(t *testing.T) {
 		seq["Get|AMT_EnvironmentDetectionSettingData"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
 		d, _ := cfgDevice(seq)
 		s, err := d.Settings()
-		if err != nil || s.Environment.Available || !s.Network.Available || !s.TLS.Remote.Available {
+		if err != nil || s.Environment.Available || !s.Network.Available || !s.TLS.Remote.Available || s.Unreadable != 0 {
 			t.Errorf("s = %+v, err %v", s, err)
 		}
 	})
-	// Issue #48: AMT answers an Enumerate without the permission with the same fault as for a
-	// missing class. For the core classes of a section that means "not allowed".
-	for _, class := range []string{"AMT_EthernetPortSettings", "AMT_TLSSettingData"} {
-		t.Run(class+" unreachable on Enumerate is access denied", func(t *testing.T) {
+}
+
+// Issue #58: a section the account may not read is marked unreadable; the other sections keep
+// their values instead of failing the whole read.
+func TestSettingsUnreadableSection(t *testing.T) {
+	denied := func(t *testing.T) error { return faultErr(t, "access_denied_fault.xml") }
+	forbidden := func(*testing.T) error { return errors.New("wsman.Client post received: 403 Forbidden\n<html/>") }
+	unreachable := func(t *testing.T) error { return faultErr(t, "unreachable_fault.xml") }
+	tests := []struct {
+		name  string
+		route string
+		err   func(*testing.T) error
+		part  SettingsPart
+		clear func(*Settings) // the values that are no longer read
+	}{
+		{"general denied", "Get|AMT_GeneralSettings", denied, SettingsGeneral, func(s *Settings) { s.General = GeneralSettings{} }},
+		{"general forbidden", "Get|AMT_GeneralSettings", forbidden, SettingsGeneral, func(s *Settings) { s.General = GeneralSettings{} }},
+		// a class every firmware has: DestinationUnreachable is the refusal, as in Status
+		{"general unreachable", "Get|AMT_GeneralSettings", unreachable, SettingsGeneral, func(s *Settings) { s.General = GeneralSettings{} }},
+		{"network denied", "Enumerate|AMT_EthernetPortSettings", denied, SettingsNetwork, func(s *Settings) { s.Network = NetworkSettings{} }},
+		{"network unreachable on Enumerate", "Enumerate|AMT_EthernetPortSettings", unreachable, SettingsNetwork, func(s *Settings) { s.Network = NetworkSettings{} }},
+		{"network fault on Pull", "Pull|AMT_EthernetPortSettings", unreachable, SettingsNetwork, func(s *Settings) { s.Network = NetworkSettings{} }},
+		{"network denied on Pull", "Pull|AMT_EthernetPortSettings", denied, SettingsNetwork, func(s *Settings) { s.Network = NetworkSettings{} }},
+		{"redirection denied", "Get|AMT_RedirectionService", denied, SettingsFeatures, func(s *Settings) {
+			s.Features.Redirection, s.Features.SOL, s.Features.IDER = false, false, false
+		}},
+		{"KVM SAP denied", "Get|CIM_KVMRedirectionSAP", denied, SettingsKVM, func(s *Settings) {
+			s.Features.KVM, s.Features.KVMAvailable = false, false
+		}},
+		{"consent denied", "Get|IPS_OptInService", denied, SettingsConsent, func(s *Settings) { s.Consent = ConsentSettings{} }},
+		{"TLS denied", "Enumerate|AMT_TLSSettingData", denied, SettingsTLS, func(s *Settings) { s.TLS = TLSSettings{} }},
+		{"TLS unreachable on Enumerate", "Enumerate|AMT_TLSSettingData", unreachable, SettingsTLS, func(s *Settings) { s.TLS = TLSSettings{} }},
+		{"TLS fault on Pull", "Pull|AMT_TLSSettingData", unreachable, SettingsTLS, func(s *Settings) { s.TLS = TLSSettings{} }},
+		{"clock denied", "GetLowAccuracyTimeSynch|AMT_TimeSynchronizationService", denied, SettingsClock, func(s *Settings) { s.Clock = ClockInfo{} }},
+		{"environment denied", "Get|AMT_EnvironmentDetectionSettingData", denied, SettingsEnvironment, func(s *Settings) { s.Environment = EnvironmentDetection{} }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			fixedNow(t, time.Unix(1767225590, 0))
 			seq := settingsSeq()
-			seq["Enumerate|"+class] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
-			d, _ := cfgDevice(seq)
-			_, err := d.Settings()
-			if !errors.Is(err, ErrAccessDenied) || !strings.Contains(err.Error(), class) {
-				t.Errorf("err = %v", err)
-			}
-		})
-		// The fault of a Pull is the one of a missing class, never a missing permission: the
-		// section stays empty, Settings does not fail and above all does not report ErrAccessDenied.
-		t.Run(class+" unreachable on Pull is not access denied", func(t *testing.T) {
-			seq := settingsSeq()
-			seq["Pull|"+class] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
-			d, _ := cfgDevice(seq)
-			s, err := d.Settings()
+			seq[tt.route] = []cfgResp{{err: tt.err(t)}}
+			d, f := cfgDevice(seq)
+			got, err := d.Settings()
 			if err != nil {
-				t.Fatalf("err = %v, want none (a fault on Pull leaves the section empty)", err)
+				t.Fatalf("err = %v, want the other sections", err)
 			}
-			available := s.Network.Available
-			if class == "AMT_TLSSettingData" {
-				available = s.TLS.Remote.Available
+			want := fullSettings()
+			tt.clear(&want)
+			want.Unreadable = tt.part
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("Settings:\n got %+v\nwant %+v", got, want)
 			}
-			if available {
-				t.Errorf("section of %s is available, want empty: %+v", class, s)
+			if got.Readable(tt.part) {
+				t.Errorf("Readable(%b) = true", tt.part)
 			}
+			assertNoWrites(t, f)
 		})
+	}
+}
+
+// The account of issue #58 (Redirection realm only, measured on AMT 16): General settings are
+// refused, the network and the redirection services are readable.
+func TestSettingsRedirectionOnlyAccount(t *testing.T) {
+	fixedNow(t, time.Unix(1767225590, 0))
+	seq := settingsSeq()
+	for _, route := range []string{"Get|AMT_GeneralSettings", "Enumerate|AMT_TLSSettingData",
+		"GetLowAccuracyTimeSynch|AMT_TimeSynchronizationService", "Get|AMT_EnvironmentDetectionSettingData"} {
+		seq[route] = []cfgResp{{err: faultErr(t, "access_denied_fault.xml")}}
+	}
+	d, _ := cfgDevice(seq)
+	s, err := d.Settings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := SettingsGeneral | SettingsTLS | SettingsClock | SettingsEnvironment
+	if s.Unreadable != want || !s.Network.Available || s.Network.IPAddress != "192.0.2.10" || !s.Features.SOL || !s.Consent.Available {
+		t.Errorf("Unreadable %b, want %b; %+v", s.Unreadable, want, s)
+	}
+}
+
+// When no section at all can be read, Settings fails with the refusal as before.
+func TestSettingsNothingReadable(t *testing.T) {
+	for _, missingEnv := range []bool{false, true} {
+		seq := settingsSeq()
+		for route := range seq {
+			if !strings.HasPrefix(route, "Pull|") {
+				seq[route] = []cfgResp{{err: faultErr(t, "access_denied_fault.xml")}}
+			}
+		}
+		if missingEnv { // a missing class is no readable section
+			seq["Get|AMT_EnvironmentDetectionSettingData"] = []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}}
+		}
+		d, _ := cfgDevice(seq)
+		if s, err := d.Settings(); !errors.Is(err, ErrAccessDenied) || !strings.Contains(err.Error(), "AMT_GeneralSettings") {
+			t.Errorf("missing env %v: err = %v, s = %+v", missingEnv, err, s)
+		}
+	}
+}
+
+// A section read with an empty result (no wired port, clock method error) counts as read.
+func TestSettingsReadButEmptySectionIsReadable(t *testing.T) {
+	seq := settingsSeq()
+	seq["Pull|AMT_EthernetPortSettings"] = []cfgResp{{body: withProp(t, "cfg_ethernet_pull.xml", "PhysicalConnectionType", "3")}}
+	seq["GetLowAccuracyTimeSynch|AMT_TimeSynchronizationService"] = []cfgResp{{body: withProp(t, "cfg_timesync_getlow.xml", "ReturnValue", "1")}}
+	d, _ := cfgDevice(seq)
+	s, err := d.Settings()
+	if err != nil || s.Unreadable != 0 || s.Network.Available || s.Clock.Available {
+		t.Errorf("s = %+v, err %v", s, err)
 	}
 }

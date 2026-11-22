@@ -234,38 +234,57 @@ func (p *settingsPane) render() {
 	p.pane.changed()
 }
 
-// show puts s into the controls.
+// show puts s into the controls. A section the account may not read (amt.Settings.Unreadable)
+// keeps its rows: its texts show "N/A", its switches and segmented controls stay in the off or
+// first position and lock disables them.
 func (p *settingsPane) show(s amt.Settings) {
+	na := lang.L("N/A")
 	g := s.General
 	p.hostText.Text, p.domainText.Text = g.HostName, g.DomainName
+	if !s.Readable(amt.SettingsGeneral) {
+		p.hostText.Text, p.domainText.Text = na, na
+	}
 	p.hostText.Refresh()
 	p.domainText.Refresh()
 	p.ping.SetChecked(g.PingResponse)
 	// DDNS by the DHCP server counts as on: switching off ends it as well
 	p.ddns.SetChecked(g.DynamicDNS != amt.DDNSOff)
 
-	setShown(p.envBox, s.Environment.Available)
-	p.showDomains(s.Environment.Domains)
+	envRead := s.Readable(amt.SettingsEnvironment)
+	setShown(p.envBox, s.Environment.Available || !envRead)
+	if envRead {
+		p.showDomains(s.Environment.Domains)
+	} else {
+		p.showDomains([]string{na})
+	}
 
 	n := s.Network
-	setShown(p.networkBox, n.Available)
-	p.address.SetSelected(map[bool]int{true: 0, false: 1}[n.DHCP])
+	netRead := s.Readable(amt.SettingsNetwork)
+	setShown(p.networkBox, n.Available || !netRead)
+	p.address.SetSelected(map[bool]int{true: 0, false: 1}[n.DHCP || !netRead])
 	p.ipText.Text = ipSummary(n)
+	if !netRead {
+		p.ipText.Text = na
+	}
 	p.ipText.Refresh()
-	p.ipRow.show(n.IPAddress != "")
+	p.ipRow.show(n.IPAddress != "" || !netRead)
 	p.network.sync()
 
 	f := s.Features
-	p.kvmRow.show(f.KVMAvailable)
+	p.kvmRow.show(f.KVMAvailable || !s.Readable(amt.SettingsKVM))
 	p.kvm.SetChecked(f.KVM)
 	p.ider.SetChecked(f.IDER)
 	p.sol.SetChecked(f.SOL)
 	p.consent.SetSelected(int(s.Consent.Policy))
 	p.features.sync()
 
+	clockRead := s.Readable(amt.SettingsClock)
 	p.clockText.Text = clockOffsetText(s.Clock.Offset)
+	if !clockRead {
+		p.clockText.Text = na
+	}
 	p.clockText.Refresh()
-	p.clockRow.show(s.Clock.Available)
+	p.clockRow.show(s.Clock.Available || !clockRead)
 	fp := ""
 	if p.m.sess != nil {
 		fp = p.m.sess.Config().Fingerprint
@@ -274,17 +293,27 @@ func (p *settingsPane) show(s amt.Settings) {
 	p.tlsText.Refresh()
 	p.tlsRow.show(fp != "")
 	p.clockTLS.sync()
-	setShown(p.clockBox, s.Clock.Available || fp != "")
+	setShown(p.clockBox, s.Clock.Available || !clockRead || fp != "")
 }
 
-// lock disables every control while on; the consent stays disabled where the device does not
-// allow changing it.
+// lock disables every control while on, and the controls of a section the account may not read
+// (Turn Off writes the general settings; a feature switch needs the redirection service and the
+// KVM SAP); the consent stays disabled where the device does not allow changing it.
 func (p *settingsPane) lock(on bool) {
-	for _, w := range []fyne.Disableable{p.changeHost, p.changeDomain, p.ping, p.ddns, p.changeEnv, p.address,
-		p.kvm, p.ider, p.sol, p.sync, p.change, p.turnOff} {
-		setEnabled(w, !on)
+	s := p.d.src.val
+	for part, ws := range map[amt.SettingsPart][]fyne.Disableable{
+		amt.SettingsGeneral:                    {p.changeHost, p.changeDomain, p.ping, p.ddns, p.turnOff},
+		amt.SettingsEnvironment:                {p.changeEnv},
+		amt.SettingsNetwork:                    {p.address},
+		amt.SettingsFeatures | amt.SettingsKVM: {p.kvm, p.ider, p.sol},
+		amt.SettingsClock:                      {p.sync},
+		0:                                      {p.change}, // the TLS dialog reads its own data
+	} {
+		for _, w := range ws {
+			setEnabled(w, !on && s.Readable(part))
+		}
 	}
-	c := p.d.src.val.Consent
+	c := s.Consent
 	setEnabled(p.consent, !on && c.Available && c.CanModify)
 }
 

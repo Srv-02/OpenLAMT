@@ -522,3 +522,105 @@ func TestSettingsReadError(t *testing.T) {
 		t.Errorf("error %v %q", p.err.box.Visible(), p.err.Text())
 	}
 }
+
+// settingsControls are the controls of the page by name, for the enabled checks.
+func settingsControls(p *settingsPane) map[string]fyne.Disableable {
+	return map[string]fyne.Disableable{
+		"change host": p.changeHost, "change domain": p.changeDomain, "ping": p.ping, "ddns": p.ddns,
+		"change env": p.changeEnv, "address": p.address, "kvm": p.kvm, "ider": p.ider, "sol": p.sol,
+		"consent": p.consent, "sync": p.sync, "change TLS": p.change, "turn off": p.turnOff,
+	}
+}
+
+// checkDisabled fails for every control whose disabled state differs from the names in disabled.
+func checkDisabled(t *testing.T, p *settingsPane, disabled ...string) {
+	t.Helper()
+	for name, c := range settingsControls(p) {
+		if want := slices.Contains(disabled, name); c.Disabled() != want {
+			t.Errorf("%s: disabled %v, want %v", name, c.Disabled(), want)
+		}
+	}
+}
+
+// Admin regression for issue #58: every value is read, every control enabled, no N/A.
+func TestSettingsAdminAccountShowsNoNA(t *testing.T) {
+	_, p := settingsHarness(t, nil)
+	checkDisabled(t, p)
+	for _, text := range []string{p.hostText.Text, p.domainText.Text, p.ipText.Text, p.clockText.Text, p.envValue()} {
+		if text == "N/A" {
+			t.Error("N/A shown for an admin account")
+		}
+	}
+}
+
+// Issue #58: the account may not read the general settings, environment detection and the
+// clock. The page shows the readable sections and N/A in the existing fields, no error.
+func TestSettingsPartlyReadableShowsNA(t *testing.T) {
+	h, p := settingsHarness(t, func(f *session.Fake) {
+		s := &f.Cfg.Settings
+		s.General, s.Environment, s.Clock = amt.GeneralSettings{}, amt.EnvironmentDetection{}, amt.ClockInfo{}
+		s.Unreadable = amt.SettingsGeneral | amt.SettingsEnvironment | amt.SettingsClock
+	})
+	if p.err.box.Visible() {
+		t.Errorf("error shown: %q", p.err.Text())
+	}
+	if p.hostText.Text != "N/A" || p.domainText.Text != "N/A" || p.ping.Checked() || p.ddns.Checked() {
+		t.Errorf("general: %q %q ping %v ddns %v", p.hostText.Text, p.domainText.Text, p.ping.Checked(), p.ddns.Checked())
+	}
+	if !p.envBox.Visible() || p.envValue() != "N/A" {
+		t.Errorf("environment: shown %v value %q", p.envBox.Visible(), p.envValue())
+	}
+	if !p.clockBox.Visible() || !p.clockRow.visibleRow() || p.clockText.Text != "N/A" {
+		t.Errorf("clock: shown %v row %v %q", p.clockBox.Visible(), p.clockRow.visibleRow(), p.clockText.Text)
+	}
+	if p.ipText.Text != "192.0.2.10 / 24 · gateway 192.0.2.1" || !p.kvm.Checked() || p.consent.Selected() != 1 {
+		t.Errorf("readable sections: %q kvm %v consent %d", p.ipText.Text, p.kvm.Checked(), p.consent.Selected())
+	}
+	checkDisabled(t, p, "change host", "change domain", "ping", "ddns", "change env", "sync", "turn off")
+
+	// After a write the unreadable controls stay disabled.
+	test.Tap(p.sol) // SOL on is written at once
+	h.written(t)
+	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetFeatures"}) || !p.sol.Checked() {
+		t.Fatalf("writes %v sol %v", got, p.sol.Checked())
+	}
+	checkDisabled(t, p, "change host", "change domain", "ping", "ddns", "change env", "sync", "turn off")
+}
+
+// Issue #58: network, redirection and consent cannot be read. The rows stay in place (no hidden
+// section) with N/A and greyed-out controls in the off or first position.
+func TestSettingsUnreadableNetworkAndFeatures(t *testing.T) {
+	_, p := settingsHarness(t, func(f *session.Fake) {
+		s := &f.Cfg.Settings
+		s.Network, s.Features, s.Consent = amt.NetworkSettings{}, amt.Features{}, amt.ConsentSettings{}
+		s.Unreadable = amt.SettingsNetwork | amt.SettingsFeatures | amt.SettingsKVM | amt.SettingsConsent
+	})
+	if p.err.box.Visible() {
+		t.Errorf("error shown: %q", p.err.Text())
+	}
+	if !p.networkBox.Visible() || p.address.Selected() != 0 || p.ipText.Text != "N/A" || !p.ipRow.visibleRow() {
+		t.Errorf("network: shown %v address %d ip %q row %v", p.networkBox.Visible(), p.address.Selected(), p.ipText.Text, p.ipRow.visibleRow())
+	}
+	if !p.kvmRow.visibleRow() || p.kvm.Checked() || p.ider.Checked() || p.sol.Checked() || p.consent.Selected() != 0 {
+		t.Errorf("features: kvm row %v kvm %v ider %v sol %v consent %d", p.kvmRow.visibleRow(),
+			p.kvm.Checked(), p.ider.Checked(), p.sol.Checked(), p.consent.Selected())
+	}
+	if p.hostText.Text != "labserver" {
+		t.Errorf("host %q", p.hostText.Text)
+	}
+	checkDisabled(t, p, "address", "kvm", "ider", "sol", "consent")
+}
+
+// SetFeatures reads the redirection service and the KVM SAP: without the KVM SAP no feature
+// switch can be written, the readable SOL and IDE-R values are still shown.
+func TestSettingsUnreadableKVMLocksTheFeatureSwitches(t *testing.T) {
+	_, p := settingsHarness(t, func(f *session.Fake) {
+		s := &f.Cfg.Settings
+		s.Features.KVM, s.Features.KVMAvailable = false, false
+		s.Unreadable = amt.SettingsKVM
+	})
+	if !p.kvmRow.visibleRow() || p.kvm.Checked() || !p.ider.Checked() {
+		t.Errorf("kvm row %v kvm %v ider %v", p.kvmRow.visibleRow(), p.kvm.Checked(), p.ider.Checked())
+	}
+	checkDisabled(t, p, "kvm", "ider", "sol")
+}

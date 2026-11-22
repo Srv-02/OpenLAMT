@@ -185,6 +185,19 @@ func TestUpdateOwnAccount(t *testing.T) {
 	if _, err := d.UpdateUser(3, spec, Confirmation{}); err == nil || errors.Is(err, ErrCredentialsUncertain) {
 		t.Errorf("another account without answer: %v", err)
 	}
+
+	// AMT answered, but the answer is unreadable: the own account probes the new login (the change
+	// may be applied); another account reports ErrIncompleteResponse without raw XML errors.
+	d, f = newOwn()
+	f.raw = map[string]string{"UpdateUserAclEntryEx": "<not-xml"}
+	if _, err := d.UpdateUser(2, spec, confirmed(OpOwnAccount)); !errors.Is(err, ErrCredentialsUncertain) || d.cfg.Username != "user1" {
+		t.Errorf("own account, unreadable answer: %v, login %q", err, d.cfg.Username)
+	}
+	d, f = userDevice()
+	f.raw = map[string]string{"UpdateUserAclEntryEx": "<not-xml"}
+	if _, err := d.UpdateUser(3, spec, Confirmation{}); !errors.Is(err, ErrIncompleteResponse) || errors.Is(err, ErrCredentialsUncertain) {
+		t.Errorf("another account, unreadable answer: %v", err)
+	}
 }
 
 // loginServer is a WS-Man test server whose admin login SetAdminAclEntryEx really changes: the

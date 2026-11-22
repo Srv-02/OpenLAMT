@@ -377,8 +377,7 @@ func (d *Device) AddUser(u UserSpec) (int, error) {
 	return r.Body.AddUserResponse.Handle, nil
 }
 
-// UpdateUser replaces name, password, access and realms of digest account h (the library has
-// no UpdateUserAclEntryEx; the request is built here with its input type). System accounts →
+// UpdateUser replaces name, password, access and realms of digest account h. System accounts →
 // ErrProtectedAccount; Kerberos accounts → ErrNotModifiable. The account of this connection
 // needs confirm for OpOwnAccount and keeps network access; the connection continues with the
 // new login. confirm is ignored for other accounts.
@@ -413,30 +412,26 @@ func (d *Device) UpdateUser(h int, u UserSpec, confirm Confirmation) (LoginChang
 	if err != nil {
 		return LoginChange{}, writeError(op, err)
 	}
-	in := authorization.UpdateUserAclEntryEx_INPUT{
-		H:                resourceURI(classAuth),
-		Handle:           h,
-		DigestUsername:   u.Name,
-		DigestPassword:   digestPassword(u.Name, realm, u.Password),
-		AccessPermission: authorization.AccessPermission(u.Access),
-		Realms:           u.realmValues(),
-	}
-	body, err := xml.Marshal(&in)
-	if err != nil {
-		return LoginChange{}, writeError(op, err)
-	}
 	const method = "UpdateUserAclEntryEx"
 	res := LoginChange{OldUsername: cur.Name, Username: u.Name, Self: cur.Self}
-	out, err := d.msgs.Client.Post(envelope(amtSchema+classAuth+"/"+method, resourceURI(classAuth), nil, string(body)))
+	r, err := d.msgs.AMT.AuthorizationService.UpdateUserAclEntryEx(h, u.Name, digestPassword(u.Name, realm, u.Password),
+		authorization.AccessPermission(u.Access), u.realmValues())
 	if err == nil {
-		if _, err := authOutput(&client.Message{XMLOutput: string(out)}, method); err != nil {
+		if _, err := authOutput(r.Message, method); err != nil {
 			return LoginChange{}, err
 		}
-	} else if fault := (*amterror.AMTError)(nil); errors.As(err, &fault) || !cur.Self {
-		// AMT answered with a fault, or another account: its login cannot be tested from here
-		// (it may lack network access), so the error stands as for any other write.
+	} else if fault := (*amterror.AMTError)(nil); errors.As(err, &fault) {
+		return LoginChange{}, writeError(op, err) // AMT answered with a fault: nothing changed
+	} else if !cur.Self {
+		// Another account: its login cannot be tested from here (it may lack network access).
+		if r.Message != nil && r.XMLOutput != "" {
+			// AMT answered, but the library could not read it: the same error as authOutput.
+			return LoginChange{}, fmt.Errorf("%s: %w: %s_OUTPUT: %v", op, ErrIncompleteResponse, method, err)
+		}
 		return LoginChange{}, writeError(op, err)
 	}
+	// Own account without a usable answer (transport error or unreadable answer): the change may
+	// be applied, so finishLogin probes the new login.
 	return d.finishLogin(op, res, u.Password, err)
 }
 

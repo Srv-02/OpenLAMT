@@ -28,7 +28,8 @@ type userWSMan struct {
 	admin    string
 	entries  map[int]*fakeACL
 	rv       map[string]int
-	errs     map[string]error // a transport error instead of an answer, per method
+	errs     map[string]error  // a transport error instead of an answer, per method
+	raw      map[string]string // a raw answer body instead of the generated one, per method
 	pageSize int
 	nextH    int
 }
@@ -50,6 +51,9 @@ func (f *userWSMan) Post(msg string) ([]byte, error) {
 	f.requests = append(f.requests, msg)
 	if err := f.errs[method]; err != nil {
 		return nil, err
+	}
+	if body, ok := f.raw[method]; ok {
+		return []byte(body), nil
 	}
 	h := -1
 	if m := handleRE.FindStringSubmatch(msg); m != nil {

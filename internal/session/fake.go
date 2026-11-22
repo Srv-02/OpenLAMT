@@ -62,6 +62,8 @@ type Fake struct {
 
 	SOL FakeSOL // Serial-over-LAN, see fake_sol.go
 
+	features sync.Map // state of feature fakes, see fakeState (capabilities.go)
+
 	mu           sync.Mutex
 	iderStarts   []ider.StartMode
 	nextBoots    int

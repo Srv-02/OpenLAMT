@@ -5,13 +5,20 @@ import (
 	"testing"
 )
 
-var allOps = []Operation{OpHostName, OpFeaturesOff, OpOwnAccount, OpAdminAccount, OpNetwork, OpEnvironment, OpTLS, OpDisableNetwork}
+var allOps = []Operation{OpHostName, OpFeaturesOff, OpOwnAccount, OpAdminAccount, OpNetwork, OpEnvironment, OpTLS, OpDisableNetwork,
+	OpBootOptions, OpBootFile, OpAlarmDelete, OpAuditSettings, OpAuditClear, OpCertDelete, OpRootCertDelete, OpSubscriptionDelete,
+	OpWatchdogDelete, OpDefenseDelete, OpDefenseDrop, OpErase, OpWiFiDelete, OpWiFiLockout, OpPowerPolicy, OpSleepHibernate}
 
 func TestRiskOfEveryOperation(t *testing.T) {
 	want := map[Operation]RiskSeverity{
 		OpHostName: SeverityHigh, OpFeaturesOff: SeverityHigh, OpOwnAccount: SeverityHigh, OpTLS: SeverityHigh,
 		OpAdminAccount: SeverityLockout, OpNetwork: SeverityLockout, OpEnvironment: SeverityLockout,
 		OpDisableNetwork: SeverityIrreversibleRemotely,
+		OpBootOptions:    SeverityHigh, OpBootFile: SeverityHigh, OpAlarmDelete: SeverityHigh, OpAuditSettings: SeverityHigh,
+		OpAuditClear: SeverityLockout, OpCertDelete: SeverityHigh, OpRootCertDelete: SeverityHigh,
+		OpSubscriptionDelete: SeverityHigh, OpWatchdogDelete: SeverityHigh, OpDefenseDelete: SeverityHigh,
+		OpDefenseDrop: SeverityHigh, OpErase: SeverityIrreversibleRemotely, OpWiFiDelete: SeverityHigh,
+		OpWiFiLockout: SeverityLockout, OpPowerPolicy: SeverityHigh, OpSleepHibernate: SeverityHigh,
 	}
 	seen := map[string]bool{}
 	for _, op := range allOps {
@@ -108,5 +115,42 @@ func TestConfirmCheckedForEveryOperation(t *testing.T) {
 	}
 	if _, err := ConfirmChecked("unknown", host, true); !errors.Is(err, ErrConfirmationMismatch) {
 		t.Errorf("unknown operation: %v", err)
+	}
+}
+
+// TestDesignLevels pins the confirmation level of every operation to the overview table of the
+// approved overall design (simple / orange / red), and the existing ones to their dialogs.
+func TestDesignLevels(t *testing.T) {
+	want := map[Operation]Level{
+		// existing
+		OpHostName: LevelOrange, OpFeaturesOff: LevelOrange, OpOwnAccount: LevelOrange, OpTLS: LevelOrange,
+		OpAdminAccount: LevelRed, OpNetwork: LevelRed, OpEnvironment: LevelRed, OpDisableNetwork: LevelRed,
+		// #13 boot options: the dialog is the confirmation; #21 file source: temporary root certificate
+		OpBootOptions: LevelSimple, OpBootFile: LevelOrange,
+		OpAlarmDelete:   LevelSimple,                         // #14
+		OpAuditSettings: LevelOrange, OpAuditClear: LevelRed, // #15
+		OpCertDelete: LevelSimple, OpRootCertDelete: LevelOrange, // #16
+		OpSubscriptionDelete: LevelSimple,                             // #18
+		OpWatchdogDelete:     LevelSimple,                             // #19
+		OpDefenseDelete:      LevelSimple, OpDefenseDrop: LevelOrange, // #28, #19
+		OpErase:      LevelRed,                             // #20
+		OpWiFiDelete: LevelSimple, OpWiFiLockout: LevelRed, // #22
+		OpPowerPolicy: LevelOrange, OpSleepHibernate: LevelSimple, // #27
+	}
+	if len(want) != len(allOps) {
+		t.Errorf("table has %d operations, allOps %d", len(want), len(allOps))
+	}
+	for _, op := range allOps {
+		r := RiskOf(op)
+		if r.Level != want[op] || r.Level == 0 {
+			t.Errorf("%s: level %d, want %d", op, r.Level, want[op])
+		}
+		// red is the host phrase, simple and orange are CONFIRM
+		if (r.Level == LevelRed) != (r.Severity >= SeverityLockout) {
+			t.Errorf("%s: level %d does not match severity %d", op, r.Level, r.Severity)
+		}
+	}
+	if RiskOf("unknown").Level != 0 {
+		t.Error("unknown operation has a level")
 	}
 }

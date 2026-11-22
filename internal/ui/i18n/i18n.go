@@ -3,6 +3,7 @@ package i18n
 
 import (
 	"embed"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/lang"
@@ -34,7 +35,12 @@ func Valid(l string) bool {
 	return false
 }
 
-// Init registers en.json and de.json with Fyne; with System the closest system locale wins,
+// Feature translations: next to en.json and de.json a feature may add its own pair
+// `<feature>.en.json` and `<feature>.de.json` in translations/ (Fyne's `[prefix.]lang.json`
+// naming), so feature work does not grow the main files. Every file is loaded together with the
+// main ones; a key lives in exactly one file (TestNoDuplicateKeysAcrossFiles).
+
+// Init registers every translation file with Fyne; with System the closest system locale wins,
 // fallback English. A forced language is loaded over every shipped language: Fyne has no public
 // way to pick its localizer's language (it always matches the OS locales), so whichever of them
 // the OS resolves to, and English as the fallback of every other one, yields the chosen texts.
@@ -47,14 +53,36 @@ func Init(language string) error {
 	if language == System || !Valid(language) {
 		return nil
 	}
-	data, err := translations.ReadFile("translations/" + language + ".json")
+	files, err := languageFiles(language)
 	if err != nil {
 		return err
 	}
-	for _, l := range Languages {
-		if err := lang.AddTranslationsForLocale(data, fyne.Locale(l)); err != nil {
+	for _, name := range files {
+		data, err := translations.ReadFile("translations/" + name)
+		if err != nil {
 			return err
+		}
+		for _, l := range Languages {
+			if err := lang.AddTranslationsForLocale(data, fyne.Locale(l)); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// languageFiles lists the translation files of one language: `<language>.json` and every
+// `<feature>.<language>.json`, sorted by name.
+func languageFiles(language string) ([]string, error) {
+	entries, err := translations.ReadDir("translations")
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, e := range entries {
+		if n := e.Name(); n == language+".json" || strings.HasSuffix(n, "."+language+".json") {
+			files = append(files, n)
+		}
+	}
+	return files, nil
 }

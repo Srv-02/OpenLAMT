@@ -151,6 +151,7 @@ var errorExceptions = map[string]string{
 	"kvm.ErrUnmappedKey":      "key events ignore the error; typing plans only contain mapped keys",
 	"typing.ErrNotSendable":   "unreachable: type_clipboard.go only sends plans with typeable characters",
 	"typing.ErrUnknownLayout": "unreachable: resolveLayout only returns known layouts",
+	"session.ErrUnsupported":  "a capability that only a test double lacks; *amt.Device implements every one (compile-time checks)",
 }
 
 // TestDescribeCoversExportedErrors parses the internal packages for exported errors and checks

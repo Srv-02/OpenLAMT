@@ -154,21 +154,22 @@ func (d *DeviceWindow) blurConsole() {
 	}
 }
 
-// connectConsole reads the settings on a goroutine and continues in consoleSettingsRead;
-// nothing happens while a session runs or a connect is pending.
+// connectConsole reads the redirection features on a goroutine and continues in
+// consoleSettingsRead; nothing happens while a session runs or a connect is pending. It reads
+// only the redirection service, which an account limited to the Redirection realm may read.
 func (d *DeviceWindow) connectConsole() {
 	if d.aborted || d.closed || d.con.busy || d.con.client != nil {
 		return
 	}
 	d.con.busy = true
 	go func() {
-		st, err := d.sess.Settings()
-		fyne.Do(func() { d.consoleSettingsRead(st, err) })
+		f, err := d.sess.RedirectionFeatures()
+		fyne.Do(func() { d.consoleSettingsRead(f, err) })
 	}()
 }
 
 // consoleSettingsRead asks to enable SOL if it is disabled and opens the session otherwise.
-func (d *DeviceWindow) consoleSettingsRead(st amt.Settings, err error) {
+func (d *DeviceWindow) consoleSettingsRead(f amt.Features, err error) {
 	switch {
 	case d.closed || d.aborted:
 		d.con.busy = false
@@ -176,7 +177,7 @@ func (d *DeviceWindow) consoleSettingsRead(st amt.Settings, err error) {
 		d.con.busy = false
 		d.consoleFailed(err)
 		d.leaveEmptyConsole()
-	case !st.Features.SOL:
+	case !f.SOL:
 		d.releaseKeys()
 		p := showQuestion(d.win, icons.Console, toneInfo, lang.L("Enable Serial over LAN?"),
 			lang.L("Serial over LAN (SOL) is disabled on “{{.Name}}”. Enable it to open the text console of this device? The setting stays enabled until you disable it in Settings.",

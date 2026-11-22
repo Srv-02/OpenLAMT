@@ -415,6 +415,17 @@ func (d *Device) readClock() (time.Time, error) {
 	return time.Unix(*out.Ta0, 0).UTC(), nil
 }
 
+// RedirectionFeatures reads only AMT_RedirectionService: Redirection, SOL and IDER; the KVM
+// fields stay false. An account limited to the Redirection realm may read it, unlike Settings,
+// so SOL and IDE-R decide on it whether to ask for enabling. Nothing is written.
+func (d *Device) RedirectionFeatures() (Features, error) {
+	redir, err := d.redirectionObject()
+	if err != nil {
+		return Features{}, readError(classRedirection, err)
+	}
+	return featuresFrom(redir, nil), nil
+}
+
 // Settings reads general, network, redirection, consent, TLS, clock and environment detection
 // settings, each section on its own. Nothing is written.
 //

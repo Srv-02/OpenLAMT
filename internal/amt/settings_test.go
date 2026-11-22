@@ -413,3 +413,34 @@ func TestSettingsReadButEmptySectionIsReadable(t *testing.T) {
 		t.Errorf("s = %+v, err %v", s, err)
 	}
 }
+
+// Issue #57: SOL and IDE-R decide on the redirection service alone, which a Redirection-only
+// account may read.
+func TestRedirectionFeaturesReadsOnlyTheRedirectionService(t *testing.T) {
+	seq := map[string][]cfgResp{"Get|AMT_RedirectionService": {{body: withProp(t, "cfg_redirection_get.xml", "EnabledState", "32770")}}}
+	d, f := cfgDevice(seq)
+	got, err := d.RedirectionFeatures()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := (Features{Redirection: true, SOL: true}); got != want {
+		t.Errorf("RedirectionFeatures = %+v, want %+v", got, want)
+	}
+	if keys := routeKeys(&f.fakeWSMan); !reflect.DeepEqual(keys, []string{"Get|AMT_RedirectionService"}) {
+		t.Errorf("requests %v", keys)
+	}
+	assertNoWrites(t, f)
+}
+
+func TestRedirectionFeaturesErrors(t *testing.T) {
+	seq := map[string][]cfgResp{"Get|AMT_RedirectionService": {{err: faultErr(t, "access_denied_fault.xml")}}}
+	d, _ := cfgDevice(seq)
+	if _, err := d.RedirectionFeatures(); !errors.Is(err, ErrAccessDenied) {
+		t.Errorf("denied: err = %v", err)
+	}
+	seq["Get|AMT_RedirectionService"] = []cfgResp{{err: errors.New("connection reset")}}
+	d, _ = cfgDevice(seq)
+	if _, err := d.RedirectionFeatures(); err == nil || !strings.Contains(err.Error(), "AMT_RedirectionService") {
+		t.Errorf("transport: err = %v", err)
+	}
+}

@@ -273,3 +273,44 @@ func TestClearISOBootWritesNothingWhenNotSet(t *testing.T) {
 		t.Fatalf("requests %v", requestKeys(f))
 	}
 }
+
+// Issue #57: an account limited to the Redirection realm may not read AMT_BootCapabilities.
+// OpenIDER then tries the session anyway instead of reporting the missing permission.
+func TestOpenIDER_BootCapabilitiesRefusedTriesAnyway(t *testing.T) {
+	for name, refusal := range map[string]func(*testing.T) error{
+		"AccessDenied fault": func(t *testing.T) error { return faultErr(t, "access_denied_fault.xml") },
+		"HTTP 403":           func(*testing.T) error { return errors.New("wsman.Client post received: 403 Forbidden\n<html/>") },
+	} {
+		t.Run(name, func(t *testing.T) {
+			srv := idertest.Start(t, idertest.Options{Username: "kvm", Password: "pw"})
+			seq := map[string][]cfgResp{"Get|AMT_BootCapabilities": {{err: refusal(t)}}}
+			for route, file := range iderRoutes() {
+				if _, ok := seq[route]; !ok {
+					seq[route] = []cfgResp{{file: file}}
+				}
+			}
+			d, f := cfgDevice(seq)
+			d.cfg = Config{Host: "192.0.2.10", Username: "kvm", Password: "pw", dialContext: dialToAddr(srv.Addr)}
+			go srv.AcceptSession(t)
+			img := &testImage{}
+			c, err := d.OpenIDER(context.Background(), img, ider.StartNow, nil)
+			if err != nil {
+				t.Fatalf("err = %v, want a session", err)
+			}
+			defer c.Close()
+			if got := routeKeys(&f.fakeWSMan); !reflect.DeepEqual(got, []string{"Get|AMT_BootCapabilities", "Get|AMT_RedirectionService", "Get|IPS_OptInService"}) {
+				t.Fatalf("%v", got)
+			}
+		})
+	}
+}
+
+// Admin regression: any other failure of the BootCapabilities read still stops OpenIDER.
+func TestOpenIDER_BootCapabilitiesErrorStops(t *testing.T) {
+	seq := map[string][]cfgResp{"Get|AMT_BootCapabilities": {{err: errors.New("connection reset")}}}
+	d, f := cfgDevice(seq)
+	img := &testImage{}
+	if _, err := d.OpenIDER(context.Background(), img, ider.StartNow, nil); err == nil || !strings.Contains(err.Error(), "connection reset") || len(f.requests) != 1 {
+		t.Fatalf("err = %v, requests %d", err, len(f.requests))
+	}
+}

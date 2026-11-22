@@ -1030,3 +1030,28 @@ func hintCheck(t *testing.T, w fyne.Window) *dialogCheck {
 	}
 	return c
 }
+
+// Issue #57: an account limited to the Redirection realm may not read the settings; IDE-R starts
+// from the redirection service alone.
+func TestMediaMountForRedirectionOnlyAccount(t *testing.T) {
+	dev := &session.Fake{}
+	dev.Cfg.SettingsErr = amt.ErrAccessDenied
+	h := newMediaDevice(t, dev)
+	h.mountISO(t, writeISO(t, "alpine-standard.iso", 1<<20))
+	if st := dev.IDERStarts(); len(st) != 1 || len(h.errs) != 0 {
+		t.Fatalf("starts %v errors %d", st, len(h.errs))
+	}
+}
+
+// A refused read of the redirection service is reported and mounts nothing.
+func TestMediaFeaturesReadError(t *testing.T) {
+	dev := &session.Fake{}
+	dev.Cfg.FeaturesErr = amt.ErrAccessDenied
+	h := newMediaDevice(t, dev)
+	h.m.pickISO = func(chosen func(string)) { chosen(writeISO(t, "alpine-standard.iso", 1<<20)) }
+	h.tapItem(t, itemISO)
+	h.wait(t, "settings")
+	if err := <-h.errs; !errors.Is(err, amt.ErrAccessDenied) || len(dev.IDERStarts()) != 0 || h.m.phase != mediaIdle {
+		t.Fatalf("err %v starts %v phase %d", err, dev.IDERStarts(), h.m.phase)
+	}
+}

@@ -590,3 +590,24 @@ func TestKVMEndKeepsConsoleFullScreen(t *testing.T) {
 		t.Fatal("console full screen left when KVM ended")
 	}
 }
+
+// Issue #57: an account limited to the Redirection realm may not read the settings; SOL starts
+// from the redirection service alone.
+func TestConsoleOpensForRedirectionOnlyAccount(t *testing.T) {
+	h := newConsoleDevice(t, true)
+	h.dev.Cfg.SettingsErr = amt.ErrAccessDenied
+	h.open(t)
+	if h.dev.SOL.Calls() != 1 || len(h.errs) != 0 || open(h.d.win) {
+		t.Fatalf("OpenSOL calls %d, errors %d, dialog %v", h.dev.SOL.Calls(), len(h.errs), open(h.d.win))
+	}
+}
+
+// A refused read of the redirection service is reported and opens no session.
+func TestConsoleFeaturesReadError(t *testing.T) {
+	h := newConsoleDevice(t, true)
+	h.dev.Cfg.FeaturesErr = amt.ErrAccessDenied
+	h.d.viewSwitch.Tap(viewConsole)
+	if err := <-h.errs; !errors.Is(err, amt.ErrAccessDenied) || h.dev.SOL.Calls() != 0 || h.d.con.busy {
+		t.Fatalf("err %v, OpenSOL calls %d, busy %v", err, h.dev.SOL.Calls(), h.d.con.busy)
+	}
+}

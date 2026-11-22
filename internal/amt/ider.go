@@ -76,9 +76,14 @@ func (d *Device) requestRedirectionState(op string, want redirection.RequestedSt
 	return nil
 }
 
-// iderSupported reads AMT_BootCapabilities once.
+// iderSupported reads AMT_BootCapabilities once. A refused read (AccessDenied, HTTP 403) is
+// "unknown, try anyway": an account limited to the Redirection realm may not read the class but
+// may open IDE-R (issue #57); a device without IDE-R refuses the session itself.
 func (d *Device) iderSupported() error {
 	resp, err := d.msgs.AMT.BootCapabilities.Get()
+	if IsAccessDenied(err) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("get boot capabilities: %w", err)
 	}
@@ -91,7 +96,8 @@ func (d *Device) iderSupported() error {
 	return nil
 }
 
-// OpenIDER mounts img as CD drive of the device: it checks BootCapabilities.IDER, runs EnableIDER
+// OpenIDER mounts img as CD drive of the device: it checks BootCapabilities.IDER (where the
+// account may read it), runs EnableIDER
 // and the user consent (needed for IDE-R only when OptInRequired is All) and dials the redirection
 // listener with the pinned TLS config.
 //

@@ -11,8 +11,18 @@ import (
 // By the time it is returned the opt-in has been started, so the device shows the code.
 var errConsentCodeNeeded = errors.New("user consent code needed")
 
+// consentNeededError is errConsentCodeNeeded with the tool the agent has to call again with
+// the code. reopen: a KVM session that had ended needs consent to be opened again.
+type consentNeededError struct {
+	tool   string
+	reopen bool
+}
+
+func (e *consentNeededError) Error() string { return errConsentCodeNeeded.Error() }
+func (e *consentNeededError) Unwrap() error { return errConsentCodeNeeded }
+
 // consentCode is the consent_code parameter as an amt.ConsentPrompt. The same parameter serves
-// every tool that may need the CCM user consent (boot to BIOS now; KVM, IDE-R and SOL later).
+// every tool that may need the CCM user consent (boot to BIOS, KVM; IDE-R and SOL later).
 type consentCode string
 
 func (c consentCode) ConsentCode() (string, error) {

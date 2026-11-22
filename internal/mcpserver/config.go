@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 )
 
 const (
@@ -29,7 +30,7 @@ const (
 	GroupRead        Group = "read"        // status, hardware, logs
 	GroupPowerBoot   Group = "power_boot"  // power actions, boot to BIOS
 	GroupMedia       Group = "media"       // IDE-R (later cut)
-	GroupKVMInput    Group = "kvm_input"   // KVM keyboard and mouse (later cut)
+	GroupKVMInput    Group = "kvm_input"   // KVM keyboard, mouse and typing
 	GroupSettings    Group = "settings"    // AMT settings (later cut)
 	GroupUsers       Group = "users"       // AMT accounts (later cut)
 	GroupDestructive Group = "destructive" // actions that interrupt a running system
@@ -46,13 +47,57 @@ type Config struct {
 	RequireClientConfirmation bool
 	ActionLog                 bool
 	ActionLogPath             string
+	KVMIdleTimeout            time.Duration // a KVM session without a tool call this long is closed; 0 = never
+	Screenshot                ScreenshotConfig
 	Source                    string // the file read; empty when the defaults apply
+}
+
+// ScreenshotConfig is the default size and format of kvm_screenshot; a call may override it.
+type ScreenshotConfig struct {
+	MaxWidth, MaxHeight int    // the image fits into this box, aspect kept, never upscaled
+	Format              string // "jpeg" or "png"
+	JPEGQuality         int    // 1 to 100
+}
+
+// Limits of the screenshot settings, in the config file and in a call.
+const (
+	minScreenshotSide = 16
+	maxScreenshotSide = 8192
+)
+
+// DefaultScreenshot suits vision models: the longest side at most 1280 pixels keeps the text
+// of a 1920x1080 screen readable and stays below the size at which common models scale an
+// image down again; JPEG at quality 80 keeps it near 100 KB.
+var DefaultScreenshot = ScreenshotConfig{MaxWidth: 1280, MaxHeight: 1280, Format: "jpeg", JPEGQuality: 80}
+
+// DefaultKVMIdleTimeout closes a KVM session nobody used for five minutes, so the device's
+// single KVM slot is free for the app again.
+const DefaultKVMIdleTimeout = 5 * time.Minute
+
+// check validates a screenshot setting; name prefixes the field names in the error.
+func (sc ScreenshotConfig) check(prefix string) error {
+	for _, f := range []struct {
+		name string
+		v    int
+	}{{"max_width", sc.MaxWidth}, {"max_height", sc.MaxHeight}} {
+		if f.v < minScreenshotSide || f.v > maxScreenshotSide {
+			return fmt.Errorf("%s%s must be between %d and %d", prefix, f.name, minScreenshotSide, maxScreenshotSide)
+		}
+	}
+	if sc.Format != "jpeg" && sc.Format != "png" {
+		return fmt.Errorf("%sformat must be jpeg or png", prefix)
+	}
+	if sc.JPEGQuality < 1 || sc.JPEGQuality > 100 {
+		return fmt.Errorf("%sjpeg_quality must be between 1 and 100", prefix)
+	}
+	return nil
 }
 
 // Defaults is the policy without a config file: everything is allowed, the action log is on
 // and written to dir.
 func Defaults(dir string) Config {
-	c := Config{Groups: map[Group]bool{}, ActionLog: true, ActionLogPath: filepath.Join(dir, ActionLogFileName)}
+	c := Config{Groups: map[Group]bool{}, ActionLog: true, ActionLogPath: filepath.Join(dir, ActionLogFileName),
+		KVMIdleTimeout: DefaultKVMIdleTimeout, Screenshot: DefaultScreenshot}
 	for _, g := range Groups {
 		c.Groups[g] = true
 	}
@@ -90,6 +135,13 @@ type fileConfig struct {
 		Enabled *bool   `json:"enabled"`
 		Path    *string `json:"path"`
 	} `json:"action_log"`
+	KVM *struct {
+		IdleTimeoutSeconds    *int    `json:"idle_timeout_seconds"`
+		ScreenshotMaxWidth    *int    `json:"screenshot_max_width"`
+		ScreenshotMaxHeight   *int    `json:"screenshot_max_height"`
+		ScreenshotFormat      *string `json:"screenshot_format"`
+		ScreenshotJPEGQuality *int    `json:"screenshot_jpeg_quality"`
+	} `json:"kvm"`
 }
 
 // Load reads the config file at path. A missing file yields Defaults of its folder, unless
@@ -146,6 +198,28 @@ func Load(path string, mustExist bool) (Config, error) {
 				p = filepath.Join(dir, p)
 			}
 			c.ActionLogPath = p
+		}
+	}
+	if k := f.KVM; k != nil {
+		if v := k.IdleTimeoutSeconds; v != nil {
+			if *v < 0 {
+				return Config{}, fmt.Errorf("parse %s: kvm.idle_timeout_seconds must be 0 (never) or more", path)
+			}
+			c.KVMIdleTimeout = time.Duration(*v) * time.Second
+		}
+		setInt := func(dst *int, v *int) {
+			if v != nil {
+				*dst = *v
+			}
+		}
+		setInt(&c.Screenshot.MaxWidth, k.ScreenshotMaxWidth)
+		setInt(&c.Screenshot.MaxHeight, k.ScreenshotMaxHeight)
+		setInt(&c.Screenshot.JPEGQuality, k.ScreenshotJPEGQuality)
+		if k.ScreenshotFormat != nil {
+			c.Screenshot.Format = strings.ToLower(strings.TrimSpace(*k.ScreenshotFormat))
+		}
+		if err := c.Screenshot.check("kvm.screenshot_"); err != nil {
+			return Config{}, fmt.Errorf("parse %s: %w", path, err)
 		}
 	}
 	c.Source = path

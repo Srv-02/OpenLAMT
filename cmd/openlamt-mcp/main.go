@@ -109,7 +109,10 @@ func run(args []string, stdout, stderr io.Writer, serve serveFunc) int {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := serve(ctx, srv); err != nil && !errors.Is(err, context.Canceled) {
+	// The client disconnected or a signal came: end the KVM sessions cleanly, so the device's
+	// single KVM slot is free again and no key stays pressed on the host.
+	defer srv.Close()
+	if err := serve(ctx, srv.Server); err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("openlamt-mcp stopped", "err", err)
 		return 1
 	}

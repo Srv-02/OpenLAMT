@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -29,25 +30,40 @@ type server struct {
 	connect session.ConnectFunc
 	log     *ActionLog
 	logger  *slog.Logger
+	kvm     *kvmManager
 }
+
+// Server is the MCP server with the device sessions it keeps across tool calls. Close it when
+// the client has gone.
+type Server struct {
+	*mcp.Server
+	s *server
+}
+
+// Close ends every KVM session (held keys and buttons are released first) and refuses new
+// ones. It is safe to call more than once.
+func (s *Server) Close() { s.s.kvm.closeAll() }
 
 const instructions = `openlamt-mcp controls Intel AMT devices saved as favorites in the OpenLAMT app.
 Call list_devices first; every other tool takes the favorite name as "device".
 Passwords are never needed: they come from the OS keychain.
 Power actions act on real hardware: check device_status before and after.
-boot_to_bios may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.`
+boot_to_bios and kvm_connect may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.
+For the screen: kvm_connect once, then kvm_screenshot, kvm_send_keys, kvm_mouse and kvm_type_text as often as needed; kvm_disconnect when done.
+kvm_mouse takes x and y in the pixels of the last kvm_screenshot. After input, take a new screenshot (wait_ms helps when the screen changes slowly).`
 
 // New builds the MCP server with the tools the config allows.
-func New(o Options) *mcp.Server {
+func New(o Options) *Server {
 	logger := o.Logger
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &server{cfg: o.Config, favs: o.Favorites, keys: o.Keys, connect: o.Connect, log: o.Log, logger: logger}
+	s.kvm = newKVMManager(o.Config.KVMIdleTimeout, s.openKVM)
 	srv := mcp.NewServer(&mcp.Implementation{Name: "openlamt-mcp", Title: "OpenLAMT", Version: o.Version},
 		&mcp.ServerOptions{Instructions: instructions, Logger: logger})
 	s.register(srv)
-	return srv
+	return &Server{Server: srv, s: s}
 }
 
 // record is what the action log keeps of one call.
@@ -63,6 +79,10 @@ func addTool[In, Out any](s *server, srv *mcp.Server, t *mcp.Tool, h handler[In,
 	mcp.AddTool(srv, t, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
 		var rec record
 		res, out, err := h(ctx, req, in, &rec)
+		var cne *consentNeededError
+		if errors.Is(err, errConsentCodeNeeded) && !errors.As(err, &cne) {
+			err = &consentNeededError{tool: t.Name} // call this tool again with the code
+		}
 		e := ActionEntry{Time: time.Now().UTC(), Tool: t.Name, Device: rec.device, Action: rec.action, Outcome: "ok"}
 		switch {
 		case err != nil && isRefusal(err):
@@ -121,4 +141,5 @@ func (s *server) register(srv *mcp.Server) {
 				"Devices that require user consent show a six-digit code on their screen: call without consent_code first, ask a person at the device for the code, then call again with it."},
 			s.bootToBIOS)
 	}
+	s.registerKVM(srv)
 }

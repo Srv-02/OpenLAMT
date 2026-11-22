@@ -172,7 +172,7 @@ At start OpenLAMT asks GitHub for its latest release. If it is newer, a window s
 
 ### MCP server (openlamt-mcp)
 
-`openlamt-mcp` lets an AI agent (Claude Desktop, Claude Code or any other MCP client) use your OpenLAMT favorites: list the devices, read status, hardware, event log and audit log, power on, off, reset, power cycle, shut down and boot into the BIOS. The client starts it and talks to it over stdin and stdout. It opens no network port. It is not part of the release downloads yet; build it with `go build -o openlamt-mcp ./cmd/openlamt-mcp` (no C compiler needed).
+`openlamt-mcp` lets an AI agent (Claude Desktop, Claude Code or any other MCP client) use your OpenLAMT favorites: list the devices, read status, hardware, event log and audit log, power on, off, reset, power cycle, shut down and boot into the BIOS, look at the screen over KVM, press keys, use the mouse and type text. The client starts it and talks to it over stdin and stdout. It opens no network port. It is not part of the release downloads yet; build it with `go build -o openlamt-mcp ./cmd/openlamt-mcp` (no C compiler needed).
 
 ```json
 {"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}
@@ -180,6 +180,7 @@ At start OpenLAMT asks GitHub for its latest release. If it is newer, a window s
 
 - **Devices and passwords** come from the OpenLAMT favorites and the system keychain. Save the password in the app first. Passwords never pass through the MCP connection. A TLS device works only after you connected once with the app and its certificate is pinned; the MCP server never trusts a new certificate. Devices without TLS work, with a warning in each answer.
 - **User consent:** if a device asks for consent (Client Control Mode), the agent has to ask a person at the device for the six-digit code on its screen.
+- **Remote screen:** `kvm_connect` opens the KVM session of a device and keeps it for the following calls. `kvm_screenshot` returns the screen as an image sized for AI models: by default at most 1280 pixels on the longest side, as JPEG. `kvm_send_keys` presses keys and combinations such as `Ctrl+Alt+Delete`, `kvm_mouse` moves, clicks and scrolls at a point of the last screenshot, and `kvm_type_text` types text for the keyboard layout of the favorite. AMT allows one KVM session per device: while the agent holds it, the app cannot connect KVM to that device, and the other way round. The session closes with `kvm_disconnect`, after five minutes without a call, or when the MCP client stops the server. Power off, power cycle and shutdown close it first, because AMT refuses them while KVM is open.
 - **Settings:** `openlamt-mcp.json` next to `favorites.json`, or the file given with `--config <path>`:
 
   ```json
@@ -189,11 +190,13 @@ At start OpenLAMT asks GitHub for its latest release. If it is newer, a window s
     "tool_groups": {"read": true, "power_boot": true, "media": true, "kvm_input": true,
                     "settings": true, "users": true, "destructive": true},
     "require_client_confirmation": false,
-    "action_log": {"enabled": true, "path": ""}
+    "action_log": {"enabled": true, "path": ""},
+    "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
+            "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80}
   }
   ```
 
-  `read_only` leaves only the read tools. `allowed_devices` takes favorite names, empty means all. `destructive` covers every power action except power on. `require_client_confirmation` asks you in the MCP client before each power action; a client that cannot ask gets a refusal. Each key you leave out keeps the value shown above, and an unknown key stops the server. The action log writes one line per tool call to `openlamt-mcp-actions.log` next to the config file unless you give another `path`.
+  `read_only` leaves only the read tools, the screenshot included. `allowed_devices` takes favorite names, empty means all. `kvm_input` covers keys, mouse and typing. `destructive` covers every power action except power on. `require_client_confirmation` asks you in the MCP client before each power action and each key, mouse or typing call; a client that cannot ask gets a refusal. `kvm` sets the idle timeout of a KVM session (`0` keeps it open until the server stops) and the default size, format (`jpeg` or `png`) and quality of screenshots; the agent may ask for another size or format per call. Each key you leave out keeps the value shown above, and an unknown key stops the server. The action log writes one line per tool call to `openlamt-mcp-actions.log` next to the config file unless you give another `path`. It holds the keys and mouse actions, but never typed text or a consent code.
 
 **Without a config file, everything is allowed:** every favorite and every action, without confirmation. The action log is written all the same. Write a config file before you hand your devices to an agent you do not fully trust.
 

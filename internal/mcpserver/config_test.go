@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeConfig(t *testing.T, body string) string {
@@ -42,6 +43,10 @@ func TestLoadMissingDefaultFileAllowsEverything(t *testing.T) {
 	}
 	if !c.ActionLog || c.ActionLogPath != filepath.Join(dir, ActionLogFileName) {
 		t.Fatalf("action log %v %q", c.ActionLog, c.ActionLogPath)
+	}
+	want := ScreenshotConfig{MaxWidth: 1280, MaxHeight: 1280, Format: "jpeg", JPEGQuality: 80}
+	if c.KVMIdleTimeout != 5*time.Minute || c.Screenshot != want {
+		t.Fatalf("kvm defaults %v %+v", c.KVMIdleTimeout, c.Screenshot)
 	}
 }
 
@@ -90,6 +95,12 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		`{"allowed_devices": [""]}`,
 		`{} {}`,
 		`not json`,
+		`{"kvm": {"idle_timeout": 5}}`,
+		`{"kvm": {"idle_timeout_seconds": -1}}`,
+		`{"kvm": {"screenshot_format": "gif"}}`,
+		`{"kvm": {"screenshot_jpeg_quality": 0}}`,
+		`{"kvm": {"screenshot_max_width": 8}}`,
+		`{"kvm": {"screenshot_max_height": 100000}}`,
 	} {
 		if _, err := Load(writeConfig(t, body), true); err == nil {
 			t.Errorf("%s: no error", body)
@@ -118,3 +129,19 @@ func TestLoadActionLogSettings(t *testing.T) {
 }
 
 func quote(s string) string { return `"` + strings.ReplaceAll(s, `\`, `\\`) + `"` }
+
+// TestLoadKVMSettings: idle timeout (0 = never) and the screenshot defaults.
+func TestLoadKVMSettings(t *testing.T) {
+	c, err := Load(writeConfig(t, `{"kvm": {"idle_timeout_seconds": 0, "screenshot_max_width": 1568, "screenshot_format": "PNG"}}`), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := ScreenshotConfig{MaxWidth: 1568, MaxHeight: 1280, Format: "png", JPEGQuality: 80}
+	if c.KVMIdleTimeout != 0 || c.Screenshot != want {
+		t.Fatalf("%v %+v", c.KVMIdleTimeout, c.Screenshot)
+	}
+	c, err = Load(writeConfig(t, `{"kvm": {"idle_timeout_seconds": 60, "screenshot_jpeg_quality": 95}}`), true)
+	if err != nil || c.KVMIdleTimeout != time.Minute || c.Screenshot.JPEGQuality != 95 {
+		t.Fatalf("%v %v %+v", err, c.KVMIdleTimeout, c.Screenshot)
+	}
+}

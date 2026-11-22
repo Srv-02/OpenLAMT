@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/kvm"
 	"github.com/Srv-02/openlamt/internal/session"
 )
 
@@ -48,14 +49,27 @@ func explain(err error) string {
 		pe  *amt.PowerError
 		oe  *net.OpError
 		dns *net.DNSError
+		cne *consentNeededError
+		rop *reopenError
+		re  *kvm.RedirectionError
+		ke  *amt.KVMError
 	)
 	switch {
 	case errors.As(err, &ref):
 		return ref.msg
-	case errors.Is(err, errConsentCodeNeeded):
-		return "This action needs user consent. The device now shows a six-digit code on its screen. " +
-			"Ask a person at the device for the code and call boot_to_bios again with consent_code. " +
+	case errors.As(err, &cne):
+		msg := "This action needs user consent. "
+		if cne.reopen {
+			msg = "The KVM session of this device had ended, and opening it again needs user consent. "
+		}
+		return msg + "The device now shows a six-digit code on its screen. " +
+			"Ask a person at the device for the code and call " + cne.tool + " again with consent_code. " +
 			"The code is valid for a few minutes only."
+	case errors.Is(err, errConsentCodeNeeded):
+		return explain(&consentNeededError{tool: "the tool"})
+	case errors.As(err, &rop):
+		return "The KVM session of this device had ended (AMT closes it on its own, for example after a while with a black " +
+			"screen, and power off, cycle and shutdown close it), and opening it again failed: " + explain(rop.err)
 	case errors.As(err, &ce) && ce.Step == "SendOptInCode":
 		return "The device did not accept the consent code. Ask the person at the device for the six digits " +
 			"it shows now and try again; without a code the device starts a new consent request."
@@ -65,6 +79,19 @@ func explain(err error) string {
 		return "This action needs user consent, but no consent code was given."
 	case errors.Is(err, amt.ErrInvalidConsentCode):
 		return "consent_code must be exactly six digits."
+	case errors.As(err, &re) && re.Stage == "auth":
+		return "KVM login failed: the device rejected the user name or password stored for this favorite."
+	case errors.As(err, &re):
+		return fmt.Sprintf("The device refused the KVM session (redirection status %d). Another KVM session to this device is open, "+
+			"most likely: in the OpenLAMT app, MeshCommander or another client. AMT allows only one. Close it there and call kvm_connect again.", re.Status)
+	case errors.As(err, &ke):
+		return fmt.Sprintf("The device refused to enable KVM (AMT ReturnValue %d). KVM may be disabled in the AMT settings of the device.", ke.ReturnValue)
+	case errors.Is(err, kvm.ErrClosed):
+		return "The KVM session was closed."
+	case errors.Is(err, kvm.ErrAuthUnsupported):
+		return "The device offers no KVM login method that OpenLAMT supports."
+	case errors.Is(err, kvm.ErrRedirProtocol):
+		return "The device answered the KVM connection in an unexpected way. Call kvm_connect again."
 	case errors.Is(err, session.ErrAuth):
 		return "Login failed: the device rejected the user name or password stored for this favorite. " +
 			"Update the password in the OpenLAMT app."

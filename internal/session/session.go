@@ -24,6 +24,7 @@ type Device interface {
 	AuditLog() ([]amt.AuditLogEntry, error)
 	ConfigDevice
 	Power(amt.PowerAction) error
+	BootConsent(prompt amt.ConsentPrompt) error
 	PowerStates() ([]power.PowerState, error)
 	Fingerprint() string
 	OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.ConsentPrompt) (*kvm.Client, error)
@@ -149,6 +150,18 @@ func (s *Session) Power(a amt.PowerAction) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return classify(s.dev.Power(a))
+}
+
+// BootToBIOS runs the user consent that setting boot options needs (amt.Device.BootConsent;
+// prompt may be nil when no code is at hand) and then the boot-to-BIOS sequence, both under the
+// mutex. A failed consent sends no power command.
+func (s *Session) BootToBIOS(prompt amt.ConsentPrompt) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.dev.BootConsent(prompt); err != nil {
+		return classify(err)
+	}
+	return classify(s.dev.Power(amt.BootToBIOS))
 }
 
 func (s *Session) PowerStates() ([]power.PowerState, error) {

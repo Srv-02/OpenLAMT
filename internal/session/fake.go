@@ -69,6 +69,7 @@ type Fake struct {
 	statusCalls  int
 	statesCalls  int
 	powered      []amt.PowerAction
+	bootConsents int
 	configs      []amt.Config
 	qualities    []kvm.Quality
 	busy         atomic.Int32
@@ -109,6 +110,42 @@ func (f *Fake) Power(a amt.PowerAction) error {
 	f.powered = append(f.powered, a)
 	return f.PowerErr
 }
+
+// consent applies the Consent rules of the KVM and IDE-R field comments: with Consent set a nil
+// prompt is ErrConsentRequired, a prompt error is wrapped, and only ConsentCode is accepted.
+func (f *Fake) consent(prompt amt.ConsentPrompt) error {
+	if !f.Consent {
+		return nil
+	}
+	if prompt == nil {
+		return amt.ErrConsentRequired
+	}
+	code, err := prompt.ConsentCode()
+	if err != nil {
+		return fmt.Errorf("read consent code: %w", err)
+	}
+	if len(strings.TrimSpace(code)) != 6 {
+		return amt.ErrInvalidConsentCode
+	}
+	if strings.TrimSpace(code) != f.ConsentCode {
+		return &amt.ConsentError{Step: "SendOptInCode", ReturnValue: 2}
+	}
+	return nil
+}
+
+// BootConsent applies the Consent rules like OpenKVM and is counted (see BootConsents).
+func (f *Fake) BootConsent(prompt amt.ConsentPrompt) error {
+	f.enter()
+	defer f.leave()
+	f.mu.Lock()
+	f.bootConsents++
+	f.mu.Unlock()
+	return f.consent(prompt)
+}
+
+// BootConsents is the number of BootConsent calls.
+func (f *Fake) BootConsents() int { f.mu.Lock(); defer f.mu.Unlock(); return f.bootConsents }
+
 func (f *Fake) PowerStates() ([]power.PowerState, error) {
 	f.enter()
 	defer f.leave()
@@ -149,20 +186,8 @@ func (f *Fake) OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.Cons
 	if f.KVMErr != nil {
 		return nil, f.KVMErr
 	}
-	if f.Consent {
-		if prompt == nil {
-			return nil, amt.ErrConsentRequired
-		}
-		code, err := prompt.ConsentCode()
-		if err != nil {
-			return nil, fmt.Errorf("read consent code: %w", err)
-		}
-		if len(strings.TrimSpace(code)) != 6 {
-			return nil, amt.ErrInvalidConsentCode
-		}
-		if strings.TrimSpace(code) != f.ConsentCode {
-			return nil, &amt.ConsentError{Step: "SendOptInCode", ReturnValue: 2}
-		}
+	if err := f.consent(prompt); err != nil {
+		return nil, err
 	}
 	f.mu.Lock()
 	major := amt.MajorVersion(f.St.AMTVersion)
@@ -232,20 +257,8 @@ func (f *Fake) OpenIDER(ctx context.Context, img ider.Image, start ider.StartMod
 	if f.IDERErr != nil {
 		return nil, f.IDERErr
 	}
-	if f.Consent {
-		if prompt == nil {
-			return nil, amt.ErrConsentRequired
-		}
-		code, err := prompt.ConsentCode()
-		if err != nil {
-			return nil, fmt.Errorf("read consent code: %w", err)
-		}
-		if len(strings.TrimSpace(code)) != 6 {
-			return nil, amt.ErrInvalidConsentCode
-		}
-		if strings.TrimSpace(code) != f.ConsentCode {
-			return nil, &amt.ConsentError{Step: "SendOptInCode", ReturnValue: 2}
-		}
+	if err := f.consent(prompt); err != nil {
+		return nil, err
 	}
 	return ider.Dial(ctx, ider.Config{Addr: f.IDERAddr, Username: f.IDERUser, Password: f.IDERPassword, Image: img, Start: start})
 }

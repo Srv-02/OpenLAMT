@@ -205,3 +205,46 @@ func TestPowerStatesOverHTTP(t *testing.T) {
 		t.Fatalf("%v, %v", got, err)
 	}
 }
+
+// TestBootConsentRule: setting boot options needs the user consent only when OptInRequired is
+// All (Intel AMT SDK, "Remote Control and User Consent"), like IDE-R and SOL; KVM-only consent
+// and a running consent session ask nothing.
+func TestBootConsentRule(t *testing.T) {
+	cases := []struct {
+		file    string
+		prompts int
+		reqs    []string
+	}{
+		{"optin_get_none.xml", 0, []string{"Get|IPS_OptInService"}},
+		{"optin_get_kvm_notstarted.xml", 0, []string{"Get|IPS_OptInService"}},
+		{"optin_get_all_insession.xml", 0, []string{"Get|IPS_OptInService"}},
+		{"optin_get_all_notstarted.xml", 1, []string{"Get|IPS_OptInService", "StartOptIn|IPS_OptInService", "SendOptInCode|IPS_OptInService"}},
+	}
+	for _, c := range cases {
+		routes := map[string]string{"Get|IPS_OptInService": c.file, "StartOptIn|IPS_OptInService": "optin_start.xml", "SendOptInCode|IPS_OptInService": "optin_send.xml"}
+		asked := 0
+		f := &fakeWSMan{routes: routes}
+		err := newDevice(f, "").BootConsent(consentFunc(func() (string, error) { asked++; return "123456", nil }))
+		if err != nil || asked != c.prompts {
+			t.Fatalf("%s: err=%v asked=%d", c.file, err, asked)
+		}
+		if got := routeKeys(f); !reflect.DeepEqual(got, c.reqs) {
+			t.Fatalf("%s: %v", c.file, got)
+		}
+	}
+}
+
+// TestBootConsentStartsOptInBeforeAskingForTheCode: a prompt that has no code yet still sees the
+// opt-in started, so the device shows the code a second call can send.
+func TestBootConsentStartsOptInBeforeAskingForTheCode(t *testing.T) {
+	routes := map[string]string{"Get|IPS_OptInService": "optin_get_all_notstarted.xml", "StartOptIn|IPS_OptInService": "optin_start.xml"}
+	f := &fakeWSMan{routes: routes}
+	noCode := errors.New("no code yet")
+	err := newDevice(f, "").BootConsent(consentFunc(func() (string, error) { return "", noCode }))
+	if !errors.Is(err, noCode) {
+		t.Fatalf("err = %v", err)
+	}
+	if got := routeKeys(f); !reflect.DeepEqual(got, []string{"Get|IPS_OptInService", "StartOptIn|IPS_OptInService"}) {
+		t.Fatalf("%v", got)
+	}
+}

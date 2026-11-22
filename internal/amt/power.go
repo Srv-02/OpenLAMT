@@ -107,6 +107,13 @@ func (d *Device) requestPowerState(action PowerAction, state power.PowerState) e
 	return nil
 }
 
+// BootConsent runs the user consent that setting boot options needs: Intel documents it for
+// "Set Boot Options" in Client Control Mode and whenever OptInRequired is All, so it applies the
+// IDE-R and SOL rule (consent only when OptInRequired is All). Call it before Power(BootToBIOS).
+// Without a code to give, the prompt may return an error: the opt-in has been started by then,
+// so the device shows the code for the next attempt.
+func (d *Device) BootConsent(prompt ConsentPrompt) error { return d.userConsent(prompt, true) }
+
 // bootToBIOS sets the one-shot BIOS setup boot option and then resets (running) or powers on
 // (not running) the machine, following the console's SetBootOptions sequence.
 func (d *Device) bootToBIOS() error {

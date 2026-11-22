@@ -17,6 +17,10 @@ It uses and includes code derived from the following projects:
   https://github.com/fyne-io/fyne
 - go-keyring, Copyright (c) 2016 Zalando SE, MIT License
   https://github.com/zalando/go-keyring
+- MCP Go SDK (openlamt-mcp only), Copyright (c) 2024-2025 Model Context Protocol a Series of
+  LF Projects, LLC. and The Go MCP SDK Authors, Apache License 2.0 (contributions not yet
+  relicensed: MIT License)
+  https://github.com/modelcontextprotocol/go-sdk
 - zenity (macOS and Windows builds only: the native file and folder dialogs),
   Copyright (c) 2019-2026 Nuno Cruces, MIT License
   https://github.com/ncruces/zenity
@@ -100,6 +104,24 @@ Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenit
   https://pkg.go.dev/golang.org/x/text
 - gopkg.in/yaml.v3, Copyright (c) 2006-2011 Kirill Simonov; Copyright 2011-2016 Canonical Ltd., MIT License and Apache License 2.0
   https://github.com/go-yaml/yaml
+
+Additional third-party Go modules included in openlamt-mcp, the MCP server (it contains no
+Fyne, zenity or GUI module; the MCP Go SDK is listed above):
+
+- github.com/google/jsonschema-go, Copyright (c) 2025 JSON Schema Go Project Authors, MIT License
+  https://github.com/google/jsonschema-go
+- github.com/segmentio/asm, Copyright (c) 2021 Segment, MIT License
+  https://github.com/segmentio/asm
+- github.com/segmentio/encoding, Copyright (c) 2019 Segment.io, Inc., MIT License
+  https://github.com/segmentio/encoding
+- github.com/yosida95/uritemplate/v3, Copyright (C) 2016, Kohei YOSHIDA, BSD 3-Clause License
+  https://github.com/yosida95/uritemplate
+- golang.org/x/oauth2, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/oauth2
+- golang.org/x/sync, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/sync
+- golang.org/x/time, Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/time
 
 The full license texts are contained in the respective modules (LICENSE or COPYING file
 in each module's source tree).

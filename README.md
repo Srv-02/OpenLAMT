@@ -162,12 +162,40 @@ Key combinations that the local operating system reserves, such as Ctrl+Alt+Del,
     - passwords and certificate fingerprints in the system keychain (services `openlamt` and `openlamt-fingerprint`)
     - temporary ISOs of mounted folders in `OpenLAMT/ider` in your cache folder (`~/Library/Caches`, `%LocalAppData%` or `~/.cache`), deleted on unmount
     - downloaded updates in `~/Downloads`, only when you ask for one
+    - `openlamt/openlamt-mcp.json` and `openlamt/openlamt-mcp-actions.log` in the same configuration folder, only if you use [openlamt-mcp](#mcp-server-openlamt-mcp)
 - **Your devices:** OpenLAMT changes nothing you did not start, and risky changes need a confirmation.
 - **Network:** your AMT devices on ports `16992` to `16995`. One update check per start to `api.github.com`, which you can turn off in Settings.
 
 ### Updates
 
 At start OpenLAMT asks GitHub for its latest release. If it is newer, a window shows the first lines of its release notes and offers the package for your platform. The download is checked against the SHA-256 checksum GitHub states and saved to `~/Downloads`. Nothing is installed: replace the app by hand. The request carries no account, token or data about your devices, but GitHub sees your IP address.
+
+### MCP server (openlamt-mcp)
+
+`openlamt-mcp` lets an AI agent (Claude Desktop, Claude Code or any other MCP client) use your OpenLAMT favorites: list the devices, read status, hardware, event log and audit log, power on, off, reset, power cycle, shut down and boot into the BIOS. The client starts it and talks to it over stdin and stdout. It opens no network port. It is not part of the release downloads yet; build it with `go build -o openlamt-mcp ./cmd/openlamt-mcp` (no C compiler needed).
+
+```json
+{"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}
+```
+
+- **Devices and passwords** come from the OpenLAMT favorites and the system keychain. Save the password in the app first. Passwords never pass through the MCP connection. A TLS device works only after you connected once with the app and its certificate is pinned; the MCP server never trusts a new certificate. Devices without TLS work, with a warning in each answer.
+- **User consent:** if a device asks for consent (Client Control Mode), the agent has to ask a person at the device for the six-digit code on its screen.
+- **Settings:** `openlamt-mcp.json` next to `favorites.json`, or the file given with `--config <path>`:
+
+  ```json
+  {
+    "read_only": false,
+    "allowed_devices": [],
+    "tool_groups": {"read": true, "power_boot": true, "media": true, "kvm_input": true,
+                    "settings": true, "users": true, "destructive": true},
+    "require_client_confirmation": false,
+    "action_log": {"enabled": true, "path": ""}
+  }
+  ```
+
+  `read_only` leaves only the read tools. `allowed_devices` takes favorite names, empty means all. `destructive` covers every power action except power on. `require_client_confirmation` asks you in the MCP client before each power action; a client that cannot ask gets a refusal. Each key you leave out keeps the value shown above, and an unknown key stops the server. The action log writes one line per tool call to `openlamt-mcp-actions.log` next to the config file unless you give another `path`.
+
+**Without a config file, everything is allowed:** every favorite and every action, without confirmation. The action log is written all the same. Write a config file before you hand your devices to an agent you do not fully trust.
 
 ### Removing
 

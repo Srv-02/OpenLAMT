@@ -97,13 +97,17 @@ func NewSegmented(st SegmentedStyle, options []SegmentOption, onChanged func(int
 	return s
 }
 
-// Selected returns the index of the selected segment.
+// Selected returns the index of the selected segment, NoSelection if none is selected.
 func (s *Segmented) Selected() int { return s.selected }
 
-// SetSelected selects segment i without calling OnChanged or OnReselected; an index out of
-// range is ignored.
+// NoSelection is the index of a control without a highlighted segment (SetSelected): a value
+// that cannot be read. The control is meant to be disabled then.
+const NoSelection = -1
+
+// SetSelected selects segment i without calling OnChanged or OnReselected. NoSelection clears
+// the selection (no segment highlighted); any other index out of range is ignored.
 func (s *Segmented) SetSelected(i int) {
-	if i < 0 || i >= len(s.options) || i == s.selected {
+	if i < NoSelection || i >= len(s.options) || i == s.selected {
 		return
 	}
 	s.selected = i

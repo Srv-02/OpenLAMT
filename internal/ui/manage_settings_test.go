@@ -588,7 +588,7 @@ func TestSettingsPartlyReadableShowsNA(t *testing.T) {
 }
 
 // Issue #58: network, redirection and consent cannot be read. The rows stay in place (no hidden
-// section) with N/A and greyed-out controls in the off or first position.
+// section) with N/A and greyed-out controls: switches off, segmented controls without a selected segment.
 func TestSettingsUnreadableNetworkAndFeatures(t *testing.T) {
 	_, p := settingsHarness(t, func(f *session.Fake) {
 		s := &f.Cfg.Settings
@@ -598,10 +598,10 @@ func TestSettingsUnreadableNetworkAndFeatures(t *testing.T) {
 	if p.err.box.Visible() {
 		t.Errorf("error shown: %q", p.err.Text())
 	}
-	if !p.networkBox.Visible() || p.address.Selected() != 0 || p.ipText.Text != "N/A" || !p.ipRow.visibleRow() {
+	if !p.networkBox.Visible() || p.address.Selected() != widgets.NoSelection || p.ipText.Text != "N/A" || !p.ipRow.visibleRow() {
 		t.Errorf("network: shown %v address %d ip %q row %v", p.networkBox.Visible(), p.address.Selected(), p.ipText.Text, p.ipRow.visibleRow())
 	}
-	if !p.kvmRow.visibleRow() || p.kvm.Checked() || p.ider.Checked() || p.sol.Checked() || p.consent.Selected() != 0 {
+	if !p.kvmRow.visibleRow() || p.kvm.Checked() || p.ider.Checked() || p.sol.Checked() || p.consent.Selected() != widgets.NoSelection {
 		t.Errorf("features: kvm row %v kvm %v ider %v sol %v consent %d", p.kvmRow.visibleRow(),
 			p.kvm.Checked(), p.ider.Checked(), p.sol.Checked(), p.consent.Selected())
 	}

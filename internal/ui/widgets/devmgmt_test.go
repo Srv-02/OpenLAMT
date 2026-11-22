@@ -289,3 +289,39 @@ func TestPrimaryButtonDanger(t *testing.T) {
 		t.Errorf("disabled danger: %v on %v", r.text.Color, r.bg.FillColor)
 	}
 }
+
+// Issue #58: a value that cannot be read leaves the control without a highlighted segment; a
+// later SetSelected restores a normal selection.
+func TestSegmentedNoSelection(t *testing.T) {
+	themedApp(t)
+	var changed []int
+	s := NewSegmented(SegmentedText, TextOptions("DHCP", "Static"), func(i int) { changed = append(changed, i) })
+	test.NewTempWindow(t, s)
+	s.Resize(s.MinSize())
+	r := test.WidgetRenderer(s).(*segmentedRenderer)
+
+	s.SetSelected(NoSelection)
+	s.Disable()
+	if s.Selected() != NoSelection {
+		t.Fatalf("selected %d, want NoSelection", s.Selected())
+	}
+	for i, p := range r.segs {
+		if !p.bg.Hidden || !p.shadow.Hidden {
+			t.Errorf("segment %d highlighted without a selection", i)
+		}
+	}
+	s.SetSelected(5) // out of range stays ignored
+	s.Tap(0)         // disabled: no change
+	if s.Selected() != NoSelection || len(changed) != 0 {
+		t.Errorf("disabled control changed: %d %v", s.Selected(), changed)
+	}
+
+	s.Enable()
+	s.SetSelected(1)
+	if s.Selected() != 1 {
+		t.Errorf("selection not restored: %d", s.Selected())
+	}
+	if r.segs[1].bg.Hidden || !r.segs[0].bg.Hidden {
+		t.Error("restored selection not highlighted")
+	}
+}

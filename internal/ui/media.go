@@ -352,8 +352,8 @@ func (m *mediaPanel) prepared(ctx context.Context, img ider.Image, info *mkiso.I
 	}
 	sess := m.d.sess
 	go func() {
-		st, err := sess.Settings()
-		fyne.Do(func() { m.settingsRead(ctx, img, st.Features.IDER, err) })
+		f, err := sess.RedirectionFeatures() // only the redirection service: see connectConsole
+		fyne.Do(func() { m.settingsRead(ctx, img, f.IDER, err) })
 	}()
 }
 

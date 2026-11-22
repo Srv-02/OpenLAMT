@@ -17,6 +17,9 @@ import (
 type FakeConfig struct {
 	Settings    amt.Settings
 	SettingsErr error
+	// FeaturesErr is returned by RedirectionFeatures, which ignores SettingsErr: the device reads
+	// only AMT_RedirectionService there.
+	FeaturesErr error
 	Users       amt.UserList
 	UsersErr    error
 	// Certificates is the certificate store; SetTLS with a new certificate moves the TLS mark
@@ -90,6 +93,21 @@ func (f *Fake) Settings() (amt.Settings, error) {
 		s.Environment.Domains = slices.Clone(s.Environment.Domains)
 	})
 	return s, err
+}
+
+// RedirectionFeatures returns Redirection, SOL and IDER of Settings.Features, or FeaturesErr.
+func (f *Fake) RedirectionFeatures() (amt.Features, error) {
+	var r amt.Features
+	var err error
+	f.cfgRead(func() {
+		if f.Cfg.FeaturesErr != nil {
+			err = f.Cfg.FeaturesErr
+			return
+		}
+		c := f.Cfg.Settings.Features
+		r = amt.Features{Redirection: c.Redirection, SOL: c.SOL, IDER: c.IDER}
+	})
+	return r, err
 }
 
 func (f *Fake) SetGeneral(c amt.GeneralChange, confirm amt.Confirmation) error {

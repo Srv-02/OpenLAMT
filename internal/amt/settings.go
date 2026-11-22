@@ -12,7 +12,8 @@ import (
 )
 
 // Settings is the AMT configuration of a device, read in one call (about 0.4 s on AMT 16).
-// A section whose class the firmware lacks has Available false.
+// A section whose class the firmware lacks has Available false. A section the device refused
+// to read is marked in Unreadable and keeps its zero value.
 type Settings struct {
 	General     GeneralSettings
 	Network     NetworkSettings
@@ -21,7 +22,28 @@ type Settings struct {
 	TLS         TLSSettings
 	Clock       ClockInfo
 	Environment EnvironmentDetection
+
+	// Unreadable marks the sections the device refused: a missing permission of the account
+	// or a SOAP fault on Pull. Zero for an admin account.
+	Unreadable SettingsPart
 }
+
+// SettingsPart names one section of Settings.
+type SettingsPart uint8
+
+const (
+	SettingsGeneral     SettingsPart = 1 << iota // AMT_GeneralSettings
+	SettingsNetwork                              // AMT_EthernetPortSettings
+	SettingsFeatures                             // AMT_RedirectionService: Redirection, SOL, IDER
+	SettingsKVM                                  // CIM_KVMRedirectionSAP: KVM, KVMAvailable
+	SettingsConsent                              // IPS_OptInService
+	SettingsTLS                                  // AMT_TLSSettingData
+	SettingsClock                                // AMT_TimeSynchronizationService
+	SettingsEnvironment                          // AMT_EnvironmentDetectionSettingData
+)
+
+// Readable reports whether every section in p was read (the zero Settings allows everything).
+func (s Settings) Readable(p SettingsPart) bool { return s.Unreadable&p == 0 }
 
 // DDNSMode is how the device's DNS name is registered.
 type DDNSMode int
@@ -148,11 +170,15 @@ const (
 )
 
 // isMissingClass reports a SOAP fault other than AccessDenied: the class does not exist on
-// this firmware.
+// this firmware. A fault on Pull (errPullFault) is no missing class.
 func isMissingClass(err error) bool {
 	var amtErr *amterror.AMTError
-	return errors.As(err, &amtErr) && !strings.Contains(amtErr.SubCode, "AccessDenied")
+	return errors.As(err, &amtErr) && !strings.Contains(amtErr.SubCode, "AccessDenied") && !errors.Is(err, errPullFault)
 }
+
+// errPullFault marks a SOAP fault on Pull after a successful Enumerate: the class exists, the
+// device refused to return its instances.
+var errPullFault = errors.New("fault on pull")
 
 // readError wraps a read failure of class: AccessDenied → ErrAccessDenied, else the class name.
 func readError(class string, err error) error {
@@ -191,6 +217,10 @@ func pullObjects(class string, core bool, enum func() (*client.Message, string, 
 		return ctx, err
 	}, func(ctx string) ([]*cimObject, string, error) {
 		m, err := pull(ctx)
+		var amtErr *amterror.AMTError
+		if errors.As(err, &amtErr) {
+			return nil, "", fmt.Errorf("%w: %w", errPullFault, err)
+		}
 		if err != nil {
 			return nil, "", err
 		}
@@ -310,12 +340,15 @@ func networkFrom(o *cimObject) NetworkSettings {
 	}
 }
 
-// featuresFrom decodes the redirection service and the KVM SAP (nil if absent).
+// featuresFrom decodes the redirection service and the KVM SAP (each nil if absent or not read).
 func featuresFrom(redir, kvm *cimObject) Features {
-	f := Features{Redirection: redir.boolean("ListenerEnabled")}
-	if s := redir.integer("EnabledState"); s >= redirectionBase && s <= redirectionBase+3 {
-		f.IDER = s&1 != 0
-		f.SOL = s&2 != 0
+	var f Features
+	if redir != nil {
+		f.Redirection = redir.boolean("ListenerEnabled")
+		if s := redir.integer("EnabledState"); s >= redirectionBase && s <= redirectionBase+3 {
+			f.IDER = s&1 != 0
+			f.SOL = s&2 != 0
+		}
 	}
 	if kvm != nil {
 		f.KVMAvailable = true
@@ -382,60 +415,98 @@ func (d *Device) readClock() (time.Time, error) {
 	return time.Unix(*out.Ta0, 0).UTC(), nil
 }
 
+// RedirectionFeatures reads only AMT_RedirectionService: Redirection, SOL and IDER; the KVM
+// fields stay false. An account limited to the Redirection realm may read it, unlike Settings,
+// so SOL and IDE-R decide on it whether to ask for enabling. Nothing is written.
+func (d *Device) RedirectionFeatures() (Features, error) {
+	redir, err := d.redirectionObject()
+	if err != nil {
+		return Features{}, readError(classRedirection, err)
+	}
+	return featuresFrom(redir, nil), nil
+}
+
 // Settings reads general, network, redirection, consent, TLS, clock and environment detection
-// settings. Nothing is written.
+// settings, each section on its own. Nothing is written.
+//
+// A section the device refuses (AccessDenied or HTTP 403, the DestinationUnreachable of a class
+// every firmware has, a SOAP fault on Pull) is marked in Unreadable and the others are still
+// read. Another SOAP fault of an optional class leaves its section empty (the class is missing);
+// any other error, a non-refusal fault on AMT_GeneralSettings included, fails the whole read.
+// When no section at all could be read, Settings fails with the refusal of the first section
+// (ErrAccessDenied for a missing permission).
 func (d *Device) Settings() (Settings, error) {
 	var s Settings
+	read := false     // a section was read
+	var refused error // the refusal of the first unreadable section
 
-	g, err := d.generalObject()
-	if err != nil {
-		return Settings{}, readError(classGeneral, err)
-	}
-	s.General = generalFrom(g)
-
-	// optional reads one after the other; a missing class leaves its section empty
-	optional := func(class string, read func() error) error {
-		err := read()
-		if err == nil || isMissingClass(err) {
+	// section runs one read and sorts its error. core marks AMT_GeneralSettings, the one Get of a
+	// class every firmware has (the enumerated core classes map their refusal in pullObjects).
+	section := func(part SettingsPart, class string, core bool, fn func() error) error {
+		err := fn()
+		switch {
+		case err == nil:
+			read = true
+			return nil
+		case IsAccessDenied(err), errors.Is(err, errPullFault), core && coreClassDenied(err):
+			s.Unreadable |= part
+			if refused == nil {
+				refused = readError(class, err)
+			}
+			return nil
+		case !core && isMissingClass(err):
 			return nil
 		}
 		return readError(class, err)
 	}
 
 	steps := []struct {
+		part  SettingsPart
 		class string
+		core  bool
 		read  func() error
 	}{
-		{classEthernet, func() error {
+		{SettingsGeneral, classGeneral, true, func() error {
+			g, err := d.generalObject()
+			if err == nil {
+				s.General = generalFrom(g)
+			}
+			return err
+		}},
+		{SettingsNetwork, classEthernet, false, func() error {
 			o, err := d.wiredObject()
 			s.Network = networkFrom(o)
 			return err
 		}},
-		{classRedirection, func() error {
+		{SettingsFeatures, classRedirection, false, func() error {
 			redir, err := d.redirectionObject()
-			if err != nil {
-				return err
+			if err == nil {
+				f := featuresFrom(redir, nil)
+				s.Features.Redirection, s.Features.SOL, s.Features.IDER = f.Redirection, f.SOL, f.IDER
 			}
-			kvm, err := d.kvmSAPObject()
-			if err != nil && !isMissingClass(err) {
-				return err
-			}
-			s.Features = featuresFrom(redir, kvm)
-			return nil
+			return err
 		}},
-		{classOptIn, func() error {
+		{SettingsKVM, classKVMSAP, false, func() error {
+			kvm, err := d.kvmSAPObject()
+			if err == nil {
+				f := featuresFrom(nil, kvm)
+				s.Features.KVM, s.Features.KVMAvailable = f.KVM, f.KVMAvailable
+			}
+			return err
+		}},
+		{SettingsConsent, classOptIn, false, func() error {
 			o, err := d.optInObject()
 			if err == nil {
 				s.Consent = consentFrom(o)
 			}
 			return err
 		}},
-		{classTLS, func() error {
+		{SettingsTLS, classTLS, false, func() error {
 			objs, err := d.tlsObjects()
 			s.TLS = tlsFrom(objs)
 			return err
 		}},
-		{classTimeSync, func() error {
+		{SettingsClock, classTimeSync, false, func() error {
 			before := timeNow()
 			t, err := d.readClock()
 			var me *MethodError
@@ -450,7 +521,7 @@ func (d *Device) Settings() (Settings, error) {
 			s.Clock = ClockInfo{Available: true, Time: t, Offset: t.Sub(local).Round(time.Second)}
 			return nil
 		}},
-		{classEnvDetect, func() error {
+		{SettingsEnvironment, classEnvDetect, false, func() error {
 			o, err := d.envDetectObject()
 			if err == nil {
 				s.Environment = EnvironmentDetection{Available: true, Domains: o.strs("DetectionStrings")}
@@ -459,9 +530,12 @@ func (d *Device) Settings() (Settings, error) {
 		}},
 	}
 	for _, st := range steps {
-		if err := optional(st.class, st.read); err != nil {
+		if err := section(st.part, st.class, st.core, st.read); err != nil {
 			return Settings{}, err
 		}
+	}
+	if !read && refused != nil {
+		return Settings{}, refused
 	}
 	return s, nil
 }

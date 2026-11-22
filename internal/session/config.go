@@ -8,6 +8,7 @@ import "github.com/Srv-02/openlamt/internal/amt"
 // one for the operation and this device they return *amt.RiskyChangeError and write nothing.
 type ConfigDevice interface {
 	Settings() (amt.Settings, error)
+	RedirectionFeatures() (amt.Features, error)
 	SetGeneral(c amt.GeneralChange, confirm amt.Confirmation) error
 	SetNetwork(c amt.NetworkChange, confirm amt.Confirmation) error
 	SetFeatures(c amt.FeatureChange, confirm amt.Confirmation) error
@@ -35,6 +36,18 @@ func (s *Session) Settings() (amt.Settings, error) {
 		return amt.Settings{}, classify(err)
 	}
 	return st, nil
+}
+
+// RedirectionFeatures reads only the redirection service (SOL, IDE-R, listener) under the session
+// mutex; an account limited to the Redirection realm may read it, unlike Settings.
+func (s *Session) RedirectionFeatures() (amt.Features, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	f, err := s.dev.RedirectionFeatures()
+	if err != nil {
+		return amt.Features{}, classify(err)
+	}
+	return f, nil
 }
 
 // SetGeneral writes host name, domain, ping and dynamic DNS settings; name-related changes

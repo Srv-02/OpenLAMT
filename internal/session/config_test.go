@@ -66,11 +66,14 @@ func TestSessionSettingsPassesValuesAndCopies(t *testing.T) {
 func TestSessionConfigClassifiesErrors(t *testing.T) {
 	libErr := fmt.Errorf("%w: %v\n%v", errors.New("wsman.Client post received"), "401 Unauthorized", "<html>secret body</html>")
 	dev := configFake()
-	dev.Cfg.SettingsErr, dev.Cfg.UsersErr, dev.Cfg.WriteErr = libErr, libErr, libErr
+	dev.Cfg.SettingsErr, dev.Cfg.FeaturesErr, dev.Cfg.UsersErr, dev.Cfg.WriteErr = libErr, libErr, libErr, libErr
 	s := openInfoSession(t, dev)
 
 	if st, err := s.Settings(); !errors.Is(err, ErrAuth) || !reflect.DeepEqual(st, amt.Settings{}) {
 		t.Errorf("Settings %+v %v", st, err)
+	}
+	if f, err := s.RedirectionFeatures(); !errors.Is(err, ErrAuth) || f != (amt.Features{}) {
+		t.Errorf("RedirectionFeatures %+v %v", f, err)
 	}
 	if u, err := s.Users(); !errors.Is(err, ErrAuth) || u.Users != nil {
 		t.Errorf("Users %+v %v", u, err)
@@ -275,5 +278,18 @@ func TestFakeNetworkDHCPKeepsLeaseAddresses(t *testing.T) {
 	st, _ := s.Settings()
 	if !st.Network.DHCP || st.Network.IPAddress != "192.0.2.10" {
 		t.Errorf("network %+v", st.Network)
+	}
+}
+
+// Issue #57: the fake answers RedirectionFeatures from its settings without the KVM fields and
+// independent of SettingsErr, as the device reads only AMT_RedirectionService.
+func TestSessionRedirectionFeatures(t *testing.T) {
+	dev := configFake()
+	dev.Cfg.Settings.Features = amt.Features{Redirection: true, SOL: true, IDER: true, KVM: true, KVMAvailable: true}
+	dev.Cfg.SettingsErr = amt.ErrAccessDenied
+	s := openInfoSession(t, dev)
+	f, err := s.RedirectionFeatures()
+	if want := (amt.Features{Redirection: true, SOL: true, IDER: true}); err != nil || f != want {
+		t.Fatalf("RedirectionFeatures %+v %v, want %+v", f, err, want)
 	}
 }

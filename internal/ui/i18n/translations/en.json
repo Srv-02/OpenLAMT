@@ -412,6 +412,7 @@
   "Valid until {{.Date}} · SHA-256 {{.Fingerprint}}": "Valid until {{.Date}} · SHA-256 {{.Fingerprint}}",
   "Reading…": "Reading…",
   "This account is not allowed to read this information on the device.": "This account is not allowed to read this information on the device.",
+  "N/A": "N/A",
   "All": "All",
   "Warning": "Warning",
   "Critical": "Critical",

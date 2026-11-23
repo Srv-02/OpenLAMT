@@ -4,7 +4,8 @@
 //
 // Two subcommands are for a person at a terminal: "openlamt-mcp password <favorite>" stores the
 // password of a favorite in the system keychain, "openlamt-mcp trust <favorite>" pins the TLS
-// certificate of a favorite after the person checked its fingerprint.
+// certificate of a favorite (in the system keychain, or with certificates.pin_file in
+// openlamt-pins.json) after the person checked its fingerprint.
 package main
 
 import (
@@ -24,6 +25,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Srv-02/openlamt/internal/favorites"
+	"github.com/Srv-02/openlamt/internal/keychain"
 	"github.com/Srv-02/openlamt/internal/mcpserver"
 	"github.com/Srv-02/openlamt/internal/session"
 )
@@ -118,7 +120,11 @@ func runWith(args []string, stdout, stderr io.Writer, serve serveFunc, d deps) i
 		}
 	}
 
-	keys := d.keys
+	keys, pinPath, err := pinStore(cfg, favPath, d.keys)
+	if err != nil {
+		fmt.Fprintln(stderr, "openlamt-mcp:", err)
+		return 1
+	}
 	favs := favorites.NewManager(favorites.NewStore(favPath), keys)
 	srv := mcpserver.New(mcpserver.Options{
 		Config:    cfg,
@@ -138,12 +144,17 @@ func runWith(args []string, stdout, stderr io.Writer, serve serveFunc, d deps) i
 	if actions != nil {
 		logPath = actions.Path()
 	}
+	pinFile := "off"
+	if pinPath != "" {
+		pinFile = pinPath
+	}
 	passwordCommand := "off"
 	if len(cfg.Passwords.Command) > 0 {
 		passwordCommand = cfg.Passwords.Command[0]
 	}
 	logger.Info("openlamt-mcp started", "version", version(), "config", source, "read_only", cfg.ReadOnly,
 		"allowed_devices", cfg.AllowedDevices, "client_confirmation", cfg.RequireClientConfirmation, "action_log", logPath,
+		"pin_file", pinFile,
 		"password_command", passwordCommand, "plaintext_passwords", cfg.Passwords.AllowPlaintext)
 	if cfg.Passwords.AllowPlaintext {
 		logger.Warn(mcpserver.PlaintextWarning, "env_file", cfg.Passwords.EnvFile)
@@ -159,4 +170,18 @@ func runWith(args []string, stdout, stderr io.Writer, serve serveFunc, d deps) i
 		return 1
 	}
 	return 0
+}
+
+// pinStore returns the store of trusted fingerprints and passwords: without certificates.pin_file
+// the keychain, with it a file next to favorites.json (and its path). It never switches by itself.
+func pinStore(cfg mcpserver.Config, favPath string, keys keychain.Store) (store keychain.Store, pinPath string, err error) {
+	if !cfg.Certificates.PinFile {
+		return keys, "", nil
+	}
+	pinPath = filepath.Join(filepath.Dir(favPath), mcpserver.PinFileName)
+	store, err = mcpserver.OpenPinFile(pinPath, keys)
+	if err != nil {
+		return nil, "", err
+	}
+	return store, pinPath, nil
 }

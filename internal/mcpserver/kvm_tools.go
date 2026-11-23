@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -514,7 +515,7 @@ type typeInput struct {
 	Device string `json:"device" jsonschema:"favorite name of the device, as returned by list_devices"`
 	Text   string `json:"text" jsonschema:"the text to type"`
 	Layout string `json:"layout,omitempty" jsonschema:"keyboard layout active on the device; default: the favorite's layout in the OpenLAMT app, else the system language of this computer"`
-	Secret bool   `json:"secret,omitempty" jsonschema:"the text is a password or another secret: a confirmation prompt shows only its length and the Enter presses, not the text"`
+	Secret bool   `json:"secret,omitempty" jsonschema:"the text is a password or another secret: a confirmation prompt shows only its length, not the text. Only for a single line without line breaks, tabs or other control characters"`
 }
 
 // maxPreview is how much of the text a confirmation prompt shows.
@@ -527,7 +528,10 @@ func typePrompt(plan typing.Plan, secret bool) string {
 	enters := strings.Count(plan.Text, "\n")
 	what := fmt.Sprintf("type %d characters with %d Enter %s (layout %s)", plan.Chars, enters, plural(enters, "press", "presses"), plan.Layout)
 	if secret {
-		return what + "; the text is secret and not shown"
+		// The agent is not trusted: say that it chose to hide the text. typeText accepts secret
+		// only for text without line breaks and other control characters.
+		return fmt.Sprintf("type %d characters (layout %s). The AI agent chose to hide this text (marked as secret); "+
+			"it is one line without Enter presses or other control characters", plan.Chars, plan.Layout)
 	}
 	r := []rune(strings.NewReplacer("\n", "⏎", "\t", "⇥").Replace(plan.Text))
 	preview := string(r[:min(len(r), maxPreview)])
@@ -603,6 +607,10 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 		return nil, typeOutput{}, refuse("There is no character in the text that layout %s can type. Nothing was sent.", layout)
 	}
 	// Never the text itself, also when it is not secret.
+	if in.Secret && strings.ContainsFunc(in.Text, unicode.IsControl) {
+		return nil, typeOutput{}, refuse("secret is only allowed for a single line of text without line breaks, tabs or other " +
+			"control characters, so the person confirming knows that no Enter press is hidden. Nothing was sent.")
+	}
 	rec.action = fmt.Sprintf("%d characters, %d Enter, layout %s", plan.Chars, strings.Count(plan.Text, "\n"), layout)
 	if in.Secret {
 		rec.action += ", secret"

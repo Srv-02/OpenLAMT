@@ -563,7 +563,7 @@ func TestKVMInputConfirmation(t *testing.T) {
 		t.Fatal("input sent without confirmation")
 	}
 	if len(asked) != 3 || !strings.Contains(asked[0], "Enter") || strings.Contains(asked[1], "Hunter2") ||
-		!strings.Contains(asked[1], "12 characters with 0 Enter presses") || !strings.Contains(asked[1], "secret") {
+		!strings.Contains(asked[1], "type 12 characters") || !strings.Contains(asked[1], "The AI agent chose to hide this text") {
 		t.Fatalf("asked %q", asked)
 	}
 	answer = &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}
@@ -706,5 +706,41 @@ func TestKVMSendKeysConfirmationShowsEveryCombo(t *testing.T) {
 	h.mustFail("kvm_send_keys", dev("NUC", "keys", append(keys, "Enter")), "1 to 50")
 	if len(asked) != 1 {
 		t.Fatalf("asked %d times", len(asked))
+	}
+}
+
+// TestKVMTypeTextSecretRefusesControlCharacters: the agent may hide only a single line; a hidden
+// Enter press (or tab, escape, ...) could run a command the person never saw.
+func TestKVMTypeTextSecretRefusesControlCharacters(t *testing.T) {
+	var asked []string
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	srv := addKVM(t, f, kvmtest.Options{})
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
+	h.start()
+	h.mustOK("kvm_connect", dev("NUC"))
+	for _, text := range []string{"pass\nrm -rf /", "pass\r", "pass\n", "a\tb", "a\x1bb", "a\u0085b"} {
+		h.mustFail("kvm_type_text", dev("NUC", "text", text, "secret", true, "layout", "us"), "secret is only allowed for a single line")
+	}
+	if len(asked) != 0 || len(keyEvents(srv)) != 0 {
+		t.Fatalf("asked %q, keys %v", asked, keyEvents(srv))
+	}
+	out := h.mustOK("kvm_type_text", dev("NUC", "text", "Hunter2", "secret", true, "layout", "us"))
+	if out["typed"] != float64(7) || len(asked) != 1 || strings.Contains(asked[0], "Hunter2") ||
+		!strings.Contains(asked[0], "type 7 characters") || !strings.Contains(asked[0], "The AI agent chose to hide this text") {
+		t.Fatalf("out %v asked %q", out, asked)
+	}
+	var logged string
+	for _, e := range h.logEntries() {
+		if e["tool"] == "kvm_type_text" && e["outcome"] == "ok" {
+			logged, _ = e["action"].(string)
+		}
+	}
+	if logged != "7 characters, 0 Enter, layout us, secret" {
+		t.Fatalf("logged %q", logged)
 	}
 }

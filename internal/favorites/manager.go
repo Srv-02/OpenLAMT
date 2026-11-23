@@ -334,7 +334,8 @@ type Incoming struct {
 }
 
 // Merge adds the favorites of items that are new and leaves the others alone: a favorite whose
-// host already exists (or was added earlier in items) is skipped, whatever its user name. It
+// host and user name already exist (or were added earlier in items) is skipped; another user name
+// on a known host is a new favorite. It
 // never replaces or deletes anything. A pin is stored only for an added favorite and only where
 // the keychain has none; a different pin that is already there stays and the favorite is
 // returned in pinConflicts. The favorites
@@ -347,18 +348,20 @@ func (m *Manager) Merge(items []Incoming) (added, skipped, pinConflicts []Favori
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	known := map[string]bool{}
+	type key struct{ host, user string }
+	known := map[key]bool{}
 	for _, f := range list {
-		known[f.Host] = true
+		known[key{f.Host, f.Username}] = true
 	}
 	var pins []Incoming
 	for _, it := range items {
 		f := it.Favorite
-		if known[f.Host] {
+		k := key{f.Host, f.Username}
+		if known[k] {
 			skipped = append(skipped, f)
 			continue
 		}
-		known[f.Host] = true
+		known[k] = true
 		list = append(list, f)
 		added = append(added, f)
 		if it.Fingerprint != "" {

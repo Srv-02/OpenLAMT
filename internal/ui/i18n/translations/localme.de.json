@@ -55,5 +55,6 @@
   "Accounts, certificates, Wi-Fi profiles and network settings in AMT are removed. Remote access stops until AMT is activated again.": "Konten, Zertifikate, WLAN-Profile und Netzwerkeinstellungen in AMT werden entfernt. Der Fernzugriff endet, bis AMT wieder aktiviert ist.",
   "Deactivate": "Deaktivieren",
   "Intel AMT refused the change: {{.Reason}}.": "Intel AMT hat die Änderung abgelehnt: {{.Reason}}.",
-  "The password does not meet the rules of Intel AMT.": "Das Passwort erfüllt die Regeln von Intel AMT nicht."
+  "The password does not meet the rules of Intel AMT.": "Das Passwort erfüllt die Regeln von Intel AMT nicht.",
+  "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.": "Ein anderes Programm belegt den Intel-AMT-Port {{.Port}} auf diesem Computer. Es wurde nichts geändert."
 }

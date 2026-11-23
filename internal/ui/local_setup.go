@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"os"
 	"strings"
 
@@ -166,7 +167,8 @@ func (s *StartWindow) showActivate() {
 // runLocalAction runs a setup action like Check: the operating system asks for administrator
 // rights, the helper changes Intel AMT and answers the new state, which is stored and shown.
 // A refusal of the firmware shows "Intel AMT refused the change" next to the new state; when
-// the Intel ME no longer reports Intel AMT, the card "No Intel AMT found" says it all.
+// the Intel ME no longer reports Intel AMT, the card "No Intel AMT found" says it all. A foreign
+// program on an LMS port stops the activation with its own error.
 // password (activation only) is wiped once the helper got it.
 func (s *StartWindow) runLocalAction(a localme.Action, password []byte) {
 	if s.localChecking || s.localAction == nil {
@@ -181,10 +183,9 @@ func (s *StartWindow) runLocalAction(a localme.Action, password []byte) {
 		clear(password)
 		fyne.Do(func() {
 			s.localDone(res.State, err)
-			if err == nil && res.State.Found {
-				if refused := res.Err(); refused != nil {
-					s.onError(refused)
-				}
+			var foreign *localme.ForeignLMSError
+			if refused := res.Err(); err == nil && refused != nil && (res.State.Found || errors.As(refused, &foreign)) {
+				s.onError(refused)
 			}
 		})
 	})

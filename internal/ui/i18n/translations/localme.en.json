@@ -55,5 +55,6 @@
   "Accounts, certificates, Wi-Fi profiles and network settings in AMT are removed. Remote access stops until AMT is activated again.": "Accounts, certificates, Wi-Fi profiles and network settings in AMT are removed. Remote access stops until AMT is activated again.",
   "Deactivate": "Deactivate",
   "Intel AMT refused the change: {{.Reason}}.": "Intel AMT refused the change: {{.Reason}}.",
-  "The password does not meet the rules of Intel AMT.": "The password does not meet the rules of Intel AMT."
+  "The password does not meet the rules of Intel AMT.": "The password does not meet the rules of Intel AMT.",
+  "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.": "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed."
 }

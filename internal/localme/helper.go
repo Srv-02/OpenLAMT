@@ -152,7 +152,11 @@ func runAction(c helperCall, stdin io.Reader) (ActionResult, int) {
 		}
 	}
 	res := ActionResult{State: read(openReader())}
-	if err != nil {
+	var foreign *ForeignLMSError
+	switch {
+	case errors.As(err, &foreign):
+		res.ForeignPort = foreign.Port
+	case err != nil:
 		res.Refused = refusal(err, secret)
 	}
 	return res, helperOK

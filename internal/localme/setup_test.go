@@ -203,3 +203,16 @@ func TestHelperNeedsAValidPassword(t *testing.T) {
 		t.Fatal("the changer was opened without a valid password")
 	}
 }
+
+// readActionFile decodes the action answer in the file at path.
+func readActionFile(t *testing.T, path string) (ActionResult, error) {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ActionResult{}, err
+	}
+	if bytes.Contains(b, []byte("Secr3t")) {
+		t.Fatalf("answer holds the password: %s", b)
+	}
+	return decodeAction(b)
+}

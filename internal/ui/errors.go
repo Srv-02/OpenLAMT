@@ -59,6 +59,7 @@ func describe(err error) string {
 	var syn *json.SyntaxError
 	var path *fs.PathError
 	var refused *localme.RefusedError
+	var foreignLMS *localme.ForeignLMSError
 	switch {
 	case errors.As(err, &plain):
 		return plain.msg
@@ -123,6 +124,8 @@ func describe(err error) string {
 		return lang.L("Administrator rights were not granted. Nothing was changed.")
 	case errors.Is(err, localme.ErrNoPkexec):
 		return lang.L("Check needs pkexec to ask for administrator rights. Install polkit and try again.")
+	case errors.As(err, &foreignLMS):
+		return lang.L("Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.", map[string]any{"Port": foreignLMS.Port})
 	case errors.As(err, &refused):
 		return lang.L("Intel AMT refused the change: {{.Reason}}.", map[string]any{"Reason": refused.Reason})
 	case errors.Is(err, localme.ErrPassword):

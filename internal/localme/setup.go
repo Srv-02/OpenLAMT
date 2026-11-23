@@ -72,11 +72,14 @@ func (r Result) Setup() Setup {
 }
 
 // ActionResult is the answer of a setup action: why Intel AMT refused the change ("" when it
-// was made) and the state read afterwards. It holds no password.
+// was made) and the state read afterwards. ForeignPort is set instead of Refused when another
+// program than LMS listened on that LMS port, so the activation never started. It holds no
+// password.
 type ActionResult struct {
-	Schema  int    `json:"schema"`
-	Refused string `json:"refused,omitempty"`
-	State   Result `json:"state"`
+	Schema      int    `json:"schema"`
+	Refused     string `json:"refused,omitempty"`
+	ForeignPort int    `json:"foreignPort,omitempty"`
+	State       Result `json:"state"`
 }
 
 // RefusedError is a setup action that Intel AMT did not carry out; Reason is the short
@@ -85,12 +88,16 @@ type RefusedError struct{ Reason string }
 
 func (e *RefusedError) Error() string { return "intel amt refused the change: " + e.Reason }
 
-// Err is the refusal as an error, nil when the change was made.
+// Err is the refusal as an error (*RefusedError or *ForeignLMSError), nil when the change was
+// made.
 func (a ActionResult) Err() error {
-	if a.Refused == "" {
-		return nil
+	switch {
+	case a.ForeignPort != 0:
+		return &ForeignLMSError{Port: a.ForeignPort}
+	case a.Refused != "":
+		return &RefusedError{Reason: a.Refused}
 	}
-	return &RefusedError{Reason: a.Refused}
+	return nil
 }
 
 // encodeAction is the action helper's answer.

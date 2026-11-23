@@ -20,7 +20,8 @@ import (
 //     state over the AMT host interface (HECI); no network, no password.
 //   - ActivateCCM: pkg/activate.Local in Client Control Mode. rpc-go talks WS-Man to the
 //     firmware through LMS on 127.0.0.1 when it runs, otherwise through LME over HECI. OpenLAMT
-//     neither needs LMS nor keeps a connection to it.
+//     neither needs LMS nor keeps a connection to it; a foreign listener on the LMS ports stops
+//     the activation before the password is sent (lms.go).
 //   - Deactivate: the PTHI Unprovision of pkg/amt, which is what rpc-go's deactivate does for
 //     Client Control Mode; Admin Control Mode is refused before anything is sent (it would need
 //     the admin password, and rpc-go would ask for it on stdin).
@@ -52,6 +53,10 @@ func (meiChanger) TurnOn() error { return short(configure.EnableAMT(configure.Ba
 func (meiChanger) ActivateCCM(password string) error {
 	if password == "" { // rpc-go would ask for one on stdin
 		return ErrPassword
+	}
+	// Only the genuine LMS may get the setup call (lms.go); checked last, right before the dial.
+	if err := checkLMS(); err != nil {
+		return err
 	}
 	return short(activate.Local(activate.LocalOptions{Mode: activate.ModeCCM, AMTPassword: password}))
 }

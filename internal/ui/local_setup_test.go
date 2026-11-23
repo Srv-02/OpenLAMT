@@ -247,6 +247,38 @@ func TestLocalActionRefused(t *testing.T) {
 	}
 }
 
+// TestLocalActivateForeignLMS: another program on an LMS port stops the activation with its own
+// error, not as a refusal of the firmware.
+func TestLocalActivateForeignLMS(t *testing.T) {
+	f := &fakeAction{res: localme.ActionResult{ForeignPort: 16992, State: onState(localme.ModeNone)}}
+	s := newSetupStart(t, onState(localme.ModeNone), f)
+	var shown []error
+	s.onError = func(err error) { shown = append(shown, err) }
+	test.Tap(s.setupBtn)
+	fields := passwordFields(s)
+	fields[0].SetText("Secr3t!pw")
+	fields[1].SetText("Secr3t!pw")
+	test.Tap(s.localDialog.check)
+	test.Tap(s.localDialog.action)
+	if len(shown) != 1 || describe(shown[0]) != "Another program uses the Intel AMT port 16992 on this computer. Nothing was changed." {
+		t.Fatalf("errors %v", shown)
+	}
+	if s.localRow.Host() != "AMT 16.1 · not activated" || s.setupBtn == nil || s.setupBtn.Text != "Activate…" {
+		t.Fatal("state after the stopped activation")
+	}
+}
+
+// passwordFields are the password fields of the top dialog.
+func passwordFields(s *StartWindow) []*widgets.PasswordField {
+	var fields []*widgets.PasswordField
+	walk(s.win.Canvas().Overlays().Top(), func(o fyne.CanvasObject) {
+		if p, ok := o.(*widgets.PasswordField); ok {
+			fields = append(fields, p)
+		}
+	})
+	return fields
+}
+
 // TestLocalActionDeclined: refused administrator rights show the information and keep the state.
 func TestLocalActionDeclined(t *testing.T) {
 	f := &fakeAction{err: localme.ErrDeclined}

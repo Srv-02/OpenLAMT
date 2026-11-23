@@ -138,6 +138,7 @@ func errorSamples() map[string]error {
 		"localme.ErrNoPkexec":           localme.ErrNoPkexec,
 		"localme.ErrPassword":           localme.ErrPassword,
 		"localme.RefusedError":          &localme.RefusedError{Reason: "unprovision status 1"},
+		"localme.ForeignLMSError":       &localme.ForeignLMSError{Port: 16992},
 		"favorites.ErrExists":           favorites.ErrExists,
 		"favorites.ErrNotFound":         favorites.ErrNotFound,
 		"favorites.KeychainError":       &favorites.KeychainError{Err: errors.New("x")},

@@ -151,6 +151,8 @@ func (d *DeviceWindow) buildStatusBar() fyne.CanvasObject {
 	d.powerDot = widgets.NewStatusDot(widgets.DotUnknown, style.StatusDotSizeSmall)
 	d.power, d.version, d.mode, d.tls, d.kvmLine, d.consoleLine = text(), text(), text(), text(), text(), text()
 	d.mediaLine = newEllipsisText("", style.Size(style.SizeNameSecondaryText), style.ColorNameAccentText, false)
+	d.boot.line = newEllipsisText("", style.Size(style.SizeNameSecondaryText), style.ColorNameAccentText, false)
+	d.boot.line.Hide()
 	d.version.Hide()
 	d.mode.Hide()
 	d.mediaLine.Hide()
@@ -172,7 +174,7 @@ func (d *DeviceWindow) buildStatusBar() fyne.CanvasObject {
 
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameStatusBar, "")
 	bg.SetMinSize(fyne.NewSize(1, style.StatusBarHeight))
-	row := container.New(&statusLayout{gap: statusGap, shrink: statusShrink}, left, d.mediaLine, d.capture.recItem, d.capture.line, tls, d.kvmLine, d.consoleLine)
+	row := container.New(&statusLayout{gap: statusGap, shrink: statusShrink}, left, d.mediaLine, d.boot.line, d.capture.recItem, d.capture.line, tls, d.kvmLine, d.consoleLine)
 	d.statusRow = row
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(0, 0, statusPad, statusPad), row))
 }
@@ -382,7 +384,7 @@ func powerMenuLabel(a amt.PowerAction) string {
 }
 
 // buildPowerMenu creates the items of the Power menu: Power On, Power Off | Reset, Power Cycle,
-// Reboot to BIOS, Boot from ISO | Shutdown, Sleep, Hibernate.
+// Reboot to BIOS, Boot from ISO, Boot Options | Shutdown, Sleep, Hibernate.
 func (d *DeviceWindow) buildPowerMenu() {
 	d.powerItems = map[amt.PowerAction]*fyne.MenuItem{}
 	var items []*fyne.MenuItem
@@ -390,6 +392,9 @@ func (d *DeviceWindow) buildPowerMenu() {
 		it := fyne.NewMenuItem(powerMenuLabel(act), func() { d.run(act) })
 		d.powerItems[act] = it
 		items = append(items, it)
+		if act == amt.BootToISO {
+			items = append(items, d.bootMenuItem()) // Boot Options… (device_boot.go)
+		}
 		if act == amt.PowerOff || act == amt.BootToISO {
 			items = append(items, fyne.NewMenuItemSeparator())
 		}
@@ -407,6 +412,7 @@ func (d *DeviceWindow) updatePowerItems() {
 		}
 		it.Icon = icons.Get(powerIcon(act), v)
 	}
+	d.updateBootItem()
 	if d.powerPopup != nil {
 		d.powerPopup.Refresh()
 	}
@@ -803,7 +809,7 @@ type statusLayout struct {
 }
 
 // statusShrink is the index of the KVM text in the status bar row.
-const statusShrink = 5
+const statusShrink = 6
 
 func (l *statusLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	var s fyne.Size

@@ -131,6 +131,9 @@ func describeDevice(err error) (string, bool) {
 	if text, ok := describeDefense(err); ok {
 		return text, true
 	}
+	if text, ok := describeBoot(err); ok {
+		return text, true
+	}
 	switch {
 	case errors.Is(err, amt.ErrCertificateStoreFull):
 		return lang.L("The device has no space for more certificates."), true

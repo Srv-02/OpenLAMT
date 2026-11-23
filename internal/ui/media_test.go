@@ -626,8 +626,8 @@ func TestBootFromISOFollowsMount(t *testing.T) {
 			break
 		}
 	}
-	if items[i+1] != h.d.powerItems[amt.BootToISO] || !items[i+2].IsSeparator || items[i+3] != h.d.powerItems[amt.PowerShutdown] {
-		t.Fatal("Boot from ISO is not between Reboot to BIOS and the separator before Shutdown")
+	if items[i+1] != h.d.powerItems[amt.BootToISO] || items[i+2] != h.d.boot.item || !items[i+3].IsSeparator || items[i+4] != h.d.powerItems[amt.PowerShutdown] {
+		t.Fatal("Boot from ISO is not between Reboot to BIOS and Boot Options before the separator before Shutdown")
 	}
 	it := h.d.powerItems[amt.BootToISO]
 	if it.Label != "Boot from ISO…" || !it.Disabled {

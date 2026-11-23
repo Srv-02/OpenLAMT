@@ -71,27 +71,28 @@ type DeviceWindow struct {
 	mainWin                   fyne.Window       // the start window; nil in tests
 	qualityItems              map[kvm.Quality]*fyne.MenuItem
 	qualityMenu               *fyne.Menu
-	kvmQuality                kvm.Quality      // quality of the next connection
-	qualityChosen             bool             // the user picked one before the favorite was read
-	qualitySave               sync.Mutex       // serialises SetQuality writes
-	qualityWant               string           // latest value to store; guarded by qualitySave
-	onQualitySaved            func()           // test hook, nil in production
-	onFavoriteChanged         func()           // the favorite's quality was stored; the start window reloads
-	onQualityLoaded           func()           // test hook, nil in production
-	startPoller               func()           // Show starts the poller through it; tests replace it (nil: poller.Start)
-	onConfirmShown            func()           // test hook, nil in production
-	autoWait                  bool             // Show: KVM may still connect automatically once (autoConnect)
-	autoLoaded                bool             // the favorite's auto-connect override is known
-	autoOverride              string           // favorites.AutoConnectOn, AutoConnectOff or empty (global)
-	adoptPending              bool             // the form changed the quality while a connect was pending
-	resumeKVM                 bool             // the window closed KVM for a power action and connects again (resumeCheck)
-	powerAfterConnect         *amt.PowerAction // sent once the cancelled connect has reported (kvmOpened), see execute
-	resumeAt                  time.Time        // earliest resume attempt, set when a power action ends
-	resumeNeedOff             bool             // after Power Off or Shutdown an On read counts only after an Off read
-	resumeNow                 bool             // a power action failed: the next good read decides (On connects, else forget)
-	resumeTries               int              // failed resume attempts since the last power action
-	resuming                  bool             // the pending connect is a resume: no wake key, no error dialog
-	resumedClient             *kvm.Client      // session of the last resume; an early error counts as a failed attempt
+	kvmQuality                kvm.Quality        // quality of the next connection
+	qualityChosen             bool               // the user picked one before the favorite was read
+	qualitySave               sync.Mutex         // serialises SetQuality writes
+	qualityWant               string             // latest value to store; guarded by qualitySave
+	onQualitySaved            func()             // test hook, nil in production
+	onFavoriteChanged         func()             // the favorite's quality was stored; the start window reloads
+	onQualityLoaded           func()             // test hook, nil in production
+	startPoller               func()             // Show starts the poller through it; tests replace it (nil: poller.Start)
+	onConfirmShown            func()             // test hook, nil in production
+	autoWait                  bool               // Show: KVM may still connect automatically once (autoConnect)
+	autoLoaded                bool               // the favorite's auto-connect override is known
+	autoOverride              string             // favorites.AutoConnectOn, AutoConnectOff or empty (global)
+	adoptPending              bool               // the form changed the quality while a connect was pending
+	resumeKVM                 bool               // the window closed KVM for a power action and connects again (resumeCheck)
+	powerAfterConnect         *amt.PowerAction   // sent once the cancelled connect has reported (kvmOpened), see execute
+	biosCancel                context.CancelFunc // ends the consent prompt of a running Reboot to BIOS, or nil (sendPower)
+	resumeAt                  time.Time          // earliest resume attempt, set when a power action ends
+	resumeNeedOff             bool               // after Power Off or Shutdown an On read counts only after an Off read
+	resumeNow                 bool               // a power action failed: the next good read decides (On connects, else forget)
+	resumeTries               int                // failed resume attempts since the last power action
+	resuming                  bool               // the pending connect is a resume: no wake key, no error dialog
+	resumedClient             *kvm.Client        // session of the last resume; an early error counts as a failed attempt
 
 	// Views, Media and Manage (device_views.go), only touched on the Fyne thread.
 	toolbarItems         *fyne.Container    // the toolbar buttons and dividers, in order
@@ -273,6 +274,10 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 // at exit (exitWork), does not wait behind a slow read too. Close comes last, so a read cannot
 // re-pool a socket after it. The session is not used after Close (KVM keeps its own connection).
 func (d *DeviceWindow) shutdown() {
+	if d.biosCancel != nil { // a consent dialog of Reboot to BIOS would hold the poller (Stop waits)
+		d.biosCancel()
+		d.biosCancel = nil
+	}
 	unmount := d.media.release(!d.aborted)
 	done := d.exitWork.add()
 	go func() {
@@ -441,29 +446,50 @@ func (d *DeviceWindow) flushPowerAfterConnect() {
 	}
 }
 
-// sendPower hands action to the poller and reports its result on the Fyne thread.
+// sendPower hands action to the poller and reports its result on the Fyne thread. Reboot to
+// BIOS asks for the user consent first where the device requires it (CCM, or OptInRequired All),
+// with the dialog of KVM: setting boot options without it fails only after the boot order was
+// changed (issue #90). A cancelled dialog sends nothing and shows no error.
 func (d *DeviceWindow) sendPower(action amt.PowerAction) {
-	d.poller.Power(action, func(err error) {
-		fyne.Do(func() {
-			switch {
-			case errors.Is(err, session.ErrStopped): // window closed or session aborted meanwhile
-			case err != nil && isMismatch(err):
-				d.abort(err)
-			case err != nil:
-				d.setPowerBusy(false)
-				if !d.closed {
-					d.onError(err)
-				}
-				d.resumeAfterPower(action, err)
-			default:
-				d.setPowerBusy(false)
-				d.resumeAfterPower(action, nil)
-			}
-			if d.onActionDone != nil {
-				d.onActionDone()
-			}
-		})
+	done := func(err error) { fyne.Do(func() { d.powerDone(action, err) }) }
+	if action != amt.BootToBIOS {
+		d.poller.Power(action, done)
+		return
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	d.biosCancel = cancel
+	prompt := &consentPrompt{ctx: ctx, ask: d.askConsent}
+	d.poller.BootToBIOS(prompt, func(err error) {
+		cancel() // the context only bounded the consent prompt
+		done(err)
 	})
+}
+
+// powerDone reports the result of a power action on the Fyne thread.
+func (d *DeviceWindow) powerDone(action amt.PowerAction, err error) {
+	if action == amt.BootToBIOS {
+		d.biosCancel = nil
+	}
+	switch {
+	case errors.Is(err, session.ErrStopped): // window closed or session aborted meanwhile
+	case err != nil && isMismatch(err):
+		d.abort(err)
+	case errors.Is(err, errConsentCancelled): // the user dismissed the consent dialog: nothing was sent
+		d.setPowerBusy(false)
+		d.resumeAfterPower(action, err)
+	case err != nil:
+		d.setPowerBusy(false)
+		if !d.closed {
+			d.onError(err)
+		}
+		d.resumeAfterPower(action, err)
+	default:
+		d.setPowerBusy(false)
+		d.resumeAfterPower(action, nil)
+	}
+	if d.onActionDone != nil {
+		d.onActionDone()
+	}
 }
 
 // setPowerBusy locks the Power menu while an action runs.

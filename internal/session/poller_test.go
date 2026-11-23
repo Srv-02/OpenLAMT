@@ -310,3 +310,37 @@ func TestPollerReadsDeniedPowerStatesOnce(t *testing.T) {
 		t.Fatalf("%d power state reads, want 1", n)
 	}
 }
+
+// TestPollerBootToBIOSRunsConsent: BootToBIOS asks the prompt before the boot sequence, a
+// failed consent sends nothing, and Power(BootToBIOS) runs the consent without a prompt, so a
+// device that requires it is not changed (issue #90).
+func TestPollerBootToBIOSRunsConsent(t *testing.T) {
+	dev := &Fake{Consent: true, ConsentCode: "123456"}
+	p, _ := startPoller(t, dev, time.Hour)
+	run := func(queue func(func(error))) error {
+		done := make(chan error, 1)
+		queue(func(err error) { done <- err })
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(2 * time.Second):
+			t.Fatal("job not answered")
+			return nil
+		}
+	}
+	if err := run(func(d func(error)) { p.Power(amt.BootToBIOS, d) }); !errors.Is(err, amt.ErrConsentRequired) || len(dev.Powered()) != 0 {
+		t.Fatalf("Power without prompt: err %v powered %v", err, dev.Powered())
+	}
+	if err := run(func(d func(error)) { p.BootToBIOS(codePrompt("654321"), d) }); err == nil || len(dev.Powered()) != 0 {
+		t.Fatalf("wrong code: err %v powered %v", err, dev.Powered())
+	}
+	if err := run(func(d func(error)) { p.BootToBIOS(codePrompt("123456"), d) }); err != nil {
+		t.Fatal(err)
+	}
+	if got := dev.Powered(); len(got) != 1 || got[0] != amt.BootToBIOS || dev.BootConsents() != 3 {
+		t.Fatalf("powered %v consents %d", got, dev.BootConsents())
+	}
+	if err := run(func(d func(error)) { p.Power(amt.PowerOn, d) }); err != nil || dev.BootConsents() != 3 {
+		t.Fatalf("Power On: err %v consents %d", err, dev.BootConsents())
+	}
+}

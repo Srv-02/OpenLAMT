@@ -23,6 +23,9 @@ var ErrWrongPassword = errors.New("wrong password for the PKCS#12 file")
 // ErrUnsupportedKey: the PKCS#12 file holds a key Intel AMT does not take (AMT takes RSA only).
 var ErrUnsupportedKey = errors.New("the private key is not an RSA key")
 
+// ErrKeyMismatch: no certificate in the PKCS#12 file belongs to its private key.
+var ErrKeyMismatch = errors.New("no certificate in the file matches the private key")
+
 // MaxSize is the largest file the import reads; certificate files are a few KiB.
 const MaxSize = 1 << 20
 
@@ -62,12 +65,13 @@ func Certificate(data []byte) ([]byte, error) {
 }
 
 // PKCS12 opens a .p12 or .pfx file with password and returns its certificate (DER) and RSA
-// private key. Further CA certificates in the file are ignored.
+// private key. The certificate is the one whose public key matches the private key, wherever it
+// stands in the file; further CA certificates are ignored.
 func PKCS12(data []byte, password string) ([]byte, *rsa.PrivateKey, error) {
 	if len(data) > MaxSize {
 		return nil, nil, ErrNotCertificate
 	}
-	key, cert, _, err := pkcs12.DecodeChain(data, password)
+	key, cert, caCerts, err := pkcs12.DecodeChain(data, password)
 	switch {
 	case errors.Is(err, pkcs12.ErrIncorrectPassword):
 		return nil, nil, ErrWrongPassword
@@ -78,7 +82,12 @@ func PKCS12(data []byte, password string) ([]byte, *rsa.PrivateKey, error) {
 	if !ok {
 		return nil, nil, ErrUnsupportedKey
 	}
-	return cert.Raw, k, nil
+	for _, c := range append([]*x509.Certificate{cert}, caCerts...) {
+		if pub, ok := c.PublicKey.(*rsa.PublicKey); ok && pub.Equal(&k.PublicKey) {
+			return c.Raw, k, nil
+		}
+	}
+	return nil, nil, ErrKeyMismatch
 }
 
 // PEM encodes the certificate der as a PEM CERTIFICATE block.

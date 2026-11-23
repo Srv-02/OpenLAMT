@@ -36,6 +36,7 @@
   "Choose File…": "Choose File…",
   "File": "File",
   ".pem, .cer or .crt. For a certificate with key: .p12 or .pfx with password.": ".pem, .cer or .crt. For a certificate with key: .p12 or .pfx with password.",
+  "No certificate in the file matches its private key.": "No certificate in the file matches its private key.",
   "The file is not a certificate.": "The file is not a certificate.",
   "Wrong password for the .p12 file.": "Wrong password for the .p12 file.",
   "The key in the file is not an RSA key. Intel AMT accepts only RSA keys.": "The key in the file is not an RSA key. Intel AMT accepts only RSA keys.",

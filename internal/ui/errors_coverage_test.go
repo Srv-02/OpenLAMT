@@ -97,6 +97,7 @@ func errorSamples() map[string]error {
 		"amt.ErrCertificateUncertain":   amt.ErrCertificateUncertain,
 		"amt.ErrCertificateInUse":       amt.ErrCertificateInUse,
 		"amt.ErrCertificateStoreFull":   amt.ErrCertificateStoreFull,
+		"certfile.ErrKeyMismatch":       certfile.ErrKeyMismatch,
 		"certfile.ErrNotCertificate":    certfile.ErrNotCertificate,
 		"certfile.ErrUnsupportedKey":    certfile.ErrUnsupportedKey,
 		"certfile.ErrWrongPassword":     certfile.ErrWrongPassword,

@@ -97,6 +97,7 @@ type StartWindow struct {
 	autoSel                       *widget.Select // KVM auto-connect override: Default, On, Off
 	editQuality                   string         // the favorite's quality when edit mode opened
 	editLayout, editAuto          string         // layout and auto-connect override when edit mode opened or last followed the file
+	editSaved                     bool           // "Save password" as edit mode showed it (opened or last followed the keychain lookup)
 	connectBtn                    *widgets.PrimaryButton
 	saveBtn, cancelBtn            *widget.Button
 	editSaveBtn, editCancelBtn    *widget.Button
@@ -140,7 +141,9 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 	// the attempt was cancelled afterwards, so this is not tied to onOpened.
 	s.conn.onPasswordSaved = func(host, user string) { s.refreshSaved(host, user) }
 	s.conn.onOpened = func(sess *session.Session, st amt.Status, name string) {
-		s.password.SetText("")
+		if s.formConnected(sess.Config().Host, sess.Config().Username) {
+			s.password.SetText("")
+		}
 		s.openDevice(sess, st, name)
 	}
 	s.conn.onError = func(err error) { s.onError(err) }
@@ -479,9 +482,49 @@ func (s *StartWindow) refreshSaved(host, user string) {
 		}
 		s.saved[k] = saved
 		if s.selKey == k {
+			if s.mode == modeEdit {
+				s.followSaved(saved)
+			}
 			s.showDetail()
 		}
 	})
+}
+
+// followSaved lets open edit mode show a keychain state that arrived after it opened (Edit
+// clicked before the lookup answered): the hint of the password field always follows, the
+// "Save password" switch only while the user has not touched it. A touched switch keeps the
+// user's choice, so Save never acts on a state the user did not see.
+func (s *StartWindow) followSaved(saved bool) {
+	s.setSavedPlaceholder(saved)
+	if s.savePassword.Checked() == s.editSaved {
+		s.savePassword.SetChecked(saved)
+		s.editSaved = saved
+	}
+}
+
+// setSavedPlaceholder shows in the empty password field of edit mode whether the keychain
+// holds a password.
+func (s *StartWindow) setSavedPlaceholder(saved bool) {
+	if saved {
+		s.setPasswordPlaceholder(lang.L("Saved in keychain"))
+		return
+	}
+	s.setPasswordPlaceholder("")
+}
+
+// formConnected reports whether the password field belongs to the attempt for host and user
+// that just connected, so the typed password can go: Quick Connect still showing that host and
+// user, or the read-only view, which does not show the field. Edit mode, a copy or a Quick
+// Connect form for another device keep what the user typed meanwhile.
+func (s *StartWindow) formConnected(host, user string) bool {
+	switch s.mode {
+	case modeView:
+		return true
+	case modeNew:
+		h, err := normalizeHost(s.host.Text)
+		return s.dupOf == nil && err == nil && h == host && strings.TrimSpace(s.user.Text) == user
+	}
+	return false
 }
 
 // forgetSaved drops the cached keychain state of a device after the keychain changed and
@@ -739,14 +782,11 @@ func (s *StartWindow) setMode(m detailMode) {
 		s.name.SetText(f.Name)
 		s.user.SetText(f.Username)
 		s.password.SetText("") // never loaded from the keychain
-		saved := s.saved[s.selKey]
-		if saved {
-			s.setPasswordPlaceholder(lang.L("Saved in keychain"))
-		} else {
-			s.setPasswordPlaceholder("")
-		}
+		// Unknown (lookup still running) shows as not saved; followSaved corrects it.
+		s.editSaved = s.saved[s.selKey]
+		s.setSavedPlaceholder(s.editSaved)
 		s.useTLS.SetChecked(f.UseTLS)
-		s.savePassword.SetChecked(saved)
+		s.savePassword.SetChecked(s.editSaved)
 		s.resetFP.SetChecked(false)
 		s.layoutSel = newLayoutSelect(lang.L("Default"), f.Layout)
 		s.editLayout = layoutChoiceOf(f.Layout)
@@ -1221,7 +1261,8 @@ func favoriteWritten(err error) bool {
 
 // saveEdit applies edit mode: favorite (name, host, user, TLS, layout, a changed quality,
 // fingerprint reset) and password. A new password replaces the saved one when "Save password" is on;
-// turning the switch off deletes the saved password.
+// turning the switch off deletes the saved password, but only a switch the form showed on: a
+// state the user never saw (lookup answered late, not followed) deletes nothing.
 func (s *StartWindow) saveEdit() {
 	f, ok := s.selected()
 	if !ok || s.mode != modeEdit {
@@ -1238,7 +1279,7 @@ func (s *StartWindow) saveEdit() {
 	switch {
 	case s.savePassword.Checked() && s.password.Text != "":
 		pw = passwordChange{set: s.password.Text}
-	case !s.savePassword.Checked() && s.saved[s.selKey]:
+	case !s.savePassword.Checked() && s.editSaved:
 		pw = passwordChange{remove: true}
 	}
 	s.edit(f, edited, s.resetFP.Checked(), pw)

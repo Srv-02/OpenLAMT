@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Favoriten, Schnell verbinden und Netzwerkscan · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Geräte als Favoriten speichern, mit „Schnell verbinden“ verbinden, das Netzwerk scannen und die Konfiguration mitnehmen.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/favorites.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/favorites.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/favorites.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../favorites.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="favorites.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html" aria-current="page">Favoriten und Scan</a><ol class="toc"><li><a href="#favorites">Favoriten</a></li><li><a href="#quick-connect">Schnell verbinden</a></li><li><a href="#scan">Netzwerk scannen</a></li><li><a href="#export-import">Konfiguration exportieren und importieren</a></li></ol></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Favoriten, Schnell verbinden und Netzwerkscan</h1>
+<p class="lead">Das Hauptfenster hält deine Geräte bereit. Speichere jedes als Favorit, finde neue mit einem Netzwerkscan und nimm deine Liste auf einen anderen Computer mit.</p>
+
+<h2 id="favorites">Favoriten</h2>
+<div class="prose">
+<p>Die Seitenleiste listet deine Favoriten. Ein Punkt zeigt den Energiezustand jedes Geräts. OpenLAMT prüft ihn beim Start und danach im <a href="settings.html#devices">Abfrage-Intervall</a>.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Punkt</th><th>Bedeutung</th></tr></thead>
+  <tbody>
+    <tr><td><span class="app"><span class="dot on"></span></span></td><td>Eingeschaltet</td></tr>
+    <tr><td><span class="app"><span class="dot sb"></span></span></td><td>Standby: Das Gerät ist im Schlafmodus oder im Ruhezustand</td></tr>
+    <tr><td><span class="app"><span class="dot off"></span></span></td><td>Ausgeschaltet</td></tr>
+    <tr><td><span class="app"><span class="dot un"></span></span></td><td>Unbekannt: Das Gerät hat nicht geantwortet, oder das Konto darf den Energiezustand nicht lesen</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>OpenLAMT liest den Zustand im Hintergrund nur bei Favoriten mit TLS, gespeichertem Passwort und vertrautem Zertifikat. Andere Favoriten behalten den grauen Ring, bis du dich verbindest. Ein Passwort, das das Gerät abgelehnt hat, versucht OpenLAMT erst wieder, wenn du es änderst. So kann ein veraltetes Passwort das AMT-Konto nicht sperren.</p>
+</div>
+<div class="prose">
+<p>Mit dem <a href="settings.html#general">Farbenblind-Modus</a> nutzen die Punkte Farben, die bei Rot-Grün-Schwäche unterscheidbar bleiben.</p>
+<ul>
+  <li><b>Verbinden:</b> Wähle einen Favoriten und klicke auf <span class="ui">Verbinden</span>, oder doppelklicke ihn. Das <a href="device-window.html">Gerätefenster</a> öffnet sich.</li>
+  <li><b>Suchen:</b> Tippe in <span class="ui">Suchen</span> über der Liste. Die Suche prüft Name und Host.</li>
+  <li><b>Bearbeiten</b> <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-edit"/></svg>, <b>Duplizieren</b> <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-dup"/></svg> und <b>Löschen</b> <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-trash"/></svg> stehen über den Details des gewählten Favoriten.</li>
+</ul>
+</div>
+
+<h3 id="favorite-fields">Was ein Favorit enthält</h3>
+<dl class="terms">
+  <dt>Host/IP</dt><dd>Der Hostname oder die IPv4-Adresse der AMT-Schnittstelle. Kein Port, kein IPv6.</dd>
+  <dt>Name</dt><dd>Der Name in der Seitenleiste. Bleibt er leer, zeigt die Seitenleiste den Host.</dd>
+  <dt>Benutzer und Passwort</dt><dd>Das AMT-Konto, mit dem sich OpenLAMT anmeldet. Das Passwort kommt in den Schlüsselbund des Systems, wenn <span class="ui">Passwort im Schlüsselbund speichern</span> eingeschaltet ist.</dd>
+  <dt>TLS verwenden</dt><dd>Verschlüsselt die Verbindung. Siehe <a href="getting-started.html#tls">TLS und Zertifikats-Pinning</a>.</dd>
+  <dt>Tastatur</dt><dd>Unter <span class="ui">Erweitert</span>. Das Tastaturlayout des entfernten Systems, das <a href="device-window.html#type-clipboard">Zwischenablage tippen</a> nutzt. <span class="ui">Standard</span> folgt der App-Einstellung.</dd>
+  <dt>KVM-Qualität</dt><dd>Hoch (65.536 Farben) oder Niedrig (256 Farben) für dieses Gerät. <span class="ui">Standard</span> folgt der App-Einstellung.</dd>
+  <dt>KVM-Autoverbindung</dt><dd>Ein, Aus oder Standard. Mit Ein verbindet sich der Fernbildschirm, sobald das Gerätefenster aufgeht.</dd>
+  <dt>Fingerprint zurücksetzen</dt><dd>Nur beim Bearbeiten. Vergisst das vertraute Zertifikat, damit die nächste Verbindung erneut fragt.</dd>
+</dl>
+<div class="prose">
+<p>Das Gerätefenster speichert außerdem <a href="device-window.html#scale">Mausrad umkehren</a> für jeden Favoriten.</p>
+<p>Solange ein Gerätefenster offen ist, sind Host und Benutzer seines Favoriten gesperrt: „Schließe das Gerätefenster, um Host und Benutzer zu ändern.“</p>
+</div>
+
+<h3 id="delete-favorite">Einen Favoriten löschen</h3>
+<div class="prose">
+<p>Der Dialog <span class="ui">Lab-Server löschen?</span> entfernt den Favoriten und sein vertrautes Zertifikat aus OpenLAMT. Lass <span class="ui">Gespeichertes Passwort ebenfalls aus dem Schlüsselbund löschen</span> angehakt, um auch das Passwort zu entfernen. Am Gerät ändert sich nichts.</p>
+</div>
+
+<h2 id="quick-connect">Schnell verbinden</h2>
+<div class="prose">
+<p><span class="ui">Schnell verbinden</span> unten in der Seitenleiste öffnet ein leeres Formular. Nutze es für ein Gerät, das du nur einmal brauchst. Fülle <span class="ui">Host/IP</span>, <span class="ui">Benutzer</span> und <span class="ui">Passwort</span> aus und klicke auf <span class="ui">Verbinden</span>. Klicke auf <span class="ui">Als Favorit speichern</span>, um das Gerät zu behalten. <a href="getting-started.html#first-connection">Erste Schritte</a> zeigt das Formular.</p>
+</div>
+
+<h2 id="scan">Netzwerk scannen</h2>
+<div class="prose">
+<p>Der Scan findet Intel-AMT-Geräte in einem Adressbereich. Öffne ihn mit dem Radar-Symbol <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-radar"/></svg> unten in der Seitenleiste, oder mit <span class="ui">Netzwerk scannen…</span>, solange du noch keine Favoriten hast.</p>
+<ol>
+  <li>Prüfe den <span class="ui">Adressbereich</span>. OpenLAMT trägt das Netz deines Computers ein. Gib ein Netz wie <code>192.0.2.0/24</code> oder einen Bereich wie <code>192.0.2.10-192.0.2.80</code> ein.</li>
+  <li>Klicke auf <span class="ui">Scannen</span>. Geräte erscheinen schon während des Scans. <span class="ui">Stopp</span> beendet ihn vorzeitig und behält die Liste.</li>
+  <li>Hake die gewünschten Geräte an und klicke auf <span class="ui">2 Favoriten hinzufügen</span> (die Zahl folgt deiner Auswahl).</li>
+</ol>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w640">
+    <h4>Netzwerk scannen</h4>
+    <div class="fl">Adressbereich</div>
+    <div style="display:flex;gap:8px"><div class="fld" style="flex:1">192.0.2.0/24</div><span class="b pri">Scannen</span></div>
+    <div class="hint">Ein Netz wie 192.0.2.0/24 oder ein Bereich wie 192.0.2.10-192.0.2.80. Bis zu 4.096 Adressen.</div>
+    <div style="margin-top:12px" class="hint">254 Adressen in 11 s gescannt · 4 gefunden</div>
+    <div class="tcard" style="margin-top:10px">
+      <table class="mt">
+        <thead><tr><th style="width:28px"></th><th>Adresse</th><th>Name</th><th>Intel AMT</th><th>Verbindung</th><th></th></tr></thead>
+        <tbody>
+          <tr class="grey"><td><span class="ck dis"><i></i></span></td><td>192.0.2.10</td><td>lab.example.com</td><td>16.1</td><td>TLS</td><td>Schon ein Favorit</td></tr>
+          <tr><td><span class="ck on"><i></i></span></td><td>192.0.2.31</td><td>nas.example.com</td><td>15.0</td><td>TLS</td><td></td></tr>
+          <tr><td><span class="ck on"><i></i></span></td><td>192.0.2.44</td><td></td><td>12.0</td><td>Ohne TLS</td><td></td></tr>
+          <tr class="grey"><td><span class="ck"><i></i></span></td><td>192.0.2.57</td><td></td><td>unbekannt</td><td>Ports geschlossen</td><td>Nicht aktiviert?</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">2 Favoriten hinzufügen</span></div>
+  </div>
+</div></div>
+<figcaption>Ein fertiger Scan. Geräte, die schon Favoriten sind, sind grau und lassen sich nicht anhaken.</figcaption>
+</figure>
+
+<div class="prose">
+<h3 id="scan-columns">Was die Spalten bedeuten</h3>
+<dl class="terms">
+  <dt>Intel AMT</dt><dd>Die AMT-Version, die das Gerät ohne Anmeldung meldet, oder „unbekannt“.</dd>
+  <dt>Verbindung</dt><dd>„TLS“, wenn Port 16993 offen ist, „Ohne TLS“, wenn nur 16992 offen ist. „Ports geschlossen“ heißt: Das Gerät hat auf UDP-Port 623 als DASH-Managementgerät geantwortet, aber seine AMT-Ports sind geschlossen. AMT ist dann oft nicht aktiviert („Nicht aktiviert?“). Du kannst das Gerät trotzdem hinzufügen. Andere Management-Controller, die auf Port 623 antworten, etwa IPMI-BMCs von Servern, erscheinen nicht in der Liste.</dd>
+</dl>
+<p>Neue Favoriten bekommen den DNS-Namen oder die Adresse als Namen, den Benutzer <code>admin</code>, TLS, wenn Port 16993 offen ist, und kein Passwort. OpenLAMT fragt bei der ersten Verbindung nach dem Passwort.</p>
+<p>Der Scan liest nur. Er sendet einen Presence Ping auf UDP-Port 623 und prüft die TCP-Ports 16992 und 16993. Ein Durchlauf deckt höchstens 4.096 Adressen ab (ein <code>/20</code>). Größere Netze scannst du in Teilen.</p>
+<p>Keine Geräte gefunden? Der Dialog nennt die üblichen Gründe: AMT ist aus oder nicht aktiviert, eine Firewall sperrt die Ports 623, 16992 oder 16993, oder die Geräte liegen in einem anderen Netz.</p>
+</div>
+
+<h2 id="export-import">Konfiguration exportieren und importieren</h2>
+<div class="prose">
+<p>Nimm deine Favoriten und Einstellungen auf einen anderen Computer mit, oder behalte eine Sicherung. Beide Schaltflächen findest du in den <a href="settings.html#data">Einstellungen</a>, Abschnitt <span class="ui">Daten</span>, Zeile <span class="ui">Konfiguration</span>.</p>
+<h3 id="export">Exportieren</h3>
+<p><span class="ui">Exportieren…</span> fragt, was in die Datei soll, und öffnet dann den Speichern-Dialog deines Systems mit einem Namen wie <code>openlamt-config-2026-11-23.json</code>.</p>
+<ul>
+  <li><span class="ui">Favoriten</span>: Name, Host, Benutzername, TLS und die Optionen pro Gerät.</li>
+  <li><span class="ui">Einstellungen</span>: die App-Einstellungen.</li>
+  <li><span class="ui">Gepinnte Zertifikat-Fingerprints</span>: Der andere Computer vertraut diesen Geräten dann ohne Rückfrage. Schalte es aus, um jedes Zertifikat bei der ersten Verbindung erneut zu bestätigen.</li>
+</ul>
+<p><b>Passwörter werden nie exportiert.</b> Sie bleiben im Schlüsselbund dieses Computers.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>Konfiguration exportieren</h4>
+    <p>Speichert Favoriten und Einstellungen in einer JSON-Datei. Passwörter werden nie exportiert; sie bleiben im Schlüsselbund.</p>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="ck on"><i></i>Favoriten (3)</span>
+      <span class="ck on"><i></i>Einstellungen</span>
+      <div><span class="ck on"><i></i>Gepinnte Zertifikat-Fingerprints</span>
+      <div class="hint" style="margin-left:23px">Der andere Rechner vertraut diesen Geräten dann ohne Rückfrage. Ausschalten, um jedes Zertifikat beim ersten Verbinden erneut zu bestätigen.</div></div>
+    </div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Exportieren…</span></div>
+  </div>
+  <div class="dlg w520">
+    <div class="qhead"><div class="qtile blue"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-down"/></svg></div><div style="flex:1">
+    <h4>Konfiguration importieren</h4>
+    <p class="mono" style="font-size:12px;color:var(--text2)">openlamt-config-2026-11-23.json · OpenLAMT 1.2.0</p>
+    <div class="card" style="margin:6px 0 10px">
+      <div class="r"><span class="l">Favoriten</span><span class="v">2 neu · 1 übersprungen (Lab-Server ist schon da)</span></div>
+      <div class="r"><span class="l">Fingerprints</span><span class="v">Gepinnt für 2 Favoriten</span></div>
+      <div class="r"><span class="l">Passwörter</span><span class="v">Nicht enthalten. OpenLAMT fragt beim ersten Verbinden.</span></div>
+    </div>
+    <span class="ck"><i></i>Auch die Einstellungen übernehmen</span>
+    <div class="hint" style="margin-left:23px">Sprache, Darstellung, KVM und Updates.</div>
+    </div></div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Importieren</span></div>
+  </div>
+</div></div>
+<figcaption>Links: was exportiert wird. Rechts: die Vorschau vor einem Import.</figcaption>
+</figure>
+
+<div class="prose">
+<h3 id="import">Importieren</h3>
+<p><span class="ui">Importieren…</span> öffnet eine Datei, prüft sie und zeigt zuerst eine Vorschau. Nichts ändert sich, bevor du auf <span class="ui">Importieren</span> klickst.</p>
+<ul>
+  <li>Ein Import fügt nur hinzu. Ein Favorit mit demselben Host und demselben Benutzernamen wie ein vorhandener wird übersprungen und in der Vorschau genannt. Eine zweite Anmeldung auf einem bekannten Host, mit anderem Benutzernamen, kommt als neuer Favorit dazu.</li>
+  <li>Die Einstellungen ändern sich nur, wenn du <span class="ui">Auch die Einstellungen übernehmen</span> anhakst.</li>
+  <li>Importierte Favoriten haben kein Passwort. OpenLAMT fragt bei der ersten Verbindung danach.</li>
+  <li>Ein importierter Fingerprint ersetzt nie einen, dem dieser Computer schon vertraut. OpenLAMT nennt dann die Favoriten, bei denen die Datei ein anderes Zertifikat enthält.</li>
+</ul>
+<p>Ist die Datei nicht brauchbar, sagt der Dialog <span class="ui">Diese Datei lässt sich nicht importieren</span>, warum: Sie ist keine OpenLAMT-Konfiguration, sie ist beschädigt (mit Zeilennummer), oder ein neueres OpenLAMT hat sie erstellt.</p>
+</div>
+<nav class="pager" aria-label="Seiten"><a href="getting-started.html" rel="prev"><small>Zurück</small>Erste Schritte</a><a href="device-window.html" rel="next" style="text-align:right"><small>Weiter</small>Gerätefenster</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="So nutzt du OpenLAMT, die lokale Desktop-App für Intel AMT: Ein- und Ausschalten, Boot-Optionen, Fernbildschirm, Konsole, Medien, Geräteverwaltung und der MCP-Server.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../index.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="index.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html" aria-current="page">Überblick</a><ol class="toc"><li><a href="#pages">Was in diesem Handbuch steht</a></li><li><a href="#what">Was OpenLAMT kann</a></li><li><a href="#conventions">So liest du dieses Handbuch</a></li></ol></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>OpenLAMT-Benutzerhandbuch</h1>
+<p class="lead">OpenLAMT ist eine lokale Desktop-App für Intel AMT. Sie schaltet deine Geräte ein und aus, zeigt ihren Bildschirm und ihre serielle Konsole, bootet sie von einer ISO und verwaltet ihre AMT-Einstellungen. Sie läuft unter macOS, Windows und Linux, ohne Browser und ohne Server.</p>
+
+<figure class="shot">
+<div class="scr"><div class="win w1000 app">
+  <div class="osbar"><i></i><i></i><i></i><span>OpenLAMT</span></div>
+  <div class="row2" style="height:560px">
+    <div class="sb">
+      <div class="search"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-search"/></svg>Suchen</div>
+      <div class="sbh">Favoriten</div>
+      <div class="fav sel"><div class="t"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">Lab-Server</div><div class="h">192.0.2.10</div></div><span class="dot on"></span></div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">Build-Host</div><div class="h">build.example.com</div></div><span class="dot off"></span></div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">NAS</div><div class="h">nas.example.com</div></div><span class="dot sb"></span></div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">192.0.2.25</div><div class="h">192.0.2.25</div></div><span class="dot un"></span></div>
+      <div class="sbfoot"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-plus"/></svg>Schnell verbinden<span class="sp"></span><span class="ib"><svg class="i" aria-hidden="true"><use href="../assets/icons.svg#i-radar"/></svg></span><span class="ib"><svg class="i" aria-hidden="true"><use href="../assets/icons.svg#i-sliders"/></svg></span></div>
+    </div>
+    <div class="detail">
+      <div class="dtop"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-edit"/></svg><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-dup"/></svg><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-trash"/></svg></div>
+      <div class="dbody">
+        <div class="dhead"><div class="bigtile"><svg class="i s28" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg></div><div style="flex:1"><h3>Lab-Server</h3><div class="meta">AMT 16.1.25 · ACM · <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-lock"/></svg>TLS</div></div><span class="b pri" style="height:36px;padding:0 18px">Verbinden <svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-arrow"/></svg></span></div>
+        <div class="card">
+          <div class="r"><span class="l">Status</span><span class="v"><span class="dot on"></span> Eingeschaltet</span></div>
+          <div class="r"><span class="l">Host/IP</span><span class="v">192.0.2.10</span></div>
+          <div class="r"><span class="l">Name</span><span class="v">Lab-Server</span></div>
+          <div class="r"><span class="l">Benutzer</span><span class="v">admin</span></div>
+          <div class="r"><span class="l">Passwort</span><span class="v">Im Schlüsselbund gespeichert</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Das Hauptfenster: links die Favoriten mit ihrem Energiezustand, rechts das gewählte Gerät.</figcaption>
+</figure>
+
+<h2 id="pages">Was in diesem Handbuch steht</h2>
+<div class="cards">
+  <a href="getting-started.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-down"/></svg>Erste Schritte</b><span>App installieren, mit dem ersten Gerät verbinden, seinem Zertifikat vertrauen.</span></a>
+  <a href="favorites.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg>Favoriten und Scan</b><span>Geräte speichern, „Schnell verbinden“ nutzen, Geräte im Netzwerk finden, die Konfiguration mitnehmen.</span></a>
+  <a href="device-window.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-monitor"/></svg>Gerätefenster</b><span>Power-Menü, Boot-Optionen und One Click Recovery, Fernbildschirm, Screenshots und Aufnahmen, Konsole und Medien.</span></a>
+  <a href="management.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-panel"/></svg>Geräteverwaltung</b><span>Hardware, Protokolle und Ereignisweiterleitung, AMT-Einstellungen, Löschen, Konten, Energie, WLAN, System Defense, Zertifikate und der WSMAN Browser.</span></a>
+  <a href="amt-settings.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>AMT-Einstellungen erklärt</b><span>Was jede Einstellung von Intel AMT bewirkt, für Administratoren.</span></a>
+  <a href="confirmations.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg>Bestätigungen und Berechtigungen</b><span>Wie OpenLAMT vor riskanten Änderungen nachfragt. Was eingeschränkte Konten sehen.</span></a>
+  <a href="settings.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-sliders"/></svg>App-Einstellungen und Updates</b><span>Sprache, Erscheinungsbild, Optionen für den Fernbildschirm, „Jetzt prüfen“ und Updates mit einem Klick.</span></a>
+  <a href="troubleshooting.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg>Fehlerbehebung</b><span>Was die Fehlermeldungen bedeuten und was du tun kannst.</span></a>
+  <a href="mcp.html"><b><svg class="i s18" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>MCP-Server</b><span>Lass einen KI-Agenten deine Geräte über openlamt-mcp nutzen, in den Grenzen, die du festlegst.</span></a>
+</div>
+
+<h2 id="what">Was OpenLAMT kann</h2>
+<div class="prose">
+<ul>
+  <li><b>Energie und Booten:</b> einschalten, ausschalten, zurücksetzen (Reset), aus- und wieder einschalten (Power Cycle), herunterfahren, Schlafmodus, Ruhezustand (Hibernate), Neustart ins BIOS, Booten von einer ISO, Boot-Optionen für den nächsten Start (PXE, BIOS, HTTPS-Boot) und One Click Recovery von einem Abbild auf deinem Computer.</li>
+  <li><b>Fernbildschirm (KVM):</b> Tastatur, Bild und Maus des Geräts, auch im BIOS. Du kannst Screenshots machen und Videos aufnehmen.</li>
+  <li><b>Serielle Konsole (SOL):</b> die Textkonsole des Geräts, zum Beispiel eine Linux-Anmeldung.</li>
+  <li><b>Medien (IDE-R):</b> eine ISO-Datei oder einen Ordner als CD-Laufwerk am Gerät einbinden und davon booten.</li>
+  <li><b>Geräteverwaltung:</b> Hardware, Ereignisprotokoll mit Ereignisweiterleitung, Audit-Protokoll mit seinen Einstellungen, AMT-Einstellungen mit einer ⓘ-Hilfe zu jeder Einstellung, Löschen der Laufwerke, Benutzerkonten, Energierichtlinie und Weckzeiten, WLAN-Profile, System Defense mit dem Agent-Watchdog, Zertifikate und ein Browser für die rohen AMT-Klassen.</li>
+  <li><b>KI-Agenten:</b> Mit <a href="mcp.html">openlamt-mcp</a> nutzt ein KI-Agent deine Favoriten, in den Grenzen, die du festlegst.</li>
+  <li><b>Favoriten:</b> speichern deine Geräte mit ihren Einstellungen. Passwörter bleiben im Schlüsselbund des Systems.</li>
+</ul>
+<p>OpenLAMT ist ein Client für eine Person an einem Computer. Es spricht mit jedem Gerät direkt im Netzwerk. Es hat keinen Server, kein Cloud-Konto und keinen Fernzugriff über das Internet (kein CIRA oder MPS).</p>
+</div>
+
+<div class="note"><b>Welche Version dieses Handbuch beschreibt</b>Dieses Handbuch folgt dem neuesten Entwicklungsstand von OpenLAMT. Fehlt deiner Version eine hier beschriebene Funktion, aktualisiere auf das neueste Release.</div>
+
+<h2 id="conventions">So liest du dieses Handbuch</h2>
+<div class="prose">
+<ul>
+  <li>Namen von Schaltflächen, Menüs und Feldern stehen <span class="ui">fett</span>, genau so, wie die App sie auf Deutsch zeigt. Bezeichnungen, die die App noch nicht übersetzt, stehen auf Englisch.</li>
+  <li>Die Abbildungen sind im Aussehen der App gezeichnet. Sie folgen dem hellen oder dunklen Erscheinungsbild dieser Seite. Auf einem kleinen Bildschirm wischst du eine Abbildung seitlich, um sie ganz zu sehen.</li>
+  <li>Die Markierungen <span class="lv simple">einfach</span>, <span class="lv q">Rückfrage</span>, <span class="lv or">orange</span> und <span class="lv red">rot</span> nennen die Bestätigung, die eine Aktion verlangt. <a href="confirmations.html">Bestätigungen und Berechtigungen</a> erklärt sie.</li>
+  <li>Alle Namen und Adressen sind Beispiele: <code>example.com</code>, <code>192.0.2.0/24</code>, „ACME Lab“.</li>
+</ul>
+</div>
+<nav class="pager" aria-label="Seiten"><span></span><a href="getting-started.html" rel="next" style="text-align:right"><small>Weiter</small>Erste Schritte</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

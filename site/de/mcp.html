@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP-Server (openlamt-mcp) · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Lass einen KI-Agenten deine OpenLAMT-Favoriten über den lokalen MCP-Server openlamt-mcp nutzen: Installation, Werkzeuge, Bestätigungen und Grenzen.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/mcp.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/mcp.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/mcp.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../mcp.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="mcp.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html" aria-current="page">MCP-Server</a><ol class="toc"><li><a href="#what">Was er ist</a></li><li><a href="#install">Installation</a></li><li><a href="#devices">Geräte, Passwörter und TLS</a></li><li><a href="#tools">Werkzeuge</a></li><li><a href="#config">Begrenzen, was der Agent darf</a></li></ol></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>MCP-Server (openlamt-mcp)</h1>
+<p class="lead">Mit <code>openlamt-mcp</code> nutzt ein KI-Agent deine OpenLAMT-Favoriten: Er liest Status, Hardware, Protokolle, Einstellungen und Konten, steuert den Energiezustand, bootet von einer ISO, sieht den Bildschirm, tippt, nutzt die serielle Konsole und ändert AMT-Einstellungen und Konten. Er läuft auf deinem Computer und öffnet keinen Netzwerkport.</p>
+
+<h2 id="what">Was er ist</h2>
+<div class="prose">
+<p>MCP (Model Context Protocol) ist ein Standard, über den KI-Apps Werkzeuge aufrufen. Claude Desktop, Claude Code und andere MCP-Clients starten <code>openlamt-mcp</code> und sprechen über Standardein- und -ausgabe mit ihm. Der Agent sieht dann Werkzeuge wie <code>list_devices</code> oder <code>power_action</code>.</p>
+</div>
+
+<h2 id="install">Installation</h2>
+<div class="prose">
+<p><code>openlamt-mcp</code> ist ein eigenes Programm neben der App. Lade das Archiv für dein System von der <a href="https://github.com/Srv-02/OpenLAMT/releases">Releases-Seite</a> und entpacke es an einen beliebigen Ort. Es enthält ein einzelnes Programm ohne Abhängigkeiten, dazu seine Lizenzdateien.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>System</th><th>Archiv</th></tr></thead>
+  <tbody>
+    <tr><td>macOS (Apple Silicon)</td><td><code>openlamt-mcp-&lt;version&gt;-macos-arm64.tar.gz</code></td></tr>
+    <tr><td>Windows (x64)</td><td><code>openlamt-mcp-&lt;version&gt;-windows-x64.zip</code></td></tr>
+    <tr><td>Linux (x64)</td><td><code>openlamt-mcp-&lt;version&gt;-linux-x64.tar.gz</code></td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Das Programm ist nicht codesigniert. Unter macOS entfernst du einmal das Quarantäne-Attribut:</p>
+<pre><code>xattr -d com.apple.quarantine openlamt-mcp</code></pre>
+<p>Unter Windows warnt SmartScreen vielleicht beim ersten Start. Um es stattdessen selbst zu bauen: <code>go build -o openlamt-mcp ./cmd/openlamt-mcp</code> (kein C-Compiler nötig). <code>openlamt-mcp --version</code> gibt die Version aus.</p>
+<p>Danach trägst du es in deinem MCP-Client ein:</p>
+<pre><code>{"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}</code></pre>
+<p>Die Update-Prüfung der App bietet diese Archive nie an. Du aktualisierst <code>openlamt-mcp</code>, indem du das neue Archiv herunterlädst.</p>
+</div>
+
+<h2 id="devices">Geräte, Passwörter und TLS</h2>
+<div class="prose">
+<ul>
+  <li>Der Agent sieht deine OpenLAMT-Favoriten unter ihren Namen. Er kann keinen Host, keinen Benutzernamen und kein Gerätepasswort hinzufügen. Die App und <code>openlamt-mcp</code> können gleichzeitig laufen und teilen sich die Favoriten sicher.</li>
+  <li>Gerätepasswörter kommen aus dem Schlüsselbund des Systems. Speichere das Passwort zuerst in der App. Passwörter gehen nie über die MCP-Verbindung und erscheinen nie in Antworten oder Protokollen.</li>
+  <li>Ein TLS-Gerät funktioniert erst, wenn du dich einmal mit der App verbunden und seinem Zertifikat vertraut hast. Der MCP-Server vertraut nie einem neuen Zertifikat.</li>
+  <li>Geräte ohne TLS funktionieren, mit einer Warnung in jeder Antwort.</li>
+  <li>Verlangt ein Gerät eine <a href="amt-settings.html#user-consent">Benutzerzustimmung</a>, muss der Agent eine Person am Gerät nach dem sechsstelligen Code auf dessen Bildschirm fragen und ihn als <code>consent_code</code> übergeben (<code>boot_to_bios</code>, <code>kvm_connect</code>, <code>sol_connect</code>, <code>media_mount</code>).</li>
+</ul>
+</div>
+
+<h2 id="tools">Werkzeuge</h2>
+<div class="prose">
+<p>Die Werkzeuge sind in Gruppen eingeteilt. Du schaltest Gruppen in der <a href="#config">Konfigurationsdatei</a> ein und aus; ein Werkzeug einer ausgeschalteten Gruppe existiert für den Agenten nicht.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Gruppe</th><th>Werkzeuge</th></tr></thead>
+  <tbody>
+    <tr><td>immer</td><td><code>list_devices</code> (kontaktiert kein Gerät)</td></tr>
+    <tr><td><code>read</code></td><td><code>device_status</code>, <code>hardware_info</code>, <code>event_log</code>, <code>audit_log</code>, <code>kvm_screenshot</code>, <code>sol_read</code></td></tr>
+    <tr><td><code>read</code> oder <code>kvm_input</code></td><td><code>kvm_connect</code>, <code>kvm_disconnect</code>, <code>sol_connect</code>, <code>sol_disconnect</code></td></tr>
+    <tr><td><code>read</code> und <code>settings</code></td><td><code>get_settings</code></td></tr>
+    <tr><td><code>read</code> und <code>users</code></td><td><code>list_users</code></td></tr>
+    <tr><td><code>power_boot</code></td><td><code>power_action</code> (on, off, reset, cycle, shutdown), <code>boot_to_bios</code></td></tr>
+    <tr><td><code>media</code></td><td><code>media_mount</code>, <code>media_unmount</code>, <code>media_status</code>, <code>media_boot_next</code>; zusammen mit <code>power_boot</code> auch <code>boot_from_iso</code></td></tr>
+    <tr><td><code>kvm_input</code></td><td><code>kvm_send_keys</code>, <code>kvm_mouse</code>, <code>kvm_type_text</code>, <code>sol_type_text</code>, <code>sol_send_keys</code></td></tr>
+    <tr><td><code>settings</code></td><td><code>set_general</code> (Hostname, Domain, Ping, Dynamisches DNS), <code>set_remote_features</code> (KVM, IDE-R, SOL, Benutzerzustimmung), <code>sync_clock</code>, <code>set_tls_certificate</code></td></tr>
+    <tr><td><code>settings</code> und <code>destructive</code></td><td><code>set_network</code>, <code>set_environment_detection</code>, <code>disable_amt_network</code></td></tr>
+    <tr><td><code>users</code></td><td><code>add_user</code>, <code>update_user</code>, <code>set_user_enabled</code>, <code>delete_user</code></td></tr>
+    <tr><td><code>users</code> und <code>destructive</code></td><td><code>set_admin_account</code></td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p><code>destructive</code> deckt außerdem jede Power-Aktion außer dem Einschalten ab, dazu <code>boot_to_bios</code> und <code>boot_from_iso</code> auf einem Gerät, das nicht ausgeschaltet ist. Ohne diese Gruppe werden diese Aufrufe abgelehnt. Boot-Optionen, One Click Recovery, das Löschen von Laufwerken, Zertifikate, WLAN, System Defense, die Power-Richtlinie, Weckzeiten, die Ereignisweiterleitung und die Einstellungen des Audit-Protokolls gibt es nur in der App.</p>
+
+<h3 id="power">Power</h3>
+<p><code>power_action</code> folgt den Regeln des <a href="device-window.html#power">Power-Menüs</a>: Ein laufendes Gerät lehnt „on“ ab, ein ausgeschaltetes Gerät nimmt nur „on“ an, und „shutdown“ setzt voraus, dass das Gerät es anbietet (<code>device_status</code> sagt das). Ausschalten, Power Cycle und Herunterfahren schließen zuerst eine offene KVM-Sitzung, weil AMT sie bei offenem KVM ablehnt.</p>
+
+<h3 id="remote-screen">Fernbildschirm</h3>
+<ul>
+  <li><code>kvm_connect</code> öffnet die KVM-Sitzung eines Geräts und hält sie für die folgenden Aufrufe offen.</li>
+  <li><code>kvm_screenshot</code> liefert den Bildschirm als Bild in einer Größe für KI-Modelle: standardmäßig höchstens 1280 Pixel an der längsten Seite, als JPEG.</li>
+  <li><code>kvm_send_keys</code> drückt Tasten und Kombinationen wie <code>Ctrl+Alt+Delete</code>. <code>kvm_mouse</code> bewegt, klickt und scrollt an einem Punkt des letzten Screenshots. <code>kvm_type_text</code> tippt Text im Tastaturlayout des Favoriten.</li>
+  <li>AMT erlaubt eine KVM-Sitzung pro Gerät. Solange der Agent sie hält, kann die App KVM zu diesem Gerät nicht verbinden, und umgekehrt. Die Sitzung endet mit <code>kvm_disconnect</code>, nach fünf Minuten ohne Aufruf oder wenn der MCP-Client den Server beendet.</li>
+  <li>Ist KVM am Gerät ausgeschaltet, schaltet <code>kvm_connect</code> es ein. Das ist eine Änderung der Einstellungen: Sie braucht die Gruppe <code>settings</code> und, mit <code>require_client_confirmation</code>, deine Antwort auf eine Rückfrage. Ohne <code>settings</code> sagt der Aufruf, was einzuschalten ist. Die Wecktaste, die <code>kvm_connect</code> bei einer neuen Sitzung drückt, braucht <code>kvm_input</code>.</li>
+</ul>
+
+<h3 id="serial-console">Serielle Konsole</h3>
+<ul>
+  <li><code>sol_connect</code> öffnet die serielle Konsole (Serial over LAN) eines Geräts. Ihre Ausgabe landet in einem Puffer von 1 MiB pro Gerät.</li>
+  <li><code>sol_read</code> liefert die Ausgabe als reinen Text und macht dort weiter, wo das letzte Lesen aufgehört hat.</li>
+  <li><code>sol_type_text</code> schreibt druckbaren ASCII-Text, Zeilenumbrüche als Enter. <code>sol_send_keys</code> drückt Tasten wie <code>Ctrl+C</code>, <code>Up</code> oder <code>F10</code> als xterm-Sequenzen. Ein BIOS-Setup über die serielle Konsole erwartet für Funktionstasten oft andere Codes; dort funktioniert auch KVM.</li>
+  <li>Eine Sitzung der seriellen Konsole pro Gerät: Solange der Agent sie hält, kann die Ansicht „Konsole“ der App nicht verbinden, und umgekehrt. Sie endet mit <code>sol_disconnect</code>, nach fünf Minuten ohne Aufruf oder wenn der Server beendet wird.</li>
+  <li>Ist SOL ausgeschaltet, schaltet <code>sol_connect</code> es nach denselben Regeln ein wie <code>kvm_connect</code>.</li>
+</ul>
+
+<h3 id="media">Medien</h3>
+<ul>
+  <li><code>media_mount</code> hängt eine <code>.iso</code>-Datei oder einen Ordner als schreibgeschütztes CD-Laufwerk an einem Gerät ein. Der Agent gibt den absoluten Pfad auf dem Computer an, auf dem <code>openlamt-mcp</code> läuft. Ein Ordner wird zuerst zu einer temporären ISO, wie in der App. Ein großer Ordner dauert eine Weile, und das Erstellen läuft innerhalb des Werkzeugaufrufs; ein Client mit kurzem Timeout für Werkzeuge bricht es deshalb vielleicht ab.</li>
+  <li><code>media_boot_next</code> lässt das Gerät beim nächsten Start vom Abbild booten. <code>boot_from_iso</code> startet es jetzt vom Abbild neu; ein ausgeschaltetes Gerät wird nur eingeschaltet. <code>media_status</code> zeigt, was eingehängt ist und wie schnell das Gerät es liest.</li>
+  <li>Das Abbild bleibt eingehängt bis <code>media_unmount</code>, bis das Gerät die Sitzung beendet oder bis der Client den Server beendet. Die mit <code>media_boot_next</code> gesetzte Boot-Option wird dann gelöscht. Scheitert ein Boot vom Abbild auf halbem Weg, löscht <code>media_unmount</code> die Boot-Option ebenfalls.</li>
+  <li>Eine Mediensitzung pro Gerät: Solange der Agent sie hält, kann das Menü „Medien“ der App auf diesem Gerät nichts einhängen, und umgekehrt.</li>
+  <li>Ist die Medienumleitung (IDE-R) ausgeschaltet, schaltet <code>media_mount</code> sie ein, und sie bleibt eingeschaltet. Dafür braucht es die Gruppe <code>settings</code>.</li>
+</ul>
+<div class="warn"><b>Ein eingehängter Ordner ist am Gerät lesbar.</b>Wer das Gerät oder seinen Fernbildschirm nutzt, kann jede Datei eines eingehängten Ordners lesen. <code>openlamt-mcp</code> lehnt deshalb einige Ordner ab, aber die Liste kann nicht jeden Ort mit Geheimnissen abdecken. Setze <code>media.allowed_paths</code> auf die Ordner mit deinen Abbildern.</div>
+<div class="prose">
+<p>So schützt <code>media_mount</code> deine Dateien:</p>
+<ul>
+  <li>Es löst zuerst Links auf und hängt nur den aufgelösten Pfad ein. Direkt vor dem Öffnen prüft es, dass die Datei noch dieselbe ist, die es geprüft hat. Ein Ordnerabbild baut es so, dass nichts außerhalb des Ordners hineingeraten kann. Links innerhalb des Ordners lässt es weg.</li>
+  <li>Es hängt nie deinen Home-Ordner selbst ein, keinen Ordner darüber und nicht die Ordner mit Zugangsdaten und Einstellungen: <code>~/.ssh</code>, <code>~/.gnupg</code>, <code>~/.aws</code>, <code>~/.azure</code>, <code>~/.config</code>, <code>~/.local/share</code>, <code>~/.local/state</code>, <code>~/.kube</code>, <code>~/.docker</code>, <code>~/.password-store</code>, <code>~/.mozilla</code>, <code>~/.thunderbird</code>, <code>~/.pki</code>, <code>~/.claude</code>, <code>~/.cargo</code>, <code>~/.m2</code>, <code>~/.gradle</code>, <code>~/.terraform.d</code>, <code>~/.var/app</code>, <code>~/snap</code>, unter macOS ganz <code>~/Library</code>, unter Windows <code>%APPDATA%</code> und <code>%LOCALAPPDATA%</code>, und den OpenLAMT-Konfigurationsordner mit den Favoriten, <code>openlamt-mcp.json</code> und dem Aktionsprotokoll.</li>
+  <li>Es erkennt diese Ordner am Dateisystem, nicht an ihrer Schreibweise: Ein Link, ein Bind-Mount, ein macOS-Firmlink oder eine Windows-Junction auf einen davon wird ebenfalls abgelehnt, und ein Ordnerabbild bricht ab, sobald einer davon darin auftaucht.</li>
+  <li>Unter Windows werden Pfade mit <code>\\?\</code> und <code>\\.\</code> sowie administrative Freigaben wie <code>\\host\C$</code> abgelehnt.</li>
+</ul>
+</div>
+
+<h3 id="settings-accounts">AMT-Einstellungen und Konten</h3>
+<div class="prose">
+<p><code>get_settings</code> und <code>list_users</code> zeigen, was die Seiten <a href="management.html#settings">Einstellungen</a> und <a href="management.html#users">Benutzer</a> der App zeigen. Einen Abschnitt, den das Konto nicht lesen darf, listet <code>not_permitted</code>, einen, den die Firmware nicht hat, <code>not_available</code>. Die anderen Werkzeuge ändern, was diese Seiten ändern, mit denselben <a href="confirmations.html">Bestätigungsstufen</a>:</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Stufe in der App</th><th>Änderungen</th><th>Was <code>openlamt-mcp</code> tut</th></tr></thead>
+  <tbody>
+    <tr><td><span class="lv none">keine</span></td><td>Ping, das Einschalten einer Funktion (auch durch <code>kvm_connect</code>, <code>sol_connect</code> oder <code>media_mount</code>), das Anheben der Benutzerzustimmung, die Uhr, das Hinzufügen, Bearbeiten oder Deaktivieren eines anderen Kontos</td><td>Fragt dich im MCP-Client nur mit <code>require_client_confirmation</code>.</td></tr>
+    <tr><td><span class="lv or">orange</span></td><td>Hostname, Domain, Dynamisches DNS, das Ausschalten von KVM, IDE-R oder SOL, das TLS-Zertifikat, das Konto, mit dem sich der Favorit anmeldet, das Löschen eines Kontos, das Absenken der Richtlinie für die Benutzerzustimmung</td><td>Fragt dich im MCP-Client <b>immer</b>. Ein Client, der nicht fragen kann, bekommt eine Ablehnung; nimm die Änderung dann in der App vor.</td></tr>
+    <tr><td><span class="lv red">rot</span></td><td>Netzwerkeinstellungen, Umgebungserkennung, das Abschalten von AMT im Netzwerk, das Admin-Konto</td><td>Braucht zusätzlich die Gruppe <code>destructive</code>, der Agent muss den Gerätenamen in <code>confirm</code> wiederholen, und du wirst immer gefragt.</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<ul>
+  <li>Die Rückfrage zeigt, was sich ändert, und die Warnung der App. Deine Antwort gilt nur für genau diese Argumente und diesen Favoriten (Name, Host und Benutzer). Ändert sich eines davon, wird der Aufruf abgelehnt.</li>
+  <li>Das Absenken der Richtlinie für die Benutzerzustimmung zählt als orange, weil KVM, SOL, IDE-R und Boot-Änderungen danach ohne Bestätigung durch eine Person am Gerät laufen. Lässt sich die aktuelle Richtlinie nicht lesen, zählt die Änderung als Absenken.</li>
+  <li>Ändert sich das Konto, mit dem sich der Favorit anmeldet, oder dessen Zertifikat, ziehen Schlüsselbund und Favorit nach, wie in der App.</li>
+</ul>
+<h3 id="passwords">Passwörter von AMT-Konten</h3>
+<p>Passwörter neuer oder geänderter Konten sind Argumente von Werkzeugen: Der Agent wählt sie, deshalb sind sie Teil deiner Unterhaltung mit ihm und der Aufzeichnungen des MCP-Clients. <code>openlamt-mcp</code> schreibt sie nie ins Aktionsprotokoll, in eine Logzeile, eine Antwort oder eine Rückfrage.</p>
+<p>Ohne TLS bekommt das Gerät das Passwort als Digest, der wie das Passwort selbst funktioniert. Wie die App fragt <code>openlamt-mcp</code> dich dann <b>immer</b>, bevor es einen sendet (<code>add_user</code>, <code>update_user</code>, <code>set_admin_account</code>), egal was <code>require_client_confirmation</code> sagt. Dasselbe gilt für <code>kvm_type_text</code> und <code>sol_type_text</code> mit <code>secret</code> auf einem Gerät ohne TLS. Ein Client, der nicht fragen kann, bekommt eine Ablehnung mit dem Grund; nutze TLS, die App oder einen Client, der fragen kann.</p>
+</div>
+
+<h2 id="config">Begrenzen, was der Agent darf</h2>
+<div class="warn"><b>Ohne Konfigurationsdatei ist alles erlaubt.</b>Jeder Favorit und jede Aktion; nur die orangen und roten Änderungen an Einstellungen und Konten fragen nach. Schreib eine Konfigurationsdatei, bevor du deine Geräte einem Agenten überlässt, dem du nicht ganz vertraust.</div>
+<div class="prose">
+<p>Die Konfigurationsdatei ist <code>openlamt-mcp.json</code> neben <code>favorites.json</code> in deinem Konfigurationsordner, oder die Datei, die du mit <code>--config &lt;path&gt;</code> angibst. Das sind die Standardwerte:</p>
+<pre><code>{
+  "read_only": false,
+  "allowed_devices": [],
+  "tool_groups": {"read": true, "power_boot": true, "media": true, "kvm_input": true,
+                  "settings": true, "users": true, "destructive": true},
+  "require_client_confirmation": false,
+  "action_log": {"enabled": true, "path": ""},
+  "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
+          "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
+  "sol": {"idle_timeout_seconds": 300},
+  "media": {"allowed_paths": []}
+}</code></pre>
+<p>Jeder Schlüssel, den du weglässt, behält seinen Standardwert. Ein unbekannter Schlüssel stoppt den Server, damit ein Tippfehler nicht alles offen lässt.</p>
+</div>
+<dl class="terms">
+  <dt><code>read_only</code></dt><dd>Lässt nur die lesenden Werkzeuge übrig: Status, Protokolle, Einstellungen und Konten, den Screenshot und das Lesen der seriellen Konsole. Es schreibt nie eine Einstellung, schaltet nie KVM, SOL oder die Medienumleitung ein und sendet keine Eingaben ans Gerät. Eine Anfrage zur Benutzerzustimmung kann trotzdem einen Code auf dem Bildschirm des Geräts anzeigen; das ändert keine Einstellung.</dd>
+  <dt><code>allowed_devices</code></dt><dd>Namen der Favoriten, die der Agent nutzen darf. Leer heißt alle.</dd>
+  <dt><code>tool_groups</code></dt><dd>Schaltet die Gruppen der <a href="#tools">Werkzeugtabelle</a> ein und aus.</dd>
+  <dt><code>require_client_confirmation</code></dt><dd>Fragt dich im MCP-Client vor jeder Power-Aktion, jedem Tasten-, Maus- oder Tippaufruf, jedem Einhängen und <code>media_boot_next</code> sowie jeder Änderung an Einstellungen oder Konten. Orange und rote Änderungen fragen immer. Die Rückfrage zeigt jede Taste, den zu tippenden Text und den vollen Pfad zum Einhängen, nachdem Links aufgelöst sind. Jeder Zeilenumbruch (ein Druck auf Enter) erscheint als ⏎, unsichtbare oder richtungsändernde Zeichen als ihr Codepoint. Markiert der Agent eine einzelne Zeile als <code>secret</code>, sagt die Rückfrage, dass der Agent sie verbergen wollte. Ein Client, der nicht fragen kann, bekommt eine Ablehnung.</dd>
+  <dt><code>action_log</code></dt><dd>Schreibt eine Zeile pro Werkzeugaufruf nach <code>openlamt-mcp-actions.log</code> neben der Konfigurationsdatei, oder nach <code>path</code>. Darin stehen Tasten und Mausaktionen, eingehängte Pfade und die geänderten Einstellungen, aber nie Text, der über KVM oder die serielle Konsole getippt wurde, kein Consent-Code und kein Passwort.</dd>
+  <dt><code>kvm</code></dt><dd>Das Leerlauf-Timeout einer KVM-Sitzung (<code>0</code> hält sie offen, bis der Server stoppt) und die Standardgröße, das Format (<code>jpeg</code> oder <code>png</code>) und die Qualität von Screenshots. Der Agent kann pro Aufruf eine andere Größe oder ein anderes Format verlangen.</dd>
+  <dt><code>sol</code></dt><dd>Das Leerlauf-Timeout einer Sitzung der seriellen Konsole.</dd>
+  <dt><code>media.allowed_paths</code></dt><dd>Begrenzt <code>media_mount</code> auf die Ordner, die du aufzählst (absolute Pfade). Leer heißt überall außer in den geschützten Ordnern.</dd>
+</dl>
+<div class="prose">
+<h3 id="hardening">Ein sicherer Start</h3>
+<p>Für einen Helfer-Agenten, der nur schaut:</p>
+<pre><code>{"read_only": true, "allowed_devices": ["Lab-Server"]}</code></pre>
+<p>Für einen Agenten, der handeln darf: Zähle die Geräte in <code>allowed_devices</code> auf, schalte die Gruppen aus, die du nicht brauchst (zuerst <code>destructive</code>, <code>settings</code> und <code>users</code>), schalte <code>require_client_confirmation</code> ein und setze <code>media.allowed_paths</code>:</p>
+<pre><code>{
+  "allowed_devices": ["Lab-Server"],
+  "tool_groups": {"destructive": false, "settings": false, "users": false},
+  "require_client_confirmation": true,
+  "media": {"allowed_paths": ["/home/me/iso"]}
+}</code></pre>
+</div>
+<nav class="pager" aria-label="Seiten"><a href="troubleshooting.html" rel="prev"><small>Zurück</small>Fehlerbehebung</a><a href="about.html" rel="next" style="text-align:right"><small>Weiter</small>Über OpenLAMT</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

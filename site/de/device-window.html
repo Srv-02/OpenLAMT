@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Das Gerätefenster · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Stromsteuerung, Fernbildschirm (KVM), Screenshots, Aufnahmen, serielle Konsole und Medien im Gerätefenster.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/device-window.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/device-window.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/device-window.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../device-window.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="device-window.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html" aria-current="page">Gerätefenster</a><ol class="toc"><li><a href="#overview">Symbolleiste und Statusleiste</a></li><li><a href="#power">Power-Menü</a></li><li><a href="#boot-options">Boot-Optionen</a></li><li><a href="#kvm">Fernbildschirm (KVM)</a></li><li><a href="#console">Serielle Konsole (SOL)</a></li><li><a href="#media">Medien (IDE-R)</a></li></ol></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Das Gerätefenster</h1>
+<p class="lead">Jedes Gerät öffnet sich in einem eigenen Fenster. Die Symbolleiste enthält Stromsteuerung, Fernbildschirm, serielle Konsole, Medien und Geräteverwaltung.</p>
+
+<h2 id="overview">Symbolleiste und Statusleiste</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server</span></div>
+  <div class="tb">
+    <div class="who"><span class="dot on"></span><div><b>Lab-Server</b><small>192.0.2.10</small></div></div>
+    <div class="ti act"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span><span>Power</span>
+      <div class="menu" style="top:56px;left:0">
+        <div class="mi dis"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Einschalten</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Ausschalten …</div>
+        <div class="msep"></div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-reset"/></svg>Reset …</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cycle"/></svg>Power Cycle …</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-chip"/></svg>Neustart ins BIOS …</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-disc"/></svg>Von ISO booten…</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-boot"/></svg>Boot-Optionen…</div>
+        <div class="msep"></div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Herunterfahren …</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Schlafmodus…</div>
+        <div class="mi dis"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Hibernate…</div>
+      </div>
+    </div>
+    <div class="tdiv"></div>
+    <div class="segk"><div class="ti act"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-monitor"/></svg><span>KVM</span></div><div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-console"/></svg><span>Konsole</span></div></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-disc"/></svg><span>Medien</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;gap:2px;color:var(--text)"><span class="hq">HQ</span><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span><span>Qualität</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-zoom"/></svg><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span><span>Skalierung</span></div>
+    <div class="tdiv"></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-keyboard"/></svg><span>Ctrl+Alt+Del</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-clip"/></svg><span>Zwischenablage tippen</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-keyboard"/></svg><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span><span>Tastatur</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-camera"/></svg><span>Screenshot</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-rec"/></svg><span>Aufnehmen</span></div>
+    <div class="tdiv"></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-panel"/></svg><span>Verwalten</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-full"/></svg><span>Vollbild</span></div>
+  </div>
+  <div class="stage" style="height:520px">
+    <div class="rscreen">
+      <div class="ttl">Ubuntu 24.04.1 LTS lab-server tty1</div><div>&nbsp;</div>
+      <div>lab-server login: admin</div><div>Password:</div><div>Last login: Sun Nov 22 21:04:11 2026 from 192.0.2.50</div>
+      <div>admin@lab-server:~$ uptime</div><div> 10:14:12 up 3 days,  2:41,  1 user,  load average: 0.08, 0.05, 0.01</div><div>admin@lab-server:~$ _</div>
+    </div>
+  </div>
+  <div class="stbar">
+    <span class="item"><span class="dot on"></span>Eingeschaltet</span><span>AMT 16.1.25</span><span>Control Mode ACM</span>
+    <span class="sp"></span>
+    <span class="item"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-lock"/></svg>TLS</span><span>KVM verbunden</span>
+  </div>
+</div></div>
+<figcaption>Das Gerätefenster mit dem Fernbildschirm und geöffnetem Power-Menü. Hibernate ist grau, weil dieses Gerät es nicht unterstützt.</figcaption>
+</figure>
+<div class="prose">
+<p>Die Symbolleiste hat vier Gruppen:</p>
+<ol>
+  <li><span class="ui">Power</span>: das Power-Menü.</li>
+  <li><span class="ui">KVM</span> und <span class="ui">Konsole</span> wechseln die Ansicht. <span class="ui">Medien</span>, <span class="ui">Qualität</span> und <span class="ui">Skalierung</span> gehören dazu.</li>
+  <li>Eingabe und Aufnahme: <span class="ui">Ctrl+Alt+Del</span>, <span class="ui">Zwischenablage tippen</span>, <span class="ui">Tastatur</span>, <span class="ui">Screenshot</span>, <span class="ui">Aufnehmen</span>.</li>
+  <li><span class="ui">Verwalten</span> öffnet die <a href="management.html">Geräteverwaltung</a>. <span class="ui">Vollbild</span> füllt den Bildschirm mit dem Bild des Geräts.</li>
+</ol>
+<p>Die Statusleiste zeigt den Energiezustand, die AMT-Version, den <a href="amt-settings.html#control-mode">Steuerungsmodus</a>, ob die Verbindung TLS nutzt, und den Zustand des Fernbildschirms. Meldungen zu Screenshots, Aufnahmen und Medien erscheinen ebenfalls dort.</p>
+</div>
+
+<h2 id="power">Power-Menü</h2>
+<div class="prose">
+<p>OpenLAMT liest den Energiezustand, wenn du das Menü öffnest. Einträge, die nicht zum Zustand passen, sind grau: Ein laufendes Gerät lässt sich nicht einschalten, ein ausgeschaltetes Gerät bietet nur <span class="ui">Einschalten</span>, <span class="ui">Neustart ins BIOS …</span>, <span class="ui">Von ISO booten…</span> und <span class="ui">Boot-Optionen…</span> an. Während das Gerät schläft (S3), sind <span class="ui">Neustart ins BIOS …</span>, <span class="ui">Von ISO booten…</span> und <span class="ui">Boot-Optionen…</span> grau: Aufwecken startet es nicht neu. Im Ruhezustand oder bei unbekanntem Zustand sind alle Einträge wählbar. Einträge mit „…“ fragen vorher nach.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Eintrag</th><th>Was passiert</th><th>Rückfrage</th></tr></thead>
+  <tbody>
+    <tr><td class="ui">Einschalten</td><td>Schaltet das Gerät ein.</td><td><span class="lv none">nein</span></td></tr>
+    <tr><td class="ui">Ausschalten …</td><td>Schaltet sofort aus, ohne das Betriebssystem herunterzufahren. Ungespeicherte Daten und laufende VMs gehen verloren.</td><td><span class="lv simple">einfach</span></td></tr>
+    <tr><td class="ui">Reset …</td><td>Startet sofort neu, ohne das Betriebssystem herunterzufahren.</td><td><span class="lv simple">einfach</span></td></tr>
+    <tr><td class="ui">Power Cycle …</td><td>Schaltet sofort aus und wieder ein, ohne das Betriebssystem herunterzufahren.</td><td><span class="lv simple">einfach</span></td></tr>
+    <tr><td class="ui">Neustart ins BIOS …</td><td>Startet sofort neu und öffnet das BIOS-Setup. Ein ausgeschaltetes Gerät schaltet sich direkt ins BIOS ein. Fragt nach dem <a href="getting-started.html#consent">Consent-Code</a>, wenn das Gerät einen verlangt.</td><td><span class="lv simple">einfach</span>, keine bei ausgeschaltetem Gerät</td></tr>
+    <tr><td class="ui">Von ISO booten…</td><td>Startet einmal von dem ISO neu, das du unter <a href="#media">Medien</a> eingehängt hast. Grau ohne eingehängtes Image.</td><td><span class="lv q">Rückfrage</span></td></tr>
+    <tr><td class="ui">Boot-Optionen…</td><td>Wählt, wovon das Gerät als Nächstes startet, mit Optionen und mit One Click Recovery. Siehe <a href="#boot-options">Boot-Optionen</a>.</td><td>Der Dialog ist die Bestätigung; <span class="lv or">orange</span> bei HTTPS-Boot von einer Datei</td></tr>
+    <tr><td class="ui">Herunterfahren …</td><td>Fährt das Betriebssystem geordnet herunter und schaltet dann aus.</td><td><span class="lv simple">einfach</span></td></tr>
+    <tr><td class="ui">Schlafmodus…</td><td>Das Betriebssystem geht in den Schlafmodus. Das Gerät bleibt erreichbar und wacht auf Anforderung auf.</td><td><span class="lv simple">einfach</span></td></tr>
+    <tr><td class="ui">Hibernate…</td><td>Das Betriebssystem sichert den Arbeitsspeicher auf die Platte und schaltet sich aus.</td><td><span class="lv simple">einfach</span></td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p><span class="ui">Herunterfahren …</span> braucht die Hilfe des Betriebssystems. AMT bietet es nur an, solange der Intel-Managementdienst (LMS) auf dem Gerät läuft. <span class="ui">Schlafmodus…</span> und <span class="ui">Hibernate…</span> bleiben grau, solange das Gerät diese Energiezustände nicht meldet. Die <a href="management.html#power">Seite Power</a> zeigt, welche Zustände ein Gerät unterstützt.</p>
+<p>AMT verweigert Ausschalten, Power Cycle und Herunterfahren, solange eine Sitzung auf dem Fernbildschirm offen ist. OpenLAMT schließt die Sitzung deshalb zuerst und verbindet sich erneut, sobald das Gerät wieder da ist.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <div class="qhead"><div class="qtile red"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg></div><div style="flex:1">
+    <h4>Lab-Server ausschalten?</h4>
+    <p>Das Gerät wird sofort ausgeschaltet, ohne das Betriebssystem herunterzufahren. Ungespeicherte Daten und laufende VMs gehen verloren.</p></div></div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red">Ausschalten</span></div>
+  </div>
+</div></div>
+<figcaption>Eine einfache Bestätigung. <span class="ui">Abbrechen</span> hat den Fokus, und die Eingabetaste führt die Aktion nicht aus.</figcaption>
+</figure>
+
+<h2 id="boot-options">Boot-Optionen</h2>
+<div class="prose">
+<p><span class="ui">Boot-Optionen…</span> im Power-Menü wählt, wovon das Gerät als Nächstes startet, mit den Optionen eines BIOS-Bootmenüs. Die Wahl gilt nur für den nächsten Start. <span class="ui">Neustart ins BIOS …</span> und <span class="ui">Von ISO booten…</span> bleiben als Abkürzungen im Menü.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Boot-Optionen für Lab-Server</h4>
+    <div class="fl" style="margin-top:0">Starten von</div>
+    <div class="rad"><i></i>Festplatte (Standardreihenfolge)</div><div class="rad on"><i></i>Netzwerk (PXE)</div><div class="rad"><i></i>HTTPS-Boot (One Click Recovery)</div><div class="rad"><i></i>BIOS-Setup</div><div class="rad dis"><i></i>Eingebundenes ISO · zuerst unter Medien ein ISO einbinden</div>
+    <div class="fl">Optionen</div>
+    <div class="grid2"><span class="ck"><i></i>Start in der Konsole zeigen (SOL)</span><span class="ck dis"><i></i>Abgesicherter Modus</span><span class="ck dis"><i></i>Vor dem Start im BIOS anhalten</span><span class="ck"><i></i>Secure Boot erzwingen</span><span class="ck"><i></i>Ein-/Aus-Taste sperren</span><span class="ck"><i></i>Reset-Taste sperren</span><span class="ck"><i></i>Standby-Taste sperren</span><span class="ck"><i></i>Tastatur sperren</span><span class="ck"><i></i>BIOS-Passwort umgehen</span><span class="ck dis"><i></i>Startfortschritt protokollieren (nicht unterstützt)</span></div>
+    <div class="r" style="padding:10px 0 0;border:0;min-height:0"><span class="lw" style="font-weight:600;font-size:12.5px">Firmware-Meldungen</span><span class="dd">Systemstandard <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span></div>
+    <div class="hint" style="margin-top:10px">Gilt nur für den nächsten Start.</div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red">Neu starten</span></div>
+  </div>
+</div></div>
+<figcaption>Start aus dem Netzwerk. Abgesicherter Modus und die BIOS-Pause passen nicht zu PXE und sind deshalb grau. Dieses Gerät kann seinen Startfortschritt nicht protokollieren.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Starten von</dt><dd><span class="ui">Festplatte (Standardreihenfolge)</span>, <span class="ui">Netzwerk (PXE)</span>, <span class="ui">HTTPS-Boot (One Click Recovery)</span>, <span class="ui">BIOS-Setup</span> oder <span class="ui">Eingebundenes ISO</span>. Für das ISO muss zuerst ein Image unter <a href="#media">Medien</a> eingehängt sein.</dd>
+  <dt>Optionen</dt><dd>Den Start in der <a href="#console">seriellen Konsole</a> zeigen (das Fenster wechselt nach dem Start zu <span class="ui">Konsole</span>), abgesicherter Modus, eine Pause im BIOS vor dem Start, Secure Boot erzwingen, Ein-/Aus-, Reset- und Standby-Taste sowie die Tastatur des Geräts während des Starts sperren, das BIOS-Passwort umgehen und den Startfortschritt ins Ereignisprotokoll schreiben.</dd>
+  <dt>Firmware-Meldungen</dt><dd>Wie viel das BIOS beim Start anzeigt: <span class="ui">Systemstandard</span>, <span class="ui">Wenig</span>, <span class="ui">Ausführlich</span> oder <span class="ui">Bildschirm schwarz</span>, sofern das Gerät sie anbietet.</dd>
+</dl>
+<ul>
+  <li>Was das Gerät nicht unterstützt, ist grau und trägt den Zusatz „(nicht unterstützt)“. Optionen, die nicht zum gewählten Ziel passen, sind ebenfalls grau: abgesicherter Modus nur mit der Festplatte, keine BIOS-Pause bei PXE oder HTTPS-Boot, keine Konsole und kein Umgehen des Passworts bei HTTPS-Boot.</li>
+  <li>Die Schaltfläche heißt rot <span class="ui">Neu starten</span>, solange das Gerät läuft, und blau <span class="ui">Einschalten</span>, solange es aus ist. Der Dialog ist die Bestätigung. Nur HTTPS-Boot von einer Datei auf diesem Computer fragt zusätzlich <span class="lv or">orange</span> nach.</li>
+  <li>Verlangt das Gerät eine <a href="amt-settings.html#user-consent">Benutzerzustimmung</a>, fragt OpenLAMT zuerst nach dem Code. Ein abgebrochener oder falscher Code ändert nichts.</li>
+  <li>Ein schlafendes Gerät weist OpenLAMT ab, weil Aufwecken es nicht neu startet: „Wecke es mit ‚Einschalten‘, warte, bis es läuft, und versuche es dann erneut. Es wurde nichts geändert.“</li>
+  <li>Der Eintrag ist grau, solange eine andere Power-Aktion oder eine One Click Recovery läuft.</li>
+</ul>
+<p>Schlägt ein Schritt fehl, nachdem die Boot-Optionen geschrieben wurden, etwa weil die Verbindung abgebrochen ist, setzt OpenLAMT sie wieder zurück. Gelingt auch das nicht, sagt die Meldung, dass der nächste Neustart sie noch verwenden kann. Zum Zurücksetzen verbinde dich erneut und starte <span class="ui">Boot-Optionen…</span> mit <span class="ui">Festplatte (Standardreihenfolge)</span>.</p>
+</div>
+
+<h3 id="one-click-recovery">One Click Recovery (HTTPS-Boot)</h3>
+<div class="prose">
+<p>One Click Recovery startet das Gerät einmal von einem Wiederherstellungs- oder Installations-Image über HTTPS, ohne USB-Stick oder PXE-Server. Das Gerät braucht Intel AMT 16 oder neuer, und One Click Recovery muss an zwei Stellen eingeschaltet sein: im BIOS und unter <a href="management.html#settings">Einstellungen › Fernzugriff</a>. Sonst ist das Ziel grau mit dem Hinweis „One Click Recovery ist aus. Schalte es unter Geräteverwaltung › Einstellungen › Fernzugriff ein.“</p>
+<p>Wähle <span class="ui">HTTPS-Boot (One Click Recovery)</span> und dann, woher das Image kommt:</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Boot-Optionen für Lab-Server</h4>
+    <div class="fl" style="margin-top:0">Starten von</div>
+    <div class="rad"><i></i>Festplatte (Standardreihenfolge)</div><div class="rad"><i></i>Netzwerk (PXE)</div><div class="rad on"><i></i>HTTPS-Boot (One Click Recovery)</div>
+    <div style="margin:6px 0 4px;padding:10px 12px;background:var(--card);border-radius:8px;border:1px solid var(--sep)">
+      <span class="seg"><span class="on">Datei auf diesem Computer</span><span>URL</span></span>
+      <div class="fl">Image</div><div style="display:flex;gap:8px"><div class="fld mono" style="flex:1;font-size:12px">recovery.efi · 118 MB</div><span class="b out">Datei wählen…</span></div>
+      <div class="fl">Adresse, von der das Gerät lädt</div><div style="display:flex;gap:8px"><span class="dd" style="flex:1;height:30px">192.0.2.50 (Ethernet) <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span><div class="fld" style="width:90px">8443</div></div>
+      <div class="hint">OpenLAMT stellt die Datei über HTTPS bereit, bis das Gerät sie geladen hat, höchstens 10 Minuten. Erlaube eingehende Verbindungen auf diesem Port.</div>
+    </div>
+    <div class="rad"><i></i>BIOS-Setup</div><div class="rad dis"><i></i>Eingebundenes ISO · zuerst unter Medien ein ISO einbinden</div>
+    <div class="fl">Optionen</div>
+    <div class="grid2"><span class="ck dis"><i></i>Start in der Konsole zeigen (SOL)</span><span class="ck dis"><i></i>Abgesicherter Modus</span><span class="ck dis"><i></i>Vor dem Start im BIOS anhalten</span><span class="ck"><i></i>Secure Boot erzwingen</span><span class="ck"><i></i>Ein-/Aus-Taste sperren</span><span class="ck"><i></i>Reset-Taste sperren</span><span class="ck"><i></i>Standby-Taste sperren</span><span class="ck"><i></i>Tastatur sperren</span><span class="ck dis"><i></i>BIOS-Passwort umgehen</span><span class="ck dis"><i></i>Startfortschritt protokollieren (nicht unterstützt)</span></div>
+    <div class="r" style="padding:10px 0 0;border:0;min-height:0"><span class="lw" style="font-weight:600;font-size:12.5px">Firmware-Meldungen</span><span class="dd">Systemstandard <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span></div>
+    <div class="wbox" style="margin-top:12px"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div>OpenLAMT legt ein temporäres Root-Zertifikat auf Lab-Server ab, damit das Gerät dem HTTPS-Server dieses Computers vertraut. OpenLAMT entfernt es nach dem Download oder nach 10 Minuten.</div></div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Neu starten</span></div>
+  </div>
+  <div class="dlg w520">
+    <div class="fl" style="margin-top:0">Image-URL</div><div class="fld mono" style="font-size:12px">https://boot.example.com/recovery.efi</div>
+    <div class="hint">Das Zertifikat des Servers muss auf ein vertrauenswürdiges Root-Zertifikat von Lab-Server zurückgehen (Geräteverwaltung › Zertifikate).</div>
+  </div>
+</div></div>
+<figcaption>HTTPS-Boot von einer Datei auf diesem Computer mit der orangen Bestätigung, daneben die Felder, die bei URL an die Stelle der Datei treten.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Datei auf diesem Computer</dt><dd>Wähle ein <code>.efi</code>- oder <code>.iso</code>-Image. OpenLAMT stellt es von deinem Computer aus über HTTPS bereit, auf der Adresse und dem Port, die du wählst (Standard: die Adresse, die zum Gerät führt, Port 8443). Es legt ein temporäres Root-Zertifikat „OpenLAMT recovery (temporary)“ auf dem Gerät ab, damit das Gerät diesem Server vertraut. Dafür fragt OpenLAMT <span class="lv or">orange</span> nach. Erlaube in deiner Firewall eingehende Verbindungen auf diesem Port.</dd>
+  <dt>URL</dt><dd>Das Gerät lädt das Image von deinem eigenen HTTPS-Server. Dessen Zertifikat muss auf ein vertrauenswürdiges Root-Zertifikat auf dem Gerät zurückgehen; importiere dieses Root-Zertifikat vorher auf der <a href="management.html#certificates">Seite Zertifikate</a>. Auf deinem Computer läuft dann kein Server, und OpenLAMT legt kein Zertifikat ab.</dd>
+</dl>
+<p>Während das Gerät die Datei lädt, zeigt die Statusleiste den Fortschritt, zum Beispiel „Stelle recovery.efi bereit · 48 von 118 MB“. Der Server stoppt nach einem vollständigen Download, nach 10 Minuten oder wenn du das Fenster schließt. Dann entfernt OpenLAMT das temporäre Root-Zertifikat wieder.</p>
+<ul>
+  <li>„Port 8443 ist belegt. Wähle einen anderen Port.“: Ein anderes Programm nutzt den Port.</li>
+  <li>„Lab-Server hat das Image nicht geladen. Prüfe die Firewall auf diesem Computer.“: Das Gerät hat die Datei nicht innerhalb von 10 Minuten abgeholt.</li>
+  <li>Lässt sich das temporäre Root-Zertifikat nicht entfernen, nennt die Meldung seinen Namen. Lösche es dann selbst auf der <a href="management.html#certificates">Seite Zertifikate</a>.</li>
+</ul>
+<div class="warn"><b>Schalte One Click Recovery aus, wenn du es nicht brauchst.</b>Solange es an ist, kann jedes Konto mit Power-Rechten das Gerät von einem beliebigen Image starten.</div>
+</div>
+
+<h2 id="kvm">Fernbildschirm (KVM)</h2>
+<div class="prose">
+<p>KVM zeigt den Bildschirm des Geräts und sendet deine Tastatur- und Mauseingaben an das Gerät. Das funktioniert ab dem Einschalten, auch im BIOS und im Bootloader.</p>
+<ul>
+  <li>Klicke auf <span class="ui">KVM verbinden</span> in der Mitte des Fensters. Ist die <a href="favorites.html#favorite-fields">KVM-Autoverbindung</a> eingeschaltet, verbindet sich der Bildschirm, sobald sich das Fenster öffnet.</li>
+  <li>Fragt das Gerät nach einer <a href="getting-started.html#consent">Benutzerzustimmung</a>, gib den sechsstelligen Code von seinem Bildschirm ein.</li>
+  <li>Beim Verbinden drückt OpenLAMT eine harmlose Taste (F15), um einen dunklen Bildschirm aufzuwecken.</li>
+  <li><span class="ui">Qualität</span> wechselt zwischen „Hohe Qualität (65.536 Farben)“ und „Niedrige Qualität (256 Farben)“. Niedrige Qualität ist auf langsamen Verbindungen schneller.</li>
+  <li>OpenLAMT beendet die Sitzung nach einer Zeit ohne Eingabe. Die Zeit stellst du in den <a href="settings.html#remote-screen">Einstellungen</a> ein.</li>
+  <li>AMT erlaubt eine KVM-Sitzung pro Gerät. Belegt ein anderes Werkzeug sie, lehnt das Gerät eine zweite ab.</li>
+</ul>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="win w880 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server</span></div>
+  <div class="stage" style="height:320px">
+    <div class="empty" style="color:#A1A1A6">
+      <div style="width:72px;height:72px;border-radius:16px;background:#1E1E20;display:grid;place-items:center;margin:0 auto 14px;color:#A1A1A6"><svg class="i s32" aria-hidden="true"><use href="../assets/icons.svg#i-monitor"/></svg></div>
+      <b style="color:#F5F5F7;font-size:17px">Entfernter Bildschirm nicht verbunden</b>Lab-Server ist eingeschaltet. Verbinde KVM, um den Bildschirm zu sehen<br>und Tastatur und Maus zu steuern.
+      <div style="margin-top:16px"><span class="b pri" style="height:36px"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-monitor"/></svg>KVM verbinden</span></div>
+    </div>
+  </div>
+  <div class="stbar"><span class="item"><span class="dot on"></span>Eingeschaltet</span><span>AMT 16.1.25</span><span>Control Mode ACM</span><span class="sp"></span><span class="item"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-lock"/></svg>TLS</span><span>KVM nicht verbunden</span></div>
+</div></div>
+<figcaption>Bevor KVM verbunden ist. Schaltflächen der Symbolleiste, die eine Sitzung brauchen, bleiben grau.</figcaption>
+</figure>
+
+<h3 id="keyboard">Tastatur</h3>
+<div class="prose">
+<p>Dein Computer behält einige Tastenkombinationen für sich, zum Beispiel <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Del</kbd>, <kbd>Cmd</kbd>+<kbd>Tab</kbd> und unter Windows <kbd>Win</kbd>+<kbd>L</kbd>. Sie kommen nie beim Gerät an. Mit der Schaltfläche <span class="ui">Ctrl+Alt+Del</span> sendest du diese Kombination.</p>
+</div>
+
+<h3 id="type-clipboard">Zwischenablage tippen</h3>
+<div class="prose">
+<p><span class="ui">Zwischenablage tippen</span> tippt den Text aus deiner Zwischenablage Taste für Taste in das Gerät. Nutze es für lange Passwörter oder Befehle, auch im BIOS oder in einer Konsole ohne Kopieren und Einfügen.</p>
+<ul>
+  <li>Das Gerät muss das Tastaturlayout verwenden, das du unter <span class="ui">Tastatur</span> wählst. OpenLAMT kennt 16 Layouts. <span class="ui">Standard</span> verwendet das Layout des Favoriten oder der <a href="settings.html#remote-screen">App-Einstellung</a>.</li>
+  <li>Zeichen, die das Layout nicht tippen kann, überspringt OpenLAMT. Höchstens 2.000 Zeichen werden auf einmal getippt.</li>
+  <li>Die Statusleiste zeigt den Fortschritt. <span class="ui">Tippen stoppen</span> bricht das Tippen ab.</li>
+</ul>
+</div>
+
+<h3 id="scale">Skalierung</h3>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="menu" style="position:static;min-width:260px">
+    <div class="mi hl"><span class="ck0"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg></span>An Fenster anpassen<span class="k">Ctrl+0</span></div>
+    <div class="mi"><span class="ck0"></span>Originalgröße (100 %)<span class="k">Ctrl+1</span></div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"></span>50%</div>
+    <div class="mi"><span class="ck0"></span>75%</div>
+    <div class="mi"><span class="ck0"></span>150%</div>
+    <div class="mi"><span class="ck0"></span>200%</div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"></span>Vergrößern<span class="k">Ctrl++</span></div>
+    <div class="mi"><span class="ck0"></span>Verkleinern<span class="k">Ctrl+-</span></div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"></span>Mausrad umkehren</div>
+  </div>
+</div></div>
+<figcaption>Das Menü Skalierung.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li><span class="ui">An Fenster anpassen</span> ist der Standard. Das Bild folgt der Fenstergröße.</li>
+  <li><span class="ui">Originalgröße (100 %)</span> zeigt ein Pixel des Geräts pro Bildschirmpixel, auch auf hochauflösenden Displays. Bei festen Größen erscheinen Bildlaufleisten, wenn das Bild größer als das Fenster ist.</li>
+  <li><span class="ui">Vergrößern</span> und <span class="ui">Verkleinern</span> ändern die Größe stufenweise, ausgehend von der aktuellen Größe.</li>
+  <li>Die Tastenkürzel nutzen auf jedem System <kbd>Ctrl</kbd>. Sie funktionieren, wenn der Fokus nicht im Bild des Geräts liegt, denn dort geht jede Taste an das Gerät.</li>
+  <li>Die Größe gilt für dieses Fenster und wird nicht gespeichert. Im Vollbild passt sich das Bild immer an.</li>
+  <li><span class="ui">Mausrad umkehren</span> dreht die Scrollrichtung um. OpenLAMT speichert das für jeden Favoriten.</li>
+</ul>
+</div>
+
+<h3 id="screenshot">Screenshot</h3>
+<div class="prose">
+<p><span class="ui">Screenshot</span> speichert den Fernbildschirm als PNG-Datei in seiner eigenen Auflösung, ohne die Symbolleiste. Das funktioniert, sobald KVM ein Bild zeigt. Der Name sieht so aus: <code>openlamt-Lab-Server-2026-11-23-101412.png</code>.</p>
+<p>Ist unter <a href="settings.html#remote-screen">Screenshots und Aufnahmen</a> ein Ordner eingestellt, landet die Datei sofort dort. Ohne Ordner fragt OpenLAMT, wo es sie speichern soll. Die Statusleiste zeigt „Screenshot gespeichert: …“ oder den Grund, warum es nicht geklappt hat. OpenLAMT überschreibt nie eine Datei im Ordner: Es hängt <code>-2</code>, <code>-3</code> und so weiter an.</p>
+</div>
+
+<h3 id="record">Aufnehmen</h3>
+<div class="prose">
+<p><span class="ui">Aufnehmen</span> zeichnet den Fernbildschirm als Video auf. Die Schaltfläche wird zu einem roten <span class="ui">Stopp</span>, und die Statusleiste zeigt Dauer und Größe, zum Beispiel „REC 02:14 · 18 MB“.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w880 app">
+  <div class="tb">
+    <div class="who"><span class="dot on"></span><div><b>Lab-Server</b><small>192.0.2.10</small></div></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-keyboard"/></svg><span>Ctrl+Alt+Del</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-clip"/></svg><span>Zwischenablage tippen</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-keyboard"/></svg><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span><span>Tastatur</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-camera"/></svg><span>Screenshot</span></div>
+    <div class="ti rec"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-stop"/></svg><span>Stopp</span></div>
+    <div class="tdiv"></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-panel"/></svg><span>Verwalten</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-full"/></svg><span>Vollbild</span></div>
+  </div>
+  <div class="stbar"><span class="item"><span class="dot on"></span>Eingeschaltet</span><span>AMT 16.1.25</span><span class="sp"></span><span class="item" style="color:var(--danger);font-weight:600"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-rec"/></svg>REC 02:14 · 18 MB</span><span class="item"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-lock"/></svg>TLS</span><span>KVM verbunden</span></div>
+</div></div>
+<figcaption>Eine Aufnahme läuft. Zu sehen ist ein Teil der Symbolleiste.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li>Das Video ist eine Motion-JPEG-AVI-Datei mit 10 Bildern pro Sekunde. VLC und die Player von Windows und macOS spielen sie ab.</li>
+  <li>Die Aufnahme endet, wenn du auf <span class="ui">Stopp</span> klickst, wenn KVM endet und wenn du das Fenster schließt. OpenLAMT wartet, bis die Datei vollständig ist, bevor es sich beendet.</li>
+  <li>Eine Aufnahme endet kurz vor 2 GB von selbst und meldet das.</li>
+  <li>Dateiname und Ordner folgen denselben Regeln wie bei Screenshots, mit <code>.avi</code>.</li>
+</ul>
+</div>
+
+<h3 id="full-screen">Vollbild</h3>
+<div class="prose">
+<p><span class="ui">Vollbild</span> füllt den Bildschirm mit dem Bild des Geräts. Eine kleine Leiste oben bietet KVM und Konsole, <span class="ui">Vollbild beenden</span>, <span class="ui">Ctrl+Alt+Del</span>, <span class="ui">Zwischenablage tippen</span>, <span class="ui">Screenshot</span> und <span class="ui">Aufnehmen</span>.</p>
+</div>
+
+<h2 id="console">Serielle Konsole (SOL)</h2>
+<div class="prose">
+<p><span class="ui">Konsole</span> zeigt die serielle Konsole des Geräts über Serial over LAN (SOL). Nutze sie für Systeme mit einer Textkonsole an der seriellen Schnittstelle, zum Beispiel einen Linux-Server mit <code>console=ttyS0</code> oder ein BIOS mit Konsolenumleitung. Du kannst jederzeit zwischen <span class="ui">KVM</span> und <span class="ui">Konsole</span> wechseln, auch im Vollbild. <span class="ui">Zwischenablage tippen</span> funktioniert auch in der Konsole.</p>
+<p>Ist SOL auf dem Gerät ausgeschaltet, fragt OpenLAMT <span class="ui">Serial over LAN aktivieren?</span>. Die Einstellung bleibt an, bis du sie auf der <a href="management.html#settings">Seite Einstellungen</a> ausschaltest.</p>
+</div>
+
+<h2 id="media">Medien (IDE-R)</h2>
+<div class="prose">
+<p><span class="ui">Medien</span> hängt ein ISO-Image als CD-Laufwerk am Gerät ein. Das Gerät sieht es wie ein echtes Laufwerk, schon bevor ein Betriebssystem startet. Nutze es, um ein Betriebssystem zu installieren, ein Firmware-Update auszuführen oder Werkzeuge und Treiber auf das Gerät zu bringen.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="menu" style="position:static;min-width:240px">
+    <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-disc"/></svg>ISO einhängen…</div>
+    <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-folder"/></svg>Ordner einhängen…</div>
+  </div>
+  <div class="menu" style="position:static;min-width:280px">
+    <div class="mtitle">ubuntu-24.04-server.iso · 18,4 MB/s</div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg></span>Beim nächsten Start von ISO booten</div>
+    <div class="mi"><span class="ck0"></span>Von ISO neu starten…</div>
+    <div class="msep"></div>
+    <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-x"/></svg>Aushängen</div>
+  </div>
+</div></div>
+<figcaption>Das Menü Medien vor und nach dem Einhängen eines Images.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li><span class="ui">ISO einhängen…</span> hängt eine ISO-Datei (CD oder DVD) ein. Disketten- und Festplatten-Images (<code>.img</code>) funktionieren nicht.</li>
+  <li><span class="ui">Ordner einhängen…</span> macht aus einem Ordner zuerst ein temporäres ISO und hängt es schreibgeschützt ein. Jede Datei muss kleiner als 4 GB sein. Große Ordner brauchen einen Moment zur Vorbereitung. Das Gerät kann über UEFI von einem Ordner booten, wenn er <code>EFI/BOOT/BOOTX64.EFI</code> enthält.</li>
+  <li><span class="ui">Beim nächsten Start von ISO booten</span> lässt das Gerät beim nächsten Start einmal vom Image booten.</li>
+  <li><span class="ui">Von ISO neu starten…</span> startet das Gerät jetzt neu und bootet einmal vom Image. Danach bootet es wieder vom eigenen Laufwerk.</li>
+  <li><span class="ui">Aushängen</span> entfernt das Image. Schließt du das Fenster mit eingehängtem Image, fragt OpenLAMT vorher nach, weil eine Installation von diesem Image sonst fehlschlägt.</li>
+</ul>
+<p>Die Statusleiste zeigt die Übertragungsrate. Solange ein Image eingehängt ist, zeigt das Gerät zusätzlich ein leeres Diskettenlaufwerk. So funktioniert die Medienumleitung von AMT.</p>
+<p>Ist die Medienumleitung auf dem Gerät ausgeschaltet, fragt OpenLAMT <span class="ui">Medienumleitung aktivieren?</span>. Unter macOS und Windows nutzt OpenLAMT den Dateidialog des Systems. Unter Linux zeigt es einen eigenen.</p>
+</div>
+<nav class="pager" aria-label="Seiten"><a href="favorites.html" rel="prev"><small>Zurück</small>Favoriten und Scan</a><a href="management.html" rel="next" style="text-align:right"><small>Weiter</small>Geräteverwaltung</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

@@ -93,6 +93,7 @@ type BootInfo struct {
 	Caps              BootCapabilities
 	EnforceSecureBoot bool // the current value; kept where SecureBootControl is false
 	OCR               OCRState
+	Erase             EraseState // Remote Secure Erase and Remote Platform Erase (erase.go, issue #20)
 }
 
 // HTTPSBootAvailable reports whether HTTPS boot can be chosen: the firmware supports it and the
@@ -161,11 +162,13 @@ func (d *Device) BootInfo() (BootInfo, error) {
 		EnforceSecureBoot: cur.EnforceSecureBoot,
 	}
 	info.OCR.BIOSEnabled = cur.UEFIHTTPSBootEnabled
+	info.Erase = EraseState{Secure: c.SecureErase, Platform: EraseActions(uint32(c.PlatformErase)), BIOSEnabled: cur.RPEEnabled}
 	if state, ok, err := d.bootServiceState(); err != nil {
 		return BootInfo{}, err
 	} else if ok {
 		info.OCR.Known = true
 		info.OCR.Enabled = (state-bootServiceBase)&bootServiceOCR != 0
+		info.Erase.Enabled = (state-bootServiceBase)&bootServiceRPE != 0
 	}
 	return info, nil
 }
@@ -189,7 +192,18 @@ func (d *Device) bootServiceState() (state int, ok bool, err error) {
 // allows a boot target. When the device refuses while HTTPS boot is off in the BIOS, the error
 // wraps ErrOCROffInBIOS.
 func (d *Device) SetOCR(on bool) error {
-	const op = "set one click recovery"
+	return d.setBootService("set one click recovery", bootServiceOCR, on, func(cur amtboot.BootSettingDataResponse) error {
+		if !cur.UEFIHTTPSBootEnabled {
+			return ErrOCROffInBIOS
+		}
+		return nil
+	})
+}
+
+// setBootService switches bit of CIM_BootService.EnabledState and keeps the other one. When the
+// device refuses to switch on, biosOff tells from the boot settings whether the BIOS has the
+// feature off (its error is wrapped then).
+func (d *Device) setBootService(op string, bit int, on bool, biosOff func(amtboot.BootSettingDataResponse) error) error {
 	state, ok, err := d.bootServiceState()
 	if err != nil {
 		return err
@@ -197,17 +211,19 @@ func (d *Device) SetOCR(on bool) error {
 	if !ok {
 		return fmt.Errorf("%s: %w", op, ErrNotModifiable)
 	}
-	want := state &^ bootServiceOCR
+	want := state &^ bit
 	if on {
-		want |= bootServiceOCR
+		want |= bit
 	}
 	if want == state {
 		return nil
 	}
 	if _, err := d.msgs.CIM.BootService.RequestStateChange(want); err != nil {
 		if on && !IsAccessDenied(err) {
-			if cur, gerr := d.getBootSettings(op); gerr == nil && !cur.UEFIHTTPSBootEnabled {
-				return fmt.Errorf("%s: %w: %w", op, ErrOCROffInBIOS, err)
+			if cur, gerr := d.getBootSettings(op); gerr == nil {
+				if berr := biosOff(cur); berr != nil {
+					return fmt.Errorf("%s: %w: %w", op, berr, err)
+				}
 			}
 		}
 		return writeError(op, err)
@@ -255,6 +271,20 @@ func (d *Device) finishBoot(req amtboot.BootSettingDataRequest, source cimboot.S
 	if _, err := d.msgs.AMT.BootSettingData.Put(req); err != nil {
 		return fmt.Errorf("put boot settings: %w", err)
 	}
+	if err := d.setBootConfigRole(); err != nil {
+		return err
+	}
+	if _, err := d.msgs.CIM.BootConfigSetting.ChangeBootOrder(source); err != nil {
+		return fmt.Errorf("set boot source: %w", err)
+	}
+	if state == models.PowerStateOn {
+		return d.requestPowerState(PowerReset, power.MasterBusReset)
+	}
+	return d.requestPowerState(PowerOn, power.PowerOn)
+}
+
+// setBootConfigRole makes the boot configuration of the boot settings the one of the next start.
+func (d *Device) setBootConfigRole() error {
 	resp, err := d.msgs.CIM.BootService.SetBootConfigRole("Intel(r) AMT: Boot Configuration 0", 1)
 	if err != nil {
 		return fmt.Errorf("set boot config role: %w", err)
@@ -265,13 +295,7 @@ func (d *Device) finishBoot(req amtboot.BootSettingDataRequest, source cimboot.S
 	if rv := int(resp.Body.SetBootConfigRole_OUTPUT.ReturnValue); rv != 0 {
 		return &MethodError{Method: "SetBootConfigRole", ReturnValue: rv}
 	}
-	if _, err := d.msgs.CIM.BootConfigSetting.ChangeBootOrder(source); err != nil {
-		return fmt.Errorf("set boot source: %w", err)
-	}
-	if state == models.PowerStateOn {
-		return d.requestPowerState(PowerReset, power.MasterBusReset)
-	}
-	return d.requestPowerState(PowerOn, power.PowerOn)
+	return nil
 }
 
 // checkBootOptions refuses a target or option the device does not offer, and options that do

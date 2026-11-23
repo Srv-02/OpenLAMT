@@ -319,10 +319,13 @@ func (p *certsPane) showInUse(c amt.Certificate) {
 
 // showSettings shows the Settings page in the view the user is in: the sidebar's tab or the
 // window's page.
-func (m *manager) showSettings(compact bool) {
+func (m *manager) showSettings(compact bool) { m.showPageWith(icons.DeviceSettings, compact) }
+
+// showPageWith shows the main page with icon in the view the user is in.
+func (m *manager) showPageWith(icon icons.Name, compact bool) {
 	i := -1
 	for j, pg := range m.pages {
-		if pg.icon == icons.DeviceSettings {
+		if pg.icon == icon {
 			i = j
 		}
 	}

@@ -126,7 +126,14 @@ type settingsPane struct {
 	ipRow, kvmRow, clockRow, tlsRow                       *settingsRowRef
 	ocr                                                   *widgets.Switch // One Click Recovery (manage_settings_ocr.go)
 	ocrRow                                                *settingsRowRef
-	applying                                              bool // render sets values: the callbacks do nothing
+	rpe                                                   *widgets.Switch // Remote Platform Erase (manage_settings_erase.go)
+	rpeRow                                                *settingsRowRef
+	erase                                                 *widgets.PrimaryButton // "Erase…" in the danger zone
+	eraseText                                             *widget.RichText
+	eraseRow, eraseLine                                   fyne.CanvasObject
+	eraseDlg                                              *eraseDialog // the shown Erase Drives dialog
+	eraseInfo                                             *panel       // "Remote Platform Erase is off" or "Erase started"
+	applying                                              bool         // render sets values: the callbacks do nothing
 	dialog                                                *riskDialog
 	nameField                                             *dialogEntry // "New host name" or "New domain"
 	envForm                                               *envForm
@@ -189,9 +196,11 @@ func (m *manager) settingsPane(compact bool) *managePane {
 		amtSettingsRowHelp(lang.L("Media redirection (IDE-R)"), helpIder, p.ider),
 		amtSettingsRowHelp(lang.L("Serial over LAN (SOL)"), helpSol, p.sol),
 		amtSettingsRowHelp(lang.L("User consent"), helpConsent, p.consent),
-		p.ocrSettingsRow())
+		p.ocrSettingsRow(),
+		p.rpeSettingsRow())
 	p.kvmRow = p.features.ref(0)
 	p.ocrRow = p.features.ref(4)
+	p.rpeRow = p.features.ref(5)
 
 	p.clockText = designText("", 13, style.ColorNameTextSecondary, false)
 	p.sync = settingsButton(lang.L("Sync Now"), func() {
@@ -307,6 +316,7 @@ func (p *settingsPane) show(s amt.Settings) {
 		p.consent.SetSelected(widgets.NoSelection)
 	}
 	p.showOCR()
+	p.showErase()
 	p.features.sync()
 
 	clockRead := s.Readable(amt.SettingsClock)
@@ -347,6 +357,8 @@ func (p *settingsPane) lock(on bool) {
 	c := s.Consent
 	setEnabled(p.consent, !on && c.Available && c.CanModify)
 	setEnabled(p.ocr, !on)
+	setEnabled(p.rpe, !on)
+	setEnabled(p.erase, !on && p.eraseAllowed())
 }
 
 func setEnabled(w fyne.Disableable, on bool) {
@@ -492,18 +504,25 @@ func settingsButton(text string, tapped func()) *widgets.PrimaryButton {
 	return b
 }
 
-// dangerCard is the card of the danger zone: light red with a red border, "Turn off AMT" in
-// semibold red above the explanation, the full red button on the right.
+// dangerCard is the card of the danger zone: light red with a red border, one row per action
+// ("Turn off AMT", "Erase drives") with a red hairline between them.
 func (p *settingsPane) dangerCard() fyne.CanvasObject {
 	title := container.NewHBox(designText(lang.L("Turn off AMT"), 14, style.ColorNameDangerZoneText, true), helpButton(helpTurnOff))
 	text := richLine(textSeg(lang.L("Only the BIOS (MEBx) at the device can turn it back on."), style.ColorNameDangerZoneText, false))
+	// the hairline runs from edge to edge of the card
+	p.eraseLine = container.New(layout.NewCustomPaddedLayout(0, 0, -16, -16), hline(style.ColorNameDangerZoneBorder))
+	rows := container.New(layout.NewCustomPaddedVBoxLayout(14), dangerRow(title, text, p.turnOff), p.eraseLine, p.eraseDangerRow())
+	return widgets.NewPanel(style.ColorNameDangerSurface, style.ColorNameDangerZoneBorder, 12, rows, 14, 16, 14, 16)
+}
+
+// dangerRow is a row of the danger zone: the semibold red title above the explanation text, the
+// full red button on the right.
+func dangerRow(title fyne.CanvasObject, text *widget.RichText, button fyne.CanvasObject) fyne.CanvasObject {
 	// the rich text has the theme's inner padding around its text; pull it to the title
 	pad := theme.InnerPadding()
 	col := container.New(layout.NewCustomPaddedVBoxLayout(3-pad), title,
 		container.New(layout.NewCustomPaddedLayout(0, -pad, -pad, -pad), text))
-	button := container.NewCenter(p.turnOff)
-	row := container.NewBorder(nil, nil, nil, container.New(layout.NewCustomPaddedLayout(0, 0, 24, 0), button), col)
-	return widgets.NewPanel(style.ColorNameDangerSurface, style.ColorNameDangerZoneBorder, 12, row, 14, 16, 14, 16)
+	return container.NewBorder(nil, nil, nil, container.New(layout.NewCustomPaddedLayout(0, 0, 24, 0), container.NewCenter(button)), col)
 }
 
 // showDomains shows the intranet domains joined with ", ", one per line (HostEnv.dc.html), so

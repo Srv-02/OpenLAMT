@@ -33,6 +33,10 @@ type manageDeps struct {
 	// mainWin shows "New password not saved" of a write that ends after device management
 	// closed (the start window); nil drops it with the other results.
 	mainWin fyne.Window
+	// erase runs Erase Drives as a power action of the device window (its consent dialog, the
+	// locked Power menu, the error report) and calls done on the Fyne thread. nil: the Settings
+	// page runs the erase itself, without a consent prompt.
+	erase func(o amt.EraseOptions, c amt.Confirmation, done func(error))
 }
 
 // Measures of the sidebar (Main.dc.html) and the window (WindowB.dc.html).

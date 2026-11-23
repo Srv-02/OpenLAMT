@@ -557,12 +557,13 @@ func TestKVMInputConfirmation(t *testing.T) {
 		t.Fatalf("asked %v", asked)
 	}
 	h.mustFail("kvm_send_keys", dev("NUC", "keys", []string{"Enter"}), "not confirmed")
-	h.mustFail("kvm_type_text", dev("NUC", "text", "secret"), "not confirmed")
+	h.mustFail("kvm_type_text", dev("NUC", "text", "Hunter2-pass", "secret", true), "not confirmed")
 	h.mustFail("kvm_mouse", dev("NUC", "action", "click", "x", 1, "y", 1), "not confirmed")
 	if len(keyEvents(srv)) != 0 || len(pointerEvents(srv)) != 0 {
 		t.Fatal("input sent without confirmation")
 	}
-	if len(asked) != 3 || !strings.Contains(asked[0], "Enter") || strings.Contains(asked[1], "secret") {
+	if len(asked) != 3 || !strings.Contains(asked[0], "Enter") || strings.Contains(asked[1], "Hunter2") ||
+		!strings.Contains(asked[1], "12 characters with 0 Enter presses") || !strings.Contains(asked[1], "secret") {
 		t.Fatalf("asked %q", asked)
 	}
 	answer = &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}
@@ -631,5 +632,79 @@ func TestKVMScreenshotOfBlackScreenWarns(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("warnings %v", w)
+	}
+}
+
+// TestKVMTypeTextConfirmationShowsText: the person confirming sees what will be typed, with
+// line breaks made visible and counted (each is an Enter press); a long text is cut in the
+// prompt only. The action log never holds the text.
+func TestKVMTypeTextConfirmationShowsText(t *testing.T) {
+	var asked []string
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	addKVM(t, f, kvmtest.Options{})
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return &mcp.ElicitResult{Action: "decline"}, nil
+	}
+	h.start()
+	h.mustOK("kvm_connect", dev("NUC"))
+	h.mustFail("kvm_type_text", dev("NUC", "text", "cd /tmp\nrm -rf build\n", "layout", "us"), "not confirmed")
+	if len(asked) != 1 || !strings.Contains(asked[0], "«cd /tmp⏎rm -rf build»") || !strings.Contains(asked[0], "1 Enter press ") {
+		t.Fatalf("asked %q", asked)
+	}
+	long := strings.Repeat("x", 600)
+	h.mustFail("kvm_type_text", dev("NUC", "text", long, "layout", "us"), "not confirmed")
+	if !strings.Contains(asked[1], strings.Repeat("x", maxPreview)+"… (100 more characters)") {
+		t.Fatalf("asked %q", asked[1])
+	}
+	for _, e := range h.logEntries() {
+		b, _ := json.Marshal(e)
+		if strings.Contains(string(b), "rm -rf") || strings.Contains(string(b), "xxxx") {
+			t.Fatalf("action log holds the typed text: %s", b)
+		}
+	}
+	var actions []string
+	for _, e := range h.logEntries() {
+		if e["tool"] == "kvm_type_text" {
+			actions = append(actions, e["action"].(string))
+		}
+	}
+	if len(actions) != 4 || actions[0] != "20 characters, 1 Enter, layout us" {
+		t.Fatalf("logged %q", actions)
+	}
+}
+
+// TestKVMSendKeysConfirmationShowsEveryCombo: the prompt and the log hold the whole list; more
+// than 50 combos are refused.
+func TestKVMSendKeysConfirmationShowsEveryCombo(t *testing.T) {
+	var asked []string
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	addKVM(t, f, kvmtest.Options{})
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return &mcp.ElicitResult{Action: "decline"}, nil
+	}
+	h.start()
+	h.mustOK("kvm_connect", dev("NUC"))
+	keys := make([]string, 0, 50)
+	for range 49 {
+		keys = append(keys, "ControlRight + NumpadMultiply")
+	}
+	keys = append(keys, "Ctrl+Alt+Delete")
+	h.mustFail("kvm_send_keys", dev("NUC", "keys", keys), "not confirmed")
+	if len(asked) != 1 || !strings.HasSuffix(asked[0], "ControlRight+NumpadMultiply, Ctrl+Alt+Delete on device \"NUC\" (192.0.2.10). Allow it?") {
+		t.Fatalf("asked %q", asked)
+	}
+	logged := h.logEntries()[1]["action"].(string)
+	if !strings.HasSuffix(logged, ", Ctrl+Alt+Delete") || strings.Count(logged, "NumpadMultiply") != 49 {
+		t.Fatalf("logged %q", logged)
+	}
+	h.mustFail("kvm_send_keys", dev("NUC", "keys", append(keys, "Enter")), "1 to 50")
+	if len(asked) != 1 {
+		t.Fatalf("asked %d times", len(asked))
 	}
 }

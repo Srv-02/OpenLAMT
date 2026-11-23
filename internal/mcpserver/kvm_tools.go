@@ -349,15 +349,20 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 		return nil, sendKeysOutput{}, refuse("keys must hold 1 to %d keys or key combinations.", maxKeyCombos)
 	}
 	combos := make([][]kvm.Key, 0, len(in.Keys))
+	names := make([]string, 0, len(in.Keys))
 	for _, k := range in.Keys {
 		keys, err := parseCombo(k)
 		if err != nil {
 			return nil, sendKeysOutput{}, refuse("%s. Nothing was sent.", err.Error())
 		}
 		combos = append(combos, keys)
+		names = append(names, comboText(k))
 	}
-	rec.action = truncate(strings.Join(in.Keys, ", "), 200)
-	if res, err := s.confirmInput(req, in.Device, "press "+truncate(strings.Join(in.Keys, ", "), 200)); res != nil || err != nil {
+	// The whole list, never shortened: the person confirming and the log see every combo. It is
+	// bounded by maxKeyCombos combos of at most maxComboKeys known key names.
+	list := strings.Join(names, ", ")
+	rec.action = list
+	if res, err := s.confirmInput(req, in.Device, "press "+list); res != nil || err != nil {
 		return res, sendKeysOutput{}, err
 	}
 	err := s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
@@ -389,11 +394,14 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 	return nil, sendKeysOutput{Device: in.Device, Sent: len(combos)}, nil
 }
 
-func truncate(s string, n int) string {
-	if r := []rune(s); len(r) > n {
-		return string(r[:n]) + "…"
+// comboText is a valid combo as written, without the spaces around "+" (so its length is
+// bounded by the key names).
+func comboText(combo string) string {
+	parts := strings.Split(combo, "+")
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
 	}
-	return s
+	return strings.Join(parts, "+")
 }
 
 // --- kvm_mouse
@@ -506,6 +514,34 @@ type typeInput struct {
 	Device string `json:"device" jsonschema:"favorite name of the device, as returned by list_devices"`
 	Text   string `json:"text" jsonschema:"the text to type"`
 	Layout string `json:"layout,omitempty" jsonschema:"keyboard layout active on the device; default: the favorite's layout in the OpenLAMT app, else the system language of this computer"`
+	Secret bool   `json:"secret,omitempty" jsonschema:"the text is a password or another secret: a confirmation prompt shows only its length and the Enter presses, not the text"`
+}
+
+// maxPreview is how much of the text a confirmation prompt shows.
+const maxPreview = 500
+
+// typePrompt is what the person confirming sees before kvm_type_text runs: the text as it will
+// be typed, line breaks shown as ⏎ and counted, because each one is an Enter press that may run
+// a command. A secret text shows only its length and the Enter presses.
+func typePrompt(plan typing.Plan, secret bool) string {
+	enters := strings.Count(plan.Text, "\n")
+	what := fmt.Sprintf("type %d characters with %d Enter %s (layout %s)", plan.Chars, enters, plural(enters, "press", "presses"), plan.Layout)
+	if secret {
+		return what + "; the text is secret and not shown"
+	}
+	r := []rune(strings.NewReplacer("\n", "⏎", "\t", "⇥").Replace(plan.Text))
+	preview := string(r[:min(len(r), maxPreview)])
+	if len(r) > maxPreview {
+		preview += fmt.Sprintf("… (%d more characters)", len(r)-maxPreview)
+	}
+	return what + ": «" + preview + "»"
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 type skippedChar struct {
@@ -566,8 +602,12 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 	case plan.Typeable() == 0:
 		return nil, typeOutput{}, refuse("There is no character in the text that layout %s can type. Nothing was sent.", layout)
 	}
-	rec.action = fmt.Sprintf("%d characters, layout %s", plan.Chars, layout) // never the text
-	if res, err := s.confirmInput(req, in.Device, fmt.Sprintf("type %d characters (layout %s)", plan.Chars, layout)); res != nil || err != nil {
+	// Never the text itself, also when it is not secret.
+	rec.action = fmt.Sprintf("%d characters, %d Enter, layout %s", plan.Chars, strings.Count(plan.Text, "\n"), layout)
+	if in.Secret {
+		rec.action += ", secret"
+	}
+	if res, err := s.confirmInput(req, in.Device, typePrompt(plan, in.Secret)); res != nil || err != nil {
 		return res, typeOutput{}, err
 	}
 	err = s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {

@@ -120,7 +120,9 @@ type settingsPane struct {
 	envLines                                              *fyne.Container // the intranet domains, wrapped
 	ping, ddns, kvm, ider, sol                            *widgets.Switch
 	address, consent                                      *widgets.Segmented
-	ipText, clockText, tlsText                            *canvas.Text
+	clockText, tlsText                                    *canvas.Text
+	ipAddr, ipGateway                                     *ellipsisText // the two lines of "IP address"
+	ipLines                                               *fyne.Container
 	changeHost, changeDomain, changeEnv                   *widgets.PrimaryButton
 	sync, change, turnOff                                 *widgets.PrimaryButton
 	ipRow, kvmRow, clockRow, tlsRow                       *settingsRowRef
@@ -177,8 +179,11 @@ func (m *manager) settingsPane(compact bool) *managePane {
 	p.address = widgets.NewSegmented(widgets.SegmentedText, widgets.TextOptions(lang.L("DHCP"), lang.L("Static")), nil)
 	p.address.OnChanged = p.openNetwork
 	p.address.OnReselected = p.openNetwork
-	p.ipText = designText("", 13, theme.ColorNameForeground, false)
-	ip := amtSettingsRowHelp(lang.L("IP address"), helpNetIP, p.ipText)
+	p.ipAddr = newEllipsisText("", 13, theme.ColorNameForeground, false)
+	p.ipGateway = newEllipsisText("", 13, theme.ColorNameForeground, false)
+	p.ipAddr.align, p.ipGateway.align = fyne.TextAlignTrailing, fyne.TextAlignTrailing
+	p.ipLines = container.New(layout.NewCustomPaddedVBoxLayout(0), p.ipAddr, p.ipGateway)
+	ip := amtSettingsRowHelp(lang.L("IP address"), helpNetIP, p.ipLines)
 	p.network = newSettingsCard(amtSettingsRowHelp(lang.L("Address"), helpNetAddress, p.address), ip)
 	p.ipRow = p.network.ref(1)
 
@@ -297,11 +302,14 @@ func (p *settingsPane) show(s amt.Settings) {
 	default:
 		p.address.SetSelected(1)
 	}
-	p.ipText.Text = ipSummary(n)
+	addr, gateway := ipSummary(n)
 	if !netRead {
-		p.ipText.Text = na
+		addr, gateway = na, ""
 	}
-	p.ipText.Refresh()
+	p.ipAddr.SetText(addr)
+	p.ipGateway.SetText(gateway)
+	setShown(p.ipGateway, gateway != "")
+	p.ipLines.Refresh()
 	p.ipRow.show(n.IPAddress != "" || !netRead)
 	p.network.sync()
 
@@ -405,11 +413,13 @@ func (p *settingsPane) newFeatureSwitch(f feature, change func(bool) amt.Feature
 }
 
 // Geometry of the settings rows (Settings.dc.html .row): 40 high, 16 px side padding, 13 px text,
-// a 16 px gap.
+// a 16 px gap. A row whose key or value is taller (a description, two lines) grows and keeps
+// settingsRowVPad above and below (gesamtdesign .r: padding 6px).
 const (
 	settingsRowHeight float32 = 40
 	settingsRowPad    float32 = 16
 	settingsRowGap    float32 = 16
+	settingsRowVPad   float32 = 6
 )
 
 // amtSettingsRow is a row of a settings card: the key on the left, control or value on the right.
@@ -438,7 +448,8 @@ func (settingsRowLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 
 func (settingsRowLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	ks, rs := objs[0].MinSize(), objs[1].MinSize()
-	return fyne.NewSize(2*settingsRowPad+ks.Width+settingsRowGap+min(rs.Width, 40), max(settingsRowHeight, rs.Height+8))
+	h := max(settingsRowHeight, ks.Height+2*settingsRowVPad, rs.Height+2*settingsRowVPad)
+	return fyne.NewSize(2*settingsRowPad+ks.Width+settingsRowGap+min(rs.Width, 40), h)
 }
 
 // settingsCard is a card of rows with hairlines between the visible ones (Settings.dc.html .card).
@@ -549,6 +560,14 @@ func (p *settingsPane) envValue() string {
 	return strings.Join(parts, " ")
 }
 
+// ipValue is the shown value of "IP address", its lines joined with "\n" (tests).
+func (p *settingsPane) ipValue() string {
+	if !p.ipGateway.Visible() {
+		return p.ipAddr.Text
+	}
+	return p.ipAddr.Text + "\n" + p.ipGateway.Text
+}
+
 // prefixLength returns the prefix length of a contiguous IPv4 mask, -1 for anything else.
 func prefixLength(mask string) int {
 	a, err := netip.ParseAddr(mask)
@@ -568,17 +587,18 @@ func prefixLength(mask string) int {
 	return n
 }
 
-// ipSummary is "192.0.2.10 / 24 · gateway 192.0.2.1"; a mask that is no prefix is shown as is.
-func ipSummary(n amt.NetworkSettings) string {
+// ipSummary is the two lines of "IP address": "192.0.2.10 / 24" and "gateway 192.0.2.1" (empty
+// without a gateway); a mask that is no prefix is shown as is.
+func ipSummary(n amt.NetworkSettings) (addr, gateway string) {
 	prefix := n.SubnetMask
 	if l := prefixLength(n.SubnetMask); l >= 0 {
 		prefix = strconv.Itoa(l)
 	}
-	args := map[string]any{"Address": n.IPAddress, "Prefix": prefix, "Gateway": n.Gateway}
-	if n.Gateway == "" {
-		return lang.L("{{.Address}} / {{.Prefix}}", args)
+	addr = lang.L("{{.Address}} / {{.Prefix}}", map[string]any{"Address": n.IPAddress, "Prefix": prefix})
+	if n.Gateway != "" {
+		gateway = lang.L("gateway {{.Gateway}}", map[string]any{"Gateway": n.Gateway})
 	}
-	return lang.L("{{.Address}} / {{.Prefix}} · gateway {{.Gateway}}", args)
+	return addr, gateway
 }
 
 // clockOffsetText is "15 s behind" or "15 s ahead" (device clock against this computer), from

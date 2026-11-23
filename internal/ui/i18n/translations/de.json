@@ -362,7 +362,7 @@
   "Turn off AMT": "AMT ausschalten",
   "Only the BIOS (MEBx) at the device can turn it back on.": "Nur das BIOS (MEBx) am Gerät kann es wieder einschalten.",
   "{{.Address}} / {{.Prefix}}": "{{.Address}} / {{.Prefix}}",
-  "{{.Address}} / {{.Prefix}} · gateway {{.Gateway}}": "{{.Address}} / {{.Prefix}} · Gateway {{.Gateway}}",
+  "gateway {{.Gateway}}": "Gateway {{.Gateway}}",
   "{{.Minutes}} min ahead": "{{.Minutes}} min vor",
   "{{.Minutes}} min behind": "{{.Minutes}} min nach",
   "{{.Seconds}} s ahead": "{{.Seconds}} s vor",

@@ -58,7 +58,7 @@ Each device opens in its own window with remote keyboard, video and mouse (KVM).
 
 ### Let an AI agent run your devices
 
-![An MCP client asks openlamt-mcp for the screen of Lab Server and gets the BIOS setup back](screenshots/mcp.png)
+![Claude asks openlamt-mcp for the screen of Lab Server and shows the BIOS setup](screenshots/mcp.png)
 
 `openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can read status and logs, switch devices on and off, look at the screen and type, use the serial console and boot from an ISO. It runs on your computer and opens no network port.
 

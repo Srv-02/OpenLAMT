@@ -12,6 +12,18 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+// selfProcess is a real handle of this process (the pseudo handle of CurrentProcess cannot be
+// waited on with other objects); it stands for the started helper.
+func selfProcess(t *testing.T) windows.Handle {
+	t.Helper()
+	h, err := windows.OpenProcess(windows.SYNCHRONIZE|windows.PROCESS_QUERY_LIMITED_INFORMATION, false, windows.GetCurrentProcessId())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { windows.CloseHandle(h) })
+	return h
+}
+
 // TestPasswordPipe: the app's pipe hands the password once to the process it started and
 // nobody can create a second instance of its name.
 func TestPasswordPipe(t *testing.T) {
@@ -41,8 +53,8 @@ func TestPasswordPipe(t *testing.T) {
 		}
 		got <- string(b)
 	}()
-	// The client is this test process: the current process stands for the started helper.
-	err = servePassword(pipe, windows.CurrentProcess(), []byte("Secr3t!pw"), 10*time.Second)
+	// The client is this test process, which stands for the started helper.
+	err = servePassword(pipe, selfProcess(t), []byte("Secr3t!pw"), 10*time.Second)
 	windows.CloseHandle(pipe) // the end of the password for the client, as in runHelperFile
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +103,7 @@ func TestPasswordPipeTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer windows.CloseHandle(pipe)
-	if err := servePassword(pipe, windows.CurrentProcess(), []byte("Secr3t!pw"), 100*time.Millisecond); !errors.Is(err, errPipeTimeout) {
+	if err := servePassword(pipe, selfProcess(t), []byte("Secr3t!pw"), 100*time.Millisecond); !errors.Is(err, errPipeTimeout) {
 		t.Fatalf("serve: %v", err)
 	}
 }

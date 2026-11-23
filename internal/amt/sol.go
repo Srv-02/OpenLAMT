@@ -21,8 +21,11 @@ func (e *SOLError) Error() string {
 
 // EnableSOL makes the redirection listener available and switches SOL on, keeping IDE-R as it
 // is. It writes only when needed.
-func (d *Device) EnableSOL() error {
-	cur, err := d.ensureListener()
+func (d *Device) EnableSOL() error { return d.enableSOL(context.Background()) }
+
+// enableSOL is EnableSOL; a cancelled ctx stops it before each write (issue #160).
+func (d *Device) enableSOL(ctx context.Context) error {
+	cur, err := d.ensureListener(ctx)
 	if err != nil {
 		return err
 	}
@@ -40,7 +43,7 @@ func (d *Device) EnableSOL() error {
 	if d.cfg.NeverEnable {
 		return &RedirectionOffError{Feature: "SOL"}
 	}
-	return d.requestRedirectionState("enable sol", want, func(rv int) error {
+	return d.requestRedirectionState(ctx, "enable sol", want, func(rv int) error {
 		return &SOLError{Step: "RedirectionService.RequestStateChange", ReturnValue: rv}
 	})
 }
@@ -49,7 +52,7 @@ func (d *Device) EnableSOL() error {
 // SOL only when OptInRequired is All, like IDE-R) and dials the redirection listener with the
 // pinned TLS config.
 func (d *Device) OpenSOL(ctx context.Context, prompt ConsentPrompt) (*sol.Client, error) {
-	if err := d.EnableSOL(); err != nil {
+	if err := d.enableSOL(ctx); err != nil {
 		return nil, err
 	}
 	if err := d.userConsent(ctx, prompt, true); err != nil {

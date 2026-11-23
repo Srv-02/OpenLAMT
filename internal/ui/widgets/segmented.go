@@ -46,6 +46,9 @@ type SegmentOption struct {
 	// Natural (SegmentedTabs only) keeps the segment at its minimum width (caption, symbol and
 	// padding); the other segments share the rest.
 	Natural bool
+	// Disabled greys out this segment alone: a tap or key does not select it. It is drawn like a
+	// disabled control (SetSegmentDisabled).
+	Disabled bool
 }
 
 // TextOptions returns options with the given captions and no symbol.
@@ -145,10 +148,20 @@ func (s *Segmented) SetLabel(i int, label string) {
 	s.Refresh()
 }
 
+// SetSegmentDisabled greys out segment i alone (or enables it again). A disabled segment
+// cannot be tapped or reached with the keys; a selection it already has stays.
+func (s *Segmented) SetSegmentDisabled(i int, disabled bool) {
+	if i < 0 || i >= len(s.options) || s.options[i].Disabled == disabled {
+		return
+	}
+	s.options[i].Disabled = disabled
+	s.Refresh()
+}
+
 // Tap acts like a tap of the user on segment i: OnChanged for another segment, OnReselected
-// for the selected one, nothing while disabled.
+// for the selected one, nothing while disabled (the control or the segment).
 func (s *Segmented) Tap(i int) {
-	if s.Disabled() || i < 0 || i >= len(s.options) {
+	if s.Disabled() || i < 0 || i >= len(s.options) || (s.options[i].Disabled && i != s.selected) {
 		return
 	}
 	if i == s.selected {
@@ -457,7 +470,7 @@ func (r *segmentedRenderer) Refresh() {
 
 		text, variant := style.Color(style.ColorNameControlText), icons.Toolbar
 		switch {
-		case s.Disabled():
+		case s.Disabled() || s.options[i].Disabled:
 			text, variant = style.Color("disabled"), icons.Disabled
 		case on && s.style == SegmentedToolbar:
 			text, variant = style.Color(style.ColorNameAccentText), icons.AccentText

@@ -1,0 +1,15 @@
+{
+  "Update": "Aktualisieren",
+  "You are using {{.Current}}. Update downloads the new version, opens it in the Finder and quits OpenLAMT. Drag the new app onto the old one.": "Du verwendest {{.Current}}. „Aktualisieren“ lädt die neue Version, öffnet sie im Finder und beendet OpenLAMT. Zieh die neue App auf die alte.",
+  "You are using {{.Current}}. Update downloads the new version, replaces OpenLAMT and starts it again.": "Du verwendest {{.Current}}. „Aktualisieren“ lädt die neue Version, ersetzt OpenLAMT und startet es neu.",
+  "You are using {{.Current}}. Update downloads the new version, opens it in your software installer and quits OpenLAMT.": "Du verwendest {{.Current}}. „Aktualisieren“ lädt die neue Version, öffnet sie in deiner Softwareverwaltung und beendet OpenLAMT.",
+  "Downloading… {{.DoneInt}}.{{.DoneFrac}} of {{.TotalInt}}.{{.TotalFrac}} MB": "Wird geladen … {{.DoneInt}},{{.DoneFrac}} von {{.TotalInt}},{{.TotalFrac}} MB",
+  "Update failed": "Update fehlgeschlagen",
+  "The download does not match its checksum. Nothing was installed. Try again later.": "Der Download passt nicht zu seiner Prüfsumme. Es wurde nichts installiert. Versuche es später erneut.",
+  "The download did not finish. Nothing was installed. Try again later.": "Der Download wurde nicht abgeschlossen. Es wurde nichts installiert. Versuche es später erneut.",
+  "Try Again": "Erneut versuchen",
+  "OpenLAMT could not open the installer: no app is set up for .deb files. Install the file yourself:": "OpenLAMT konnte die Installation nicht öffnen: Für .deb-Dateien ist keine App eingerichtet. Installiere die Datei selbst:",
+  "OpenLAMT could not open the disk image. Install the file yourself:": "OpenLAMT konnte das Festplattenabbild nicht öffnen. Installiere die Datei selbst:",
+  "OpenLAMT could not replace itself: the administrator permission was declined. Install the file yourself:": "OpenLAMT konnte sich nicht selbst ersetzen: Die Administratorberechtigung wurde abgelehnt. Installiere die Datei selbst:",
+  "OpenLAMT could not replace itself. Install the file yourself:": "OpenLAMT konnte sich nicht selbst ersetzen. Installiere die Datei selbst:"
+}

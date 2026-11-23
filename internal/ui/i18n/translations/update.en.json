@@ -1,0 +1,15 @@
+{
+  "Update": "Update",
+  "You are using {{.Current}}. Update downloads the new version, opens it in the Finder and quits OpenLAMT. Drag the new app onto the old one.": "You are using {{.Current}}. Update downloads the new version, opens it in the Finder and quits OpenLAMT. Drag the new app onto the old one.",
+  "You are using {{.Current}}. Update downloads the new version, replaces OpenLAMT and starts it again.": "You are using {{.Current}}. Update downloads the new version, replaces OpenLAMT and starts it again.",
+  "You are using {{.Current}}. Update downloads the new version, opens it in your software installer and quits OpenLAMT.": "You are using {{.Current}}. Update downloads the new version, opens it in your software installer and quits OpenLAMT.",
+  "Downloading… {{.DoneInt}}.{{.DoneFrac}} of {{.TotalInt}}.{{.TotalFrac}} MB": "Downloading… {{.DoneInt}}.{{.DoneFrac}} of {{.TotalInt}}.{{.TotalFrac}} MB",
+  "Update failed": "Update failed",
+  "The download does not match its checksum. Nothing was installed. Try again later.": "The download does not match its checksum. Nothing was installed. Try again later.",
+  "The download did not finish. Nothing was installed. Try again later.": "The download did not finish. Nothing was installed. Try again later.",
+  "Try Again": "Try Again",
+  "OpenLAMT could not open the installer: no app is set up for .deb files. Install the file yourself:": "OpenLAMT could not open the installer: no app is set up for .deb files. Install the file yourself:",
+  "OpenLAMT could not open the disk image. Install the file yourself:": "OpenLAMT could not open the disk image. Install the file yourself:",
+  "OpenLAMT could not replace itself: the administrator permission was declined. Install the file yourself:": "OpenLAMT could not replace itself: the administrator permission was declined. Install the file yourself:",
+  "OpenLAMT could not replace itself. Install the file yourself:": "OpenLAMT could not replace itself. Install the file yourself:"
+}

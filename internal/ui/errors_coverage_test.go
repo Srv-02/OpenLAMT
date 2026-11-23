@@ -157,6 +157,10 @@ var errorExceptions = map[string]string{
 	"capture.ErrFolderMissing":  "shown as its own status text in device_capture.go before the save dialog",
 	"capture.ErrFolderReadOnly": "shown as its own status text in device_capture.go before the save dialog",
 	"capture.ErrLimit":          "the recording is saved; recordingEnded shows its own status text",
+	"update.ErrOpen":            "the update fallback dialog words it (updateFallbackText), not the error dialog",
+	"update.ErrDeclined":        "the update fallback dialog words it (updateFallbackText), not the error dialog",
+	"update.ErrReplace":         "the update fallback dialog words it (updateFallbackText), not the error dialog",
+	"update.ErrNoExe":           "the update fallback dialog words it (updateFallbackText), not the error dialog",
 }
 
 // TestDescribeCoversExportedErrors parses the internal packages for exported errors and checks

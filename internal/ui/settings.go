@@ -173,7 +173,7 @@ func (s Settings) ThemeVariant(system fyne.ThemeVariant) fyne.ThemeVariant {
 // UpdateCheck is whether OpenLAMT asks GitHub for a newer release at start; on by default.
 func (s Settings) UpdateCheck() bool { return s.prefs.BoolWithFallback(prefUpdateCheck, true) }
 
-// SetUpdateCheck stores the setting; "Don't check for updates" in the update dialog turns it off.
+// SetUpdateCheck stores the setting (the switch "Check for updates" in the settings).
 func (s Settings) SetUpdateCheck(on bool) { s.prefs.SetBool(prefUpdateCheck, on) }
 
 // ColorBlind is the setting "Color blind mode": status dots in the palettes that stay distinct

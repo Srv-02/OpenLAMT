@@ -1,9 +1,10 @@
 // Package update asks GitHub for the latest release of OpenLAMT, compares it with the running
-// version and downloads the package of this platform into a folder. It has no UI and installs
-// nothing: the user replaces the app by hand.
+// version, downloads the package of this platform into a folder and hands it to the platform's
+// installer (install.go). It has no UI.
 package update
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -65,6 +66,9 @@ type Checker struct {
 	URL       string       // the API endpoint; LatestURL when empty (tests point it at httptest)
 	Client    *http.Client // nil: a client with a 10 s timeout
 	UserAgent string       // "OpenLAMT/<version>"
+	// Progress, when set, is called by Download after each chunk with the bytes so far and the
+	// size (the asset's, else the answer's Content-Length; 0 when unknown).
+	Progress func(done, total int64)
 }
 
 func (c Checker) do(ctx context.Context, url string, timeout time.Duration, accept string) (*http.Response, error) {
@@ -294,23 +298,72 @@ func Notes(body string, max int) []string {
 	return out
 }
 
-// Download saves the asset in dir under its name, or with " (1)", " (2)" … before the
-// extension when that name is taken; nothing is overwritten. It writes to a temporary file in
-// dir first and renames it at the end, so dir never holds half a package under the final name.
-// When the asset states a sha256 digest, a different file is deleted and ErrDigest returned.
-// It returns the path of the saved file.
-func (c Checker) Download(ctx context.Context, a Asset, dir string) (string, error) {
-	name := filepath.Base(a.Name)
-	if name != a.Name || name == "." || name == ".." || strings.ContainsAny(name, `/\:`) {
-		return "", fmt.Errorf("update: unusable asset name %q", a.Name)
+// Package is a downloaded release file whose checksum was verified, held in memory: the
+// handover works on these bytes, so no file on disk is read again after the check.
+type Package struct {
+	Name string // the asset's name, a plain file name
+	Data []byte
+}
+
+// Fetch downloads the asset into memory. When the asset states a sha256 digest, other bytes
+// are ErrDigest.
+func (c Checker) Fetch(ctx context.Context, a Asset) (Package, error) {
+	name, err := assetName(a.Name)
+	if err != nil {
+		return Package{}, err
 	}
 	resp, err := c.do(ctx, a.URL, downloadTimeout, "")
 	if err != nil {
-		return "", err
+		return Package{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("update: download answered %s", resp.Status)
+		return Package{}, fmt.Errorf("update: download answered %s", resp.Status)
+	}
+	var buf bytes.Buffer
+	if a.Size > 0 && a.Size <= maxAssetSize {
+		buf.Grow(int(a.Size))
+	}
+	var w io.Writer = &buf
+	if c.Progress != nil {
+		total := a.Size
+		if total <= 0 {
+			total = max(resp.ContentLength, 0)
+		}
+		w = &progressWriter{w: w, total: total, report: c.Progress}
+	}
+	n, err := io.Copy(w, io.LimitReader(resp.Body, maxAssetSize+1))
+	if err != nil {
+		return Package{}, err
+	}
+	if n > maxAssetSize {
+		return Package{}, fmt.Errorf("update: download larger than %d bytes", maxAssetSize)
+	}
+	sum := sha256.Sum256(buf.Bytes())
+	if want, ok := strings.CutPrefix(a.Digest, "sha256:"); ok && !strings.EqualFold(want, hex.EncodeToString(sum[:])) {
+		return Package{}, ErrDigest
+	}
+	return Package{Name: name, Data: buf.Bytes()}, nil
+}
+
+// Download fetches the asset (Fetch) and saves it in dir (Save). It returns the path of the
+// saved file; on an error dir holds nothing new.
+func (c Checker) Download(ctx context.Context, a Asset, dir string) (string, error) {
+	pkg, err := c.Fetch(ctx, a)
+	if err != nil {
+		return "", err
+	}
+	return Save(dir, pkg)
+}
+
+// Save writes the package to dir under its name, or with " (1)", " (2)" … before the
+// extension when that name is taken; nothing is overwritten. It writes to a temporary file in
+// dir first and renames it at the end, so dir never holds half a package under the final name.
+// An AppImage becomes executable. It returns the path of the saved file.
+func Save(dir string, pkg Package) (string, error) {
+	name, err := assetName(pkg.Name)
+	if err != nil {
+		return "", err
 	}
 	tmp, err := os.CreateTemp(dir, ".openlamt-download-*")
 	if err != nil {
@@ -323,19 +376,11 @@ func (c Checker) Download(ctx context.Context, a Asset, dir string) (string, err
 			os.Remove(tmp.Name())
 		}
 	}()
-	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(resp.Body, maxAssetSize+1))
-	if err != nil {
+	if _, err := tmp.Write(pkg.Data); err != nil {
 		return "", err
-	}
-	if n > maxAssetSize {
-		return "", fmt.Errorf("update: download larger than %d bytes", maxAssetSize)
 	}
 	if err := tmp.Close(); err != nil {
 		return "", err
-	}
-	if want, ok := strings.CutPrefix(a.Digest, "sha256:"); ok && !strings.EqualFold(want, hex.EncodeToString(h.Sum(nil))) {
-		return "", ErrDigest
 	}
 	if strings.HasSuffix(name, ".AppImage") {
 		// CreateTemp makes the file 0600; an AppImage is run directly, so it must be executable.
@@ -349,6 +394,29 @@ func (c Checker) Download(ctx context.Context, a Asset, dir string) (string, err
 	}
 	keep = true
 	return dest, nil
+}
+
+// assetName is name if it is a plain file name.
+func assetName(name string) (string, error) {
+	if b := filepath.Base(name); b != name || name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\:`) {
+		return "", fmt.Errorf("update: unusable asset name %q", name)
+	}
+	return name, nil
+}
+
+// progressWriter reports the bytes written so far after each write.
+type progressWriter struct {
+	w      io.Writer
+	done   int64
+	total  int64
+	report func(done, total int64)
+}
+
+func (p *progressWriter) Write(b []byte) (int, error) {
+	n, err := p.w.Write(b)
+	p.done += int64(n)
+	p.report(p.done, p.total)
+	return n, err
 }
 
 // freeName is dir/name, or the first of "name (1).ext", "name (2).ext" … that does not exist.

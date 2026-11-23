@@ -211,7 +211,8 @@ func seriesCoffee(t *testing.T, dir string, apply func(fyne.App)) {
 	softwareShot(t, dir, "dialog-coffee", h.s.win, fyne.NewSize(1000, 700))
 }
 
-// seriesUpdate shows the update dialogs with a made-up release: available, downloading, downloaded.
+// seriesUpdate shows the update dialogs with a made-up release: available per platform,
+// downloading, the fallback, the download error and the AppImage "downloaded".
 func seriesUpdate(t *testing.T, dir string, apply func(fyne.App)) {
 	withBuildVersion(t, "0.1.0")
 	h := newStart(t)
@@ -220,17 +221,32 @@ func seriesUpdate(t *testing.T, dir string, apply func(fyne.App)) {
 	rel := update.Release{Tag: "v0.2.0", HTMLURL: "https://example.com/releases/v0.2.0",
 		Body: "## What's Changed\n* Language and appearance in the settings by @someone in https://example.com/pull/1\n" +
 			"* Power Off works with an open KVM session\n* Windows icon in Explorer\n\n**Full Changelog**: https://example.com/compare",
-		Assets: []update.Asset{{Name: "OpenLAMT-v0.2.0-linux-x64.deb", URL: "https://example.com/pkg"}}}
+		Assets: []update.Asset{
+			{Name: "OpenLAMT-v0.2.0-linux-x64.deb", URL: "https://example.com/pkg", Size: 31_000_000},
+			{Name: "OpenLAMT-v0.2.0-macos-arm64.dmg", URL: "https://example.com/pkg", Size: 31_000_000},
+			{Name: "OpenLAMT-v0.2.0-windows-x64.zip", URL: "https://example.com/pkg", Size: 31_000_000},
+		}}
 	prevOS, prevArch := updateGOOS, updateGOARCH
-	updateGOOS, updateGOARCH = "linux", "amd64"
 	t.Cleanup(func() { updateGOOS, updateGOARCH = prevOS, prevArch })
 	n := &updateNotice{ctx: context.Background(), cancel: func() {}, async: func(func()) {}}
+	for _, p := range []struct{ goos, arch, name string }{{"darwin", "arm64", "mac"}, {"windows", "amd64", "windows"}, {"linux", "amd64", "linux"}} {
+		updateGOOS, updateGOARCH = p.goos, p.arch
+		h.s.showUpdateAvailable(n, rel)
+		softwareShot(t, dir, "dialog-update-available-"+p.name, h.s.win, size)
+		closeOverlays(h.s.win)
+	}
 	p := h.s.showUpdateAvailable(n, rel)
-	softwareShot(t, dir, "dialog-update-available", h.s.win, size)
 	p.act()
 	softwareShot(t, dir, "dialog-update-downloading", h.s.win, size)
 	closeOverlays(h.s.win)
-	showUpdateDownloaded(h.s.win, "0.2.0", filepath.Join(string(filepath.Separator)+"home", "user", "Downloads", "OpenLAMT-v0.2.0-macos-arm64.zip"))
+	home := filepath.Join(string(filepath.Separator)+"home", "user", "Downloads", "OpenLAMT-v0.2.0-linux-x64.deb")
+	showUpdateFallback(h.s.win, "0.2.0", home, updateFallbackText(updateDeb, errors.New("exit status 4")))
+	softwareShot(t, dir, "dialog-update-fallback", h.s.win, size)
+	closeOverlays(h.s.win)
+	h.s.showUpdateFailed(n, rel, update.ErrDigest)
+	softwareShot(t, dir, "dialog-update-failed", h.s.win, size)
+	closeOverlays(h.s.win)
+	showUpdateDownloaded(h.s.win, "0.2.0", filepath.Join(string(filepath.Separator)+"home", "user", "Downloads", "OpenLAMT-v0.2.0-linux-x64.AppImage"))
 	softwareShot(t, dir, "dialog-update-downloaded", h.s.win, size)
 }
 

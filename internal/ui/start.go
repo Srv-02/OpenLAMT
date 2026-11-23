@@ -49,6 +49,7 @@ type StartWindow struct {
 	closeQueued bool
 	quitAsking  bool
 	quitApp     func()       // closes the master window: its SetOnClosed closes the device windows
+	onQuit      func()       // runs right before quitApp once a quit goes through (quitWith); dropped when cancelled
 	exitWork    *pendingWork // unmounting of closed device windows; WaitForCleanup waits for it
 
 	items  []favorites.Favorite

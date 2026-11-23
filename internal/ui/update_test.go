@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +26,8 @@ type fakeGitHub struct {
 	hits    int
 	agent   string
 	pkgHits int
+	// pkgStatus, when set, is the answer for the package instead of it.
+	pkgStatus int
 }
 
 func newFakeGitHub(t *testing.T, tag string) *fakeGitHub {
@@ -42,6 +42,10 @@ func newFakeGitHub(t *testing.T, tag string) *fakeGitHub {
 			_ = json.NewEncoder(w).Encode(g.rel)
 		case "/pkg":
 			g.pkgHits++
+			if g.pkgStatus != 0 {
+				w.WriteHeader(g.pkgStatus)
+				return
+			}
 			_, _ = w.Write(g.pkg)
 		default:
 			w.WriteHeader(404)
@@ -56,13 +60,29 @@ func newFakeGitHub(t *testing.T, tag string) *fakeGitHub {
 		Body:   "## What's Changed\n* Language and appearance in the settings by @someone in https://example.com/pull/1\n* Windows icon in Explorer",
 		Assets: []update.Asset{{Name: "OpenLAMT-" + tag + "-" + platformSuffix(), URL: g.srv.URL + "/pkg", Digest: "sha256:" + hex.EncodeToString(sum[:])}}}
 	prevURL, prevDir, prevOS, prevArch, prevAppImage := updateURL, downloadsDir, updateGOOS, updateGOARCH, updateAppImage
+	prevInstaller, prevEvery := updateInstaller, updateProgressEvery
 	updateURL, updateGOOS, updateGOARCH, updateAppImage = g.srv.URL+"/latest", "linux", "amd64", false
 	dir := t.TempDir()
 	downloadsDir = func() (string, error) { return dir, nil }
+	// No test runs a real opener, UAC prompt or program.
+	updateInstaller = update.Installer{
+		Open:  func(string) error { t.Error("unexpected open"); return nil },
+		Start: func(string) error { t.Error("unexpected start"); return nil },
+	}
+	updateProgressEvery = 0
 	t.Cleanup(func() {
 		updateURL, downloadsDir, updateGOOS, updateGOARCH, updateAppImage = prevURL, prevDir, prevOS, prevArch, prevAppImage
+		updateInstaller, updateProgressEvery = prevInstaller, prevEvery
 	})
 	return g
+}
+
+// setPackage makes the release offer pkg under the name of suffix ("windows-x64.zip").
+func (g *fakeGitHub) setPackage(suffix string, pkg []byte) {
+	sum := sha256.Sum256(pkg)
+	g.pkg = pkg
+	g.rel.Assets = []update.Asset{{Name: "OpenLAMT-" + g.rel.Tag + "-" + suffix, URL: g.srv.URL + "/pkg",
+		Size: int64(len(pkg)), Digest: "sha256:" + hex.EncodeToString(sum[:])}}
 }
 
 func platformSuffix() string { return "linux-x64.deb" }
@@ -110,10 +130,7 @@ func TestUpdateNewerShowsDialog(t *testing.T) {
 		}
 	}
 	overlayButton(t, h.s.win, "Later")
-	overlayButton(t, h.s.win, "Download")
-	if c := overlayCheck(t, h.s.win); c == nil || c.Text != "Don't check for updates" || c.Checked {
-		t.Fatalf("check box %+v", c)
-	}
+	overlayButton(t, h.s.win, "Update")
 }
 
 func TestUpdateNotNewerOrFailingStaysSilent(t *testing.T) {
@@ -165,100 +182,6 @@ func TestUpdateSettingDefaultsOn(t *testing.T) {
 	h := newStart(t)
 	if !h.s.settings.UpdateCheck() {
 		t.Fatal("the update check must be on by default")
-	}
-}
-
-func TestUpdateDontCheckTurnsOff(t *testing.T) {
-	for _, button := range []string{"Later", "Download"} {
-		t.Run(button, func(t *testing.T) {
-			h, _ := updateHarness(t, "v0.2.0")
-			runCheck(h)
-			test.Tap(overlayCheck(t, h.s.win))
-			test.Tap(overlayButton(t, h.s.win, button))
-			if h.s.settings.UpdateCheck() {
-				t.Fatal("the setting must be off")
-			}
-		})
-	}
-	t.Run("unchecked keeps it", func(t *testing.T) {
-		h, _ := updateHarness(t, "v0.2.0")
-		runCheck(h)
-		test.Tap(overlayButton(t, h.s.win, "Later"))
-		if !h.s.settings.UpdateCheck() || h.s.win.Canvas().Overlays().Top() != nil {
-			t.Fatal("Later alone closes and keeps the setting")
-		}
-	})
-}
-
-func TestUpdateDownloadSavesAndShowsFolder(t *testing.T) {
-	opened := urlsOpened(t)
-	h, g := updateHarness(t, "v0.2.0")
-	dir, _ := downloadsDir()
-	runCheck(h)
-	test.Tap(overlayButton(t, h.s.win, "Download"))
-	if g.pkgHits != 1 {
-		t.Fatalf("package fetched %d times", g.pkgHits)
-	}
-	saved := filepath.Join(dir, "OpenLAMT-v0.2.0-linux-x64.deb")
-	if b, err := os.ReadFile(saved); err != nil || string(b) != string(g.pkg) {
-		t.Fatalf("saved file: %q %v", b, err)
-	}
-	all := overlayTexts(h.s.win)
-	want := "Saved as " + filepath.Join(filepath.Base(dir), "OpenLAMT-v0.2.0-linux-x64.deb") + ". Quit OpenLAMT"
-	if !strings.Contains(all, want) {
-		t.Fatalf("%q missing: %q", want, all)
-	}
-	overlayButton(t, h.s.win, "Close")
-	test.Tap(overlayButton(t, h.s.win, "Show in folder"))
-	if len(*opened) != 1 || (*opened)[0] != fileURL(dir) {
-		t.Fatalf("opened %v", *opened)
-	}
-	if h.s.win.Canvas().Overlays().Top() != nil {
-		t.Fatal("dialog still open")
-	}
-}
-
-func TestUpdateDownloadButtonLockedWhileLoading(t *testing.T) {
-	h, _ := updateHarness(t, "v0.2.0")
-	var pending func()
-	h.s.updates.async = func(f func()) { pending = f }
-	runCheck(h)
-	b := overlayButton(t, h.s.win, "Download")
-	test.Tap(b)
-	if !b.Disabled() || b.Text != "Downloading…" {
-		t.Fatalf("button %q disabled %v", b.Text, b.Disabled())
-	}
-	pending()
-	overlayButton(t, h.s.win, "Show in folder")
-}
-
-func TestUpdateLaterDuringDownloadShowsNothing(t *testing.T) {
-	h, _ := updateHarness(t, "v0.2.0")
-	var pending func()
-	h.s.updates.async = func(f func()) { pending = f }
-	runCheck(h)
-	test.Tap(overlayButton(t, h.s.win, "Download"))
-	test.Tap(overlayButton(t, h.s.win, "Later"))
-	pending()
-	if h.s.win.Canvas().Overlays().Top() != nil || len(h.errs) != 0 {
-		t.Fatal("a cancelled download must stay quiet")
-	}
-}
-
-func TestUpdateDownloadDigestMismatchShowsError(t *testing.T) {
-	h, g := updateHarness(t, "v0.2.0")
-	dir, _ := downloadsDir()
-	g.pkg = []byte("tampered")
-	runCheck(h)
-	test.Tap(overlayButton(t, h.s.win, "Download"))
-	if len(h.errs) != 1 {
-		t.Fatal("no error")
-	}
-	if err := <-h.errs; !strings.Contains(describe(err), "checksum") {
-		t.Fatalf("error %q", describe(err))
-	}
-	if es, _ := os.ReadDir(dir); len(es) != 0 {
-		t.Fatalf("files left: %v", es)
 	}
 }
 

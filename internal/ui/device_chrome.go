@@ -71,8 +71,8 @@ func (d *DeviceWindow) buildToolbar() fyne.CanvasObject {
 	d.buildKeyboardMenu()
 	d.toolbarItems = container.New(layout.NewCustomPaddedHBoxLayout(toolbarGap),
 		d.powerBtn, divider(),
-		d.viewSwitch, d.mediaBtn, d.quality, divider(),
-		d.cadBtn, d.clipBtn, d.keyboard, divider(),
+		d.viewSwitch, d.mediaBtn, d.quality, d.scale.btn, divider(),
+		d.cadBtn, d.clipBtn, d.keyboard, d.shotBtn, d.recBtn, divider(),
 		d.manageBtn, d.fullBtn)
 	row := container.New(&leadingFillLayout{gap: toolbarGap}, head, d.toolbarItems)
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameToolbar, "")
@@ -141,8 +141,9 @@ func (d *DeviceWindow) setMessage(text string) {
 }
 
 // buildStatusBar returns the 28 px status bar: power, AMT version and control mode on the left;
-// on the right the media status (only while set), TLS, the KVM state or message and the console
-// status (only while set).
+// on the right the media status, the running recording ("REC 02:14 · 18 MB", red) and the
+// result of the last screenshot or recording (each only while set), TLS, the KVM state or
+// message and the console status (only while set).
 func (d *DeviceWindow) buildStatusBar() fyne.CanvasObject {
 	text := func() *ellipsisText {
 		return newEllipsisText("", style.Size(style.SizeNameSecondaryText), style.ColorNameTextSecondary, false)
@@ -171,7 +172,7 @@ func (d *DeviceWindow) buildStatusBar() fyne.CanvasObject {
 
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameStatusBar, "")
 	bg.SetMinSize(fyne.NewSize(1, style.StatusBarHeight))
-	row := container.New(&statusLayout{gap: statusGap, shrink: statusShrink}, left, d.mediaLine, tls, d.kvmLine, d.consoleLine)
+	row := container.New(&statusLayout{gap: statusGap, shrink: statusShrink}, left, d.mediaLine, d.capture.recItem, d.capture.line, tls, d.kvmLine, d.consoleLine)
 	d.statusRow = row
 	return container.NewStack(bg, container.New(layout.NewCustomPaddedLayout(0, 0, statusPad, statusPad), row))
 }
@@ -464,7 +465,7 @@ func (d *DeviceWindow) showMenuWith(btn *widgets.ToolbarButton, m *fyne.Menu, in
 	return p
 }
 
-// closeMenus dismisses an open Power, Quality, Keyboard or Media menu (power
+// closeMenus dismisses an open Power, Quality, Scale, Keyboard or Media menu (power
 // action started, abort, KVM connect).
 func (d *DeviceWindow) closeMenus() {
 	d.media.dismiss()
@@ -476,6 +477,9 @@ func (d *DeviceWindow) closeMenus() {
 	}
 	if d.keyboardPopup != nil {
 		d.keyboardPopup.Dismiss()
+	}
+	if d.scale.popup != nil {
+		d.scale.popup.Dismiss()
 	}
 }
 
@@ -552,7 +556,7 @@ func (d *DeviceWindow) saveQuality(store favoriteStore, host, user string) {
 	})
 }
 
-// loadQuality reads the favorite's KVM quality, keyboard layout and auto-connect override on a goroutine (Find reads a file). A device that
+// loadQuality reads the favorite's KVM quality, keyboard layout, Reverse Mouse Wheel and auto-connect override on a goroutine (Find reads a file). A device that
 // is not a favorite, or a file that cannot be read, keeps the global quality: the start window reports a
 // broken favorites file. A choice the user made meanwhile wins.
 func (d *DeviceWindow) loadQuality() {
@@ -573,6 +577,10 @@ func (d *DeviceWindow) loadQuality() {
 				if !d.layoutChosen {
 					d.layoutChoice = layoutChoiceOf(f.Layout)
 				}
+				if !d.scale.chosen {
+					d.view.reverseWheel = f.ReverseWheel
+					d.refreshScaleItems()
+				}
 				d.refreshKeyboardItems()
 			}
 			d.autoLoaded = true
@@ -592,6 +600,7 @@ type ellipsisText struct {
 	size   float32
 	color  fyne.ThemeColorName
 	bold   bool
+	mono   bool // monospace (a folder path)
 	align  fyne.TextAlign
 	shrink bool
 }
@@ -611,7 +620,9 @@ func (t *ellipsisText) SetText(s string) {
 	t.Refresh()
 }
 
-func (t *ellipsisText) textStyle() fyne.TextStyle { return fyne.TextStyle{Bold: t.bold} }
+func (t *ellipsisText) textStyle() fyne.TextStyle {
+	return fyne.TextStyle{Bold: t.bold, Monospace: t.mono}
+}
 
 // natural is the width of the full text.
 func (t *ellipsisText) natural() float32 {
@@ -654,6 +665,7 @@ func (r *ellipsisRenderer) Layout(size fyne.Size) {
 
 func (r *ellipsisRenderer) Refresh() {
 	r.txt.Color = style.Color(r.t.color)
+	r.txt.TextStyle = r.t.textStyle()
 	r.Layout(r.t.Size())
 	r.txt.Refresh()
 }
@@ -787,7 +799,7 @@ type statusLayout struct {
 }
 
 // statusShrink is the index of the KVM text in the status bar row.
-const statusShrink = 3
+const statusShrink = 5
 
 func (l *statusLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	var s fyne.Size

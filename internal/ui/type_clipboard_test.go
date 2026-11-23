@@ -64,6 +64,17 @@ func (f *fakeLayouts) SetLayout(host, user, layout string) error {
 	return f.setErr
 }
 
+// SetReverseWheel records "Reverse Mouse Wheel" on the favorite; without one it reports ErrNotFound.
+func (f *fakeLayouts) SetReverseWheel(host, user string, on bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.fav == nil {
+		return favorites.ErrNotFound
+	}
+	f.fav.ReverseWheel = on
+	return f.setErr
+}
+
 // stored returns a copy of the favorite (nil without one), safe against the save goroutines.
 func (f *fakeLayouts) stored() *favorites.Favorite {
 	f.mu.Lock()

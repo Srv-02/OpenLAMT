@@ -16,6 +16,9 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
+// kvmMinSize is the least size of the KVM area.
+var kvmMinSize = fyne.NewSize(320, 180)
+
 // Automatic reconnect as in MeshCommander (index.html onDesktopStateChange, disconnectCode
 // 50001): if AMT ends a session that ran longer than reconnectMinUptime, the client connects
 // again after reconnectDelay. Variables for tests.
@@ -69,8 +72,8 @@ func (p *consentPrompt) ConsentCode() (string, error) {
 	}
 }
 
-// buildKVM creates the KVM toolbar buttons, the Quality menu, the view and the full screen bar;
-// kvmArea holds the view. Called once from NewDeviceWindow, before the toolbar is laid out.
+// buildKVM creates the KVM toolbar buttons, the Quality and Scale menus, Screenshot and Record,
+// the view and the full screen bar; kvmArea holds the view in its scroll container. Called once from NewDeviceWindow, before the toolbar is laid out.
 func (d *DeviceWindow) buildKVM() {
 	d.view = newKVMView(newKeyMapper(d.goos, waylandPlatform))
 	d.askConsent = func(answer func(string, bool)) func() {
@@ -81,12 +84,20 @@ func (d *DeviceWindow) buildKVM() {
 	d.fullBtn = widgets.NewToolbarButton(icons.Fullscreen, lang.L("Full Screen"), func() { d.setFullScreen(true) })
 	d.cadBtn = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.toolbarCtrlAltDel)
 	d.clipBtn = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.toolbarTypeClipboard)
-	d.kvmArea = container.NewStack(d.view)
+	// The scroll container shows a zoomed image with scroll bars; fitted it never scrolls.
+	d.kvmScroll = container.NewScroll(d.view)
+	d.kvmScroll.SetMinSize(kvmMinSize)
+	d.view.onSize = d.kvmScroll.Refresh
+	d.view.onScroll = d.kvmScroll.Scrolled
+	d.view.onFirstFrame = d.setKVMControls
+	d.kvmArea = container.NewStack(d.kvmScroll)
+	d.buildCapture()
+	d.buildScaleMenu()
 
 	d.exitFullBtn = widgets.NewToolbarButton(icons.Fullscreen, lang.L("Exit Full Screen"), func() { d.setFullScreen(false) })
 	d.barCad = widgets.NewToolbarButton(icons.Keyboard, "Ctrl+Alt+Del", d.toolbarCtrlAltDel)
 	d.barClip = widgets.NewToolbarButton(icons.ClipboardType, lang.L("Type Clipboard"), d.toolbarTypeClipboard)
-	d.bar = newDragBar(d.barSwitch, d.exitFullBtn, d.barCad, d.barClip)
+	d.bar = newDragBar(d.barSwitch, d.exitFullBtn, d.barCad, d.barClip, d.barShot, d.barRec)
 	d.barLayer = d.bar.layer()
 	d.onTypeClipboard = d.startTyping
 	d.view.onInput = d.touchIdle
@@ -101,7 +112,8 @@ func (d *DeviceWindow) buildKVM() {
 // shown view (fullScreenAllowed); Ctrl+Alt+Del needs a session; "Type clipboard" additionally
 // needs its hook (set in buildKVM). In the Console view Ctrl+Alt+Del goes to the console and
 // stays enabled; Type Clipboard follows syncClipButtons. The full screen bar mirrors the
-// toolbar. Manage follows syncManageBtn. Status bar and empty state follow.
+// toolbar. Screenshot and Record follow syncCaptureButtons, Scale is locked in the Console view.
+// Manage follows syncManageBtn. Status bar and empty state follow.
 func (d *DeviceWindow) setKVMControls() {
 	connected := d.kvmClient != nil || d.kvmReconnecting // a reconnect keeps the controls as they are
 	console := d.consoleView
@@ -116,10 +128,12 @@ func (d *DeviceWindow) setKVMControls() {
 	enable(d.barSwitch, true)
 	enable(d.mediaBtn, true)
 	enable(d.quality, !console && !d.kvmBusy && !d.kvmReconnecting)
+	enable(d.scale.btn, !console)
 	enable(d.fullBtn, d.fullScreenAllowed())
 	enable(d.cadBtn, connected || console)
 	enable(d.barCad, connected || console)
 	d.syncClipButtons()
+	d.syncCaptureButtons()
 	d.syncManageBtn()
 	d.refreshKVMLine()
 	d.refreshEmptyState()
@@ -535,6 +549,7 @@ func (d *DeviceWindow) kvmReopened(ctx context.Context, c *kvm.Client, err error
 
 // endKVM finishes a session that is over (no reconnect): view, full screen, status, controls.
 func (d *DeviceWindow) endKVM(err error) {
+	d.stopRecording() // the session is over; a reconnect does not come here and keeps recording
 	d.stopIdle()
 	d.con.cadPending = false
 	d.closeTyping() // also when the server ended the session; nothing left to type into
@@ -643,6 +658,7 @@ func (d *DeviceWindow) setFullScreen(on bool) {
 	}
 	d.fullScreen = on
 	if on {
+		d.view.setScale(0) // full screen always fits (gesamtdesign: no Scale in the bar)
 		d.stage.RemoveAll()
 		d.win.SetContent(container.NewStack(d.kvmStage, d.consolePane, d.barLayer))
 		d.win.SetFullScreen(true)
@@ -652,6 +668,7 @@ func (d *DeviceWindow) setFullScreen(on bool) {
 		d.win.SetContent(d.content)
 		d.stage.Objects = []fyne.CanvasObject{d.kvmStage, d.consolePane}
 		d.stage.Refresh()
+		d.view.setScale(d.scale.choice)
 	}
 	if d.consoleView {
 		d.focusConsole()

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/widget"
 	models "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
@@ -24,8 +25,8 @@ import (
 )
 
 // DeviceWindow shows one connected device (design SessionA/SessionA2, issue #44, Main.dc.html):
-// a toolbar (Power menu, KVM|Console, Media, Quality, Ctrl+Alt+Del, Type Clipboard, Keyboard,
-// Manage, Full Screen), banners for the TLS warning and a failed status read, the KVM or
+// a toolbar (Power menu, KVM|Console, Media, Quality, Scale, Ctrl+Alt+Del, Type Clipboard, Keyboard,
+// Screenshot, Record, Manage, Full Screen), banners for the TLS warning and a failed status read, the KVM or
 // Console stage, the device management sidebar and a status bar (device_chrome.go and
 // device_views.go build these). KVM logic is in device_kvm.go. The status is polled by a
 // session.Poller.
@@ -156,6 +157,12 @@ type DeviceWindow struct {
 	fullScreen                   bool
 	askConsent                   func(answer func(code string, ok bool)) (hide func()) // dialog; replaced in tests
 	onTypeClipboard              func()                                                // "Type clipboard" dialog (type_clipboard.go); nil keeps the buttons disabled
+	kvmScroll                    *container.Scroll                                     // around the view; scrolls a zoomed image (Scale menu)
+
+	// Screenshot, Record (device_capture.go) and the Scale menu (device_scale.go), only touched on the Fyne thread.
+	shotBtn, recBtn, barShot, barRec *widgets.ToolbarButton
+	capture                          captureState
+	scale                            scaleState
 
 	// "Type clipboard" (type_clipboard.go), only touched on the Fyne thread.
 	typing         *typeJob             // pending or running "Type clipboard" or nil
@@ -246,6 +253,7 @@ func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Stat
 		idle := d.kvmClient == nil && !d.kvmBusy && !d.kvmReconnecting
 		d.closed = true
 		d.forgetResume()
+		d.stopRecording() // the file is completed; quitting waits for it (exitWork)
 		d.shutdown()
 		d.release()
 		d.closeConsole()

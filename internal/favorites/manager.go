@@ -51,7 +51,8 @@ func (m *Manager) Find(host, username string) (Favorite, bool, error) {
 }
 
 // Upsert adds f or replaces the entry with the same host/username. An empty f.Layout,
-// f.Quality or f.AutoConnect keeps the value already stored for that entry.
+// f.Quality or f.AutoConnect keeps the value already stored for that entry; the stored
+// ReverseWheel always stays (SetReverseWheel changes it).
 func (m *Manager) Upsert(f Favorite) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -69,6 +70,7 @@ func (m *Manager) Upsert(f Favorite) error {
 		if f.AutoConnect == "" {
 			f.AutoConnect = list[i].AutoConnect
 		}
+		f.ReverseWheel = list[i].ReverseWheel
 		list[i] = f
 	} else {
 		list = append(list, f)
@@ -210,6 +212,12 @@ func (m *Manager) SetAutoConnect(host, username, choice string) error {
 		return fmt.Errorf("favorites: unknown auto-connect value %q", choice)
 	}
 	return m.setField(host, username, func(f *Favorite) { f.AutoConnect = choice })
+}
+
+// SetReverseWheel stores "Reverse Mouse Wheel" of the favorite host/username. It returns
+// ErrNotFound if the device is not a favorite.
+func (m *Manager) SetReverseWheel(host, username string, on bool) error {
+	return m.setField(host, username, func(f *Favorite) { f.ReverseWheel = on })
 }
 
 // setField applies change to the favorite host/username and saves the file.

@@ -30,7 +30,7 @@ func TestDesignDialogsStayReachableInSmallWindows(t *testing.T) {
 			}
 			_, _, buttons := dialogTexts(h.s.win)
 			for name, b := range buttons {
-				if name == "Reset Warnings" || name == "Check Now" { // rows of the settings, which scroll
+				if name == "Reset Warnings" || name == "Check Now" || name == "Choose…" || name == "" { // rows of the settings, which scroll
 					continue
 				}
 				ok, pos, sz := reachable(h.s.win, b)

@@ -510,3 +510,54 @@ func TestMenuPopupScrollsWhenTallerThanCanvas(t *testing.T) {
 		t.Fatalf("active row %v..%v outside view %v+%v", top, bottom, p.scroll.Offset.Y, p.scroll.Size().Height)
 	}
 }
+
+// TestToolbarButtonDanger: a running recording shows "Stop" with symbol and caption in red
+// (gesamtdesign .ti.rec).
+func TestToolbarButtonDanger(t *testing.T) {
+	themedApp(t)
+	b := NewToolbarButton(icons.Stop, "Stop", nil)
+	test.NewTempWindow(t, b)
+	r := test.WidgetRenderer(b).(*toolbarButtonRenderer)
+	b.SetDanger(true)
+	if !b.Danger() || r.icon.Resource() != icons.Get(icons.Stop, icons.Danger) || !same(r.caption.Color, style.Color(style.ColorNameErrorText)) {
+		t.Fatal("danger: symbol or caption not red")
+	}
+	b.SetDanger(false)
+	if r.icon.Resource() != icons.Get(icons.Stop, icons.Toolbar) || !same(r.caption.Color, style.Color(style.ColorNameTextSecondary)) {
+		t.Fatal("danger not cleared")
+	}
+}
+
+// TestMenuShowsShortcutText: an item with a keyboard shortcut shows its keys at the right edge
+// of the row ("Ctrl+0"), in the secondary color; the row grows by its width.
+func TestMenuShowsShortcutText(t *testing.T) {
+	themedApp(t)
+	for sc, want := range map[fyne.Shortcut]string{
+		&desktop.CustomShortcut{KeyName: fyne.Key0, Modifier: fyne.KeyModifierControl}:                             "Ctrl+0",
+		&desktop.CustomShortcut{KeyName: fyne.KeyPlus, Modifier: fyne.KeyModifierControl}:                          "Ctrl++",
+		&desktop.CustomShortcut{KeyName: fyne.KeyMinus, Modifier: fyne.KeyModifierControl | fyne.KeyModifierShift}: "Ctrl+Shift+-",
+		nil: "",
+	} {
+		if got := ShortcutText(sc); got != want {
+			t.Errorf("ShortcutText %v = %q, want %q", sc, got, want)
+		}
+	}
+	plain := fyne.NewMenuItem("Fit to Window", nil)
+	keyed := fyne.NewMenuItem("Fit to Window", nil)
+	keyed.Shortcut = &desktop.CustomShortcut{KeyName: fyne.Key0, Modifier: fyne.KeyModifierControl}
+	w := test.NewTempWindow(t, widget.NewLabel(""))
+	p := NewMenuPopup(fyne.NewMenu("", plain, keyed), w.Canvas())
+	p.ShowAtPosition(fyne.NewPos(0, 0))
+	rows := p.rows
+	rp := test.WidgetRenderer(rows[0]).(*menuRowRenderer)
+	rk := test.WidgetRenderer(rows[1]).(*menuRowRenderer)
+	if rp.key.Text != "" || rk.key.Text != "Ctrl+0" || !same(rk.key.Color, style.Color(style.ColorNameTextSecondary)) {
+		t.Fatalf("shortcut texts %q %q", rp.key.Text, rk.key.Text)
+	}
+	if rk.MinSize().Width <= rp.MinSize().Width {
+		t.Fatal("the shortcut takes no room")
+	}
+	if right := rk.key.Position().X + rk.key.Size().Width; right != rows[1].Size().Width-menuRowPadH {
+		t.Fatalf("shortcut ends at %v of %v", right, rows[1].Size().Width)
+	}
+}

@@ -43,6 +43,7 @@ type ToolbarButton struct {
 	caption string
 	badge   string
 	chevron bool
+	danger  bool
 	active  bool
 	open    bool
 	hovered bool
@@ -87,6 +88,12 @@ func (b *ToolbarButton) SetActive(on bool) { b.active = on; b.Refresh() }
 
 // Active reports the toggled state.
 func (b *ToolbarButton) Active() bool { return b.active }
+
+// SetDanger shows symbol and caption in red, for a running recording ("Stop").
+func (b *ToolbarButton) SetDanger(on bool) { b.danger = on; b.Refresh() }
+
+// Danger reports the red state.
+func (b *ToolbarButton) Danger() bool { return b.danger }
 
 // SetOpen marks the button pressed while its menu is shown.
 func (b *ToolbarButton) SetOpen(on bool) { b.open = on; b.Refresh() }
@@ -153,6 +160,8 @@ func (b *ToolbarButton) background() color.Color {
 // iconVariant returns the symbol color for the current state.
 func (b *ToolbarButton) iconVariant() icons.Variant {
 	switch {
+	case b.danger && !b.Disabled():
+		return icons.Danger
 	case b.active && !b.Disabled():
 		return icons.AccentText
 	case b.open:
@@ -258,6 +267,8 @@ func (r *toolbarButtonRenderer) Refresh() {
 	fg := icons.Color(b.iconVariant())
 	capColor := style.Color(style.ColorNameTextSecondary)
 	switch {
+	case b.danger:
+		capColor = style.Color(style.ColorNameErrorText)
 	case b.active:
 		capColor = style.Color(style.ColorNameAccentText)
 	case b.open:

@@ -26,6 +26,7 @@ const (
 	prefAppearance      = "appearance"
 	prefUpdateCheck     = "update_check"
 	prefColorBlind      = "color_blind"
+	prefCaptureFolder   = "capture_folder"
 
 	// "Don’t show again" of the hints; every one belongs in hiddenMessagePrefs.
 	prefHideFolderMountHint = "hide_folder_mount_hint"
@@ -181,6 +182,13 @@ func (s Settings) ColorBlind() bool { return s.prefs.BoolWithFallback(prefColorB
 
 // SetColorBlind stores the setting; applyAppearance makes the open windows follow it.
 func (s Settings) SetColorBlind(on bool) { s.prefs.SetBool(prefColorBlind, on) }
+
+// CaptureFolder is the folder for screenshots and recordings (gesamtdesign V9: one folder for
+// both); empty (the default) asks for a file name each time.
+func (s Settings) CaptureFolder() string { return s.prefs.String(prefCaptureFolder) }
+
+// SetCaptureFolder stores the folder; empty asks for a file name each time again.
+func (s Settings) SetCaptureFolder(dir string) { s.prefs.SetString(prefCaptureFolder, dir) }
 
 // hiddenMessagePrefs are the preferences of every message that "Don’t show again" hides;
 // ResetHiddenMessages shows them all again.

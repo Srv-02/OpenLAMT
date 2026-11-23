@@ -404,3 +404,36 @@ func TestSetLayoutAndAutoConnect(t *testing.T) {
 		t.Fatal("unknown auto-connect value accepted")
 	}
 }
+
+// TestSetReverseWheelSurvivesUpsertAndEdit: "Reverse Mouse Wheel" is stored per favorite,
+// Upsert (saving the form of an existing favorite) keeps it, and Edit takes it as given.
+func TestSetReverseWheelSurvivesUpsertAndEdit(t *testing.T) {
+	m, _ := seeded(t)
+	if err := m.SetReverseWheel("device.example.com", "admin", true); err != nil {
+		t.Fatal(err)
+	}
+	if f, _, _ := m.Find("device.example.com", "admin"); !f.ReverseWheel {
+		t.Fatalf("not stored: %+v", f)
+	}
+	if err := m.Upsert(fav); err != nil { // fav has ReverseWheel false
+		t.Fatal(err)
+	}
+	f, _, _ := m.Find("device.example.com", "admin")
+	if !f.ReverseWheel {
+		t.Fatal("Upsert dropped ReverseWheel")
+	}
+	f.ReverseWheel = false
+	if err := m.Edit(f.Host, f.Username, f, false); err != nil {
+		t.Fatal(err)
+	}
+	if f, _, _ := m.Find("device.example.com", "admin"); f.ReverseWheel {
+		t.Fatal("Edit did not clear ReverseWheel")
+	}
+	if err := m.SetReverseWheel("missing.example.com", "admin", true); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing: %v", err)
+	}
+	b, _ := os.ReadFile(m.store.path)
+	if strings.Contains(string(b), "kvm_reverse_wheel") {
+		t.Fatalf("false must not be written: %s", b)
+	}
+}

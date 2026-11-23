@@ -29,8 +29,9 @@ func (f fakeFavorites) Find(host, user string) (favorites.Favorite, bool, error)
 	}
 	return *f.fav, true, nil
 }
-func (f fakeFavorites) SetQuality(host, user, q string) error { return nil }
-func (f fakeFavorites) SetLayout(host, user, l string) error  { return nil }
+func (f fakeFavorites) SetQuality(host, user, q string) error      { return nil }
+func (f fakeFavorites) SetLayout(host, user, l string) error       { return nil }
+func (f fakeFavorites) SetReverseWheel(string, string, bool) error { return nil }
 
 // autoDevice builds a KVM device window like newKVMDevice, but configures the global setting
 // and the favorite before Show, because Show starts the automatic connect.

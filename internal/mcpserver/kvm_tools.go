@@ -367,11 +367,11 @@ type sendKeysOutput struct {
 }
 
 // confirmInput asks the person in the MCP client before an input call, when the config wants it.
-func (s *server) confirmInput(req *mcp.CallToolRequest, fav favorites.Favorite, what string) (*mcp.CallToolResult, error) {
+func (s *server) confirmInput(req *mcp.CallToolRequest, fav favorites.Favorite, what string, secret bool) (*mcp.CallToolResult, error) {
 	if !s.kvm.has(fav) {
 		return nil, noSession(fav) // do not ask a person for a call that cannot run
 	}
-	return s.confirm(req, fav, confirmMessage(what, fav))
+	return s.confirmText(req, fav, what, secret)
 }
 
 // sleepCtx waits d unless ctx ends first.
@@ -409,7 +409,7 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 	if err != nil {
 		return nil, sendKeysOutput{}, err
 	}
-	if res, err := s.confirmInput(req, fav, "press "+list); res != nil || err != nil {
+	if res, err := s.confirmInput(req, fav, "press "+list, false); res != nil || err != nil {
 		return res, sendKeysOutput{}, err
 	}
 	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
@@ -510,7 +510,7 @@ func (s *server) kvmMouse(ctx context.Context, req *mcp.CallToolRequest, in mous
 	if err != nil {
 		return nil, mouseOutput{}, err
 	}
-	if res, err := s.confirmInput(req, fav, "use the mouse: "+what); res != nil || err != nil {
+	if res, err := s.confirmInput(req, fav, "use the mouse: "+what, false); res != nil || err != nil {
 		return res, mouseOutput{}, err
 	}
 	var out mouseOutput
@@ -667,7 +667,7 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 	if in.Secret {
 		rec.action += ", secret"
 	}
-	if res, err := s.confirmInput(req, fav, typePrompt(plan, in.Secret)); res != nil || err != nil {
+	if res, err := s.confirmInput(req, fav, typePrompt(plan, in.Secret), in.Secret); res != nil || err != nil {
 		return res, typeOutput{}, err
 	}
 	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {

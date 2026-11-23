@@ -43,6 +43,24 @@ func (s *server) confirmFor(req *mcp.CallToolRequest, fav favorites.Favorite, me
 	return s.ask(req, question{message: message, state: s.bindState(fav, state), stale: stale})
 }
 
+// secretNoTLSWarning is the warning for a secret text typed on a device without TLS.
+const secretNoTLSWarning = "The connection to this device has no TLS. The text is sent unencrypted: anyone who captures it on " +
+	"the network can read it."
+
+// confirmText is confirm for an input call that types text. A text the agent marked secret,
+// typed on a device without TLS, asks regardless of require_client_confirmation, with the TLS
+// warning, as the app asks before it sends a password without TLS (#37); a client that cannot
+// ask gets a refusal. Otherwise it is confirm.
+func (s *server) confirmText(req *mcp.CallToolRequest, fav favorites.Favorite, what string, secret bool) (*mcp.CallToolResult, error) {
+	msg := confirmMessage(what, fav)
+	if !secret || fav.UseTLS {
+		return s.confirm(req, fav, msg)
+	}
+	return s.ask(req, question{message: msg + "\n\n" + secretNoTLSWarning, state: s.bindState(fav, ""), noTLS: true,
+		stale: "The favorite changed while the question was open (another name, host or user), " +
+			"so the answer was for another device. Nothing was sent to the device; call the tool again."})
+}
+
 // bindState is the request state of a question about state on the device of fav: an HMAC over
 // the favorite's name, host and user and state, with the server's own key.
 func (s *server) bindState(fav favorites.Favorite, state string) string {
@@ -63,6 +81,9 @@ type question struct {
 	// risk: the OpenLAMT app asks with an orange or red warning, so the question is asked even
 	// without require_client_confirmation.
 	risk bool
+	// noTLS: the call sends a password or secret text over a connection without TLS. The app
+	// asks before it does (#37), so the question is asked even without require_client_confirmation.
+	noTLS bool
 }
 
 // ask puts q to the person in the MCP client. It returns (nil, nil) for an accepted confirm:true
@@ -79,12 +100,18 @@ func (s *server) ask(req *mcp.CallToolRequest, q question) (*mcp.CallToolResult,
 		return nil, refuse("The action was not confirmed in the MCP client. Nothing was sent to the device.")
 	}
 	if p := req.Session.InitializeParams(); p == nil || p.Capabilities == nil || p.Capabilities.Elicitation == nil {
+		if q.noTLS {
+			return nil, refuse("This call sends a password or secret text to a device whose connection has no TLS, so it travels " +
+				"unencrypted. The OpenLAMT app asks before it does that, so a person has to confirm it in the MCP client, but this " +
+				"MCP client cannot ask for confirmation (it does not support elicitation). Nothing was sent to the device. " +
+				"Turn on TLS for the favorite, or make the change in the OpenLAMT app, or use an MCP client that supports elicitation.")
+		}
 		if q.risk {
 			return nil, refuse("The OpenLAMT app asks before this change with a risk warning, so a person has to confirm it in the " +
 				"MCP client, but this MCP client cannot ask for confirmation (it does not support elicitation). " +
 				"Nothing was sent to the device. Make the change in the OpenLAMT app, or use an MCP client that supports elicitation.")
 		}
-		return nil, refuse("require_client_confirmation is on in the openlamt-mcp config, but this MCP client " +
+		return nil, refuse("A question is required here (require_client_confirmation is on in the openlamt-mcp config), but this MCP client " +
 			"cannot ask for confirmation (it does not support elicitation). Nothing was sent to the device.")
 	}
 	title := q.title

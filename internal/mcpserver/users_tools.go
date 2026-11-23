@@ -252,7 +252,7 @@ func (s *server) addUser(ctx context.Context, req *mcp.CallToolRequest, in addUs
 	if err != nil {
 		return nil, writeOutput{}, err
 	}
-	ch := change{tool: "add_user", in: in, what: what, notes: tlsNotes(fav, spec.Name)}
+	ch := change{tool: "add_user", in: in, what: what, notes: tlsNotes(fav, spec.Name), noTLS: !fav.UseTLS}
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
@@ -329,7 +329,7 @@ func (s *server) updateUser(ctx context.Context, req *mcp.CallToolRequest, in up
 	if shown == "" {
 		shown = user
 	}
-	ch := change{tool: "update_user", in: in, what: what, notes: tlsNotes(fav, shown)}
+	ch := change{tool: "update_user", in: in, what: what, notes: tlsNotes(fav, shown), noTLS: !fav.UseTLS}
 	if own {
 		ch.level, ch.warning = amt.LevelOrange, riskWarnings[amt.OpOwnAccount]+" OpenLAMT saves the new login in the keychain and the favorite."
 	}
@@ -511,7 +511,7 @@ func (s *server) setAdminAccount(ctx context.Context, req *mcp.CallToolRequest, 
 	if !fav.UseTLS {
 		notes = []string{passwordNoTLS(shown)}
 	}
-	ch := change{tool: "set_admin_account", in: in, level: amt.LevelRed, what: what, warning: riskWarnings[amt.OpAdminAccount], notes: notes}
+	ch := change{tool: "set_admin_account", in: in, level: amt.LevelRed, what: what, warning: riskWarnings[amt.OpAdminAccount], notes: notes, noTLS: !fav.UseTLS}
 	if res, err := s.confirmChange(req, ch, fav, in.Confirm); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}

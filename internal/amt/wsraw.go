@@ -16,8 +16,7 @@ import (
 
 const (
 	transferNS   = "http://schemas.xmlsoap.org/ws/2004/09/transfer"
-	actionCreate = transferNS + "/Create"
-	actionDelete = transferNS + "/Delete"
+	actionCreate = transferNS + "/Create" // actionDelete: wifi.go
 	addressingNS = "http://schemas.xmlsoap.org/ws/2004/08/addressing"
 	wsmanNS      = "http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
 	anonymousURI = addressingNS + "/role/anonymous"

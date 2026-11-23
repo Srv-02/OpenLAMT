@@ -288,9 +288,16 @@ func (p *settingsPane) showTLS(all []amt.Certificate) {
 		button:      lang.L("Change Certificate"),
 		onConfirm: func(c amt.Confirmation) {
 			id := f.selected
-			p.d.write(func() error {
+			p.d.run(func() error {
 				return p.m.sess.SetTLS(amt.TLSChange{Certificate: &id}, c, p.m.deps.loginStore)
-			}, true)
+			}, func(err error) {
+				if err != nil {
+					p.d.fail(err)
+				} else if p.m.certs != nil && p.m.certs.started {
+					p.m.certs.reload() // the Certificates page marks the TLS certificate
+				}
+				p.d.src.reload()
+			})
 		},
 	})
 }

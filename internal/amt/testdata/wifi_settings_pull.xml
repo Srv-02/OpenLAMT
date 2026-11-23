@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:e="http://schemas.xmlsoap.org/ws/2004/09/enumeration"
+    xmlns:h="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_WiFiEndpointSettings">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000001</b:MessageID>
+        <c:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_WiFiEndpointSettings</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <e:PullResponse><e:Items><h:CIM_WiFiEndpointSettings><h:AuthenticationMethod>32768</h:AuthenticationMethod><h:BSSType>3</h:BSSType><h:ElementName>Workshop</h:ElementName><h:EncryptionMethod>4</h:EncryptionMethod><h:InstanceID>Intel(r) AMT:WiFi Endpoint Settings Workshop</h:InstanceID><h:Priority>2</h:Priority><h:SSID>ACME-Workshop</h:SSID></h:CIM_WiFiEndpointSettings><h:CIM_WiFiEndpointSettings><h:AuthenticationMethod>6</h:AuthenticationMethod><h:BSSType>3</h:BSSType><h:ElementName>Office</h:ElementName><h:EncryptionMethod>4</h:EncryptionMethod><h:InstanceID>Intel(r) AMT:WiFi Endpoint Settings Office</h:InstanceID><h:Priority>1</h:Priority><h:SSID>ACME-Lab</h:SSID></h:CIM_WiFiEndpointSettings><h:CIM_WiFiEndpointSettings><h:AuthenticationMethod>7</h:AuthenticationMethod><h:BSSType>3</h:BSSType><h:ElementName>Corp</h:ElementName><h:EncryptionMethod>4</h:EncryptionMethod><h:InstanceID>Intel(r) AMT:WiFi Endpoint Settings Corp</h:InstanceID><h:Priority>3</h:Priority><h:SSID>ACME-Corp</h:SSID></h:CIM_WiFiEndpointSettings><h:CIM_WiFiEndpointSettings><h:AuthenticationMethod>6</h:AuthenticationMethod><h:BSSType>3</h:BSSType><h:ElementName>Home</h:ElementName><h:EncryptionMethod>4</h:EncryptionMethod><h:InstanceID>Intel(r) AMT:WiFi Endpoint User Settings Home</h:InstanceID><h:Priority>4</h:Priority><h:SSID>ACME-Home</h:SSID></h:CIM_WiFiEndpointSettings></e:Items><e:EndOfSequence></e:EndOfSequence></e:PullResponse>
+    </a:Body>
+</a:Envelope>

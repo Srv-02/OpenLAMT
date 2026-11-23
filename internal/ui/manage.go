@@ -171,6 +171,7 @@ type manager struct {
 	audit  *manageSource[[]logRow]
 
 	settings *settingsData
+	logDlg   logDialogs // dialogs of the Event log and Audit log pages (tests)
 
 	pages    []managePage
 	side     *manageSidebar

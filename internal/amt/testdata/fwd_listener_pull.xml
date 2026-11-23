@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:e="http://schemas.xmlsoap.org/ws/2004/09/enumeration"
+    xmlns:h="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ListenerDestination">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000001</b:MessageID>
+        <c:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ListenerDestination</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <e:PullResponse><e:Items><g:CIM_ListenerDestinationWSManagement xmlns:g="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ListenerDestinationWSManagement"><g:CreationClassName>CIM_ListenerDestinationWSMAN</g:CreationClassName><g:DeliveryMode>2</g:DeliveryMode><g:Destination>http://192.0.2.5:16997/events</g:Destination><g:ElementName>Listener Destination 0</g:ElementName><g:Name>Listener Destination 0</g:Name><g:PersistenceType>3</g:PersistenceType><g:Protocol>4</g:Protocol><g:SystemCreationClassName>CIM_ComputerSystem</g:SystemCreationClassName><g:SystemName>Intel(r) AMT</g:SystemName></g:CIM_ListenerDestinationWSManagement><g:CIM_ListenerDestinationWSManagement xmlns:g="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ListenerDestinationWSManagement"><g:CreationClassName>CIM_ListenerDestinationWSMAN</g:CreationClassName><g:DeliveryMode>3</g:DeliveryMode><g:Destination>https://siem.example.com/amt?a=1&amp;b=2</g:Destination><g:ElementName>Listener Destination 1</g:ElementName><g:Name>Listener Destination 1</g:Name><g:PersistenceType>3</g:PersistenceType><g:Protocol>4</g:Protocol><g:SystemCreationClassName>CIM_ComputerSystem</g:SystemCreationClassName><g:SystemName>Intel(r) AMT</g:SystemName></g:CIM_ListenerDestinationWSManagement><g:CIM_ListenerDestinationWSManagement xmlns:g="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_ListenerDestinationWSManagement"><g:CreationClassName>CIM_ListenerDestinationWSMAN</g:CreationClassName><g:DeliveryMode>2</g:DeliveryMode><g:Destination>http://192.0.2.9/orphan</g:Destination><g:ElementName>Listener Destination 2</g:ElementName><g:Name>Listener Destination 2</g:Name><g:PersistenceType>3</g:PersistenceType><g:Protocol>4</g:Protocol><g:SystemCreationClassName>CIM_ComputerSystem</g:SystemCreationClassName><g:SystemName>Intel(r) AMT</g:SystemName></g:CIM_ListenerDestinationWSManagement></e:Items><e:EndOfSequence></e:EndOfSequence></e:PullResponse>
+    </a:Body>
+</a:Envelope>

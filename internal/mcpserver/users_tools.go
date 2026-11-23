@@ -15,6 +15,7 @@ import (
 
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/favorites"
+	"github.com/Srv-02/openlamt/internal/keychain"
 	"github.com/Srv-02/openlamt/internal/session"
 )
 
@@ -249,7 +250,12 @@ func (s *server) loginNotes(ctx context.Context, r *loginRecorder, newPassword s
 	}
 	list, lerr := s.favs.List()
 	if lerr != nil {
-		return nil, nil
+		if r.err == nil {
+			return nil, nil // everything was saved; the list only serves the notes
+		}
+		return []string{"The device " + r.host + " now accepts the user " + quoteShort(r.newUser) + ", but OpenLAMT could not read its list of favorites " +
+			"(saved device entries) to update it. Check in the OpenLAMT app or with your AI agent that the favorite for this device uses the user " +
+			quoteShort(r.newUser) + " and the new password. Until then, the next connection may fail."}, nil
 	}
 	find := func(user string) (favorites.Favorite, bool) {
 		i := slices.IndexFunc(list, func(f favorites.Favorite) bool { return f.Host == r.host && f.Username == user })
@@ -275,9 +281,15 @@ func (s *server) loginNotes(ctx context.Context, r *loginRecorder, newPassword s
 	n := loginNote{name: fav.DisplayName(), host: fav.Host, user: quoteShort(r.newUser), oldUser: quoteShort(r.oldUser),
 		envVar: PasswordEnvVar(fav.Host), envFile: homePath(s.pws.cfg.EnvFile), tls: fav.UseTLS}
 	pw, src, lookupErr := s.pws.lookup(ctx, target)
+	// The keychain could not take the password (not already there under the new user) and it
+	// exists: its cause comes before any fallback source, which serves other devices.
+	saved, _ := s.keys.Get(fav.Host, r.newUser)
+	keychainLocked := keychainFailed && !s.cfg.Certificates.PinFile && saved != newPassword
 	switch {
 	case lookupErr == nil && pw == newPassword:
 		n.kind = noteNone
+	case keychainLocked:
+		n.kind = noteKeychainLocked
 	case src == sourceCommand || (lookupErr != nil && len(s.pws.cfg.Command) > 0):
 		n.kind = noteCommand
 		if r.oldUser != r.newUser && slices.ContainsFunc(s.pws.cfg.Command, func(a string) bool { return strings.Contains(a, "{user}") }) {
@@ -299,10 +311,25 @@ func (s *server) loginNotes(ctx context.Context, r *loginRecorder, newPassword s
 		n.exists = errors.Is(r.err, favorites.ErrExists)
 		return []string{n.favoriteNotRenamed()}, nil
 	}
-	if n.kind == noteNone {
-		return nil, nil
+	var out []string
+	if n.kind != noteNone {
+		out = append(out, n.text())
 	}
-	return []string{n.text()}, nil
+	if keychainFailed && fav.UseTLS && r.oldUser != r.newUser && s.pinNotMoved(fav.Host, r.oldUser, r.newUser) {
+		out = append(out, n.name+" now uses the user "+n.user+", but OpenLAMT could not carry the trusted certificate of "+n.name+
+			" over to the new user. Trust it again with "+quotedCommand("trust", n.name)+" in a terminal. Until you do, OpenLAMT cannot connect to "+n.name+".")
+	}
+	return out, nil
+}
+
+// pinNotMoved reports whether the pin of oldUser did not reach newUser: the old pin is still
+// there (or cannot be read) and the new one is not.
+func (s *server) pinNotMoved(host, oldUser, newUser string) bool {
+	if _, err := s.keys.GetFingerprint(host, newUser); err == nil {
+		return false
+	}
+	_, err := s.keys.GetFingerprint(host, oldUser)
+	return !errors.Is(err, keychain.ErrNotFound)
 }
 
 // The ways the new login can be missing where OpenLAMT reads it.

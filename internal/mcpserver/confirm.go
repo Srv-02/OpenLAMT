@@ -1,6 +1,10 @@
 package mcpserver
 
 import (
+	"fmt"
+	"strings"
+	"unicode"
+
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -37,4 +41,31 @@ func (s *server) confirm(req *mcp.CallToolRequest, message string) (*mcp.CallToo
 			Required: []string{"confirm"},
 		},
 	}}}, nil
+}
+
+// visible shows text in a confirmation prompt as it is, so a control or format character
+// cannot hide or reorder what the person reads: line breaks as ⏎, tabs as ⇥, carriage returns
+// as ␍, other C0 controls and DEL as their control pictures, C1 controls and format characters
+// (bidi overrides, zero-width characters) as <U+XXXX>.
+func visible(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r == '\n':
+			b.WriteString("⏎")
+		case r == '\t':
+			b.WriteString("⇥")
+		case r == '\r':
+			b.WriteString("␍")
+		case r < 0x20:
+			b.WriteRune(0x2400 + r)
+		case r == 0x7f:
+			b.WriteString("␡")
+		case r >= 0x80 && r <= 0x9f, unicode.Is(unicode.Cf, r):
+			fmt.Fprintf(&b, "<U+%04X>", r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }

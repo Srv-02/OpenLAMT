@@ -10,6 +10,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/kvm"
 	"github.com/Srv-02/openlamt/internal/session"
+	"github.com/Srv-02/openlamt/internal/sol"
 )
 
 // refusal is a call the server rejects before anything reaches the device: policy, input or a
@@ -24,6 +25,37 @@ func isRefusal(err error) bool {
 	var r *refusal
 	var off *amt.RedirectionOffError // read_only forbids the write: a policy refusal
 	return errors.As(err, &r) || errors.As(err, &off)
+}
+
+// redirOpenError is an error of opening a SOL ("sol") or IDE-R ("ider") session, so explain
+// names that feature and its tool. An unwrapped redirection error stays a KVM error.
+type redirOpenError struct {
+	kind string
+	err  error
+}
+
+func (e *redirOpenError) Error() string { return e.kind + ": " + e.err.Error() }
+func (e *redirOpenError) Unwrap() error { return e.err }
+
+// redirKinds are the words explain uses for a redirOpenError.
+var redirKinds = map[string]struct{ short, session, where, tool string }{
+	"sol":  {"SOL", "serial console (SOL)", "Console view", "sol_connect"},
+	"ider": {"IDE-R", "media (IDE-R)", "Media menu", "media_mount"},
+}
+
+// explainRedirOpen explains an error of opening a SOL or IDE-R session.
+func explainRedirOpen(e *redirOpenError) string {
+	k, ok := redirKinds[e.kind]
+	var re *kvm.RedirectionError
+	switch {
+	case !ok || !errors.As(e.err, &re):
+		return explain(e.err)
+	case re.Stage == "auth":
+		return k.short + " login failed: the device rejected the user name or password stored for this favorite."
+	}
+	return fmt.Sprintf("The device refused the %s session (redirection status %d). Another %s session to this device is open, "+
+		"most likely: in the OpenLAMT app (%s), MeshCommander or another client. AMT allows only one per device. "+
+		"Close it there and call %s again.", k.session, re.Status, k.short, k.where, k.tool)
 }
 
 // powerReturnValues are the CIM_PowerManagementService.RequestPowerStateChange return values.
@@ -55,8 +87,12 @@ func explain(err error) string {
 		re  *kvm.RedirectionError
 		ke  *amt.KVMError
 		rof *amt.RedirectionOffError
+		roe *redirOpenError
+		se  *amt.SOLError
 	)
 	switch {
+	case errors.As(err, &roe):
+		return explainRedirOpen(roe)
 	case errors.As(err, &ref):
 		return ref.msg
 	case errors.As(err, &rof):
@@ -99,6 +135,14 @@ func explain(err error) string {
 			"most likely: in the OpenLAMT app, MeshCommander or another client. AMT allows only one. Close it there and call kvm_connect again.", re.Status)
 	case errors.As(err, &ke):
 		return fmt.Sprintf("The device refused to enable KVM (AMT ReturnValue %d). KVM may be disabled in the AMT settings of the device.", ke.ReturnValue)
+	case errors.As(err, &se):
+		return fmt.Sprintf("The device refused to enable Serial over LAN (AMT ReturnValue %d). SOL may be disabled in the AMT settings of the device.", se.ReturnValue)
+	case errors.Is(err, sol.ErrStartFailed):
+		return "The device did not start the serial console. Try again; Serial over LAN may be disabled in the AMT settings of the device."
+	case errors.Is(err, sol.ErrClosedByDevice):
+		return "The device closed the serial console session."
+	case errors.Is(err, sol.ErrClosed):
+		return "The serial console session was closed."
 	case errors.Is(err, kvm.ErrClosed):
 		return "The KVM session was closed."
 	case errors.Is(err, kvm.ErrAuthUnsupported):

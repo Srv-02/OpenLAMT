@@ -88,6 +88,7 @@ func (s *server) registerKVM(srv *mcp.Server) {
 	addTool(s, srv, &mcp.Tool{Name: "kvm_connect", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 		Description: "Open the KVM (remote screen) session of a device and keep it for the other kvm_ tools. " +
 			"AMT allows one KVM session per device: while this server holds it, the OpenLAMT app and other clients cannot connect, and the other way round. " +
+			"KVM is turned on without a question when it is off on the device (not in read_only mode). " +
 			"Calling it again returns the open session. Devices that require user consent show a six-digit code on their screen: " +
 			"call without consent_code first, ask a person at the device for the code, then call again with it. " +
 			"The session closes after the idle timeout without calls, with kvm_disconnect, or when this server stops."},

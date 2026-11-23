@@ -30,7 +30,7 @@ const (
 	GroupRead        Group = "read"        // status, hardware, logs
 	GroupPowerBoot   Group = "power_boot"  // power actions, boot to BIOS
 	GroupMedia       Group = "media"       // IDE-R (later cut)
-	GroupKVMInput    Group = "kvm_input"   // KVM keyboard, mouse and typing
+	GroupKVMInput    Group = "kvm_input"   // keyboard, mouse and text input to the host, over KVM and over the serial console
 	GroupSettings    Group = "settings"    // AMT settings (later cut)
 	GroupUsers       Group = "users"       // AMT accounts (later cut)
 	GroupDestructive Group = "destructive" // actions that interrupt a running system
@@ -48,6 +48,7 @@ type Config struct {
 	ActionLog                 bool
 	ActionLogPath             string
 	KVMIdleTimeout            time.Duration // a KVM session without a tool call this long is closed; 0 = never
+	SOLIdleTimeout            time.Duration // the same for a serial console (SOL) session
 	Screenshot                ScreenshotConfig
 	Source                    string // the file read; empty when the defaults apply
 }
@@ -74,6 +75,9 @@ var DefaultScreenshot = ScreenshotConfig{MaxWidth: 1280, MaxHeight: 1280, Format
 // single KVM slot is free for the app again.
 const DefaultKVMIdleTimeout = 5 * time.Minute
 
+// DefaultSOLIdleTimeout does the same for the device's single SOL slot.
+const DefaultSOLIdleTimeout = 5 * time.Minute
+
 // check validates a screenshot setting; name prefixes the field names in the error.
 func (sc ScreenshotConfig) check(prefix string) error {
 	for _, f := range []struct {
@@ -97,7 +101,7 @@ func (sc ScreenshotConfig) check(prefix string) error {
 // and written to dir.
 func Defaults(dir string) Config {
 	c := Config{Groups: map[Group]bool{}, ActionLog: true, ActionLogPath: filepath.Join(dir, ActionLogFileName),
-		KVMIdleTimeout: DefaultKVMIdleTimeout, Screenshot: DefaultScreenshot}
+		KVMIdleTimeout: DefaultKVMIdleTimeout, SOLIdleTimeout: DefaultSOLIdleTimeout, Screenshot: DefaultScreenshot}
 	for _, g := range Groups {
 		c.Groups[g] = true
 	}
@@ -142,6 +146,9 @@ type fileConfig struct {
 		ScreenshotFormat      *string `json:"screenshot_format"`
 		ScreenshotJPEGQuality *int    `json:"screenshot_jpeg_quality"`
 	} `json:"kvm"`
+	SOL *struct {
+		IdleTimeoutSeconds *int `json:"idle_timeout_seconds"`
+	} `json:"sol"`
 }
 
 // Load reads the config file at path. A missing file yields Defaults of its folder, unless
@@ -221,6 +228,12 @@ func Load(path string, mustExist bool) (Config, error) {
 		if err := c.Screenshot.check("kvm.screenshot_"); err != nil {
 			return Config{}, fmt.Errorf("parse %s: %w", path, err)
 		}
+	}
+	if sl := f.SOL; sl != nil && sl.IdleTimeoutSeconds != nil {
+		if v := *sl.IdleTimeoutSeconds; v < 0 {
+			return Config{}, fmt.Errorf("parse %s: sol.idle_timeout_seconds must be 0 (never) or more", path)
+		}
+		c.SOLIdleTimeout = time.Duration(*sl.IdleTimeoutSeconds) * time.Second
 	}
 	c.Source = path
 	return c, nil

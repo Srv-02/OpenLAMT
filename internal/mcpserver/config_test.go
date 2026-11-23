@@ -48,6 +48,9 @@ func TestLoadMissingDefaultFileAllowsEverything(t *testing.T) {
 	if c.KVMIdleTimeout != 5*time.Minute || c.Screenshot != want {
 		t.Fatalf("kvm defaults %v %+v", c.KVMIdleTimeout, c.Screenshot)
 	}
+	if c.SOLIdleTimeout != 5*time.Minute {
+		t.Fatalf("sol idle timeout %v", c.SOLIdleTimeout)
+	}
 }
 
 // TestLoadExplicitMissingFileFails: a file named with --config must exist.
@@ -101,6 +104,8 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		`{"kvm": {"screenshot_jpeg_quality": 0}}`,
 		`{"kvm": {"screenshot_max_width": 8}}`,
 		`{"kvm": {"screenshot_max_height": 100000}}`,
+		`{"sol": {"idle_timeout": 5}}`,
+		`{"sol": {"idle_timeout_seconds": -1}}`,
 	} {
 		if _, err := Load(writeConfig(t, body), true); err == nil {
 			t.Errorf("%s: no error", body)
@@ -143,5 +148,21 @@ func TestLoadKVMSettings(t *testing.T) {
 	c, err = Load(writeConfig(t, `{"kvm": {"idle_timeout_seconds": 60, "screenshot_jpeg_quality": 95}}`), true)
 	if err != nil || c.KVMIdleTimeout != time.Minute || c.Screenshot.JPEGQuality != 95 {
 		t.Fatalf("%v %v %+v", err, c.KVMIdleTimeout, c.Screenshot)
+	}
+}
+
+// TestLoadSOLSettings: the SOL idle timeout, 0 = never; other keys keep their defaults.
+func TestLoadSOLSettings(t *testing.T) {
+	c, err := Load(writeConfig(t, `{"sol": {"idle_timeout_seconds": 0}}`), true)
+	if err != nil || c.SOLIdleTimeout != 0 || c.KVMIdleTimeout != DefaultKVMIdleTimeout {
+		t.Fatalf("%v %v %v", err, c.SOLIdleTimeout, c.KVMIdleTimeout)
+	}
+	c, err = Load(writeConfig(t, `{"sol": {"idle_timeout_seconds": 60}}`), true)
+	if err != nil || c.SOLIdleTimeout != time.Minute {
+		t.Fatalf("%v %v", err, c.SOLIdleTimeout)
+	}
+	c, err = Load(writeConfig(t, `{"sol": {}}`), true)
+	if err != nil || c.SOLIdleTimeout != DefaultSOLIdleTimeout {
+		t.Fatalf("%v %v", err, c.SOLIdleTimeout)
 	}
 }

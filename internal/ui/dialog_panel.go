@@ -72,6 +72,8 @@ type panelSpec struct {
 	// fields: the device management dialogs of Danger.dc.html and Forms.dc.html) and spaces the
 	// parts panelFormGap apart. Texts with an inner padding go through flushText.
 	flush bool
+	// width replaces dialogWidth (the certificate details: 560); 0 keeps it.
+	width float32
 }
 
 // panel is a shown panel dialog.
@@ -84,6 +86,7 @@ type panel struct {
 	action  *escButton
 	cancel  *escButton
 	extras  []fyne.CanvasObject // buttons left of Cancel; set by build
+	leading []fyne.CanvasObject // buttons at the left end of the row (a delete action); set by build
 	focus   fyne.Focusable      // gets the focus when the dialog opens; set by build
 	done    bool
 }
@@ -103,7 +106,7 @@ func showPanel(parent fyne.Window, spec panelSpec, build func(p *panel) []fyne.C
 	if spec.danger {
 		p.action.Importance = widget.DangerImportance
 	}
-	buttons := []fyne.CanvasObject{layout.NewSpacer()}
+	buttons := append(append([]fyne.CanvasObject{}, p.leading...), layout.NewSpacer())
 	buttons = append(buttons, p.extras...)
 	if spec.cancel != "" {
 		p.cancel = newEscButton(spec.cancel, func() { p.finish(false) })
@@ -148,7 +151,11 @@ func showPanel(parent fyne.Window, spec panelSpec, build func(p *panel) []fyne.C
 		}
 	}
 	scroll := scrollBody(dialogSpec{flex: -1}, content)
-	p.frame = container.New(&panelLayout{scroll: scroll}, scroll, container.NewHBox(buttons...))
+	width := dialogWidth
+	if spec.width > 0 {
+		width = spec.width
+	}
+	p.frame = container.New(&panelLayout{scroll: scroll, width: width}, scroll, container.NewHBox(buttons...))
 	p.pop = widget.NewModalPopUp(container.NewThemeOverride(p.frame, overrideTheme), c)
 	c.SetOnTypedKey(func(e *fyne.KeyEvent) { // nothing has the focus
 		if !p.key(e) && p.prevKey != nil {
@@ -206,6 +213,18 @@ func (p *panel) finish(ok bool) {
 		p.spec.onAction()
 	case !ok && p.spec.onCancel != nil:
 		p.spec.onCancel()
+	}
+}
+
+// fit gives the shown dialog the height of its content again after a part was shown or hidden
+// (a modal pop-up only grows by itself) and centers it.
+func (p *panel) fit() {
+	if p.done || p.pop == nil {
+		return
+	}
+	p.pop.Resize(p.pop.MinSize())
+	if o := p.canvas.Overlays().Top(); o != nil {
+		o.Refresh()
 	}
 }
 
@@ -324,7 +343,10 @@ func (b *escButton) TypedKey(e *fyne.KeyEvent) {
 // panelLayout is the frame of a panel dialog: the scroll area with the content above the
 // button row. The frame is dialogWidth wide and as high as the content needs; in a window
 // that is too small the scroll area gives way and the buttons stay visible.
-type panelLayout struct{ scroll *container.Scroll }
+type panelLayout struct {
+	scroll *container.Scroll
+	width  float32 // dialogWidth, or the width of panelSpec
+}
 
 // settle gives o width w and lets it wrap its texts at that width.
 func settle(o fyne.CanvasObject, w float32) float32 {
@@ -335,9 +357,9 @@ func settle(o fyne.CanvasObject, w float32) float32 {
 }
 
 func (l *panelLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
-	inner := dialogWidth - 2*panelPadH
+	inner := l.width - 2*panelPadH
 	h := settle(l.scroll.Content, inner+2*scrollInset)
-	return fyne.NewSize(dialogWidth, panelPadTop+h+panelGap+objs[1].MinSize().Height+panelPadBottom)
+	return fyne.NewSize(l.width, panelPadTop+h+panelGap+objs[1].MinSize().Height+panelPadBottom)
 }
 
 func (l *panelLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {

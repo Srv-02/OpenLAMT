@@ -1,5 +1,5 @@
 // Package icons holds OpenLAMT's UI symbols (24 px grid, 1.7 stroke, issue #44) as Fyne
-// resources: 47 stroked ones and the two filled ones (heart, star) of the About dialog.
+// resources: 49 stroked ones and the two filled ones (heart, star) of the About dialog.
 //
 // Fyne recolors only the fill of themed SVGs, not the stroke these symbols are drawn with, so
 // each symbol is served as a static resource with the stroke color already set: one per
@@ -79,6 +79,9 @@ const (
 
 	DeviceSettings Name = "device-settings" // navigation Settings (Settings.dc.html)
 	Unmount        Name = "unmount"         // arrow up onto a line: "Unmount" of the Media menu (Extras.dc.html)
+
+	Certificate  Name = "certificate"   // navigation Certificates (gesamtdesign i-cert)
+	ChevronRight Name = "chevron-right" // a table row that opens details (gesamtdesign i-chevr)
 )
 
 // Stroked symbols of the KVM capture (gesamtdesign, device window and settings, issues #4 and
@@ -122,7 +125,8 @@ var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, F
 	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings, Unmount,
 	Camera, Record, Stop, Zoom, Close,
 	Radar, Upload, Download, Check, Code,
-	WiFi, ShieldOK}
+	WiFi, ShieldOK,
+	Certificate, ChevronRight}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}

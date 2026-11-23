@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/lang"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/certfile"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
@@ -131,6 +132,16 @@ func describeDevice(err error) (string, bool) {
 		return text, true
 	}
 	switch {
+	case errors.Is(err, amt.ErrCertificateStoreFull):
+		return lang.L("The device has no space for more certificates."), true
+	case errors.Is(err, amt.ErrCertificateInUse):
+		return lang.L("The device uses this certificate for TLS. Choose another TLS certificate in Settings first."), true
+	case errors.Is(err, certfile.ErrNotCertificate):
+		return lang.L("The file is not a certificate."), true
+	case errors.Is(err, certfile.ErrWrongPassword):
+		return lang.L("Wrong password for the .p12 file."), true
+	case errors.Is(err, certfile.ErrUnsupportedKey):
+		return lang.L("The key in the file is not an RSA key. Intel AMT accepts only RSA keys."), true
 	case errors.Is(err, amt.ErrInvalidValue):
 		// The technical reason (ValidationError.Reason) stays in the details.
 		return lang.L("Some of the values you entered are not valid. Check them and try again. Nothing was changed."), true
@@ -209,6 +220,15 @@ func describeMethod(e *amt.MethodError) string {
 			return lang.L("The device does not support this Wi-Fi profile. Older Intel AMT versions have no WPA3-Personal; choose WPA2-Personal.")
 		case 3:
 			return lang.L("The device did not accept the Wi-Fi profile. Check the values; older Intel AMT versions have no WPA3-Personal.")
+		}
+	}
+	switch e.Method {
+	case "AddTrustedRootCertificate", "AddCertificate", "AddKey":
+		switch e.ReturnValue {
+		case 2058:
+			return lang.L("The device already has this certificate or key.")
+		case 2062, 2063:
+			return lang.L("The device does not accept this certificate or key.")
 		}
 	}
 	return lang.L("The device refused the request {{.Method}} (return value {{.Code}}).", map[string]any{"Method": e.Method, "Code": e.ReturnValue})

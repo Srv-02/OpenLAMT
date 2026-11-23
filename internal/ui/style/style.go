@@ -98,6 +98,7 @@ const (
 	ColorNameWarningIcon      fyne.ThemeColorName = "openlamt-warning-icon"       // #9A3F00 symbol in the orange question tile
 	ColorNameFilterClear      fyne.ThemeColorName = "openlamt-filter-clear"       // #C7C7CC round clear button of the filter field
 	ColorNameCodeBackground   fyne.ThemeColorName = "openlamt-code-background"    // #F2F2F4 behind the phrase in "Type … to confirm"
+	ColorNameSuccessTint      fyne.ThemeColorName = "openlamt-success-tint"       // rgba(40,167,69,0.14) green pill ("TLS" in Certificates)
 )
 
 // Design-only text size names.
@@ -267,6 +268,7 @@ var darkColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameWarningIcon:      rgb(0xFF9F0A),
 	ColorNameFilterClear:      rgb(0x636366),
 	ColorNameCodeBackground:   white(0.10),
+	ColorNameSuccessTint:      color.NRGBA{R: 0x30, G: 0xD1, B: 0x58, A: alpha(0.16)},
 }
 
 // lightColors is the light color table (issue #51). Values come from the light design handoff
@@ -378,6 +380,7 @@ var lightColors = map[fyne.ThemeColorName]color.Color{
 	ColorNameWarningIcon:      rgb(0x9A3F00),
 	ColorNameFilterClear:      rgb(0xC7C7CC),
 	ColorNameCodeBackground:   rgb(0xF2F2F4),
+	ColorNameSuccessTint:      color.NRGBA{R: 0x28, G: 0xA7, B: 0x45, A: alpha(0.14)},
 }
 
 // variant is the current theme variant: theme.VariantLight, anything else counts as dark.

@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/certfile"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
@@ -94,6 +95,11 @@ func errorSamples() map[string]error {
 		"amt.ErrWatchdogNotFound":       amt.ErrWatchdogNotFound,
 		"amt.WatchdogPolicySharedError": &amt.WatchdogPolicySharedError{Policy: "Isolate"},
 		"amt.ErrCertificateUncertain":   amt.ErrCertificateUncertain,
+		"amt.ErrCertificateInUse":       amt.ErrCertificateInUse,
+		"amt.ErrCertificateStoreFull":   amt.ErrCertificateStoreFull,
+		"certfile.ErrNotCertificate":    certfile.ErrNotCertificate,
+		"certfile.ErrUnsupportedKey":    certfile.ErrUnsupportedKey,
+		"certfile.ErrWrongPassword":     certfile.ErrWrongPassword,
 		"amt.ErrConfirmationMismatch":   amt.ErrConfirmationMismatch,
 		"amt.ErrConsentRequired":        amt.ErrConsentRequired,
 		"amt.ErrCredentialsUncertain":   amt.ErrCredentialsUncertain,
@@ -233,6 +239,10 @@ func TestDescribeMethodError(t *testing.T) {
 		{&amt.MethodError{Method: "AddUserAclEntryEx", ReturnValue: 5}, "AddUserAclEntryEx (return value 5)"},
 		{&amt.MethodError{Method: "CommitChanges", ReturnValue: 2058}, "CommitChanges (return value 2058)"},
 		{&amt.MethodError{Method: "AddAction", ReturnValue: 23}, "no more watchdog actions"},
+		{&amt.MethodError{Method: "AddTrustedRootCertificate", ReturnValue: 2058}, "already has this certificate"},
+		{&amt.MethodError{Method: "AddKey", ReturnValue: 2062}, "does not accept this certificate or key"},
+		{&amt.MethodError{Method: "AddCertificate", ReturnValue: 2063}, "does not accept this certificate or key"},
+		{&amt.MethodError{Method: "AddCertificate", ReturnValue: 1}, "AddCertificate (return value 1)"},
 	}
 	for _, c := range cases {
 		if got := describe(c.err); !strings.Contains(got, c.want) {

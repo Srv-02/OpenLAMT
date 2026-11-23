@@ -172,10 +172,11 @@ type manager struct {
 	side     *manageSidebar
 	win      *manageWindow // open window or nil
 	onPopOut func()
-	users    *manageSource[amt.UserList] // created by the first Users pane
-	power    *powerData                  // created by the first Power pane
-	wifi     *wifiData                   // created by the first Wi-Fi pane
-	defense  *defenseData                // created by the first System Defense pane
+	users    *manageSource[amt.UserList]         // created by the first Users pane
+	power    *powerData                          // created by the first Power pane
+	wifi     *wifiData                           // created by the first Wi-Fi pane
+	defense  *defenseData                        // created by the first System Defense pane
+	certs    *manageSource[amt.CertificateStore] // created by the first Certificates pane
 	closed   bool
 	tlsAsk   *panel // the last "without TLS" question (tests)
 

@@ -1,0 +1,23 @@
+{
+  "WSMAN Browser": "WSMAN Browser",
+  "Find class": "Klasse suchen",
+  "Property": "Eigenschaft",
+  "Value": "Wert",
+  "Copy as XML": "Als XML kopieren",
+  "· {{.Count}} classes": "· {{.Count}} Klassen",
+  "1 instance": "1 Instanz",
+  "{{.Count}} instances": "{{.Count}} Instanzen",
+  "Instance {{.Number}}": "Instanz {{.Number}}",
+  "Choose a class": "Klasse wählen",
+  "Choose a class on the left to read its instances from {{.Name}}.": "Wähle links eine Klasse, um ihre Instanzen von {{.Name}} zu lesen.",
+  "No instances": "Keine Instanzen",
+  "{{.Class}} exists on {{.Name}} but has no instances.": "{{.Class}} existiert auf {{.Name}}, hat aber keine Instanzen.",
+  "Truncated: this class has more data than OpenLAMT reads at once.": "Gekürzt: Diese Klasse enthält mehr Daten, als OpenLAMT auf einmal liest.",
+  "{{.Name}} does not support {{.Class}}": "{{.Name}} unterstützt {{.Class}} nicht",
+  "The device answered: {{.Fault}}. Choose another class.": "Das Gerät antwortete: {{.Fault}}. Wähle eine andere Klasse.",
+  "The account {{.User}} cannot read this class.": "Das Konto {{.User}} darf diese Klasse nicht lesen.",
+  "The device refused the request. Choose another class.": "Das Gerät lehnte die Anfrage ab. Wähle eine andere Klasse.",
+  "{{.Name}} did not answer in time": "{{.Name}} antwortete nicht rechtzeitig",
+  "Reading {{.Class}} took too long. Try Refresh.": "Das Lesen von {{.Class}} dauerte zu lange. Versuche es mit „Aktualisieren“.",
+  "{{.Class}} could not be read": "{{.Class}} ließ sich nicht lesen"
+}

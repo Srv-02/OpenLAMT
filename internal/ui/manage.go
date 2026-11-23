@@ -57,7 +57,9 @@ type managePage struct {
 // managePane is one view of a page.
 type managePane struct {
 	body   fyne.CanvasObject
-	info   *canvas.Text      // window only: shown after the title, e.g. "· 209 entries"; nil = none
+	badge  fyne.CanvasObject // window only: shown right after the title, e.g. the "Read only" pill; nil = none
+	info   *canvas.Text      // window only: shown after the title and the badge, e.g. "· 209 entries"; nil = none
+	flush  bool              // window only: the body fills the page without the page padding (WSMAN Browser)
 	tools  fyne.CanvasObject // window only: right part of the page head; nil = none
 	scroll bool              // the view puts body into a vertical scroll area
 	shown  func()            // the pane became visible: the first read starts here
@@ -398,6 +400,9 @@ func (v *manageView) frame(p *managePane) fyne.CanvasObject {
 	if v.compact {
 		top, side = 4, 16 // Main.dc.html: padding 4px 16px 16px
 	}
+	if p.flush && !v.compact {
+		return p.body
+	}
 	body := container.New(layout.NewCustomPaddedLayout(top, bottom, side, side), p.body)
 	if p.scroll {
 		return container.NewVScroll(body)
@@ -722,6 +727,9 @@ func (w *manageWindow) showPage(i int) {
 	w.title.Text = w.m.pages[i].title
 	w.title.Refresh()
 	w.heading.Objects = []fyne.CanvasObject{w.title}
+	if p.badge != nil {
+		w.heading.Objects = append(w.heading.Objects, p.badge)
+	}
 	if p.info != nil {
 		w.heading.Objects = append(w.heading.Objects, p.info)
 	}

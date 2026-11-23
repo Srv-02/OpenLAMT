@@ -156,6 +156,7 @@ var errorExceptions = map[string]string{
 	"typing.ErrNotSendable":     "unreachable: type_clipboard.go only sends plans with typeable characters",
 	"typing.ErrUnknownLayout":   "unreachable: resolveLayout only returns known layouts",
 	"session.ErrUnsupported":    "a capability that only a test double lacks; *amt.Device implements every one (compile-time checks)",
+	"amt.ClassUnsupportedError": "shown as the message card of the WSMAN Browser page (manage_wsman.go errorText), not in the error dialog",
 	"capture.ErrNoFolder":       "control flow; device_capture.go opens the save dialog",
 	"capture.ErrFolderMissing":  "shown as its own status text in device_capture.go before the save dialog",
 	"capture.ErrFolderReadOnly": "shown as its own status text in device_capture.go before the save dialog",

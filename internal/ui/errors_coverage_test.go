@@ -91,6 +91,7 @@ func errorSamples() map[string]error {
 		"amt.ErrDefenseNameExists":      amt.ErrDefenseNameExists,
 		"amt.ErrDefensePolicyActive":    amt.ErrDefensePolicyActive,
 		"amt.ErrDefenseNotFound":        amt.ErrDefenseNotFound,
+		"amt.ErrDefensePolicyLost":      amt.ErrDefensePolicyLost,
 		"amt.DefenseFilterInUseError":   &amt.DefenseFilterInUseError{Policy: "Isolate"},
 		"amt.ErrWatchdogExists":         amt.ErrWatchdogExists,
 		"amt.ErrWatchdogNotFound":       amt.ErrWatchdogNotFound,

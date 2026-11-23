@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/netip"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -425,8 +426,8 @@ func TestActivateDropPolicyNeedsConfirmation(t *testing.T) {
 	create := onePut(t, f, "Create|AMT_NetworkPortSystemDefensePolicy")
 	assertContains(t, create, "<h:Antecedent><Address", `<Selector Name="DeviceID">Intel(r) AMT Ethernet Port 0</Selector>`,
 		"<h:Dependent><Address", `<Selector Name="InstanceID">Intel(r) AMT:Handle:2</Selector>`)
-	if i, j := routeIndex(f, "Delete|AMT_NetworkPortSystemDefensePolicy"), routeIndex(f, "Create|AMT_NetworkPortSystemDefensePolicy"); i < 0 || j < i {
-		t.Error("the old link is not deleted before the new one is created")
+	if i, j := routeIndex(f, "Create|AMT_NetworkPortSystemDefensePolicy"), routeIndex(f, "Delete|AMT_NetworkPortSystemDefensePolicy"); i < 0 || j < i {
+		t.Error("the new link is not created before the old one is deleted")
 	}
 }
 
@@ -484,13 +485,89 @@ func TestDeactivateDefensePolicy(t *testing.T) {
 
 func TestDefenseLinkWriteRefused(t *testing.T) {
 	seq := defenseSeq()
-	seq["Delete|AMT_NetworkPortSystemDefensePolicy"] = []cfgResp{{err: faultErr(t, "access_denied_fault.xml")}}
+	seq["Create|AMT_NetworkPortSystemDefensePolicy"] = []cfgResp{{err: faultErr(t, "access_denied_fault.xml")}}
 	d, f := cfgDevice(seq)
 	if err := d.ActivateDefensePolicy(handleNoARP, mustConfirm(t, OpDefenseDrop)); !errors.Is(err, ErrAccessDenied) {
 		t.Fatalf("err %v", err)
 	}
-	if n := len(f.requestsFor("Create|AMT_NetworkPortSystemDefensePolicy")); n != 0 {
-		t.Error("created the new link after the old one could not be deleted")
+	if n := len(f.requestsFor("Delete|AMT_NetworkPortSystemDefensePolicy")); n != 0 {
+		t.Error("deleted the old link after the new one was denied")
+	}
+}
+
+// linkWrites lists the Create and Delete requests of the port link with the policy handle each
+// one names, in order, e.g. "Create Intel(r) AMT:Handle:3".
+func linkWrites(f *cfgWSMan) []string {
+	var out []string
+	for _, r := range f.requests {
+		var verb string
+		switch routeKey(r) {
+		case "Create|AMT_NetworkPortSystemDefensePolicy":
+			verb = "Create"
+		case "Delete|AMT_NetworkPortSystemDefensePolicy":
+			verb = "Delete"
+		default:
+			continue
+		}
+		for _, h := range []string{handleAllow, handleIsolate, handleNoARP} {
+			if strings.Contains(r, ">"+h+"<") {
+				out = append(out, verb+" "+h)
+			}
+		}
+	}
+	return out
+}
+
+// Issue #161: the port keeps a policy whatever step of the switch fails.
+func TestActivateSwitchOrder(t *testing.T) {
+	refused := func(t *testing.T) cfgResp { return cfgResp{err: faultErr(t, "already_exists_fault.xml")} }
+	ok := cfgResp{file: "create_ok.xml"}
+	cases := []struct {
+		name    string
+		creates func(t *testing.T) []cfgResp
+		deletes func(t *testing.T) []cfgResp
+		writes  []string
+		wantErr bool
+		lost    bool
+	}{
+		{"create first, then delete the old link",
+			func(*testing.T) []cfgResp { return []cfgResp{ok} }, nil,
+			[]string{"Create " + handleNoARP, "Delete " + handleAllow}, false, false},
+		{"old link already gone",
+			func(*testing.T) []cfgResp { return []cfgResp{ok} },
+			func(t *testing.T) []cfgResp { return []cfgResp{{err: faultErr(t, "unreachable_fault.xml")}} },
+			[]string{"Create " + handleNoARP, "Delete " + handleAllow}, false, false},
+		{"no answer to the create keeps the old link",
+			func(*testing.T) []cfgResp { return []cfgResp{{err: errors.New("connection reset")}} }, nil,
+			[]string{"Create " + handleNoARP}, true, false},
+		{"refused create falls back to delete first",
+			func(t *testing.T) []cfgResp { return []cfgResp{refused(t), ok} }, nil,
+			[]string{"Create " + handleNoARP, "Delete " + handleAllow, "Create " + handleNoARP}, false, false},
+		{"failed fallback links the old policy again",
+			func(t *testing.T) []cfgResp { return []cfgResp{refused(t), refused(t), ok} }, nil,
+			[]string{"Create " + handleNoARP, "Delete " + handleAllow, "Create " + handleNoARP, "Create " + handleAllow}, true, false},
+		{"failed relink reports a port without policy",
+			func(t *testing.T) []cfgResp {
+				return []cfgResp{refused(t), refused(t), {err: errors.New("connection reset")}}
+			}, nil,
+			[]string{"Create " + handleNoARP, "Delete " + handleAllow, "Create " + handleNoARP, "Create " + handleAllow}, true, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			seq := defenseSeq()
+			seq["Create|AMT_NetworkPortSystemDefensePolicy"] = c.creates(t)
+			if c.deletes != nil {
+				seq["Delete|AMT_NetworkPortSystemDefensePolicy"] = c.deletes(t)
+			}
+			d, f := cfgDevice(seq)
+			err := d.ActivateDefensePolicy(handleNoARP, mustConfirm(t, OpDefenseDrop))
+			if (err != nil) != c.wantErr || errors.Is(err, ErrDefensePolicyLost) != c.lost {
+				t.Fatalf("err %v", err)
+			}
+			if got := linkWrites(f); !slices.Equal(got, c.writes) {
+				t.Fatalf("writes %q, want %q", got, c.writes)
+			}
+		})
 	}
 }
 

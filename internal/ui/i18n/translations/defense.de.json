@@ -70,6 +70,7 @@
   "State": "Zustand",
   "Stopped": "Angehalten",
   "Suspended": "Pausiert",
+  "Switching the policy failed, and the wired port may have no policy now. The operating system may be on the network without filtering. Refresh the page and activate a policy again.": "Der Wechsel der Policy ist fehlgeschlagen, der kabelgebundene Port hat jetzt eventuell keine Policy. Das Betriebssystem ist dann womöglich ungefiltert im Netz. Aktualisiere die Seite und aktiviere wieder eine Policy.",
   "System Defense": "System Defense",
   "The agent in the operating system must use this ID.": "Der Agent im Betriebssystem muss diese ID verwenden.",
   "The device no longer has this entry. Refresh the page.": "Das Gerät hat diesen Eintrag nicht mehr. Aktualisiere die Seite.",

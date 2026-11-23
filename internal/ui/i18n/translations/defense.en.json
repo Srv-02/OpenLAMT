@@ -70,6 +70,7 @@
   "State": "State",
   "Stopped": "Stopped",
   "Suspended": "Suspended",
+  "Switching the policy failed, and the wired port may have no policy now. The operating system may be on the network without filtering. Refresh the page and activate a policy again.": "Switching the policy failed, and the wired port may have no policy now. The operating system may be on the network without filtering. Refresh the page and activate a policy again.",
   "System Defense": "System Defense",
   "The agent in the operating system must use this ID.": "The agent in the operating system must use this ID.",
   "The device no longer has this entry. Refresh the page.": "The device no longer has this entry. Refresh the page.",

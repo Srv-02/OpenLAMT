@@ -136,6 +136,8 @@ func errorSamples() map[string]error {
 		"amt.ValidationError":           &amt.ValidationError{Field: "HostName", Reason: "must not be empty"},
 		"localme.ErrDeclined":           localme.ErrDeclined,
 		"localme.ErrNoPkexec":           localme.ErrNoPkexec,
+		"localme.ErrPassword":           localme.ErrPassword,
+		"localme.RefusedError":          &localme.RefusedError{Reason: "unprovision status 1"},
 		"favorites.ErrExists":           favorites.ErrExists,
 		"favorites.ErrNotFound":         favorites.ErrNotFound,
 		"favorites.KeychainError":       &favorites.KeychainError{Err: errors.New("x")},

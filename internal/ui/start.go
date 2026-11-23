@@ -78,9 +78,13 @@ type StartWindow struct {
 	checkBtn      *widgets.PrimaryButton         // always "Check"
 	betaPill      fyne.CanvasObject              // "Beta" next to Check
 	localLast     *localme.Result                // last check result (settings); nil: not checked
-	localChecking bool                           // the helper runs
+	localChecking bool                           // a helper runs (Check or a setup action)
 	localCheck    func() (localme.Result, error) // localme.Check; tests pass a fake
-	localRun      func(func())                   // runs the check off the Fyne thread; tests run it inline
+	localRun      func(func())                   // runs the helper off the Fyne thread; tests run it inline
+	// localAction is localme.Run, the setup actions; tests pass a fake.
+	localAction func(localme.Action, []byte) (localme.ActionResult, error)
+	setupBtn    *widgets.PrimaryButton // the button of the Setup card; nil when it offers none
+	localDialog *riskDialog            // the last setup confirmation (tests)
 
 	// Detail pane
 	mode     detailMode
@@ -147,7 +151,7 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 	s := &StartWindow{later: fyne.Do, exitWork: &pendingWork{}, app: a, win: a.NewWindow("OpenLAMT"), mgr: mgr, keys: keys, settings: NewSettings(a.Preferences()),
 		open: map[string]*DeviceWindow{}, busy: map[string]string{}, probes: map[string]probeResult{}, saved: map[string]bool{}, savedGen: map[string]int{},
 		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}, localME: localme.Present,
-		localCheck: localme.Check, localRun: func(f func()) { go f() }}
+		localCheck: localme.Check, localAction: localme.Run, localRun: func(f func()) { go f() }}
 	// User actions go through answerStore: a keychain answer there unblocks the status prober.
 	probeKeys := keys
 	keys = answerStore{Store: keys, answered: func() {

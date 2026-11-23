@@ -77,6 +77,10 @@ type statusProber struct {
 	favs    []favorites.Favorite
 	authBad map[string][sha256.Size]byte // deviceKey → hash of the rejected password
 	skip    map[string]bool              // deviceKey → device window open, not probed
+	// keyBlocked is set when a keychain lookup failed (locked, denied, no service): the OS may
+	// show an unlock prompt for every lookup, so the prober asks no more until the keychain
+	// answered a user action (keychainAnswered).
+	keyBlocked bool
 
 	wake    chan struct{}
 	ctx     context.Context
@@ -124,6 +128,65 @@ func (p *statusProber) SetFavorites(list []favorites.Favorite) {
 	p.favs = append([]favorites.Favorite(nil), list...)
 	p.mu.Unlock()
 	p.Wake()
+}
+
+// keychainAnswered tells the prober that the keychain answered a user action (connect, edit):
+// it is unlocked, so the background lookups start again.
+func (p *statusProber) keychainAnswered() {
+	p.mu.Lock()
+	was := p.keyBlocked
+	p.keyBlocked = false
+	p.mu.Unlock()
+	if was {
+		p.Wake()
+	}
+}
+
+// keychainBlocked reports whether the prober must not ask the keychain.
+func (p *statusProber) keychainBlocked() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.keyBlocked
+}
+
+// blockKeychain remembers a failed lookup; an absent entry (ErrNotFound) is a normal answer.
+func (p *statusProber) blockKeychain(err error) {
+	if err == nil || errors.Is(err, keychain.ErrNotFound) {
+		return
+	}
+	p.mu.Lock()
+	p.keyBlocked = true
+	p.mu.Unlock()
+}
+
+// answerStore reports every keychain answer of a user action to the prober.
+type answerStore struct {
+	keychain.Store
+	answered func()
+}
+
+func (a answerStore) note(err error) {
+	if err == nil || errors.Is(err, keychain.ErrNotFound) {
+		a.answered()
+	}
+}
+
+func (a answerStore) Get(host, user string) (string, error) {
+	pw, err := a.Store.Get(host, user)
+	a.note(err)
+	return pw, err
+}
+
+func (a answerStore) Set(host, user, pw string) error {
+	err := a.Store.Set(host, user, pw)
+	a.note(err)
+	return err
+}
+
+func (a answerStore) GetFingerprint(host, user string) (string, error) {
+	fp, err := a.Store.GetFingerprint(host, user)
+	a.note(err)
+	return fp, err
 }
 
 // SetSkip marks the favorite key as served by its open device window (on) or hands it back
@@ -235,8 +298,12 @@ func (p *statusProber) readable(f favorites.Favorite) (amt.Config, bool) {
 	if !f.UseTLS {
 		return amt.Config{}, false // no unencrypted login in the background
 	}
+	if p.keychainBlocked() {
+		return amt.Config{}, false // the keychain failed before: no repeated unlock prompts
+	}
 	key := deviceKey(f.Host, f.Username)
 	pw, err := p.keys.Get(f.Host, f.Username)
+	p.blockKeychain(err)
 	if err != nil || pw == "" {
 		return amt.Config{}, false
 	}
@@ -248,6 +315,7 @@ func (p *statusProber) readable(f favorites.Favorite) (amt.Config, bool) {
 		return amt.Config{}, false
 	}
 	pin, err := p.keys.GetFingerprint(f.Host, f.Username)
+	p.blockKeychain(err)
 	if err != nil || strings.TrimSpace(pin) == "" {
 		return amt.Config{}, false
 	}

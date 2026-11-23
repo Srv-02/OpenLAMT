@@ -5,7 +5,6 @@
   "Not checked yet": "Noch nicht geprüft",
   "Check reads Intel AMT through the Intel ME driver of this computer. Nothing is changed.": "„Prüfen“ liest Intel AMT über den Intel-ME-Treiber dieses Computers. Dabei wird nichts geändert.",
   "Check": "Prüfen",
-  "Check Again": "Erneut prüfen",
   "Beta": "Beta",
   "Asks for administrator rights.": "Fragt nach Administratorrechten.",
   "Uses a preview of Intel’s rpc-go library.": "Nutzt eine Vorabversion von Intels rpc-go-Bibliothek.",

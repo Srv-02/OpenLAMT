@@ -5,7 +5,6 @@
   "Not checked yet": "Not checked yet",
   "Check reads Intel AMT through the Intel ME driver of this computer. Nothing is changed.": "Check reads Intel AMT through the Intel ME driver of this computer. Nothing is changed.",
   "Check": "Check",
-  "Check Again": "Check Again",
   "Beta": "Beta",
   "Asks for administrator rights.": "Asks for administrator rights.",
   "Uses a preview of Intel’s rpc-go library.": "Uses a preview of Intel’s rpc-go library.",

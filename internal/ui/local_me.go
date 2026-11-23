@@ -92,14 +92,6 @@ func (s *StartWindow) refreshLocal() {
 	if s.checkBtn == nil {
 		return
 	}
-	text := lang.L("Check")
-	if s.localLast != nil {
-		text = lang.L("Check Again")
-	}
-	if s.checkBtn.Text != text {
-		s.checkBtn.Text = text
-		s.checkBtn.Refresh()
-	}
 	if s.localChecking {
 		s.checkBtn.Disable()
 	} else {
@@ -116,7 +108,7 @@ func (s *StartWindow) refreshLocal() {
 		card = newLocalResultCard(*r)
 	}
 	s.localCard.Objects = []fyne.CanvasObject{card}
-	if s.cards != nil { // lays out the header again: "Check Again" is wider than "Check"
+	if s.cards != nil { // lays out the header again for the new card
 		s.cards.Refresh()
 	}
 }

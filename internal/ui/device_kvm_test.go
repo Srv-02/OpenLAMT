@@ -483,6 +483,53 @@ func TestPowerOffAndCycleCloseKVMFirst(t *testing.T) {
 	}
 }
 
+// TestPlatformEraseClosesKVMFirst (issue #136): Remote Platform Erase restarts a running device
+// with a power cycle, which AMT refuses while KVM is open. The window closes the session before
+// the erase job, as for Power Cycle, and arms the resume. Remote Secure Erase resets and keeps
+// the session.
+func TestPlatformEraseClosesKVMFirst(t *testing.T) {
+	for name, o := range map[string]amt.EraseOptions{
+		"platform": {Platform: true, Actions: amt.EraseSSDs},
+		"secure":   {},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dev := &sessionFake{St: amt.Status{PowerState: 2}}
+			b := dev.BootFake()
+			b.Info = rpeInfo(allRPE, true)
+			b.Gate = make(chan struct{})
+			h := newKVMDevice(t, dev, kvmtest.Options{})
+			c := h.connect(t, true)
+			ok, err := amt.ConfirmChecked(amt.OpErase, "device.example.com", true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			done := make(chan error, 1)
+			h.d.startErase(o, ok, func(err error) { done <- err })
+			select {
+			case b.Gate <- struct{}{}: // the erase job reached the device
+			case <-time.After(5 * time.Second):
+				t.Fatal("erase not sent")
+			}
+			kvmOpen := true
+			select {
+			case <-c.Done():
+				kvmOpen = false
+			default:
+			}
+			if kvmOpen != !o.Platform {
+				t.Fatalf("KVM open %v while the erase was sent", kvmOpen)
+			}
+			recv(t, h.actionDone)
+			if err := <-done; err != nil || len(b.Erases()) != 1 {
+				t.Fatalf("err %v erases %v", err, b.Erases())
+			}
+			if h.d.resumeKVM != o.Platform {
+				t.Fatalf("resume %v", h.d.resumeKVM)
+			}
+		})
+	}
+}
+
 func TestPowerResetKeepsKVM(t *testing.T) {
 	dev := &sessionFake{St: amt.Status{PowerState: 2}}
 	h := newKVMDevice(t, dev, kvmtest.Options{})

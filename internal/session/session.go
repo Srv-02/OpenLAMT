@@ -25,6 +25,7 @@ type Device interface {
 	ConfigDevice
 	Power(amt.PowerAction) error
 	BootConsent(prompt amt.ConsentPrompt) error
+	RefuseAsleep(op string) error
 	PowerStates() ([]power.PowerState, error)
 	Fingerprint() string
 	OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.ConsentPrompt) (*kvm.Client, error)
@@ -158,12 +159,16 @@ func (s *Session) Power(a amt.PowerAction) error {
 	return classify(s.dev.Power(a))
 }
 
-// BootToBIOS runs the user consent that setting boot options needs (amt.Device.BootConsent;
-// prompt may be nil when no code is at hand) and then the boot-to-BIOS sequence, both under the
-// mutex. A failed consent sends no power command.
+// BootToBIOS refuses a sleeping device (amt.ErrAsleep, before any consent), runs the user
+// consent that setting boot options needs (amt.Device.BootConsent; prompt may be nil when no code
+// is at hand) and then the boot-to-BIOS sequence, all under the mutex. A failed consent sends no
+// power command.
 func (s *Session) BootToBIOS(prompt amt.ConsentPrompt) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.dev.RefuseAsleep("boot to BIOS"); err != nil {
+		return classify(err)
+	}
 	if err := s.dev.BootConsent(prompt); err != nil {
 		return classify(err)
 	}

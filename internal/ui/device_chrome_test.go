@@ -58,6 +58,8 @@ func TestPowerMenuFollowsPowerState(t *testing.T) {
 			return a == amt.BootToISO || a == amt.PowerShutdown && !graceful ||
 				a == amt.PowerSleep && !slices.Contains(states, power.SleepDeep) || a == amt.PowerHibernate && !slices.Contains(states, power.Hibernate)
 		})
+		// S3: waking does not restart, so no boot (issue #142)
+		asleep := slices.DeleteFunc(slices.Clone(all), func(a amt.PowerAction) bool { return a == amt.BootToBIOS })
 		on := []amt.PowerAction{amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS}
 		if graceful {
 			on = []amt.PowerAction{amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.PowerShutdown}
@@ -71,7 +73,8 @@ func TestPowerMenuFollowsPowerState(t *testing.T) {
 			{models.PowerStateOn, on, widgets.DotOn, "Powered on"},
 			{models.PowerStateOffHard, []amt.PowerAction{amt.PowerOn, amt.BootToBIOS}, widgets.DotOff, "Powered off"},
 			{models.PowerStateOffSoft, []amt.PowerAction{amt.PowerOn, amt.BootToBIOS}, widgets.DotOff, "Powered off"},
-			{models.PowerStateSleepDeep, all, widgets.DotAsleep, "Sleeping"},
+			{models.PowerStateSleepDeep, asleep, widgets.DotAsleep, "Sleeping"},
+			{models.PowerStateSleepLight, asleep, widgets.DotAsleep, "Sleeping"},
 			{models.PowerStateHibernate, all, widgets.DotAsleep, "Hibernating"},
 		}
 		for _, c := range cases {

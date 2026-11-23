@@ -170,6 +170,19 @@ func refuseAsleep(op string, state models.PowerState) error {
 	return nil
 }
 
+// RefuseAsleep reads the power state and refuses a device in Sleep - Light or Deep (S3) with
+// ErrAsleep, as Boot, Erase, Power(BootToBIOS) and Power(BootToISO) do before they write. The
+// session runs it before the user consent (issue #142): a sleeping device is neither asked for a
+// code on its dark screen nor given a temporary root certificate. Those operations still check
+// again themselves. op names the operation in the error.
+func (d *Device) RefuseAsleep(op string) error {
+	state, err := d.powerState()
+	if err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	return refuseAsleep(op, state)
+}
+
 // undoBoot runs after step failed from the Put of the boot settings onward: one best-effort Put
 // with every boot option off (identity and EnforceSecureBoot from cur, UseIDER and the erase off)
 // and the default boot order. When that works the error says so; when it fails too the error is

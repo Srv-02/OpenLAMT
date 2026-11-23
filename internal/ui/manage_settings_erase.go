@@ -105,17 +105,18 @@ func (p *settingsPane) showErase() {
 	p.eraseText.Refresh()
 }
 
-// eraseAllowed reports whether "Erase…" can be tapped (lock: not while a write runs).
+// eraseAllowed reports whether "Erase…" can be tapped (lock: not while a write runs): not while
+// the device is read in S3, which waking does not restart (issue #142).
 func (p *settingsPane) eraseAllowed() bool {
 	info, ok := p.d.boot.get()
-	return ok && info.EraseSupported()
+	return ok && info.EraseSupported() && !p.m.readS3()
 }
 
 // openErase is "Erase…": the hint while Remote Platform Erase is off, the TLS error without TLS,
 // else the red dialog.
 func (p *settingsPane) openErase() {
 	info, ok := p.d.boot.get()
-	if !ok || !info.EraseSupported() || p.d.locked() {
+	if !ok || !p.eraseAllowed() || p.d.locked() {
 		return
 	}
 	platform := info.PlatformEraseSupported()
@@ -271,27 +272,36 @@ func (p *settingsPane) showEraseStarted() {
 }
 
 // startErase is Erase Drives as a power action of the device window (manageDeps.erase): a
-// poller job with the user consent (KVM's dialog) and the erase, the Power menu locked; errors
-// go to the window's error report. done runs on the Fyne thread.
+// poller job with the user consent (KVM's dialog) and the erase, the Power menu locked, for
+// Remote Platform Erase after the KVM session was closed (closeKVMThen); errors
+// go to the window's error report. done runs on the Fyne thread. It is refused while another
+// power action runs (claimPower).
 func (d *DeviceWindow) startErase(o amt.EraseOptions, c amt.Confirmation, done func(error)) {
-	if d.powerBusy { // another power action holds the shared consent cancel (biosCancel)
-		err := userError(lang.L("Wait until the running power action ends, then erase the drives."))
-		d.onError(err)
+	if err := d.claimPower(lang.L("Wait until the running power action ends, then erase the drives.")); err != nil {
 		done(err)
 		return
 	}
-	d.setPowerBusy(true)
 	ctx, cancel := context.WithCancel(context.Background())
 	d.biosCancel = cancel // shutdown ends a consent dialog through it, as for Reboot to BIOS
 	prompt := &consentPrompt{ctx: ctx, ask: d.askConsent}
-	d.poller.Do(func() error { return d.sess.Erase(prompt, o, c) }, func(err error) {
-		cancel()
-		fyne.Do(func() {
-			d.biosCancel = nil
-			d.powerDone(amt.PowerReset, err)
-			done(err)
+	job := func() {
+		d.poller.Do(func() error { return d.sess.Erase(prompt, o, c) }, func(err error) {
+			cancel()
+			fyne.Do(func() {
+				d.biosCancel = nil
+				d.powerDone(amt.PowerReset, err)
+				done(err)
+			})
 		})
-	})
+	}
+	// Remote Platform Erase restarts a running device with a power cycle, which AMT refuses while
+	// KVM is open: the session is closed first and comes back afterwards, as for Power Cycle
+	// (issue #136). Remote Secure Erase uses a reset and keeps it.
+	if o.Platform && !(d.powerKnown && isOff(d.powerState)) {
+		d.closeKVMThen(job)
+		return
+	}
+	job()
 }
 
 // describeErase covers the errors of Erase Drives and the Remote Platform Erase switch.

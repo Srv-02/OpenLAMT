@@ -21,7 +21,7 @@ var _ EraseDevice = (*amt.Device)(nil)
 // Erase checks the confirmation (amt.OpErase) and, for Remote Platform Erase, TLS, then runs
 // the user consent (prompt may be nil when no code is at hand) and arms the erase, which
 // restarts or powers on the device; all under the mutex. Nothing reaches the device before the
-// checks pass.
+// checks pass; a sleeping device is refused before the consent (issue #142).
 func (s *Session) Erase(prompt amt.ConsentPrompt, o amt.EraseOptions, confirm amt.Confirmation) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -34,6 +34,9 @@ func (s *Session) Erase(prompt amt.ConsentPrompt, o amt.EraseOptions, confirm am
 	d, err := capability[EraseDevice](s)
 	if err != nil {
 		return err
+	}
+	if err := s.dev.RefuseAsleep("erase"); err != nil {
+		return classify(err)
 	}
 	if err := s.dev.BootConsent(prompt); err != nil {
 		return classify(err)

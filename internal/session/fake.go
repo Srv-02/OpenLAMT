@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
 	power "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/power"
 
 	"github.com/Srv-02/openlamt/internal/amt"
@@ -72,6 +73,7 @@ type Fake struct {
 	statesCalls  int
 	powered      []amt.PowerAction
 	bootConsents int
+	asleepChecks int
 	configs      []amt.Config
 	qualities    []kvm.Quality
 	busy         atomic.Int32
@@ -144,6 +146,23 @@ func (f *Fake) BootConsent(prompt amt.ConsentPrompt) error {
 	f.mu.Unlock()
 	return f.consent(prompt)
 }
+
+// RefuseAsleep refuses St.PowerState Sleep - Light or Deep like *amt.Device (amt.ErrAsleep) and
+// is counted (see AsleepChecks).
+func (f *Fake) RefuseAsleep(op string) error {
+	f.enter()
+	defer f.leave()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.asleepChecks++
+	if ps := f.St.PowerState; ps == models.PowerStateSleepLight || ps == models.PowerStateSleepDeep {
+		return fmt.Errorf("%s: %w", op, amt.ErrAsleep)
+	}
+	return nil
+}
+
+// AsleepChecks is the number of RefuseAsleep calls.
+func (f *Fake) AsleepChecks() int { f.mu.Lock(); defer f.mu.Unlock(); return f.asleepChecks }
 
 // BootConsents is the number of BootConsent calls.
 func (f *Fake) BootConsents() int { f.mu.Lock(); defer f.mu.Unlock(); return f.bootConsents }

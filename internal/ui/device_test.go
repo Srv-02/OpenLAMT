@@ -184,7 +184,7 @@ func TestRebootToBIOSAsksOnlyWhenOn(t *testing.T) {
 			t.Fatalf("%v: powered %v", st, got)
 		}
 	}
-	for _, st := range []models.PowerState{models.PowerStateOn, models.PowerStateSleepDeep, models.PowerStateHibernate} {
+	for _, st := range []models.PowerState{models.PowerStateOn, models.PowerStateHibernate} { // S3: greyed (issue #142)
 		h := newDevice(t, test.NewTempApp(t), &session.Fake{FP: fp, St: amt.Status{PowerState: st}}, true)
 		var asked []amt.PowerAction
 		h.d.confirm = func(act amt.PowerAction, _ func()) { asked = append(asked, act) }

@@ -85,7 +85,7 @@ type DeviceWindow struct {
 	autoOverride              string             // favorites.AutoConnectOn, AutoConnectOff or empty (global)
 	adoptPending              bool               // the form changed the quality while a connect was pending
 	resumeKVM                 bool               // the window closed KVM for a power action and connects again (resumeCheck)
-	powerAfterConnect         *amt.PowerAction   // sent once the cancelled connect has reported (kvmOpened), see execute
+	powerAfterConnect         func()             // runs once the cancelled connect has reported (kvmOpened), see closeKVMThen
 	biosCancel                context.CancelFunc // ends the consent prompt of a running Reboot to BIOS, or nil (sendPower)
 	resumeAt                  time.Time          // earliest resume attempt, set when a power action ends
 	resumeNeedOff             bool               // after Power Off or Shutdown an On read counts only after an Off read
@@ -226,6 +226,16 @@ func isAsleep(ps models.PowerState) bool {
 	return ps == models.PowerStateSleepLight || ps == models.PowerStateSleepDeep || ps == models.PowerStateHibernate
 }
 
+// isS3 reports Sleep - Light or Deep (S3), without Hibernate: Power On only resumes such a
+// device without a start of the BIOS, so boot options and an erase would not apply (issue #142).
+func isS3(ps models.PowerState) bool {
+	return ps == models.PowerStateSleepLight || ps == models.PowerStateSleepDeep
+}
+
+// readS3 reports whether the device was read in S3: Reboot to BIOS, Boot from ISO, Boot Options
+// and Erase drives are greyed then (issue #142).
+func (d *DeviceWindow) readS3() bool { return d.powerKnown && isS3(d.powerState) }
+
 // NewDeviceWindow builds the window; onClosed runs once when the user closes it or the session
 // is aborted after a certificate mismatch (the poller is stopped on a goroutine before that).
 func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Status, settings Settings, onClosed func()) *DeviceWindow {
@@ -340,6 +350,9 @@ func (d *DeviceWindow) apply(st amt.Status, err error) {
 		d.setMessage("")
 	}
 	d.lastStatus, d.statusKnown = st, !d.aborted && err == nil
+	if d.manager != nil {
+		d.manager.statusChanged() // Erase drives follows the sleep state
+	}
 	d.autoConnect()
 	d.resumeCheck()
 	if d.onStatus != nil {
@@ -412,12 +425,27 @@ func endsKVM(action amt.PowerAction) bool {
 const kvmCloseWait = 5 * time.Second
 
 func (d *DeviceWindow) execute(action amt.PowerAction) {
-	d.setPowerBusy(true)
-	if !endsKVM(action) || (d.kvmClient == nil && d.kvmCancel == nil) {
-		d.sendPower(action)
+	if d.claimPower(lang.L("Wait until the running power action ends, then try again.")) != nil {
 		return
 	}
-	d.resumeKVM = true // the app closes the session, not the user: it comes back (resumeCheck)
+	send := func() { d.sendPower(action) }
+	if endsKVM(action) {
+		d.closeKVMThen(send)
+		return
+	}
+	send()
+}
+
+// closeKVMThen runs send once an open KVM session is closed, for a power request that AMT
+// refuses while one is open (endsKVM, and the power cycle of Remote Platform Erase, issue #136).
+// Without a session or a pending connect send runs at once. The app closes the session, not the
+// user, so it comes back after the action (resumeKVM, resumeCheck).
+func (d *DeviceWindow) closeKVMThen(send func()) {
+	if d.kvmClient == nil && d.kvmCancel == nil {
+		send()
+		return
+	}
+	d.resumeKVM = true
 	var closed <-chan struct{}
 	if c := d.kvmClient; c != nil {
 		closed = c.Done()
@@ -425,10 +453,8 @@ func (d *DeviceWindow) execute(action amt.PowerAction) {
 	d.disconnectKVM()
 	if closed == nil {
 		// Only a pending connect, cancelled. Its dial may have got through just before: kvmOpened
-		// then closes that session and sends the action; the timer covers a connect that never
-		// reports.
-		a := action
-		d.powerAfterConnect = &a
+		// then closes that session and runs send; the timer covers a connect that never reports.
+		d.powerAfterConnect = send
 		time.AfterFunc(kvmCloseWait, func() { fyne.Do(d.flushPowerAfterConnect) })
 		return
 	}
@@ -439,15 +465,15 @@ func (d *DeviceWindow) execute(action amt.PowerAction) {
 		case <-closed:
 		case <-t.C: // send anyway; AMT reports the failure if the session is still open
 		}
-		fyne.Do(func() { d.sendPower(action) })
+		fyne.Do(send)
 	}()
 }
 
-// flushPowerAfterConnect sends the action execute held back for a cancelled connect, once.
+// flushPowerAfterConnect runs the action closeKVMThen held back for a cancelled connect, once.
 func (d *DeviceWindow) flushPowerAfterConnect() {
-	if p := d.powerAfterConnect; p != nil {
+	if send := d.powerAfterConnect; send != nil {
 		d.powerAfterConnect = nil
-		d.sendPower(*p)
+		send()
 	}
 }
 
@@ -497,6 +523,23 @@ func (d *DeviceWindow) powerDone(action amt.PowerAction, err error) {
 	}
 }
 
+// claimPower takes the lock that every power, boot and erase action of the window shares: the
+// locked Power menu (powerBusy) and the consent cancel (biosCancel). While another action holds
+// it, claimPower reports wait and returns it as the error, so a second action can neither
+// overwrite biosCancel (closing the window would then not end its consent dialog, #126) nor mix
+// its boot settings with the first one's (issue #135). Its dialogs can be open at the same time:
+// the confirmation or Boot Options in the device window, Erase drives in the popped-out device
+// management.
+func (d *DeviceWindow) claimPower(wait string) error {
+	if d.powerBusy {
+		err := userError(wait)
+		d.onError(err)
+		return err
+	}
+	d.setPowerBusy(true)
+	return nil
+}
+
 // setPowerBusy locks the Power menu while an action runs.
 func (d *DeviceWindow) setPowerBusy(busy bool) {
 	d.powerBusy = busy
@@ -509,7 +552,8 @@ func (d *DeviceWindow) setPowerBusy(busy bool) {
 // powerAllowed reports whether the Power menu offers action in the current state. Unknown
 // state (failed read) offers everything, as before the redesign. Shutdown also needs the device
 // to list Off - Soft Graceful (12), which AMT does only while LMS runs; unknown power states
-// (not read yet or failed) lock it. Boot from ISO needs a mounted image.
+// (not read yet or failed) lock it. Boot from ISO needs a mounted image. A sleeping device (S3)
+// offers no boot: waking it does not restart it (issue #142).
 func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 	if d.aborted || d.powerBusy {
 		return false
@@ -531,8 +575,10 @@ func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 		return action != amt.PowerOn
 	case isOff(d.powerState):
 		return action == amt.PowerOn || action == amt.BootToBIOS || action == amt.BootToISO // both power on a machine that is off
+	case isS3(d.powerState):
+		return action != amt.BootToBIOS && action != amt.BootToISO // AMT refuses both (amt.ErrAsleep)
 	}
-	return true // sleeping, hibernating or a state without a name: every action applies
+	return true // hibernating (starts through the BIOS) or a state without a name: every action applies
 }
 
 // releaseKeys frees every held key and button on the remote before a dialog opens: Fyne creates

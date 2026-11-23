@@ -30,7 +30,7 @@
 <li><a href="favorites.html">Favorites and scan</a></li>
 <li><a href="device-window.html">Device window</a></li>
 <li><a href="management.html">Device management</a></li>
-<li><a href="amt-settings.html" aria-current="page">AMT settings explained</a><ol class="toc"><li><a href="#basics">How Intel AMT works</a></li><li><a href="#control-mode">Control mode: ACM and CCM</a></li><li><a href="#general">Host name, domain and ping</a></li><li><a href="#environment-detection">Environment detection</a></li><li><a href="#network">Network address and IP sync</a></li><li><a href="#redirection">Remote features (redirection)</a></li><li><a href="#user-consent">User consent</a></li><li><a href="#clock">AMT clock</a></li><li><a href="#tls">TLS</a></li><li><a href="#realms">Accounts and realms</a></li><li><a href="#power-policy">Power policies</a></li><li><a href="#turn-off">Turn off AMT</a></li></ol></li>
+<li><a href="amt-settings.html" aria-current="page">AMT settings explained</a><ol class="toc"><li><a href="#basics">How Intel AMT works</a></li><li><a href="#control-mode">Control mode: ACM and CCM</a></li><li><a href="#general">Host name, domain and ping</a></li><li><a href="#environment-detection">Environment detection</a></li><li><a href="#network">Network address and IP sync</a></li><li><a href="#redirection">Remote features (redirection)</a></li><li><a href="#recovery-erase">One Click Recovery and remote erase</a></li><li><a href="#user-consent">User consent</a></li><li><a href="#clock">AMT clock</a></li><li><a href="#tls">TLS</a></li><li><a href="#certificates">Certificates and trusted roots</a></li><li><a href="#realms">Accounts and realms</a></li><li><a href="#audit-policy">Audit policy</a></li><li><a href="#event-forwarding">Event forwarding</a></li><li><a href="#power-policy">Power policies</a></li><li><a href="#turn-off">Turn off AMT</a></li></ol></li>
 <li><a href="confirmations.html">Confirmations and permissions</a></li>
 <li><a href="settings.html">App settings and updates</a></li>
 <li><a href="troubleshooting.html">Troubleshooting</a></li>
@@ -113,6 +113,18 @@
 <p>Turn off what you do not use. Each feature is another way into the device for anyone with a valid AMT account.</p>
 </div>
 
+<h2 id="recovery-erase">One Click Recovery and remote erase</h2>
+<div class="prose">
+<p>Newer devices (Intel AMT 16 and later) have a boot service that can do more than pick a boot device. Each of its two features has a switch under <span class="ui">Remote features</span> and must also be on in the BIOS. Switching them on or off asks nothing. If the BIOS has a feature off, AMT refuses the switch: “Turn it on in the BIOS first.”</p>
+</div>
+<dl class="terms">
+  <dt>One Click Recovery (HTTPS boot)</dt><dd>Lets AMT start the device once from an image over HTTPS: from a file on your computer or from a URL. You start it in <a href="device-window.html#one-click-recovery">Boot Options</a>. The device checks the HTTPS server against its trusted roots.</dd>
+  <dt>Remote Platform Erase</dt><dd>Lets AMT have the BIOS erase the drives at the next start, and optionally clear the TPM, reset the BIOS settings and unconfigure AMT. You start it with <a href="management.html#erase">Erase drives</a>. Older devices instead offer Remote Secure Erase of the boot drive, without a switch.</dd>
+</dl>
+<div class="prose">
+<p><b>What can go wrong:</b> while One Click Recovery is on, anyone with a power control account can start the device from an image of their choice. While Remote Platform Erase is on, anyone with an account that may set boot options can erase the device. Turn them on when you need them and off again afterwards.</p>
+</div>
+
 <h2 id="user-consent">User consent</h2>
 <div class="prose">
 <p>User consent makes AMT ask a person at the device before a remote session. AMT shows a six-digit code on the screen of the device, on top of whatever runs there. The remote user must enter that code. This proves that someone at the device agrees.</p>
@@ -120,7 +132,7 @@
 <dl class="terms">
   <dt>None</dt><dd>No consent. Remote sessions start at once.</dd>
   <dt>KVM only</dt><dd>Consent for the remote screen. Media and console start without it.</dd>
-  <dt>All</dt><dd>Consent for every redirection session and for boot changes.</dd>
+  <dt>All</dt><dd>Consent for every redirection session and for boot changes: Reboot to BIOS, Boot Options, One Click Recovery and Erase drives ask for the code too.</dd>
 </dl>
 <div class="prose">
 <p><b>When you need it:</b> on desktops where a person works and should see every remote session. On a server room machine, nobody can read the code, so <span class="ui">None</span> fits there.</p>
@@ -139,6 +151,17 @@
 <p>OpenLAMT pins the certificate on the first connection. See <a href="getting-started.html#tls">TLS and certificate pinning</a>.</p>
 </div>
 
+<h2 id="certificates">Certificates and trusted roots</h2>
+<div class="prose">
+<p>Intel AMT keeps its own certificate store. It holds the TLS certificate with its private key, other certificates, and trusted roots: certificate authorities whose servers the device trusts, for example for HTTPS boot. The <a href="management.html#certificates">Certificates page</a> lists them, imports new ones and deletes old ones.</p>
+<ul>
+  <li><b>Your own TLS certificate:</b> import it with its private key as a <code>.p12</code> or <code>.pfx</code> file, then choose it under <span class="ui">TLS certificate</span> on the Settings page. AMT accepts only RSA keys.</li>
+  <li><b>HTTPS boot from your own server:</b> import the root of your server’s certificate as trusted root.</li>
+  <li><b>Expired certificates</b> are marked red. The device refuses to delete the certificate it uses for TLS; choose another one first.</li>
+  <li>The store has limited space. A full store says “… has no space for more certificates.” Delete what you no longer need.</li>
+</ul>
+</div>
+
 <h2 id="realms">Accounts and realms</h2>
 <div class="prose">
 <p>AMT controls access with realms: groups of functions an account may use. OpenLAMT bundles them into six permissions. A permission counts as given when the account has all its realms. Realms outside these groups stay as they are when you edit an account.</p>
@@ -150,13 +173,29 @@
     <tr><td class="ui">KVM, media, console</td><td>Redirection</td><td>Remote screen, IDE-R and SOL sessions</td></tr>
     <tr><td class="ui">Hardware</td><td>Hardware Asset</td><td>The Hardware page</td></tr>
     <tr><td class="ui">Event log</td><td>Event Log Reader</td><td>Reading the event log</td></tr>
-    <tr><td class="ui">Audit log</td><td>Security Audit Log</td><td>Reading the audit log</td></tr>
+    <tr><td class="ui">Audit log</td><td>Security Audit Log</td><td>Reading the audit log and changing its settings</td></tr>
     <tr><td class="ui">Settings</td><td>PT Administration, General Info, Network Time</td><td>The Settings page</td></tr>
   </tbody>
 </table></div>
 <div class="prose">
 <p><span class="ui">Access</span> decides where an account may sign in from: <span class="ui">Network</span>, <span class="ui">Local</span> (software on the device) or <span class="ui">Both</span>.</p>
 <p>Give each person or tool its own account with only the permissions it needs. A helpdesk account with <span class="ui">Power control</span> and <span class="ui">KVM, media, console</span> can help users without changing AMT. OpenLAMT works with such accounts and shows what they may not read; see <a href="confirmations.html#limited-accounts">Limited accounts</a>.</p>
+</div>
+
+<h2 id="audit-policy">Audit policy</h2>
+<div class="prose">
+<p>The audit log answers “who did what, from where and when” for AMT itself. The audit policy decides which events AMT records and what happens when the log is full. OpenLAMT groups the events in twelve groups in plain words; set them in the <a href="management.html#audit-settings">audit log settings</a>.</p>
+<ul>
+  <li>Leave recording on. While it is off, changes to the device leave no trace.</li>
+  <li><b>When the log is full:</b> overwriting the oldest entries keeps recording. A minimum age keeps entries for a number of days first. Stop recording keeps every entry, but while the log is full, Intel AMT blocks critical actions until someone clears the log.</li>
+  <li>Clearing the log cannot be undone. The log then holds one entry that says it was cleared, so the clearing itself stays visible.</li>
+</ul>
+</div>
+
+<h2 id="event-forwarding">Event forwarding</h2>
+<div class="prose">
+<p>Besides its own event log, Intel AMT can send events as they happen to a listener on the network, for example a SIEM collector. It uses WS-Management events (WS-Eventing): AMT sends an HTTP request per event, with or without an acknowledgement from the listener, optionally signed in with Digest. AMT does not send syslog.</p>
+<p>You need a listener that accepts WS-Management events. OpenLAMT only sets up the target on the device; it does not receive or show forwarded events. Set targets with <a href="management.html#forwarding">Forwarding…</a> on the event log. AMT cannot change a target: delete it and add a new one.</p>
 </div>
 
 <h2 id="power-policy">Power policies</h2>

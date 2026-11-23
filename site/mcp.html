@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MCP server (openlamt-mcp) · OpenLAMT User Guide</title>
-<meta name="description" content="Let an AI agent use your OpenLAMT favorites through the local MCP server openlamt-mcp.">
+<meta name="description" content="Let an AI agent use your OpenLAMT favorites through the local MCP server openlamt-mcp: install, tools, confirmations and limits.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/guide.css">
 <script src="assets/guide.js"></script>
@@ -34,60 +34,142 @@
 <li><a href="confirmations.html">Confirmations and permissions</a></li>
 <li><a href="settings.html">App settings and updates</a></li>
 <li><a href="troubleshooting.html">Troubleshooting</a></li>
-<li><a href="mcp.html" aria-current="page">MCP server</a><ol class="toc"><li><a href="#what">What it is</a></li><li><a href="#devices">Devices, passwords and TLS</a></li><li><a href="#tools">Tools</a></li><li><a href="#config">Limit what the agent may do</a></li></ol></li>
+<li><a href="mcp.html" aria-current="page">MCP server</a><ol class="toc"><li><a href="#what">What it is</a></li><li><a href="#install">Install</a></li><li><a href="#devices">Devices, passwords and TLS</a></li><li><a href="#tools">Tools</a></li><li><a href="#config">Limit what the agent may do</a></li></ol></li>
 </ol>
 </nav>
 <main id="main">
 <div class="content">
 <h1>MCP server (openlamt-mcp)</h1>
-<p class="lead"><code>openlamt-mcp</code> lets an AI agent use your OpenLAMT favorites: read status and logs, control power, look at the screen and type. It runs on your computer and opens no network port.</p>
+<p class="lead"><code>openlamt-mcp</code> lets an AI agent use your OpenLAMT favorites: read status, hardware, logs, settings and accounts, control power, boot from an ISO, look at the screen, type, use the serial console, and change AMT settings and accounts. It runs on your computer and opens no network port.</p>
 
 <h2 id="what">What it is</h2>
 <div class="prose">
-<p>MCP (Model Context Protocol) is a standard way for AI apps to call tools. Claude Desktop, Claude Code and other MCP clients can start <code>openlamt-mcp</code> and talk to it over standard input and output. The agent then sees tools such as <code>list_devices</code> or <code>power_action</code>.</p>
-<p><code>openlamt-mcp</code> is a separate program next to the app. It is not part of the release downloads yet. Build it from the source with Go (no C compiler needed):</p>
-<pre><code>go build -o openlamt-mcp ./cmd/openlamt-mcp</code></pre>
+<p>MCP (Model Context Protocol) is a standard way for AI apps to call tools. Claude Desktop, Claude Code and other MCP clients start <code>openlamt-mcp</code> and talk to it over standard input and output. The agent then sees tools such as <code>list_devices</code> or <code>power_action</code>.</p>
+</div>
+
+<h2 id="install">Install</h2>
+<div class="prose">
+<p><code>openlamt-mcp</code> is a separate program next to the app. Download the archive for your system from the <a href="https://github.com/Srv-02/OpenLAMT/releases">Releases page</a> and unpack it anywhere. It holds a single program without dependencies, with its license files.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>System</th><th>Archive</th></tr></thead>
+  <tbody>
+    <tr><td>macOS (Apple Silicon)</td><td><code>openlamt-mcp-&lt;version&gt;-macos-arm64.tar.gz</code></td></tr>
+    <tr><td>Windows (x64)</td><td><code>openlamt-mcp-&lt;version&gt;-windows-x64.zip</code></td></tr>
+    <tr><td>Linux (x64)</td><td><code>openlamt-mcp-&lt;version&gt;-linux-x64.tar.gz</code></td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>The program is not code-signed. On macOS, remove the quarantine attribute once:</p>
+<pre><code>xattr -d com.apple.quarantine openlamt-mcp</code></pre>
+<p>On Windows, SmartScreen may warn on the first start. To build it yourself instead: <code>go build -o openlamt-mcp ./cmd/openlamt-mcp</code> (no C compiler needed). <code>openlamt-mcp --version</code> prints the version.</p>
 <p>Then add it to your MCP client:</p>
 <pre><code>{"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}</code></pre>
+<p>The app’s update check never offers these archives. Update <code>openlamt-mcp</code> by downloading the new archive.</p>
 </div>
 
 <h2 id="devices">Devices, passwords and TLS</h2>
 <div class="prose">
 <ul>
-  <li>The agent sees your OpenLAMT favorites by their names. It cannot add a host, a user name or a password.</li>
-  <li>Passwords come from the system keychain. Save the password in the app first. Passwords never pass through the MCP connection and never appear in answers or logs.</li>
+  <li>The agent sees your OpenLAMT favorites by their names. It cannot add a host, a user name or a device password. The app and <code>openlamt-mcp</code> can run at the same time and share the favorites safely.</li>
+  <li>Device passwords come from the system keychain. Save the password in the app first. They never pass through the MCP connection and never appear in answers or logs.</li>
   <li>A TLS device works only after you connected once with the app and trusted its certificate. The MCP server never trusts a new certificate.</li>
   <li>Devices without TLS work, with a warning in each answer.</li>
+  <li>If a device asks for <a href="amt-settings.html#user-consent">user consent</a>, the agent has to ask a person at the device for the six-digit code on its screen and pass it as <code>consent_code</code> (<code>boot_to_bios</code>, <code>kvm_connect</code>, <code>sol_connect</code>, <code>media_mount</code>).</li>
 </ul>
 </div>
 
 <h2 id="tools">Tools</h2>
+<div class="prose">
+<p>The tools come in groups. You switch groups on and off in the <a href="#config">config file</a>; a tool of a group that is off does not exist for the agent.</p>
+</div>
 <div class="tbl"><table class="ref">
-  <thead><tr><th>Tool</th><th>What it does</th><th>Group</th></tr></thead>
+  <thead><tr><th>Group</th><th>Tools</th></tr></thead>
   <tbody>
-    <tr><td><code>list_devices</code></td><td>Lists the allowed favorites. Makes no connection.</td><td>read</td></tr>
-    <tr><td><code>device_status</code></td><td>Power state, AMT version, control mode, TLS.</td><td>read</td></tr>
-    <tr><td><code>hardware_info</code></td><td>System, board, BIOS, processors, memory, drives.</td><td>read</td></tr>
-    <tr><td><code>event_log</code>, <code>audit_log</code></td><td>Log entries, filtered by time, severity or text.</td><td>read</td></tr>
-    <tr><td><code>power_action</code></td><td>Power on, off, reset, power cycle, shut down. The same rules as the Power menu.</td><td>power_boot, destructive</td></tr>
-    <tr><td><code>boot_to_bios</code></td><td>Restarts into the BIOS setup.</td><td>power_boot, destructive</td></tr>
-    <tr><td><code>kvm_connect</code>, <code>kvm_disconnect</code></td><td>Opens or closes the remote screen session of a device.</td><td>read</td></tr>
-    <tr><td><code>kvm_screenshot</code></td><td>The screen as an image sized for AI models: at most 1280 pixels on the longest side, JPEG by default.</td><td>read</td></tr>
-    <tr><td><code>kvm_send_keys</code></td><td>Presses keys and combinations such as <code>Ctrl+Alt+Delete</code>.</td><td>kvm_input</td></tr>
-    <tr><td><code>kvm_mouse</code></td><td>Moves, clicks and scrolls at a point of the last screenshot.</td><td>kvm_input</td></tr>
-    <tr><td><code>kvm_type_text</code></td><td>Types text in the keyboard layout of the favorite.</td><td>kvm_input</td></tr>
+    <tr><td>always</td><td><code>list_devices</code> (contacts no device)</td></tr>
+    <tr><td><code>read</code></td><td><code>device_status</code>, <code>hardware_info</code>, <code>event_log</code>, <code>audit_log</code>, <code>kvm_screenshot</code>, <code>sol_read</code></td></tr>
+    <tr><td><code>read</code> or <code>kvm_input</code></td><td><code>kvm_connect</code>, <code>kvm_disconnect</code>, <code>sol_connect</code>, <code>sol_disconnect</code></td></tr>
+    <tr><td><code>read</code> and <code>settings</code></td><td><code>get_settings</code></td></tr>
+    <tr><td><code>read</code> and <code>users</code></td><td><code>list_users</code></td></tr>
+    <tr><td><code>power_boot</code></td><td><code>power_action</code> (on, off, reset, cycle, shutdown), <code>boot_to_bios</code></td></tr>
+    <tr><td><code>media</code></td><td><code>media_mount</code>, <code>media_unmount</code>, <code>media_status</code>, <code>media_boot_next</code>; with <code>power_boot</code> also <code>boot_from_iso</code></td></tr>
+    <tr><td><code>kvm_input</code></td><td><code>kvm_send_keys</code>, <code>kvm_mouse</code>, <code>kvm_type_text</code>, <code>sol_type_text</code>, <code>sol_send_keys</code></td></tr>
+    <tr><td><code>settings</code></td><td><code>set_general</code> (host name, domain, ping, Dynamic DNS), <code>set_remote_features</code> (KVM, IDE-R, SOL, user consent), <code>sync_clock</code>, <code>set_tls_certificate</code></td></tr>
+    <tr><td><code>settings</code> and <code>destructive</code></td><td><code>set_network</code>, <code>set_environment_detection</code>, <code>disable_amt_network</code></td></tr>
+    <tr><td><code>users</code></td><td><code>add_user</code>, <code>update_user</code>, <code>set_user_enabled</code>, <code>delete_user</code></td></tr>
+    <tr><td><code>users</code> and <code>destructive</code></td><td><code>set_admin_account</code></td></tr>
   </tbody>
 </table></div>
 <div class="prose">
-<p><code>destructive</code> covers every power action except power on. Power off, power cycle and shutdown close an open KVM session first, because AMT refuses them while KVM is open.</p>
-<p>AMT allows one KVM session per device. While the agent holds it, the app cannot connect KVM to that device, and the other way round. The session closes with <code>kvm_disconnect</code>, after five minutes without a call, or when the MCP client stops the server.</p>
-<p>If a device asks for <a href="amt-settings.html#user-consent">user consent</a>, the agent must ask a person at the device for the six-digit code and pass it as <code>consent_code</code>.</p>
+<p><code>destructive</code> also covers every power action except power on, <code>boot_to_bios</code> on a device that is not off, and <code>boot_from_iso</code> on a device that is not off. Without it these calls are refused. Boot options, One Click Recovery, erasing drives, certificates, Wi-Fi, System Defense, the power policy, wake alarms, event forwarding and the audit log settings are only in the app.</p>
+
+<h3 id="power">Power</h3>
+<p><code>power_action</code> follows the rules of the <a href="device-window.html#power">Power menu</a>: a running device refuses on, a device that is off takes only on, and shutdown needs the device to offer it (<code>device_status</code> says so). Power off, power cycle and shutdown close an open KVM session first, because AMT refuses them while KVM is open.</p>
+
+<h3 id="remote-screen">Remote screen</h3>
+<ul>
+  <li><code>kvm_connect</code> opens the KVM session of a device and keeps it for the following calls.</li>
+  <li><code>kvm_screenshot</code> returns the screen as an image sized for AI models: by default at most 1280 pixels on the longest side, as JPEG.</li>
+  <li><code>kvm_send_keys</code> presses keys and combinations such as <code>Ctrl+Alt+Delete</code>. <code>kvm_mouse</code> moves, clicks and scrolls at a point of the last screenshot. <code>kvm_type_text</code> types text in the keyboard layout of the favorite.</li>
+  <li>AMT allows one KVM session per device. While the agent holds it, the app cannot connect KVM to that device, and the other way round. The session closes with <code>kvm_disconnect</code>, after five minutes without a call, or when the MCP client stops the server.</li>
+  <li>If KVM is off on the device, <code>kvm_connect</code> turns it on. That is a settings change: it needs the group <code>settings</code> and, with <code>require_client_confirmation</code>, your answer to a question. Without <code>settings</code>, the call says what to turn on. The wake key that <code>kvm_connect</code> presses on a new session needs <code>kvm_input</code>.</li>
+</ul>
+
+<h3 id="serial-console">Serial console</h3>
+<ul>
+  <li><code>sol_connect</code> opens the serial console (Serial over LAN) of a device. Its output goes into a buffer of 1 MiB per device.</li>
+  <li><code>sol_read</code> returns the output as plain text and goes on where the last read ended.</li>
+  <li><code>sol_type_text</code> writes printable ASCII text, with line breaks as Enter. <code>sol_send_keys</code> presses keys such as <code>Ctrl+C</code>, <code>Up</code> or <code>F10</code> as xterm sequences. A BIOS setup over the serial console often expects other codes for function keys; KVM works there too.</li>
+  <li>One serial console session per device: while the agent holds it, the app’s Console view cannot connect, and the other way round. It closes with <code>sol_disconnect</code>, after five minutes without a call, or when the server stops.</li>
+  <li>If SOL is off, <code>sol_connect</code> turns it on under the same rules as <code>kvm_connect</code>.</li>
+</ul>
+
+<h3 id="media">Media</h3>
+<ul>
+  <li><code>media_mount</code> mounts an <code>.iso</code> file or a folder on a device as a read-only CD drive. The agent gives its absolute path on the computer that runs <code>openlamt-mcp</code>. A folder becomes a temporary ISO first, as in the app. A big folder takes a while, and the build runs within the tool call, so a client with a short tool timeout may abort it.</li>
+  <li><code>media_boot_next</code> makes the device boot from the image at its next start. <code>boot_from_iso</code> restarts it from the image now; a device that is off is only powered on. <code>media_status</code> shows what is mounted and how fast the device reads it.</li>
+  <li>The image stays mounted until <code>media_unmount</code>, until the device ends the session, or until the client stops the server. The boot option set with <code>media_boot_next</code> is cleared then. If a boot from the image fails halfway, <code>media_unmount</code> clears the boot option as well.</li>
+  <li>One media session per device: while the agent holds it, the app’s Media menu cannot mount on that device, and the other way round.</li>
+  <li>If media redirection (IDE-R) is off, <code>media_mount</code> turns it on, and it stays on. That needs the group <code>settings</code>.</li>
+</ul>
+<div class="warn"><b>A mounted folder can be read on the device.</b>Whoever uses the device, or its remote screen, can read every file of a mounted folder. <code>openlamt-mcp</code> therefore refuses some folders, but the list cannot cover every place with secrets. Set <code>media.allowed_paths</code> to the folders with your images.</div>
+<div class="prose">
+<p>What <code>media_mount</code> does to protect your files:</p>
+<ul>
+  <li>It resolves links first and mounts only the resolved path. It checks right before it opens the file that it is still the one it checked, and builds a folder image so that nothing outside the folder can end up in it. Links inside the folder are left out.</li>
+  <li>It never mounts your home folder itself, a folder above it, or the folders that hold credentials and settings: <code>~/.ssh</code>, <code>~/.gnupg</code>, <code>~/.aws</code>, <code>~/.azure</code>, <code>~/.config</code>, <code>~/.local/share</code>, <code>~/.local/state</code>, <code>~/.kube</code>, <code>~/.docker</code>, <code>~/.password-store</code>, <code>~/.mozilla</code>, <code>~/.thunderbird</code>, <code>~/.pki</code>, <code>~/.claude</code>, <code>~/.cargo</code>, <code>~/.m2</code>, <code>~/.gradle</code>, <code>~/.terraform.d</code>, <code>~/.var/app</code>, <code>~/snap</code>, all of <code>~/Library</code> on macOS, <code>%APPDATA%</code> and <code>%LOCALAPPDATA%</code> on Windows, and the OpenLAMT configuration folder with the favorites, <code>openlamt-mcp.json</code> and the action log.</li>
+  <li>It recognizes these folders by the file system, not by their spelling: a link, a bind mount, a macOS firmlink or a Windows junction to one of them is refused too, and a folder image stops when one of them turns up inside.</li>
+  <li>On Windows, <code>\\?\</code> and <code>\\.\</code> paths and administrative shares such as <code>\\host\C$</code> are refused.</li>
+</ul>
+</div>
+
+<h3 id="settings-accounts">AMT settings and accounts</h3>
+<div class="prose">
+<p><code>get_settings</code> and <code>list_users</code> show what the app’s <a href="management.html#settings">Settings</a> and <a href="management.html#users">Users</a> pages show. A section the account may not read is listed in <code>not_permitted</code>, one the firmware lacks in <code>not_available</code>. The other tools change what those pages change, with the same <a href="confirmations.html">confirmation levels</a>:</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Level in the app</th><th>Changes</th><th>What <code>openlamt-mcp</code> does</th></tr></thead>
+  <tbody>
+    <tr><td><span class="lv none">none</span></td><td>Ping, switching a feature on (also by <code>kvm_connect</code>, <code>sol_connect</code> or <code>media_mount</code>), raising user consent, the clock, adding, editing or disabling another account</td><td>Asks you in the MCP client only with <code>require_client_confirmation</code>.</td></tr>
+    <tr><td><span class="lv or">orange</span></td><td>Host name, domain, Dynamic DNS, switching KVM, IDE-R or SOL off, the TLS certificate, the account the favorite signs in with, deleting an account, lowering the user consent policy</td><td><b>Always</b> asks you in the MCP client. A client that cannot ask gets a refusal; make the change in the app then.</td></tr>
+    <tr><td><span class="lv red">red</span></td><td>Network settings, environment detection, turning AMT off on the network, the admin account</td><td>Needs the group <code>destructive</code> as well, the agent must repeat the device name in <code>confirm</code>, and you are always asked.</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<ul>
+  <li>The question shows what changes and the app’s warning. Your answer counts only for exactly these arguments and this favorite (its name, host and user). If one of them changes, the call is refused.</li>
+  <li>Lowering the user consent policy counts as orange because KVM, SOL, IDE-R and boot changes then run without a person at the device confirming them. If the current policy cannot be read, the change counts as lowering.</li>
+  <li>When the account the favorite signs in with or its certificate changes, the keychain and the favorite follow, as in the app.</li>
+</ul>
+<h3 id="passwords">Passwords of AMT accounts</h3>
+<p>Passwords of new or changed accounts are tool arguments: the agent chooses them, so they are part of your conversation with it and of the MCP client’s records. <code>openlamt-mcp</code> never writes them to the action log, a log line, an answer or a question.</p>
+<p>Without TLS, the device receives the password as a digest that works like the password itself. Like the app, <code>openlamt-mcp</code> then <b>always</b> asks you before it sends one (<code>add_user</code>, <code>update_user</code>, <code>set_admin_account</code>), whatever <code>require_client_confirmation</code> says. The same holds for <code>kvm_type_text</code> and <code>sol_type_text</code> with <code>secret</code> on a device without TLS. A client that cannot ask gets a refusal that names the reason; use TLS, the app, or a client that can ask.</p>
 </div>
 
 <h2 id="config">Limit what the agent may do</h2>
-<div class="warn"><b>Without a config file, everything is allowed.</b>Every favorite and every action, without confirmation. Write a config file before you hand your devices to an agent you do not fully trust.</div>
+<div class="warn"><b>Without a config file, everything is allowed.</b>Every favorite and every action; only the orange and red settings and account changes ask. Write a config file before you hand your devices to an agent you do not fully trust.</div>
 <div class="prose">
-<p>The config file is <code>openlamt-mcp.json</code> next to <code>favorites.json</code> in your configuration folder, or the file given with <code>--config &lt;path&gt;</code>. Each key you leave out keeps its default. An unknown key stops the server, so a typo cannot leave everything open.</p>
+<p>The config file is <code>openlamt-mcp.json</code> next to <code>favorites.json</code> in your configuration folder, or the file given with <code>--config &lt;path&gt;</code>. These are the defaults:</p>
 <pre><code>{
   "read_only": false,
   "allowed_devices": [],
@@ -96,20 +178,33 @@
   "require_client_confirmation": false,
   "action_log": {"enabled": true, "path": ""},
   "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
-          "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80}
+          "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
+  "sol": {"idle_timeout_seconds": 300},
+  "media": {"allowed_paths": []}
 }</code></pre>
+<p>Each key you leave out keeps its default. An unknown key stops the server, so a typo cannot leave everything open.</p>
 </div>
 <dl class="terms">
-  <dt><code>read_only</code></dt><dd>Leaves only the read tools, the screenshot included.</dd>
+  <dt><code>read_only</code></dt><dd>Leaves only the read tools: status, logs, settings and accounts, the screenshot and reading the serial console. It never writes a setting, never turns KVM, SOL or media redirection on, and sends no input to the device. A consent request may still show a code on the device screen; that changes no setting.</dd>
   <dt><code>allowed_devices</code></dt><dd>Favorite names the agent may use. Empty means all.</dd>
-  <dt><code>tool_groups</code></dt><dd>Switches groups of tools off. A tool of a disabled group does not exist for the agent.</dd>
-  <dt><code>require_client_confirmation</code></dt><dd>Asks you in the MCP client before each power action and each key, mouse or typing call. The question shows every key and the text to type, with each line break (an Enter press) shown as ⏎. If the agent marks a single line as <code>secret</code>, the question says that the agent chose to hide it. A client that cannot ask gets a refusal.</dd>
-  <dt><code>action_log</code></dt><dd>Writes one line per tool call to <code>openlamt-mcp-actions.log</code> next to the config file, or to <code>path</code>. It holds keys and mouse actions, but never typed text or a consent code.</dd>
+  <dt><code>tool_groups</code></dt><dd>Switches the groups of the <a href="#tools">tool table</a> on and off.</dd>
+  <dt><code>require_client_confirmation</code></dt><dd>Asks you in the MCP client before each power action, each key, mouse or typing call, each mount and <code>media_boot_next</code>, and each settings or account change. Orange and red changes ask always. The question shows every key, the text to type and the full path to mount after links are resolved. Each line break (an Enter press) shows as ⏎, and invisible or direction-changing characters as their code point. If the agent marks a single line as <code>secret</code>, the question says that the agent chose to hide it. A client that cannot ask gets a refusal.</dd>
+  <dt><code>action_log</code></dt><dd>Writes one line per tool call to <code>openlamt-mcp-actions.log</code> next to the config file, or to <code>path</code>. It holds keys and mouse actions, mounted paths and the settings changed, but never text typed over KVM or the serial console, a consent code or a password.</dd>
   <dt><code>kvm</code></dt><dd>The idle timeout of a KVM session (<code>0</code> keeps it open until the server stops) and the default size, format (<code>jpeg</code> or <code>png</code>) and quality of screenshots. The agent may ask for another size or format per call.</dd>
+  <dt><code>sol</code></dt><dd>The idle timeout of a serial console session.</dd>
+  <dt><code>media.allowed_paths</code></dt><dd>Limits <code>media_mount</code> to the folders you list (absolute paths). Empty means anywhere except the protected folders.</dd>
 </dl>
 <div class="prose">
-<p>A good start for a helper agent that only looks:</p>
+<h3 id="hardening">A safe start</h3>
+<p>For a helper agent that only looks:</p>
 <pre><code>{"read_only": true, "allowed_devices": ["Lab-Server"]}</code></pre>
+<p>For an agent that may act: list the devices in <code>allowed_devices</code>, switch off the groups you do not need (<code>destructive</code>, <code>settings</code> and <code>users</code> first), turn on <code>require_client_confirmation</code>, and set <code>media.allowed_paths</code>:</p>
+<pre><code>{
+  "allowed_devices": ["Lab-Server"],
+  "tool_groups": {"destructive": false, "settings": false, "users": false},
+  "require_client_confirmation": true,
+  "media": {"allowed_paths": ["/home/me/iso"]}
+}</code></pre>
 </div>
 <nav class="pager" aria-label="Pages"><a href="troubleshooting.html" rel="prev"><small>Previous</small>Troubleshooting</a></nav>
 <footer class="site">

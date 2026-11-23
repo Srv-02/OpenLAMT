@@ -130,7 +130,7 @@
   <tbody>
     <tr><td>macOS</td><td>Opens the new disk image in the Finder and quits. Drag the new app onto the old one.</td></tr>
     <tr><td>Windows</td><td>Replaces <code>OpenLAMT.exe</code> and starts the new version. In a folder only an administrator may write to, such as <code>Program Files</code>, Windows asks for permission first. The old file stays as <code>OpenLAMT.exe.old</code> until the new version deletes it.</td></tr>
-    <tr><td>Linux (.deb)</td><td>Opens the package in your software installer and quits.</td></tr>
+    <tr><td>Linux (.deb)</td><td>Saves the package in <code>~/Downloads</code> and opens it from there in your software installer, then quits. If a file of that name exists, the new one gets a number, for example <code>OpenLAMT-1.3.0-linux-x64 (1).deb</code>; nothing is overwritten.</td></tr>
     <tr><td>Linux (AppImage)</td><td>Downloads the new AppImage. <span class="ui">Show in Folder</span> shows it; replace the old file yourself.</td></tr>
   </tbody>
 </table></div>

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenLAMT User Guide</title>
-<meta name="description" content="How to use OpenLAMT, the local desktop app for Intel AMT: power, remote screen, console, media and device management.">
+<meta name="description" content="How to use OpenLAMT, the local desktop app for Intel AMT: power and boot options, remote screen, console, media, device management and the MCP server.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/guide.css">
 <script src="assets/guide.js"></script>
@@ -77,23 +77,24 @@
 <div class="cards">
   <a href="getting-started.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-down"/></svg>Getting started</b><span>Install the app, connect to your first device, trust its certificate.</span></a>
   <a href="favorites.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg>Favorites and scan</b><span>Save devices, use Quick Connect, find devices on the network, move your configuration.</span></a>
-  <a href="device-window.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-monitor"/></svg>Device window</b><span>Power menu, remote screen, screenshots and recordings, console and media.</span></a>
-  <a href="management.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-panel"/></svg>Device management</b><span>Hardware, logs, AMT settings, accounts, power, Wi-Fi, System Defense and the WSMAN Browser.</span></a>
+  <a href="device-window.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-monitor"/></svg>Device window</b><span>Power menu, boot options and One Click Recovery, remote screen, screenshots and recordings, console and media.</span></a>
+  <a href="management.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-panel"/></svg>Device management</b><span>Hardware, logs and event forwarding, AMT settings, erase, accounts, power, Wi-Fi, System Defense, certificates and the WSMAN Browser.</span></a>
   <a href="amt-settings.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>AMT settings explained</b><span>What each Intel AMT setting does, for administrators.</span></a>
   <a href="confirmations.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg>Confirmations and permissions</b><span>How OpenLAMT asks before risky changes. What limited accounts see.</span></a>
   <a href="settings.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-sliders"/></svg>App settings and updates</b><span>Language, appearance, remote screen options, Check Now and one-click updates.</span></a>
   <a href="troubleshooting.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg>Troubleshooting</b><span>What the error messages mean and what to do.</span></a>
-  <a href="mcp.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>MCP server</b><span>Let an AI agent use your devices through openlamt-mcp.</span></a>
+  <a href="mcp.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>MCP server</b><span>Let an AI agent use your devices through openlamt-mcp, with limits you set.</span></a>
 </div>
 
 <h2 id="what">What OpenLAMT does</h2>
 <div class="prose">
 <ul>
-  <li><b>Power:</b> power on, power off, reset, power cycle, shut down, sleep, hibernate, reboot into the BIOS, boot from an ISO.</li>
+  <li><b>Power and boot:</b> power on, power off, reset, power cycle, shut down, sleep, hibernate, reboot into the BIOS, boot from an ISO, boot options for the next start (PXE, BIOS, HTTPS boot) and One Click Recovery from an image on your computer.</li>
   <li><b>Remote screen (KVM):</b> keyboard, video and mouse of the device, also in the BIOS. Take screenshots and record videos.</li>
   <li><b>Serial console (SOL):</b> the text console of the device, for example a Linux login prompt.</li>
   <li><b>Media (IDE-R):</b> mount an ISO file or a folder on the device as a CD drive and boot from it.</li>
-  <li><b>Device management:</b> hardware, event log, audit log, AMT settings, user accounts, power policy and wake alarms, Wi-Fi profiles, System Defense with the agent watchdog, and a browser for the raw AMT classes.</li>
+  <li><b>Device management:</b> hardware, event log with event forwarding, audit log with its settings, AMT settings with an ⓘ help for each, erasing the drives, user accounts, power policy and wake alarms, Wi-Fi profiles, System Defense with the agent watchdog, certificates, and a browser for the raw AMT classes.</li>
+  <li><b>AI agents:</b> <a href="mcp.html">openlamt-mcp</a> lets an AI agent use your favorites, with the limits you set.</li>
   <li><b>Favorites:</b> keep your devices with their settings. Passwords stay in the system keychain.</li>
 </ul>
 <p>OpenLAMT is a client for one person at one computer. It talks to each device directly on the network. It has no server, no cloud account and no remote access through the internet (no CIRA or MPS).</p>

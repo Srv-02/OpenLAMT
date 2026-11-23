@@ -28,7 +28,7 @@
 <li><a href="index.html">Overview</a></li>
 <li><a href="getting-started.html">Getting started</a></li>
 <li><a href="favorites.html">Favorites and scan</a></li>
-<li><a href="device-window.html" aria-current="page">Device window</a><ol class="toc"><li><a href="#overview">Toolbar and status bar</a></li><li><a href="#power">Power menu</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console (SOL)</a></li><li><a href="#media">Media (IDE-R)</a></li></ol></li>
+<li><a href="device-window.html" aria-current="page">Device window</a><ol class="toc"><li><a href="#overview">Toolbar and status bar</a></li><li><a href="#power">Power menu</a></li><li><a href="#boot-options">Boot options</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console (SOL)</a></li><li><a href="#media">Media (IDE-R)</a></li></ol></li>
 <li><a href="management.html">Device management</a></li>
 <li><a href="amt-settings.html">AMT settings explained</a></li>
 <li><a href="confirmations.html">Confirmations and permissions</a></li>
@@ -57,6 +57,7 @@
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cycle"/></svg>Power Cycle…</div>
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-chip"/></svg>Reboot to BIOS…</div>
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-disc"/></svg>Boot from ISO…</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-boot"/></svg>Boot Options…</div>
         <div class="msep"></div>
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Shutdown…</div>
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Sleep…</div>
@@ -106,7 +107,7 @@
 
 <h2 id="power">Power menu</h2>
 <div class="prose">
-<p>OpenLAMT reads the power state when you open the menu. Entries that do not fit the state are grey: a running device cannot be powered on, a device that is off only offers <span class="ui">Power On</span>, <span class="ui">Reboot to BIOS…</span> and <span class="ui">Boot from ISO…</span>. While the device sleeps, or its state is unknown, every entry is open. Entries with “…” ask first.</p>
+<p>OpenLAMT reads the power state when you open the menu. Entries that do not fit the state are grey: a running device cannot be powered on, a device that is off only offers <span class="ui">Power On</span>, <span class="ui">Reboot to BIOS…</span>, <span class="ui">Boot from ISO…</span> and <span class="ui">Boot Options…</span>. While the device sleeps, or its state is unknown, every entry is open. Entries with “…” ask first.</p>
 </div>
 <div class="tbl"><table class="ref">
   <thead><tr><th>Entry</th><th>What happens</th><th>Asks</th></tr></thead>
@@ -115,8 +116,9 @@
     <tr><td class="ui">Power Off…</td><td>Switches off at once, without shutting down the operating system. Unsaved data and running VMs are lost.</td><td><span class="lv simple">simple</span></td></tr>
     <tr><td class="ui">Reset…</td><td>Restarts at once, without shutting down the operating system.</td><td><span class="lv simple">simple</span></td></tr>
     <tr><td class="ui">Power Cycle…</td><td>Switches off and on again at once, without shutting down the operating system.</td><td><span class="lv simple">simple</span></td></tr>
-    <tr><td class="ui">Reboot to BIOS…</td><td>Restarts at once and opens the BIOS setup. A device that is off powers on into the BIOS.</td><td><span class="lv simple">simple</span>, none when the device is off</td></tr>
+    <tr><td class="ui">Reboot to BIOS…</td><td>Restarts at once and opens the BIOS setup. A device that is off powers on into the BIOS. Asks for the <a href="getting-started.html#consent">consent code</a> where the device requires one.</td><td><span class="lv simple">simple</span>, none when the device is off</td></tr>
     <tr><td class="ui">Boot from ISO…</td><td>Restarts from the ISO you mounted under <a href="#media">Media</a>, once. Grey without a mounted image.</td><td><span class="lv q">question</span></td></tr>
+    <tr><td class="ui">Boot Options…</td><td>Chooses what the device starts from next, with options, including One Click Recovery. See <a href="#boot-options">Boot options</a>.</td><td>The dialog is the confirmation; <span class="lv or">orange</span> for HTTPS boot from a file</td></tr>
     <tr><td class="ui">Shutdown…</td><td>Shuts the operating system down in an orderly way, then switches off.</td><td><span class="lv simple">simple</span></td></tr>
     <tr><td class="ui">Sleep…</td><td>The operating system goes to sleep. The device stays reachable and wakes on request.</td><td><span class="lv simple">simple</span></td></tr>
     <tr><td class="ui">Hibernate…</td><td>The operating system saves its memory to disk and switches off.</td><td><span class="lv simple">simple</span></td></tr>
@@ -138,6 +140,87 @@
 </div></div>
 <figcaption>A simple confirmation. <span class="ui">Cancel</span> has the focus, and Enter does not run the action.</figcaption>
 </figure>
+
+<h2 id="boot-options">Boot options</h2>
+<div class="prose">
+<p><span class="ui">Boot Options…</span> in the Power menu chooses what the device starts from next, with the options of a BIOS boot menu. It applies to the next start only. <span class="ui">Reboot to BIOS…</span> and <span class="ui">Boot from ISO…</span> stay in the menu as shortcuts.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Boot options for Lab-Server</h4>
+    <div class="fl" style="margin-top:0">Boot from</div>
+    <div class="rad"><i></i>Hard disk (default order)</div><div class="rad on"><i></i>Network (PXE)</div><div class="rad"><i></i>HTTPS boot (One Click Recovery)</div><div class="rad"><i></i>BIOS setup</div><div class="rad dis"><i></i>Mounted ISO · mount an ISO in Media first</div>
+    <div class="fl">Options</div>
+    <div class="grid2"><span class="ck"><i></i>Show boot in the console (SOL)</span><span class="ck dis"><i></i>Safe mode</span><span class="ck dis"><i></i>Pause in BIOS before boot</span><span class="ck"><i></i>Enforce Secure Boot</span><span class="ck"><i></i>Lock power button</span><span class="ck"><i></i>Lock reset button</span><span class="ck"><i></i>Lock sleep button</span><span class="ck"><i></i>Lock keyboard</span><span class="ck"><i></i>Bypass BIOS password</span><span class="ck dis"><i></i>Log boot progress (not supported)</span></div>
+    <div class="r" style="padding:10px 0 0;border:0;min-height:0"><span class="lw" style="font-weight:600;font-size:12.5px">Firmware messages</span><span class="dd">System default <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+    <div class="hint" style="margin-top:10px">Applies to the next boot only.</div>
+    <div class="foot"><span class="b">Cancel</span><span class="b red">Restart</span></div>
+  </div>
+</div></div>
+<figcaption>Boot from the network. Safe mode and the BIOS pause do not go with PXE, so they are grey. This device cannot log its boot progress.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Boot from</dt><dd><span class="ui">Hard disk (default order)</span>, <span class="ui">Network (PXE)</span>, <span class="ui">HTTPS boot (One Click Recovery)</span>, <span class="ui">BIOS setup</span> or <span class="ui">Mounted ISO</span>. The ISO needs an image mounted under <a href="#media">Media</a> first.</dd>
+  <dt>Options</dt><dd>Show the boot in the <a href="#console">serial console</a> (the window switches to <span class="ui">Console</span> after the start), safe mode, a pause in the BIOS before the boot, Enforce Secure Boot, locking the power, reset and sleep buttons and the keyboard of the device during the boot, bypassing the BIOS password, and logging the boot progress to the event log.</dd>
+  <dt>Firmware messages</dt><dd>How much the BIOS shows while it starts: <span class="ui">System default</span>, <span class="ui">Quiet</span>, <span class="ui">Verbose</span> or <span class="ui">Blank screen</span>, where the device offers them.</dd>
+</dl>
+<ul>
+  <li>What the device does not support is grey with “(not supported)”. Options that do not go with the chosen target are grey too: safe mode only with the hard disk, no BIOS pause with PXE or HTTPS boot, no console and no password bypass with HTTPS boot.</li>
+  <li>The button is a red <span class="ui">Restart</span> while the device runs, and a blue <span class="ui">Power On</span> while it is off. The dialog is the confirmation. Only HTTPS boot from a file on this computer asks <span class="lv or">orange</span> as well.</li>
+  <li>Where the device requires <a href="amt-settings.html#user-consent">user consent</a>, OpenLAMT asks for the code first. A cancelled or wrong code changes nothing.</li>
+  <li>A device that sleeps is refused, because waking it does not restart it: “Wake it with Power On, wait until it runs, then try again. Nothing was changed.”</li>
+  <li>The entry is grey while another power action or a One Click Recovery runs.</li>
+</ul>
+<p>If a step fails after the boot options were written, for example because the connection dropped, OpenLAMT clears them again. If even that fails, the message says that the next restart may still use them. To clear them, connect again and start <span class="ui">Boot Options…</span> with <span class="ui">Hard disk (default order)</span>.</p>
+</div>
+
+<h3 id="one-click-recovery">One Click Recovery (HTTPS boot)</h3>
+<div class="prose">
+<p>One Click Recovery starts the device once from a recovery or installation image over HTTPS, without a USB stick or a PXE server. The device needs Intel AMT 16 or later, and One Click Recovery must be on twice: in the BIOS and under <a href="management.html#settings">Settings › Remote features</a>. Otherwise the target is grey with “One Click Recovery is off. Turn it on in Device management › Settings › Remote features.”</p>
+<p>Choose <span class="ui">HTTPS boot (One Click Recovery)</span>, then where the image comes from:</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Boot options for Lab-Server</h4>
+    <div class="fl" style="margin-top:0">Boot from</div>
+    <div class="rad"><i></i>Hard disk (default order)</div><div class="rad"><i></i>Network (PXE)</div><div class="rad on"><i></i>HTTPS boot (One Click Recovery)</div>
+    <div style="margin:6px 0 4px;padding:10px 12px;background:var(--card);border-radius:8px;border:1px solid var(--sep)">
+      <span class="seg"><span class="on">File on this computer</span><span>URL</span></span>
+      <div class="fl">Image</div><div style="display:flex;gap:8px"><div class="fld mono" style="flex:1;font-size:12px">recovery.efi · 118 MB</div><span class="b out">Choose File…</span></div>
+      <div class="fl">Address the device downloads from</div><div style="display:flex;gap:8px"><span class="dd" style="flex:1;height:30px">192.0.2.50 (Ethernet) <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span><div class="fld" style="width:90px">8443</div></div>
+      <div class="hint">OpenLAMT serves the file over HTTPS until the device has loaded it, at most 10 minutes. Allow incoming connections on this port.</div>
+    </div>
+    <div class="rad"><i></i>BIOS setup</div><div class="rad dis"><i></i>Mounted ISO · mount an ISO in Media first</div>
+    <div class="fl">Options</div>
+    <div class="grid2"><span class="ck dis"><i></i>Show boot in the console (SOL)</span><span class="ck dis"><i></i>Safe mode</span><span class="ck dis"><i></i>Pause in BIOS before boot</span><span class="ck"><i></i>Enforce Secure Boot</span><span class="ck"><i></i>Lock power button</span><span class="ck"><i></i>Lock reset button</span><span class="ck"><i></i>Lock sleep button</span><span class="ck"><i></i>Lock keyboard</span><span class="ck dis"><i></i>Bypass BIOS password</span><span class="ck dis"><i></i>Log boot progress (not supported)</span></div>
+    <div class="r" style="padding:10px 0 0;border:0;min-height:0"><span class="lw" style="font-weight:600;font-size:12.5px">Firmware messages</span><span class="dd">System default <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+    <div class="wbox" style="margin-top:12px"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg><div>OpenLAMT adds a temporary root certificate to Lab-Server, so the device trusts this computer’s HTTPS server. OpenLAMT removes it after the download or after 10 minutes.</div></div>
+    <label class="risk"><input type="checkbox" disabled>I understand the risk for Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Cancel</span><span class="b red dis">Restart</span></div>
+  </div>
+  <div class="dlg w520">
+    <div class="fl" style="margin-top:0">Image URL</div><div class="fld mono" style="font-size:12px">https://boot.example.com/recovery.efi</div>
+    <div class="hint">The server’s certificate must chain to a trusted root on Lab-Server (Device management › Certificates).</div>
+  </div>
+</div></div>
+<figcaption>HTTPS boot from a file on this computer, with the orange confirmation, and the fields that replace the file when you choose URL.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>File on this computer</dt><dd>Choose an <code>.efi</code> or <code>.iso</code> image. OpenLAMT serves it over HTTPS from your computer, on the address and port you choose (default: the address that leads to the device, port 8443). It adds a temporary root certificate “OpenLAMT recovery (temporary)” to the device, so the device trusts this server. That asks <span class="lv or">orange</span>. Allow incoming connections on the port in your firewall.</dd>
+  <dt>URL</dt><dd>The device downloads the image from your own HTTPS server. Its certificate must chain to a trusted root on the device; import that root on the <a href="management.html#certificates">Certificates page</a> first. No server runs on your computer and no certificate is added.</dd>
+</dl>
+<p>While the device loads the file, the status bar shows the progress, for example “Serving recovery.efi · 48 of 118 MB”. The server stops after one complete download, after 10 minutes or when you close the window. Then OpenLAMT removes the temporary root again.</p>
+<ul>
+  <li>“Port 8443 is in use. Choose another port.”: another program uses the port.</li>
+  <li>“Lab-Server did not download the image. Check the firewall on this computer.”: the device did not fetch the file within 10 minutes.</li>
+  <li>If the temporary root cannot be removed, the message names it. Delete it yourself on the <a href="management.html#certificates">Certificates page</a>.</li>
+</ul>
+<div class="warn"><b>Turn One Click Recovery off when you do not need it.</b>While it is on, anyone with a power control account can start the device from an image of their choice.</div>
+</div>
 
 <h2 id="kvm">Remote screen (KVM)</h2>
 <div class="prose">

@@ -58,6 +58,8 @@ func describe(err error) string {
 	switch {
 	case errors.As(err, &plain):
 		return plain.msg
+	case errors.Is(err, session.ErrRootNotRemoved) && !errors.Is(err, amt.ErrAsleep): // before the causes: the root stays on the device
+		return describeRootLeft(err)
 	case errors.Is(err, amt.ErrBootMayBeSet), errors.Is(err, amt.ErrEraseMayBeSet): // first: the warning must not give way to the cause
 		return describeMayBeSet(err)
 	case errors.As(err, &ce) && ce.Step == "SendOptInCode":

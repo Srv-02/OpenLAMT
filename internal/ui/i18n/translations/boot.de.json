@@ -50,5 +50,7 @@
   "Verbose": "Ausführlich",
   "While it is on, anyone with a power control account can start the device from an image of their choice.": "Solange es an ist, kann jedes Konto mit Power-Rechten das Gerät von einem beliebigen Image starten.",
   "{{.Name}} did not download the image. Check the firewall on this computer.": "{{.Name}} hat das Image nicht geladen. Prüfe die Firewall auf diesem Computer.",
-  "{{.Option}} (not supported)": "{{.Option}} (nicht unterstützt)"
+  "{{.Option}} (not supported)": "{{.Option}} (nicht unterstützt)",
+  "Some of the values you entered are not valid. Check them and try again.": "Einige eingegebene Werte sind ungültig. Prüfe sie und versuche es erneut.",
+  "OpenLAMT could not remove the temporary root certificate. Delete “{{.Cert}}” under Device management › Certificates.": "OpenLAMT konnte das temporäre Root-Zertifikat nicht entfernen. Lösche „{{.Cert}}“ unter Geräteverwaltung › Zertifikate."
 }

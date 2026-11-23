@@ -270,6 +270,37 @@ func TestClient_ServerClosesMidFrame(t *testing.T) {
 	}
 }
 
+// A frame counted together with the end of the session (or ctx) must be returned, not the error:
+// select picks a ready case at random, so the hook makes both ready before the waiter blocks.
+func TestClient_WaitFrameFrameWinsOverEnd(t *testing.T) {
+	for _, viaCtx := range []bool{false, true} {
+		for i := 0; i < 200; i++ {
+			a, b := net.Pipe()
+			defer b.Close()
+			c := &Client{conn: a, frameCh: make(chan struct{}), done: make(chan struct{})}
+			ctx, cancel := context.WithCancel(context.Background())
+			c.beforeWait = func() {
+				c.beforeWait = nil
+				c.mu.Lock()
+				c.seq++
+				close(c.frameCh)
+				c.frameCh = make(chan struct{})
+				c.mu.Unlock()
+				if viaCtx {
+					cancel()
+				} else {
+					c.finish(errors.New("session ended"))
+				}
+			}
+			n, err := c.WaitFrame(ctx, 0)
+			cancel()
+			if err != nil || n != 1 {
+				t.Fatalf("viaCtx=%v iteration %d: n=%d err=%v, want 1 nil", viaCtx, i, n, err)
+			}
+		}
+	}
+}
+
 func TestClient_CloseUnblocksWaitFrame(t *testing.T) {
 	srv := kvmtest.Start(t, kvmtest.Options{Username: "admin", Password: "pw"})
 	c, err := Dial(context.Background(), Config{Addr: srv.Addr, Username: "admin", Password: "pw", Quality: QualityLow})

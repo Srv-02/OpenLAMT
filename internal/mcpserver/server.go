@@ -23,8 +23,10 @@ type Options struct {
 	// Favorites lists the favorites. If it is also a FavoriteEditor (*favorites.Manager), the
 	// tool group favorites offers add_favorite, update_favorite and delete_favorite.
 	Favorites FavoriteSource
-	Keys      keychain.Store
-	Connect   session.ConnectFunc // session.AMTConnect outside tests
+	// Keys holds the passwords and the pinned fingerprints: the keychain, or with
+	// certificates.pin_file a pin file over it (OpenPinFile).
+	Keys    keychain.Store
+	Connect session.ConnectFunc // session.AMTConnect outside tests
 	// Scanner runs scan_network; nil scans the network with internal/scan.
 	Scanner Scanner
 	// FetchFingerprint reads the certificate fingerprint of a TLS host for add_favorite; nil

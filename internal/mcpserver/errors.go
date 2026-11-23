@@ -186,8 +186,8 @@ func explain(err error) string {
 			"it may be the valid one now.", cu.Username)
 	case errors.As(err, &cer):
 		return fmt.Sprintf("The device did not answer the certificate change, and it is unknown whether it switched to the new certificate "+
-			"(fingerprint %s). The saved pin was not changed: if the next call fails with a changed certificate, accept it in the "+
-			"OpenLAMT app after comparing this fingerprint.", amt.FormatFingerprint(cer.Fingerprint))
+			"(fingerprint %s). The saved pin was not changed: if the next call fails with a changed certificate, compare it with this fingerprint; "+
+			"then %s.", amt.FormatFingerprint(cer.Fingerprint), trustAgain(""))
 	case errors.Is(err, amt.ErrRiskyChange):
 		return "The device needs a confirmation for this change that was not given. Nothing was written."
 	case errors.Is(err, amt.ErrProtectedAccount):
@@ -294,8 +294,8 @@ func explain(err error) string {
 		return "The AMT account of this favorite lacks the permission for this operation."
 	case errors.As(err, &mm):
 		return fmt.Sprintf("The TLS certificate of the device changed (pinned fingerprint %s, device sent %s). "+
-			"The connection was refused. If the change is expected, connect with the OpenLAMT app and accept the new certificate there.",
-			amt.FormatFingerprint(mm.Expected), amt.FormatFingerprint(mm.Actual))
+			"The connection was refused. If the change is expected, %s.",
+			amt.FormatFingerprint(mm.Expected), amt.FormatFingerprint(mm.Actual), trustAgain(""))
 	case errors.As(err, &pe) && pe.Action == amt.BootToISO:
 		return fmt.Sprintf("The device refused the boot from ISO (AMT ReturnValue %d).", pe.ReturnValue)
 	case errors.As(err, &pe) && pe.Action == amt.BootToBIOS:

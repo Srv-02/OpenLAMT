@@ -66,32 +66,54 @@ func (s *server) listDevices(ctx context.Context, _ *mcp.CallToolRequest, _ stru
 		if s.cfg.Passwords.AllowPlaintext {
 			d.PasswordVariable = PasswordEnvVar(f.Host)
 		}
-		var keyErr error
+		var pwErr error // the keychain could not be read and no password was found
 		var nf *passwordNotFoundError
 		if errors.As(err, &nf) {
-			keyErr = nf.keychainErr
+			pwErr = nf.keychainErr
 			if len(nf.reasons) > 0 {
 				d.Warnings = append(d.Warnings, strings.Join(nf.reasons, " "))
 			}
 		}
+		pwBroken := pwErr != nil && !errors.Is(pwErr, keychain.ErrNotFound)
+		var pinErr error
 		if f.UseTLS {
-			fp, err := s.keys.GetFingerprint(f.Host, f.Username)
+			var fp string
+			fp, err = s.keys.GetFingerprint(f.Host, f.Username)
 			d.CertificatePinned = err == nil && fp != ""
-			if keyErr == nil || errors.Is(keyErr, keychain.ErrNotFound) {
-				keyErr = err
+			if err != nil && !errors.Is(err, keychain.ErrNotFound) {
+				pinErr = err
 			}
 		} else {
 			d.Warnings = append(d.Warnings, noTLSWarning)
 		}
-		broken := keyErr != nil && !errors.Is(keyErr, keychain.ErrNotFound)
-		if broken {
-			d.Warnings = append(d.Warnings, explain(keychainError(keyErr)))
-		}
-		if !broken && !d.PasswordFound {
-			d.Warnings = append(d.Warnings, s.passwordHint(name))
-		}
-		if !broken && f.UseTLS && !d.CertificatePinned {
-			d.Warnings = append(d.Warnings, "Certificate not trusted yet: a person runs "+commandLine("trust", name)+" in a terminal on this computer.")
+		trustHint := "Certificate not trusted yet: a person runs " + commandLine("trust", name) + " in a terminal on this computer."
+		if s.cfg.Certificates.PinFile {
+			// The pin file and the keychain are two sources: each one is named when it fails.
+			if pwBroken {
+				d.Warnings = append(d.Warnings, explain(s.keychainError(pwErr)))
+			} else if !d.PasswordFound {
+				d.Warnings = append(d.Warnings, s.passwordHint(name))
+			}
+			if pinErr != nil {
+				d.Warnings = append(d.Warnings, explain(s.keychainError(pinErr)))
+			} else if f.UseTLS && !d.CertificatePinned {
+				d.Warnings = append(d.Warnings, trustHint)
+			}
+		} else {
+			keyErr := pwErr
+			if !pwBroken {
+				keyErr = pinErr
+			}
+			if keyErr != nil && !errors.Is(keyErr, keychain.ErrNotFound) {
+				d.Warnings = append(d.Warnings, explain(s.keychainError(keyErr)))
+			} else {
+				if !d.PasswordFound {
+					d.Warnings = append(d.Warnings, s.passwordHint(name))
+				}
+				if f.UseTLS && !d.CertificatePinned {
+					d.Warnings = append(d.Warnings, trustHint)
+				}
+			}
 		}
 		if count[name] > 1 {
 			d.Warnings = append(d.Warnings, "Another favorite has the same name: give them distinct names in the OpenLAMT app to use them here.")

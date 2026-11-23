@@ -242,12 +242,18 @@ func (s *Segmented) layoutWidths() []float32 {
 	count := 0
 	for i, w := range widths {
 		if s.style == SegmentedTabs && s.options[i].Natural {
-			nat += w
 			continue
 		}
 		sum += w
 		count++
 		widest = max(widest, w)
+	}
+	for i, w := range widths {
+		if s.style == SegmentedTabs && s.options[i].Natural {
+			w = min(w, max(s.naturalFloor(i), room-sum-nat)) // never squeeze the other tabs below their captions
+			widths[i] = w
+			nat += w
+		}
 	}
 	room -= nat
 	n := float32(max(1, count))
@@ -271,6 +277,42 @@ func (s *Segmented) layoutWidths() []float32 {
 		}
 	}
 	return widths
+}
+
+// naturalFloor is the least width of natural tab segment i: padding, symbol and a short caption.
+func (s *Segmented) naturalFloor(i int) float32 {
+	g := s.style.geometry()
+	o := s.options[i]
+	w := 2 * g.padH
+	if o.Icon != "" {
+		w += trailingGap + trailingSize
+	}
+	return min(s.segmentWidths()[i], w+fyne.MeasureText("Mehr", g.textSize, fyne.TextStyle{}).Width)
+}
+
+// shownLabel is the caption drawn in segment i at width w: the full label, or for a natural
+// tab segment that is too narrow the label cut and ended with an ellipsis.
+func (s *Segmented) shownLabel(i int, w float32) string {
+	o := s.options[i]
+	g := s.style.geometry()
+	if s.style != SegmentedTabs || !o.Natural {
+		return o.Label
+	}
+	avail := w - 2*g.padH
+	if o.Icon != "" {
+		avail -= trailingGap + trailingSize
+	}
+	measure := func(t string) float32 { return fyne.MeasureText(t, g.textSize, fyne.TextStyle{}).Width }
+	if measure(o.Label) <= avail {
+		return o.Label
+	}
+	rs := []rune(o.Label)
+	for n := len(rs) - 1; n > 0; n-- {
+		if t := string(rs[:n]) + "…"; measure(t) <= avail {
+			return t
+		}
+	}
+	return "…"
 }
 
 // trackHeight is the height of the track.
@@ -369,7 +411,14 @@ func (r *segmentedRenderer) Layout(size fyne.Size) {
 		p.shadow.Move(b.pos.AddXY(0, 1))
 		p.shadow.Resize(b.size)
 		cs := s.contentSize(s.options[i])
+		if shown := s.shownLabel(i, b.size.Width); shown != p.text.Text {
+			p.text.Text = shown
+			p.text.Refresh()
+		}
 		ts := p.text.MinSize()
+		if p.text.Text != s.options[i].Label && s.options[i].Icon != "" {
+			cs.Width = ts.Width + trailingGap + trailingSize
+		}
 		y := b.pos.Y + (b.size.Height-cs.Height)/2
 		if s.style == SegmentedToolbar {
 			p.icon.Move(fyne.NewPos(b.pos.X+(b.size.Width-style.ToolbarIconSize)/2, y+(tbIconRow-style.ToolbarIconSize)/2))

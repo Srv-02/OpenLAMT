@@ -23,7 +23,7 @@ type testList struct {
 
 // testListDef registers a More page "Things" built on listPage; tl is filled when it is built.
 func testListDef(tl *testList, refresh, footer, action bool, tools ...fyne.CanvasObject) managePageDef {
-	return managePageDef{section: sectionMore, order: 10, icon: icons.Settings,
+	return managePageDef{section: sectionMore, order: testOrder, icon: icons.Settings,
 		names: func() (string, string) { return "Things", "Things" },
 		build: func(m *manager, compact bool) *managePane {
 			tl.src = newManageSource(m, func() ([]string, error) { return tl.names, tl.err })
@@ -230,4 +230,22 @@ func TestListPageTools(t *testing.T) {
 			t.Fatalf("sidebar tools row: %+v", sp.body.(*fyne.Container).Objects[0])
 		}
 	})
+}
+
+// Without text the footer takes no height: its padded box is hidden, so the VBox leaves no gap.
+func TestListPageHiddenFooterTakesNoSpace(t *testing.T) {
+	tl := &testList{}
+	h := newListHarness(t, tl, false, false, false)
+	build := func(footer bool) *listPage {
+		src := newManageSource(h.m, func() ([]string, error) { return nil, nil })
+		return h.m.newListPage(false, listSpec{columns: []listColumn{{title: "Name"}}, src: src, footer: footer})
+	}
+	with, without := build(true), build(false)
+	if a, b := with.pane.body.MinSize().Height, without.pane.body.MinSize().Height; a != b {
+		t.Errorf("body height %v with an empty footer, %v without", a, b)
+	}
+	with.setFooter("Times in UTC.")
+	if with.pane.body.MinSize().Height <= without.pane.body.MinSize().Height {
+		t.Error("a footer with text adds no height")
+	}
 }

@@ -12,17 +12,22 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/icons"
 )
 
-// withManagePages adds test pages to the registry until the test ends. Call it before
-// newManageHarness.
+// withManagePages replaces the registry until the test ends with ONLY the production main
+// pages plus defs, so tests do not depend on the More and Diagnostics pages real code adds.
+// Test pages take order keys >= 900 (testOrder) to stay clear of the keys real pages reserve.
+// Call it before newManageHarness.
 func withManagePages(t *testing.T, defs ...managePageDef) {
 	t.Helper()
 	old := managePageDefs
 	t.Cleanup(func() { managePageDefs = old })
-	managePageDefs = slices.Clone(old)
+	managePageDefs = slices.DeleteFunc(slices.Clone(old), func(d managePageDef) bool { return d.section != sectionMain })
 	for _, d := range defs {
 		registerManagePage(d)
 	}
 }
+
+// testOrder is the lowest order key a test-only page may use.
+const testOrder = 900
 
 // testPageDef is a page with a label as body and the name as tab and title.
 func testPageDef(section manageSection, order int, name string, icon icons.Name) managePageDef {
@@ -37,9 +42,9 @@ func testPageDef(section manageSection, order int, name string, icon icons.Name)
 func withExtraPages(t *testing.T) {
 	t.Helper()
 	withManagePages(t,
-		testPageDef(sectionDiagnostics, 10, "Gamma", icons.Key),
-		testPageDef(sectionMore, 20, "Beta", icons.Server),
-		testPageDef(sectionMore, 10, "Alpha", icons.Settings))
+		testPageDef(sectionDiagnostics, 910, "Gamma", icons.Key),
+		testPageDef(sectionMore, 920, "Beta", icons.Server),
+		testPageDef(sectionMore, 910, "Alpha", icons.Settings))
 }
 
 func pageTitles(m *manager) []string {
@@ -65,20 +70,28 @@ func TestManagePageRegistryOrder(t *testing.T) {
 	five := []string{"Hardware", "Event log", "Audit log", "Settings", "Users"}
 	m := &manager{}
 	m.pages = managePages(m)
-	if got := pageTitles(m); !slices.Equal(got, five) {
-		t.Fatalf("production pages %v", got)
-	}
-	for i, p := range m.pages {
-		if p.section != sectionMain || p.build == nil {
-			t.Errorf("page %d: section %v", i, p.section)
+	var mainPages []managePage // other sections may have real pages; only the main ones are pinned here
+	for _, p := range m.pages {
+		if p.section == sectionMain {
+			mainPages = append(mainPages, p)
 		}
+	}
+	got := make([]string, len(mainPages))
+	for i, p := range mainPages {
+		got[i] = p.title
+		if p.build == nil {
+			t.Errorf("page %q has no build", p.title)
+		}
+	}
+	if !slices.Equal(got, five) {
+		t.Fatalf("production main pages %v", got)
 	}
 
 	// registration order does not matter: section first, then order
 	withManagePages(t,
-		testPageDef(sectionDiagnostics, 10, "Gamma", icons.Key),
-		testPageDef(sectionMore, 20, "Beta", icons.Server),
-		testPageDef(sectionMore, 5, "Alpha", icons.Settings))
+		testPageDef(sectionDiagnostics, 910, "Gamma", icons.Key),
+		testPageDef(sectionMore, 920, "Beta", icons.Server),
+		testPageDef(sectionMore, 905, "Alpha", icons.Settings))
 	m.pages = managePages(m)
 	want := append(slices.Clone(five), "Alpha page", "Beta page", "Gamma page")
 	if got := pageTitles(m); !slices.Equal(got, want) {
@@ -88,19 +101,19 @@ func TestManagePageRegistryOrder(t *testing.T) {
 		t.Errorf("tab %q sections %v %v", m.pages[5].tab, m.pages[5].section, m.pages[7].section)
 	}
 
-	mustPanic(t, "a duplicate (section, order)", func() { registerManagePage(testPageDef(sectionMore, 20, "Dup", icons.Key)) })
+	mustPanic(t, "a duplicate (section, order)", func() { registerManagePage(testPageDef(sectionMore, 920, "Dup", icons.Key)) })
 	mustPanic(t, "a page without build", func() {
-		d := testPageDef(sectionMore, 99, "X", icons.Key)
+		d := testPageDef(sectionMore, 999, "X", icons.Key)
 		d.build = nil
 		registerManagePage(d)
 	})
 	mustPanic(t, "a page without names", func() {
-		d := testPageDef(sectionMore, 98, "X", icons.Key)
+		d := testPageDef(sectionMore, 998, "X", icons.Key)
 		d.names = nil
 		registerManagePage(d)
 	})
 	// the same order in another section is fine
-	registerManagePage(testPageDef(sectionMore, 10, "Other", icons.Key))
+	registerManagePage(testPageDef(sectionMore, 930, "Other", icons.Key))
 }
 
 func moreHarness(t *testing.T) *manageHarness {
@@ -271,6 +284,7 @@ func TestManageCloseDismissesMoreMenu(t *testing.T) {
 
 func TestManageNoMoreWithoutExtraPages(t *testing.T) {
 	englishUI(t)
+	withManagePages(t) // the five main pages only, whatever else is registered
 	h := newManageHarness(t, &session.Fake{FP: fp, HW: exampleHW()})
 	h.m.Sidebar()
 	tabs := h.m.side.tabs
@@ -292,7 +306,7 @@ func TestManageNoMoreWithoutExtraPages(t *testing.T) {
 // With only a diagnostics page the menu has no separator; the window nav no separator line.
 func TestManageOnlyDiagnosticsPage(t *testing.T) {
 	englishUI(t)
-	withManagePages(t, testPageDef(sectionDiagnostics, 10, "Gamma", icons.Key))
+	withManagePages(t, testPageDef(sectionDiagnostics, 910, "Gamma", icons.Key))
 	h := newManageHarness(t, &session.Fake{FP: fp, HW: exampleHW()})
 	h.m.Sidebar()
 	h.m.side.tabs.Tap(5)

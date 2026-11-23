@@ -117,9 +117,9 @@ func TestManageMoreShots(t *testing.T) {
 	englishUI(t)
 	restoreDarkVariant(t)
 	withManagePages(t,
-		testPageDef(sectionMore, 10, "Alpha", icons.Settings),
-		testPageDef(sectionMore, 20, "Beta", icons.Server),
-		testPageDef(sectionDiagnostics, 10, "Gamma", icons.Key))
+		testPageDef(sectionMore, 910, "Alpha", icons.Settings),
+		testPageDef(sectionMore, 920, "Beta", icons.Server),
+		testPageDef(sectionDiagnostics, 910, "Gamma", icons.Key))
 	h := newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
 	switchVariant(h.a, theme.VariantLight)
 	device := h.m.parent // the More menu opens on the parent window
@@ -171,6 +171,46 @@ func TestManageListShots(t *testing.T) {
 	}
 	defer f.Close()
 	if err := png.Encode(f, w.win.Canvas().Capture()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestManageGermanMoreShots renders the sidebar with the German tab captions and a natural More
+// caption that does not fit ("System Defense", ellipsized), light, into $OPENLAMT_SHOTS. The
+// captions are set on the tabs directly: the shot checks the layout, not the translation.
+func TestManageGermanMoreShots(t *testing.T) {
+	dir := os.Getenv("OPENLAMT_SHOTS")
+	if dir == "" {
+		t.Skip("OPENLAMT_SHOTS not set")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	englishUI(t)
+	restoreDarkVariant(t)
+	withManagePages(t, testPageDef(sectionMore, 910, "System Defense", icons.Settings))
+	h := newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
+	switchVariant(h.a, theme.VariantLight)
+	device := h.m.parent
+	device.SetPadded(false)
+	scaleWindow(device)
+	stage := style.BindRect(canvas.NewRectangle(nil), style.ColorNameLetterbox, "")
+	device.SetContent(container.NewBorder(nil, nil, nil, h.m.Sidebar(), stage))
+	device.Resize(fyne.NewSize(1280, 800))
+	h.wait(t)
+	h.m.side.tabs.Tap(5)
+	h.m.side.morePopup.Item(0).Tapped(nil) // the natural caption becomes "System Defense"
+	for i, c := range []string{"Hardware", "Ereignisse", "Audit", "Einstellungen", "Benutzer"} {
+		h.m.side.tabs.SetLabel(i, c)
+	}
+	device.Resize(fyne.NewSize(1280, 801))
+	device.Resize(fyne.NewSize(1280, 800))
+	f, err := os.Create(filepath.Join(dir, "manage-sidebar-german-more-ellipsis.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, device.Canvas().Capture()); err != nil {
 		t.Fatal(err)
 	}
 }

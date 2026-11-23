@@ -1,6 +1,7 @@
 package widgets
 
 import (
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
@@ -86,5 +87,67 @@ func TestSegmentedTabsTrailingSymbol(t *testing.T) {
 	s.Disable()
 	if r.segs[5].icon.Resource() != icons.Get(icons.ChevronDown, icons.Disabled) {
 		t.Error("disabled symbol is not the disabled variant")
+	}
+}
+
+// germanTabs are the German sidebar captions with a natural "More" caption of the given text.
+func germanTabs(more string) []SegmentOption {
+	o := TextOptions("Hardware", "Ereignisse", "Audit", "Einstellungen", "Benutzer")
+	return append(o, SegmentOption{Label: more, Icon: icons.ChevronDown, Natural: true})
+}
+
+// A long natural caption takes only what the other tabs leave: no tab is narrower than its
+// caption, the natural one is drawn with an ellipsis and keeps its label in the options.
+func TestSegmentedTabsNaturalCaptionEllipsized(t *testing.T) {
+	themedApp(t)
+	const full = "System Defense"
+	s := NewSegmented(SegmentedTabs, germanTabs(full), nil)
+	test.NewTempWindow(t, s)
+	s.Resize(fyne.NewSize(367+s.frame(), s.MinSize().Height))
+	mins := s.segmentWidths()
+	var sum float32
+	for i := 0; i < 5; i++ {
+		w := s.segmentBounds(i).size.Width
+		sum += w
+		if w < mins[i]-0.5 {
+			t.Errorf("segment %d is %v wide, its caption needs %v", i, w, mins[i])
+		}
+	}
+	more := s.segmentBounds(5)
+	if more.size.Width >= mins[5] {
+		t.Errorf("natural segment keeps %v, minimum %v", more.size.Width, mins[5])
+	}
+	if end := more.pos.X + more.size.Width; end > 367+s.frame()-3+0.5 {
+		t.Errorf("segments end at %v, beyond the track", end)
+	}
+	r := test.WidgetRenderer(s).(*segmentedRenderer)
+	p := r.segs[5]
+	if p.text.Text == full || !strings.HasSuffix(p.text.Text, "…") || s.Label(5) != full {
+		t.Fatalf("drawn %q, label %q", p.text.Text, s.Label(5))
+	}
+	if w := p.text.MinSize().Width + trailingGap + trailingSize; w > more.size.Width-2*SegmentedTabs.geometry().padH+0.5 {
+		t.Errorf("caption and symbol need %v, segment has %v", w, more.size.Width)
+	}
+	if p.icon.Position().X+14 > more.pos.X+more.size.Width {
+		t.Error("symbol leaves the segment")
+	}
+	if r.segs[3].text.Text != "Einstellungen" {
+		t.Errorf("a tab was shortened: %q", r.segs[3].text.Text)
+	}
+}
+
+// A short natural caption fits and stays unchanged.
+func TestSegmentedTabsNaturalCaptionFits(t *testing.T) {
+	themedApp(t)
+	s := NewSegmented(SegmentedTabs, germanTabs("Mehr"), nil)
+	test.NewTempWindow(t, s)
+	s.Resize(fyne.NewSize(367+s.frame(), s.MinSize().Height))
+	g := SegmentedTabs.geometry()
+	want := fyne.MeasureText("Mehr", g.textSize, fyne.TextStyle{}).Width + trailingGap + trailingSize + 2*g.padH
+	if w := s.segmentBounds(5).size.Width; w < want-0.5 || w > want+0.5 {
+		t.Errorf("natural segment %v, want %v", w, want)
+	}
+	if got := test.WidgetRenderer(s).(*segmentedRenderer).segs[5].text.Text; got != "Mehr" {
+		t.Errorf("drawn %q", got)
 	}
 }

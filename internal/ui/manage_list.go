@@ -379,16 +379,17 @@ type listSpec struct {
 
 // listPage is the frame of a page that shows one table.
 type listPage struct {
-	m       *manager
-	compact bool
-	src     interface{ reload() }
-	pane    *managePane
-	err     *manageError
-	table   *listTable
-	empty   fyne.CanvasObject      // nil = none
-	footer  *canvas.Text           // nil = none
-	refresh *widgets.PrimaryButton // nil = none
-	tools   []fyne.CanvasObject
+	m         *manager
+	compact   bool
+	src       interface{ reload() }
+	pane      *managePane
+	err       *manageError
+	table     *listTable
+	empty     fyne.CanvasObject      // nil = none
+	footer    *canvas.Text           // nil = none
+	footerBox *fyne.Container        // wraps footer; hidden with it so no gap remains
+	refresh   *widgets.PrimaryButton // nil = none
+	tools     []fyne.CanvasObject
 }
 
 // newListPage builds the page. The caller sets pane.shown, pane.close and pane.impl and feeds
@@ -412,7 +413,9 @@ func (m *manager) newListPage(compact bool, s listSpec) *listPage {
 	if s.footer {
 		p.footer = designText("", 12, style.ColorNameTextSecondary, false)
 		p.footer.Hide()
-		objs = append(objs, container.New(layout.NewCustomPaddedLayout(0, 0, 2, 2), p.footer))
+		p.footerBox = container.New(layout.NewCustomPaddedLayout(0, 0, 2, 2), p.footer)
+		p.footerBox.Hide() // a hidden text alone would leave the padded box and the VBox gap
+		objs = append(objs, p.footerBox)
 	}
 	if compact && len(p.tools) > 0 {
 		objs = append([]fyne.CanvasObject{container.New(&rowLayout{gap: 8, fill: 0}, append([]fyne.CanvasObject{spacer()}, p.tools...)...)}, objs...)
@@ -470,6 +473,7 @@ func (p *listPage) setFooter(text string) {
 	p.footer.Text = text
 	p.footer.Refresh()
 	setShown(p.footer, text != "")
+	setShown(p.footerBox, text != "")
 	p.pane.changed()
 }
 

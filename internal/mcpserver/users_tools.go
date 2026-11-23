@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -201,15 +203,213 @@ func (s *server) userWrite(ctx context.Context, fav favorites.Favorite, write fu
 	return s.settingsWrite(ctx, fav, write)
 }
 
-// loginSaved turns a *session.NotSavedError of an accepted account change into a warning; any
-// other error stays an error.
-func loginSaved(err error, user string) ([]string, error) {
-	var ns *session.NotSavedError
-	if errors.As(err, &ns) {
-		return []string{fmt.Sprintf("The device accepted the change, but saving the new login of %s in the keychain or the favorites "+
-			"failed: %s. Update the password of the favorite in the OpenLAMT app, or the next call to the device fails.", user, explain(ns.Err))}, nil
+// loginRecorder passes a LoginStore through and remembers the arguments of the account change
+// (never the password) and its result, so loginNotes knows which login moved.
+type loginRecorder struct {
+	session.LoginStore
+	called                 bool
+	host, oldUser, newUser string
+	err                    error
+}
+
+func (r *loginRecorder) ChangeLogin(host, oldUser, newUser, newPassword string) error {
+	r.called, r.host, r.oldUser, r.newUser = true, host, oldUser, newUser
+	r.err = r.LoginStore.ChangeLogin(host, oldUser, newUser, newPassword)
+	return r.err
+}
+
+// recorder wraps the server's LoginStore; nil stays nil (nothing is saved).
+func (s *server) recorder() *loginRecorder {
+	if s.logins == nil {
+		return nil
 	}
-	return nil, err
+	return &loginRecorder{LoginStore: s.logins}
+}
+
+// store is r as a LoginStore, nil without a recorder (a nil *loginRecorder in the interface
+// would not be nil).
+func (r *loginRecorder) store() session.LoginStore {
+	if r == nil {
+		return nil
+	}
+	return r
+}
+
+// loginNotes turns the result of an accepted account change into notes for the person: where
+// the new login still has to be changed so that OpenLAMT can sign in. A *session.NotSavedError
+// is not an error here; any other error stays one. No favorite for the changed account, or all
+// of it saved: no notes.
+func (s *server) loginNotes(ctx context.Context, r *loginRecorder, newPassword string, err error) ([]string, error) {
+	var ns *session.NotSavedError
+	if err != nil && !errors.As(err, &ns) {
+		return nil, err
+	}
+	if r == nil || !r.called {
+		return nil, nil
+	}
+	list, lerr := s.favs.List()
+	if lerr != nil {
+		return nil, nil
+	}
+	find := func(user string) (favorites.Favorite, bool) {
+		i := slices.IndexFunc(list, func(f favorites.Favorite) bool { return f.Host == r.host && f.Username == user })
+		if i < 0 {
+			return favorites.Favorite{}, false
+		}
+		return list[i], true
+	}
+	fav, notRenamed := favorites.Favorite{}, false
+	if r.oldUser != r.newUser {
+		fav, notRenamed = find(r.oldUser)
+	}
+	if !notRenamed {
+		var ok bool
+		if fav, ok = find(r.newUser); !ok {
+			return nil, nil
+		}
+	}
+	var ke *favorites.KeychainError
+	keychainFailed := r.err != nil && errors.As(r.err, &ke)
+	target := fav
+	target.Username = r.newUser
+	n := loginNote{name: fav.DisplayName(), host: fav.Host, user: quoteShort(r.newUser), oldUser: quoteShort(r.oldUser),
+		envVar: PasswordEnvVar(fav.Host), envFile: homePath(s.pws.cfg.EnvFile), tls: fav.UseTLS}
+	pw, src, lookupErr := s.pws.lookup(ctx, target)
+	switch {
+	case lookupErr == nil && pw == newPassword:
+		n.kind = noteNone
+	case src == sourceCommand || (lookupErr != nil && len(s.pws.cfg.Command) > 0):
+		n.kind = noteCommand
+		if r.oldUser != r.newUser && slices.ContainsFunc(s.pws.cfg.Command, func(a string) bool { return strings.Contains(a, "{user}") }) {
+			old := fav
+			old.Username = r.oldUser
+			if got, err := s.pws.fromCommand(ctx, old); err == nil && got == newPassword {
+				n.kind = noteUserPlaceholder
+			}
+		}
+	case src == sourceEnvironment || (lookupErr != nil && s.pws.cfg.AllowPlaintext):
+		n.kind = noteEnvironment
+		n.fromFile = s.pws.envFromFile(fav.Host)
+	case keychainFailed && s.cfg.Certificates.PinFile:
+		n.kind = noteNoKeychain
+	case keychainFailed:
+		n.kind = noteKeychainLocked
+	}
+	if notRenamed {
+		n.exists = errors.Is(r.err, favorites.ErrExists)
+		return []string{n.favoriteNotRenamed()}, nil
+	}
+	if n.kind == noteNone {
+		return nil, nil
+	}
+	return []string{n.text()}, nil
+}
+
+// The ways the new login can be missing where OpenLAMT reads it.
+const (
+	noteNone = iota
+	noteCommand
+	noteEnvironment
+	noteKeychainLocked
+	noteNoKeychain
+	noteUserPlaceholder
+)
+
+// loginNote holds the values of the texts of loginNotes; all five texts sit here.
+type loginNote struct {
+	kind                      int
+	name, host, user, oldUser string // user and oldUser are quoted
+	envVar, envFile           string
+	fromFile, exists, tls     bool
+}
+
+func (n loginNote) text() string {
+	until := " Until you do, OpenLAMT cannot connect to " + n.name + "."
+	accepts := n.name + " now accepts the user " + n.user + " with the new password, but "
+	switch n.kind {
+	case noteCommand:
+		return accepts + "OpenLAMT gets the " + n.name + " password from your password manager, and that still has the old one. " +
+			"Save the new password in your password manager, in the entry for " + n.host + " that `passwords.command` " +
+			"(the password setting in the openlamt-mcp config) reads." + until
+	case noteEnvironment:
+		if n.fromFile {
+			return accepts + "OpenLAMT reads the " + n.name + " password from the file `" + n.envFile + "`, and that still holds the old one. " +
+				"Open that file and replace the old password after `" + n.envVar + "=` with the new one." + until
+		}
+		return accepts + "OpenLAMT reads the " + n.name + " password from the environment variable `" + n.envVar + "`, and that still holds the old one. " +
+			"Put the new password in that variable where you set it (for example in the MCP settings of your AI app), then restart your AI app." + until
+	case noteKeychainLocked:
+		return accepts + "OpenLAMT could not save that password on this computer (the system keychain is locked). " +
+			"Unlock the keychain, then save the new password for " + n.name + " in the OpenLAMT app or with " + quotedCommand("password", n.name) +
+			" in a terminal. Until you do, OpenLAMT tries the old password and cannot connect to " + n.name + "."
+	case noteNoKeychain:
+		return accepts + "OpenLAMT could not save it, because this computer has no system keychain (the safe password storage of the operating system). " +
+			"Store the new password in your password manager and set `passwords.command` in the openlamt-mcp config so OpenLAMT can read it there. " +
+			"Or, less safe and meant for test labs, add the line `" + n.envVar + "=<new password>` to the file `" + n.envFile +
+			"` and set `allow_plaintext_passwords` to true in the config; after either change, restart your AI app." + until
+	case noteUserPlaceholder:
+		return n.name + " now uses the user name " + n.user + ". Your password manager looks up the " + n.name +
+			" password under the user name, so copy the entry for " + n.oldUser + " to " + n.user + "." + until
+	}
+	return ""
+}
+
+// savePassword is the step "save the password again" of the favorite texts, by where OpenLAMT
+// reads the password.
+func (n loginNote) savePassword(first bool) string {
+	switch n.kind {
+	case noteCommand, noteUserPlaceholder:
+		return "save the password for " + n.name + " in your password manager (the entry `passwords.command` reads)"
+	case noteEnvironment:
+		return "put the password for " + n.name + " in `" + n.envVar + "` (in `" + n.envFile + "` or where you set the variable)"
+	case noteNoKeychain:
+		return "save the password for " + n.name + " in your password manager and set `passwords.command` in the openlamt-mcp config, " +
+			"or (less safe) put it as `" + n.envVar + "` in `" + n.envFile + "` with `allow_plaintext_passwords`"
+	}
+	if first {
+		return "save the password for " + n.name + " again in the app or with " + quotedCommand("password", n.name) + " in a terminal"
+	}
+	return "save the password for " + n.name + " again with " + quotedCommand("password", n.name)
+}
+
+// favoriteNotRenamed is the note when the device accepted the new user name but the favorite
+// still holds the old one (E).
+func (n loginNote) favoriteNotRenamed() string {
+	trust := quotedCommand("trust", n.name)
+	if n.exists {
+		s := n.name + " now accepts the user " + n.user + ", but OpenLAMT still signs in to " + n.name + " as " + n.oldUser +
+			", because another favorite (saved device entry) already uses " + n.user + " on " + n.host + ". " +
+			"Delete that other favorite, then change the user of " + n.name + " to " + n.user + ", in the OpenLAMT app or through your AI agent. " +
+			"After that, " + n.savePassword(false)
+		if n.tls {
+			return s + " and, if " + n.name + " uses TLS, trust its certificate with " + trust + "; until then, OpenLAMT cannot connect to " + n.name + "."
+		}
+		return s + ". Until then, OpenLAMT cannot connect to " + n.name + "."
+	}
+	s := n.name + " now accepts the user " + n.user + ", but OpenLAMT could not save that in its favorite " + n.name +
+		" (your saved entry for this device), so it still signs in as " + n.oldUser + ". " +
+		"Change the user of " + n.name + " to " + n.user + " in the OpenLAMT app or let your AI agent do it, then " + n.savePassword(true) + "."
+	if n.tls {
+		return s + " If " + n.name + " uses TLS, also trust its certificate again with " + trust + "; until then, OpenLAMT cannot connect to " + n.name + "."
+	}
+	return s + " Until then, OpenLAMT cannot connect to " + n.name + "."
+}
+
+// quotedCommand is commandLine with the favorite name always in quotes, as the texts show it.
+func quotedCommand(sub, name string) string {
+	c := commandLine(sub, name)
+	if !strings.Contains(c, `"`) && !strings.Contains(c, "<") {
+		return "`openlamt-mcp " + sub + ` "` + name + `"` + "`"
+	}
+	return c
+}
+
+// homePath shows a path under the home folder with "~".
+func homePath(p string) string {
+	if home, err := os.UserHomeDir(); err == nil && home != "" && strings.HasPrefix(p, home+string(os.PathSeparator)) {
+		return "~" + filepath.ToSlash(strings.TrimPrefix(p, home))
+	}
+	return p
 }
 
 // tlsNotes is the TLS warning for a password on a favorite without TLS, nil with TLS.
@@ -375,17 +575,19 @@ func (s *server) updateUser(ctx context.Context, req *mcp.CallToolRequest, in up
 		if own {
 			conf = confirmation(amt.OpOwnAccount, host)
 		}
-		warnings, err := loginSaved(sess.UpdateUser(cur.Handle, spec, conf, s.logins), spec.Name)
+		rec := s.recorder()
+		warnings, err := s.loginNotes(ctx, rec, in.Password, sess.UpdateUser(cur.Handle, spec, conf, rec.store()))
 		if err != nil {
 			return "", nil, err
 		}
+		loginWarned := len(warnings) > 0
 		warnings = append(warnings, tlsNotes(fav, spec.Name)...)
 		if len(dropped) > 0 {
 			warnings = append(warnings, "The account lost the reserved realms "+strings.Join(realmText(dropped), ", ")+
 				", which cannot be assigned again.")
 		}
 		result := fmt.Sprintf("The device changed the account %q.", spec.Name)
-		if own {
+		if own && !loginWarned {
 			result += " OpenLAMT signs in to this device with the new login from now on."
 		}
 		return result, warnings, nil
@@ -516,13 +718,15 @@ func (s *server) setAdminAccount(ctx context.Context, req *mcp.CallToolRequest, 
 		return res, writeOutput{}, err
 	}
 	out, err := s.userWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
-		warnings, err := loginSaved(sess.SetAdminAccount(c, confirmation(amt.OpAdminAccount, host), s.logins), shown)
+		rec := s.recorder()
+		warnings, err := s.loginNotes(ctx, rec, c.Password, sess.SetAdminAccount(c, confirmation(amt.OpAdminAccount, host), rec.store()))
 		if err != nil {
 			return "", nil, err
 		}
+		loginWarned := len(warnings) > 0
 		warnings = append(warnings, notes...)
 		result := "The device changed the admin account."
-		if sess.Config().Password == c.Password { // the session follows its own login (session.loginChanged)
+		if !loginWarned && sess.Config().Password == c.Password { // the session follows its own login (session.loginChanged)
 			result += " OpenLAMT signs in to this device with the new login from now on."
 		}
 		return result, warnings, nil

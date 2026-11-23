@@ -48,7 +48,9 @@ type harness struct {
 	devices map[string]*session.Fake
 	elicit  func(*mcp.ElicitRequest) (*mcp.ElicitResult, error) // nil: the client has no elicitation
 	logins  *fakeLogins                                         // the LoginStore the server gets
-	logger  *slog.Logger                                        // the server's stderr log; nil discards
+	// loginStore, if set, is the LoginStore the server gets instead of logins.
+	loginStore session.LoginStore
+	logger     *slog.Logger // the server's stderr log; nil discards
 	// mgr, if set, replaces favs: a real favorites manager (file in a temp folder, the memory
 	// keychain), so the favorites tools are offered.
 	mgr     *favorites.Manager
@@ -146,7 +148,11 @@ func (h *harness) start() {
 	if h.store != nil {
 		keys = h.store
 	}
-	srv := New(Options{Config: h.cfg, Favorites: favs, Keys: keys, Connect: h.connect, Logins: h.logins, Log: log, Logger: h.logger,
+	var logins session.LoginStore = h.logins
+	if h.loginStore != nil {
+		logins = h.loginStore
+	}
+	srv := New(Options{Config: h.cfg, Favorites: favs, Keys: keys, Connect: h.connect, Logins: logins, Log: log, Logger: h.logger,
 		Scanner: h.scanner, FetchFingerprint: h.fetchFP, Version: "test"})
 	h.srv = srv
 	t.Cleanup(srv.Close)

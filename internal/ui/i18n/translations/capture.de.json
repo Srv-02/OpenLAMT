@@ -1,4 +1,5 @@
 {
+  "A file with this name already exists. Replacing it cannot be undone.": "Eine Datei mit diesem Namen existiert bereits. Das Ersetzen lässt sich nicht rückgängig machen.",
   "AVI videos": "AVI-Videos",
   "Actual Size (100%)": "Originalgröße (100 %)",
   "Choose…": "Wählen…",
@@ -13,6 +14,8 @@
   "Record": "Aufnehmen",
   "Recording saved: {{.Name}}": "Aufnahme gespeichert: {{.Name}}",
   "Recording stopped at the 2 GB limit and saved: {{.Name}}": "Aufnahme bei der Grenze von 2 GB beendet und gespeichert: {{.Name}}",
+  "Replace": "Ersetzen",
+  "Replace {{.Name}}?": "{{.Name}} ersetzen?",
   "Reverse Mouse Wheel": "Mausrad umkehren",
   "Save Recording": "Aufnahme speichern",
   "Save Screenshot": "Screenshot speichern",

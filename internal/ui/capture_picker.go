@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -8,6 +9,8 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/storage"
+
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 )
 
 // Save and folder dialogs of the KVM capture (issues #4 and #26), chosen as for the Media menu
@@ -49,8 +52,31 @@ func withExt(path, ext string) string {
 	return path + "." + ext
 }
 
-// fyneSaveDialog is Fyne's save dialog with the proposed name; it asks before it overwrites.
-// The dialog creates the file; the caller writes it again under the same path.
+// finishSave passes on the file the Fyne dialog picked. The dialog asked about the typed name
+// only, and it created that file. If the app adds the extension, the name typed is a stray
+// empty file (removed) and the file that is written (the name with the extension) was never
+// asked about: an existing one is replaced only after a question.
+func finishSave(win fyne.Window, kind captureKind, picked string, chosen func(path string)) {
+	final := withExt(picked, kind.ext)
+	if final == picked {
+		chosen(final)
+		return
+	}
+	if fi, err := os.Lstat(picked); err == nil && fi.Mode().IsRegular() && fi.Size() == 0 {
+		os.Remove(picked)
+	}
+	if _, err := os.Lstat(final); err != nil {
+		chosen(final)
+		return
+	}
+	showQuestion(win, icons.Warning, toneWarning,
+		lang.L("Replace {{.Name}}?", map[string]any{"Name": filepath.Base(final)}),
+		lang.L("A file with this name already exists. Replacing it cannot be undone."),
+		lang.L("Cancel"), lang.L("Replace"), func() { chosen(final) })
+}
+
+// fyneSaveDialog is Fyne's save dialog with the proposed name; finishSave asks before the
+// file with the extension is overwritten. The caller writes the file under the final path.
 func fyneSaveDialog(win fyne.Window, kind captureKind, name string, chosen func(path string), failed func(error)) {
 	dlg := dialog.NewFileSave(func(w fyne.URIWriteCloser, err error) {
 		if err != nil {
@@ -62,7 +88,7 @@ func fyneSaveDialog(win fyne.Window, kind captureKind, name string, chosen func(
 		}
 		path := w.URI().Path()
 		w.Close()
-		chosen(withExt(path, kind.ext))
+		finishSave(win, kind, path, chosen)
 	}, win)
 	dlg.SetFileName(name)
 	dlg.SetFilter(storage.NewExtensionFileFilter([]string{"." + kind.ext}))

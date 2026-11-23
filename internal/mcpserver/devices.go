@@ -17,6 +17,13 @@ type FavoriteSource interface {
 	List() ([]favorites.Favorite, error)
 }
 
+// FavoriteEditor changes the saved favorites and their keychain entries (*favorites.Manager).
+type FavoriteEditor interface {
+	Add(f favorites.Favorite) error
+	Update(host, username string, change func(*favorites.Favorite)) (favorites.Favorite, error)
+	Delete(host, username string, deletePassword bool) error
+}
+
 // keychainError explains a keychain that cannot be read (on Linux: no Secret Service running).
 func keychainError(err error) error {
 	return refuse("Cannot read the system keychain (%v). On Linux a Secret Service provider such as gnome-keyring must be running.", err)
@@ -46,11 +53,25 @@ func (s *server) lookup(name string) (favorites.Favorite, error) {
 	}
 	switch len(found) {
 	case 0:
-		return favorites.Favorite{}, refuse("No favorite named %s. Call list_devices for the names; devices are added in the OpenLAMT app.", quoteShort(name))
+		return favorites.Favorite{}, refuse("No favorite named %s. Call list_devices for the names; devices are added with add_favorite or in the OpenLAMT app.", quoteShort(name))
 	case 1:
 		return found[0], nil
 	}
 	return favorites.Favorite{}, refuse("%d favorites are named %s. Give them distinct names in the OpenLAMT app.", len(found), quoteShort(name))
+}
+
+// password finds the password of fav (see passwords.lookup); not found is a refusal.
+func (s *server) password(ctx context.Context, fav favorites.Favorite) (string, error) {
+	all, err := s.favs.List()
+	if err != nil {
+		return "", fmt.Errorf("read the OpenLAMT favorites: %w", err)
+	}
+	pw, _, err := s.pws.lookup(ctx, fav, all)
+	var nf *passwordNotFoundError
+	if errors.As(err, &nf) {
+		return "", &refusal{msg: nf.Error()}
+	}
+	return pw, err
 }
 
 // favKey is what sessions, mounts and kept images are kept by: the device a favorite reaches
@@ -121,8 +142,9 @@ func (s *server) openFavEnable(ctx context.Context, fav favorites.Favorite, enab
 		fp, err := s.keys.GetFingerprint(fav.Host, fav.Username)
 		switch {
 		case errors.Is(err, keychain.ErrNotFound) || err == nil && strings.TrimSpace(fp) == "":
-			return nil, amt.Status{}, nil, refuse("The TLS certificate of %q is not pinned yet. "+
-				"Connect once with the OpenLAMT app to pin the certificate; the MCP server never trusts an unpinned certificate.", name)
+			return nil, amt.Status{}, nil, refuse("The TLS certificate of %q is not trusted yet. A person runs %s "+
+				"in a terminal on this computer, or connects once with the OpenLAMT app, to check and pin it; "+
+				"the MCP server never trusts a certificate by itself.", name, commandLine("trust", name))
 		case err != nil:
 			return nil, amt.Status{}, nil, keychainError(err)
 		}
@@ -130,13 +152,9 @@ func (s *server) openFavEnable(ctx context.Context, fav favorites.Favorite, enab
 	} else {
 		warnings = append(warnings, noTLSWarning)
 	}
-	pw, err := s.keys.Get(fav.Host, fav.Username)
-	switch {
-	case errors.Is(err, keychain.ErrNotFound) || err == nil && pw == "":
-		return nil, amt.Status{}, nil, refuse("No password is stored for %q. Save the password of the favorite in the OpenLAMT app; "+
-			"the MCP server takes passwords only from the keychain.", name)
-	case err != nil:
-		return nil, amt.Status{}, nil, keychainError(err)
+	pw, err := s.password(ctx, fav)
+	if err != nil {
+		return nil, amt.Status{}, nil, err
 	}
 	cfg.Password = pw
 	cfg.NeverEnable = !enable

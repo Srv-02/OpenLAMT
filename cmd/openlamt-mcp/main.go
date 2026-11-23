@@ -1,6 +1,10 @@
 // Command openlamt-mcp is an MCP server for AI agents: it offers the AMT functions of OpenLAMT
 // for the devices saved as favorites in the app. The MCP client starts it and talks to it over
 // stdin and stdout; it opens no network port. Everything else it prints goes to stderr.
+//
+// Two subcommands are for a person at a terminal: "openlamt-mcp password <favorite>" stores the
+// password of a favorite in the system keychain, "openlamt-mcp trust <favorite>" pins the TLS
+// certificate of a favorite after the person checked its fingerprint.
 package main
 
 import (
@@ -20,7 +24,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Srv-02/openlamt/internal/favorites"
-	"github.com/Srv-02/openlamt/internal/keychain"
 	"github.com/Srv-02/openlamt/internal/mcpserver"
 	"github.com/Srv-02/openlamt/internal/session"
 )
@@ -49,8 +52,26 @@ func version() string {
 // serveFunc runs the built server until the client disconnects (stdio in main, a stub in tests).
 type serveFunc func(context.Context, *mcp.Server) error
 
-// run reads flags and config, builds the server and serves it; it returns the exit code.
+// run reads flags and config, builds the server and serves it, or runs a subcommand; it returns
+// the exit code.
 func run(args []string, stdout, stderr io.Writer, serve serveFunc) int {
+	return runWith(args, stdout, stderr, serve, defaultDeps(stderr))
+}
+
+// configPaths returns the favorites file and the config file: configFlag, else the default
+// next to favorites.json. explicit is true for a file given with --config.
+func configPaths(configFlag string) (favPath, path string, explicit bool, err error) {
+	if favPath, err = favorites.DefaultPath(); err != nil {
+		return "", "", false, err
+	}
+	path, explicit = configFlag, configFlag != ""
+	if !explicit {
+		path = filepath.Join(filepath.Dir(favPath), mcpserver.ConfigFileName)
+	}
+	return favPath, path, explicit, nil
+}
+
+func runWith(args []string, stdout, stderr io.Writer, serve serveFunc, d deps) int {
 	// Nothing may write to stdout but the protocol: route the standard logger to stderr too.
 	log.SetOutput(stderr)
 	logger := slog.New(slog.NewTextHandler(stderr, nil))
@@ -62,26 +83,30 @@ func run(args []string, stdout, stderr io.Writer, serve serveFunc) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if fs.NArg() > 0 {
-		fmt.Fprintf(stderr, "openlamt-mcp: unexpected argument %q\n", fs.Arg(0))
-		return 2
-	}
 	if *showVersion {
 		fmt.Fprintln(stdout, "openlamt-mcp", version())
 		return 0
 	}
+	if fs.NArg() > 0 {
+		switch fs.Arg(0) {
+		case "password", "trust":
+			return subcommand(fs.Arg(0), fs.Args()[1:], *configPath, stdout, stderr, d)
+		}
+		fmt.Fprintf(stderr, "openlamt-mcp: unexpected argument %q (subcommands: password, trust)\n", fs.Arg(0))
+		return 2
+	}
 
-	favPath, err := favorites.DefaultPath()
+	favPath, path, explicit, err := configPaths(*configPath)
 	if err != nil {
 		fmt.Fprintln(stderr, "openlamt-mcp:", err)
 		return 1
 	}
-	path, explicit := *configPath, *configPath != ""
-	if !explicit {
-		path = filepath.Join(filepath.Dir(favPath), mcpserver.ConfigFileName)
-	}
 	cfg, err := mcpserver.Load(path, explicit)
 	if err != nil {
+		fmt.Fprintln(stderr, "openlamt-mcp:", err)
+		return 1
+	}
+	if err := cfg.Passwords.Check(); err != nil {
 		fmt.Fprintln(stderr, "openlamt-mcp:", err)
 		return 1
 	}
@@ -93,7 +118,7 @@ func run(args []string, stdout, stderr io.Writer, serve serveFunc) int {
 		}
 	}
 
-	keys := keychain.OS{}
+	keys := d.keys
 	favs := favorites.NewManager(favorites.NewStore(favPath), keys)
 	srv := mcpserver.New(mcpserver.Options{
 		Config:    cfg,
@@ -113,8 +138,16 @@ func run(args []string, stdout, stderr io.Writer, serve serveFunc) int {
 	if actions != nil {
 		logPath = actions.Path()
 	}
+	passwordCommand := "off"
+	if len(cfg.Passwords.Command) > 0 {
+		passwordCommand = cfg.Passwords.Command[0]
+	}
 	logger.Info("openlamt-mcp started", "version", version(), "config", source, "read_only", cfg.ReadOnly,
-		"allowed_devices", cfg.AllowedDevices, "client_confirmation", cfg.RequireClientConfirmation, "action_log", logPath)
+		"allowed_devices", cfg.AllowedDevices, "client_confirmation", cfg.RequireClientConfirmation, "action_log", logPath,
+		"password_command", passwordCommand, "plaintext_passwords", cfg.Passwords.AllowPlaintext)
+	if cfg.Passwords.AllowPlaintext {
+		logger.Warn(mcpserver.PlaintextWarning, "env_file", cfg.Passwords.EnvFile)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

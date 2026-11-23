@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MCP-Server (openlamt-mcp) · OpenLAMT-Benutzerhandbuch</title>
-<meta name="description" content="Lass einen KI-Agenten deine OpenLAMT-Favoriten über den lokalen MCP-Server openlamt-mcp nutzen: Installation, Werkzeuge, Bestätigungen und Grenzen.">
+<meta name="description" content="Lass einen KI-Agenten deine OpenLAMT-Favoriten über den lokalen MCP-Server openlamt-mcp nutzen: Installation, Werkzeuge, Favoriten, Passwörter ohne App, Bestätigungen und Grenzen.">
 <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
 <link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/mcp.html">
 <link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/mcp.html">
@@ -39,14 +39,14 @@
 <li><a href="settings.html">App-Einstellungen und Updates</a></li>
 <li><a href="this-computer.html">Dieser Computer</a></li>
 <li><a href="troubleshooting.html">Fehlerbehebung</a></li>
-<li><a href="mcp.html" aria-current="page">MCP-Server</a><ol class="toc"><li><a href="#what">Was er ist</a></li><li><a href="#install">Installation</a></li><li><a href="#devices">Geräte, Passwörter und TLS</a></li><li><a href="#tools">Werkzeuge</a></li><li><a href="#config">Begrenzen, was der Agent darf</a></li></ol></li>
+<li><a href="mcp.html" aria-current="page">MCP-Server</a><ol class="toc"><li><a href="#what">Was er ist</a></li><li><a href="#install">Installation</a></li><li><a href="#devices">Geräte, Passwörter und TLS</a></li><li><a href="#tools">Werkzeuge</a></li><li><a href="#without-app">Ohne die App</a></li><li><a href="#config">Begrenzen, was der Agent darf</a></li></ol></li>
 <li><a href="about.html">Über OpenLAMT</a></li>
 </ol>
 </nav>
 <main id="main">
 <div class="content">
 <h1>MCP-Server (openlamt-mcp)</h1>
-<p class="lead">Mit <code>openlamt-mcp</code> nutzt ein KI-Agent deine OpenLAMT-Favoriten: Er liest Status, Hardware, Protokolle, Einstellungen und Konten, steuert den Energiezustand, bootet von einer ISO, sieht den Bildschirm, tippt, nutzt die serielle Konsole und ändert AMT-Einstellungen und Konten. Er läuft auf deinem Computer und öffnet keinen Netzwerkport.</p>
+<p class="lead">Mit <code>openlamt-mcp</code> nutzt ein KI-Agent deine OpenLAMT-Favoriten: Er findet Geräte im Netzwerk und verwaltet Favoriten, liest Status, Hardware, Protokolle, Einstellungen und Konten, steuert den Energiezustand, bootet von einer ISO, sieht den Bildschirm, tippt, nutzt die serielle Konsole und ändert AMT-Einstellungen und Konten. Er läuft auf deinem Computer und öffnet keinen Netzwerkport. Er funktioniert auch ohne die App, zum Beispiel auf einem Linux-Server ohne Desktop.</p>
 
 <h2 id="what">Was er ist</h2>
 <div class="prose">
@@ -77,9 +77,10 @@
 <h2 id="devices">Geräte, Passwörter und TLS</h2>
 <div class="prose">
 <ul>
-  <li>Der Agent sieht deine OpenLAMT-Favoriten unter ihren Namen. Er kann keinen Host, keinen Benutzernamen und kein Gerätepasswort hinzufügen. Die App und <code>openlamt-mcp</code> können gleichzeitig laufen und teilen sich die Favoriten sicher.</li>
-  <li>Gerätepasswörter kommen aus dem Schlüsselbund des Systems. Speichere das Passwort zuerst in der App. Passwörter gehen nie über die MCP-Verbindung und erscheinen nie in Antworten oder Protokollen.</li>
-  <li>Ein TLS-Gerät funktioniert erst, wenn du dich einmal mit der App verbunden und seinem Zertifikat vertraut hast. Der MCP-Server vertraut nie einem neuen Zertifikat.</li>
+  <li>Der Agent sieht deine OpenLAMT-Favoriten unter ihren Namen. Mit der Gruppe <code>favorites</code> kann er auch das Netzwerk durchsuchen und Favoriten anlegen, ändern und löschen (siehe <a href="#favorites">Scan und Favoriten</a>). Ein Gerätepasswort sieht oder setzt er nie. Die App und <code>openlamt-mcp</code> können gleichzeitig laufen und teilen sich die Favoriten sicher.</li>
+  <li><code>openlamt-mcp</code> findet Gerätepasswörter selbst: im Schlüsselbund des Systems (dort speichert sie die App), sonst über deinen <a href="#password-sources">Passwort-Befehl</a>. Passwörter gehen nie über die MCP-Verbindung und erscheinen nie in Antworten, Rückfragen oder Protokollen.</li>
+  <li>Ein TLS-Gerät funktioniert erst, wenn eine Person seinem Zertifikat vertraut hat: in der App, mit <code>openlamt-mcp trust</code> im Terminal oder in der Rückfrage von <code>add_favorite</code>. Der MCP-Server vertraut nie von sich aus einem Zertifikat.</li>
+  <li><code>list_devices</code> zeigt je Favorit, ob ein Passwort gefunden wird (<code>password_found</code>, <code>password_source</code>) und ob seinem Zertifikat vertraut wird (<code>certificate_pinned</code>). So kann dir der Agent sagen, was fehlt. Es kontaktiert kein Gerät.</li>
   <li>Geräte ohne TLS funktionieren, mit einer Warnung in jeder Antwort.</li>
   <li>Verlangt ein Gerät eine <a href="amt-settings.html#user-consent">Benutzerzustimmung</a>, muss der Agent eine Person am Gerät nach dem sechsstelligen Code auf dessen Bildschirm fragen und ihn als <code>consent_code</code> übergeben (<code>boot_to_bios</code>, <code>kvm_connect</code>, <code>sol_connect</code>, <code>media_mount</code>).</li>
 </ul>
@@ -104,10 +105,19 @@
     <tr><td><code>settings</code> und <code>destructive</code></td><td><code>set_network</code>, <code>set_environment_detection</code>, <code>disable_amt_network</code></td></tr>
     <tr><td><code>users</code></td><td><code>add_user</code>, <code>update_user</code>, <code>set_user_enabled</code>, <code>delete_user</code></td></tr>
     <tr><td><code>users</code> und <code>destructive</code></td><td><code>set_admin_account</code></td></tr>
+    <tr><td><code>favorites</code></td><td><code>scan_network</code> (auch mit <code>read_only</code>), <code>add_favorite</code>, <code>update_favorite</code>, <code>delete_favorite</code></td></tr>
   </tbody>
 </table></div>
 <div class="prose">
 <p><code>destructive</code> deckt außerdem jede Power-Aktion außer dem Einschalten ab, dazu <code>boot_to_bios</code> und <code>boot_from_iso</code> auf einem Gerät, das nicht ausgeschaltet ist. Ohne diese Gruppe werden diese Aufrufe abgelehnt. Boot-Optionen, One Click Recovery, das Löschen von Laufwerken, Zertifikate, WLAN, System Defense, die Power-Richtlinie, Weckzeiten, die Ereignisweiterleitung und die Einstellungen des Audit-Protokolls gibt es nur in der App.</p>
+
+<h3 id="favorites">Scan und Favoriten</h3>
+<ul>
+  <li><code>scan_network</code> führt den <a href="favorites.html">Scan der App</a> aus: ein Netzwerk wie <code>192.0.2.0/24</code>, einen Bereich wie <code>192.0.2.10-192.0.2.80</code> oder eine Adresse, höchstens 4.096 Adressen. Er sendet kein Passwort und ändert nichts. Er liefert Adresse, DNS-Name, AMT-Version, ob TLS angeboten wird und ob das Gerät schon ein Favorit ist. Er hängt an keinem Favoriten, deshalb begrenzt ihn <code>allowed_devices</code> nicht; schalte die Gruppe <code>favorites</code> aus, wenn der Agent nicht scannen soll.</li>
+  <li><code>add_favorite</code> legt einen Favoriten mit Name, Host, Benutzername und TLS an, wie die App, nie mit Passwort. Namen müssen eindeutig sein. Es fragt nur mit <code>require_client_confirmation</code> nach. Mit TLS und einem MCP-Client, der fragen kann, zeigt die Rückfrage den Fingerabdruck (SHA-256) des Gerätezertifikats, und dem Zertifikat wird nur vertraut, wenn du es ankreuzt. Sonst bleibt der Favorit ohne Vertrauen, bis eine Person <code>openlamt-mcp trust</code> ausführt.</li>
+  <li><code>update_favorite</code> ändert Name, Host, Benutzername oder TLS, <code>delete_favorite</code> löscht einen Favoriten samt Passwort im Schlüsselbund und Zertifikat. Beide sind <span class="lv or">orange</span>: Sie fragen dich <b>immer</b>, und ein Client, der nicht fragen kann, bekommt eine Ablehnung. Ein neuer Host oder Benutzername löscht das gespeicherte Passwort und das vertraute Zertifikat, wie in der App.</li>
+  <li>Mit <code>allowed_devices</code> kann der Agent Favoriten nur unter Namen aus dieser Liste anlegen oder umbenennen.</li>
+</ul>
 
 <h3 id="power">Power</h3>
 <p><code>power_action</code> folgt den Regeln des <a href="device-window.html#power">Power-Menüs</a>: Ein laufendes Gerät lehnt „on“ ab, ein ausgeschaltetes Gerät nimmt nur „on“ an, und „shutdown“ setzt voraus, dass das Gerät es anbietet (<code>device_status</code> sagt das). Ausschalten, Power Cycle und Herunterfahren schließen zuerst eine offene KVM-Sitzung, weil AMT sie bei offenem KVM ablehnt.</p>
@@ -172,6 +182,37 @@
 <p>Ohne TLS bekommt das Gerät das Passwort als Digest, der wie das Passwort selbst funktioniert. Wie die App fragt <code>openlamt-mcp</code> dich dann <b>immer</b>, bevor es einen sendet (<code>add_user</code>, <code>update_user</code>, <code>set_admin_account</code>), egal was <code>require_client_confirmation</code> sagt. Dasselbe gilt für <code>kvm_type_text</code> und <code>sol_type_text</code> mit <code>secret</code> auf einem Gerät ohne TLS. Ein Client, der nicht fragen kann, bekommt eine Ablehnung mit dem Grund; nutze TLS, die App oder einen Client, der fragen kann.</p>
 </div>
 
+<h2 id="without-app">Ohne die App</h2>
+<div class="prose">
+<p><code>openlamt-mcp</code> braucht die App nicht. Auf einem Computer ohne sie, zum Beispiel einem Linux-Server, auf dem Claude Code im Terminal läuft, findet der Agent Geräte mit <code>scan_network</code> und speichert sie mit <code>add_favorite</code>. Zwei Schritte bleiben bei einer Person, weil der Agent nie ein Passwort sehen und nie von sich aus einem Zertifikat vertrauen darf. Der Agent sagt dir, welchen du ausführen sollst:</p>
+<pre><code>openlamt-mcp password "Lab Server"
+openlamt-mcp trust "Lab Server"</code></pre>
+<ul>
+  <li><code>password</code> fragt das Passwort zweimal verdeckt ab und speichert es im Schlüsselbund des Systems. Ist <code>passwords.command</code> gesetzt, speichert es nichts und sagt dir, dass das Passwort in deinen Passwort-Manager gehört.</li>
+  <li><code>trust</code> verbindet sich mit dem Gerät, zeigt den SHA-256-Fingerabdruck seines Zertifikats und vertraut ihm nach <code>y</code>, dasselbe Trust on First Use wie in der App. Wird schon einem anderen Zertifikat vertraut, warnt es und ersetzt es nur nach <code>y</code>.</li>
+  <li>Beide brauchen ein Terminal: Die Antwort kann nicht aus einer Pipe oder Datei kommen. Beide nehmen <code>--config &lt;path&gt;</code> wie der Server.</li>
+</ul>
+<h3 id="password-sources">Woher Passwörter kommen</h3>
+<p>Für jedes Gerät nimmt <code>openlamt-mcp</code> das erste Passwort, das es findet:</p>
+<ol>
+  <li>Den Schlüsselbund des Systems: macOS-Schlüsselbund, Windows-Anmeldeinformationsverwaltung, Secret Service unter Linux mit Desktop. Die App und <code>openlamt-mcp password</code> speichern Passwörter dort.</li>
+  <li><code>passwords.command</code>: ein Programm, das das Passwort auf der Standardausgabe ausgibt. Für Passwort-Manager wie <code>pass</code>, <code>op</code>, <code>bw</code> oder <code>keepassxc-cli</code>, eine mit <code>age</code> verschlüsselte Datei oder <code>systemd-creds</code>. Ein TPM ist nicht nötig.</li>
+  <li>Nur mit <code>passwords.allow_plaintext_passwords</code>: eine Umgebungsvariable oder die Datei <code>.env</code> neben der Konfigurationsdatei.</li>
+</ol>
+<p>Der Befehl ist eine Liste: das Programm, dann seine Argumente. Er läuft ohne Shell. In jedem Argument werden <code>{name}</code>, <code>{host}</code> und <code>{user}</code> zu Name, Host und Benutzername des Favoriten. Mit <code>pass</code>, ein Eintrag pro Gerät:</p>
+<pre><code>{"passwords": {"command": ["/usr/bin/pass", "show", "openlamt/{host}"]}}</code></pre>
+<p>Mit einer Datei pro Gerät, verschlüsselt mit <code>age</code>. Die Schlüsseldatei entschlüsselt alle: Halte sie nur für dich lesbar.</p>
+<pre><code>{"passwords": {"command": ["/usr/bin/age", "--decrypt", "-i", "/home/me/.config/openlamt/key.txt",
+                           "/home/me/.config/openlamt/passwords/{host}.age"]}}</code></pre>
+<ul>
+  <li>Der Befehl bekommt keine Eingabe und hat 10 Sekunden Zeit. Seine Ausgabe ohne einen Zeilenumbruch am Ende ist das Passwort. Er darf nur eine Zeile ausgeben: Ein <code>pass</code>-Eintrag mit mehr Zeilen funktioniert nicht.</li>
+  <li>Ein Befehl, der fehlschlägt oder nichts ausgibt, zählt als kein Passwort. Seine Fehlerausgabe wird nie angezeigt oder protokolliert, weil sie Geheimnisse enthalten kann. Führe den Befehl selbst im Terminal aus, um sie zu sehen.</li>
+  <li>Nimm am besten <code>{host}</code>: Der Agent wählt Name und Host der Favoriten, die er anlegt, und mit <code>{host}</code> geht ein Passwort nur an den Host, für den es gespeichert ist. Ein Wert mit <code>/</code>, <code>\</code> oder <code>..</code> oder einer, der mit <code>-</code> beginnt, erreicht den Befehl nie.</li>
+  <li>Gib das Programm mit vollem Pfad an: Der MCP-Client startet <code>openlamt-mcp</code> vielleicht mit einem anderen <code>PATH</code> als dein Terminal.</li>
+</ul>
+</div>
+<div class="warn"><b>Klartext-Passwörter kann jedes Programm lesen, das du startest.</b>Mit <code>"allow_plaintext_passwords": true</code> liest <code>openlamt-mcp</code> auch die Variable <code>OPENLAMT_PASSWORD_&lt;HOST&gt;</code>: der Host in Großbuchstaben, jedes Zeichen außer A bis Z und 0 bis 9 durch <code>_</code> ersetzt, etwa <code>OPENLAMT_PASSWORD_192_0_2_10</code> oder <code>OPENLAMT_PASSWORD_LAB_EXAMPLE_COM</code>. Dieselben Namen funktionieren als Zeilen <code>KEY=value</code> in <code>.env</code> neben der Konfigurationsdatei. Die Datei darf nur für dich lesbar sein (Modus 0600), sonst startet der Server nicht. Jeder Start und jede Antwort trägt eine Warnung. Nutze das für ein Testlabor, nicht für wichtige Geräte.</div>
+
 <h2 id="config">Begrenzen, was der Agent darf</h2>
 <div class="warn"><b>Ohne Konfigurationsdatei ist alles erlaubt.</b>Jeder Favorit und jede Aktion; nur die orangen und roten Änderungen an Einstellungen und Konten fragen nach. Das Aktionsprotokoll wird trotzdem geschrieben. Schreib eine Konfigurationsdatei, bevor du deine Geräte einem Agenten überlässt, dem du nicht ganz vertraust.</div>
 <div class="prose">
@@ -180,25 +221,28 @@
   "read_only": false,
   "allowed_devices": [],
   "tool_groups": {"read": true, "power_boot": true, "media": true, "kvm_input": true,
-                  "settings": true, "users": true, "destructive": true},
+                  "settings": true, "users": true, "destructive": true, "favorites": true},
   "require_client_confirmation": false,
   "action_log": {"enabled": true, "path": ""},
   "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
           "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
   "sol": {"idle_timeout_seconds": 300},
-  "media": {"allowed_paths": []}
+  "media": {"allowed_paths": []},
+  "passwords": {"command": [], "allow_plaintext_passwords": false}
 }</code></pre>
 <p>Jeder Schlüssel, den du weglässt, behält seinen Standardwert. Ein unbekannter Schlüssel stoppt den Server, damit ein Tippfehler nicht alles offen lässt.</p>
 </div>
 <dl class="terms">
-  <dt><code>read_only</code></dt><dd>Lässt nur die lesenden Werkzeuge übrig: Status, Protokolle, Einstellungen und Konten, den Screenshot und das Lesen der seriellen Konsole. Es schreibt nie eine Einstellung, schaltet nie KVM, SOL oder die Medienumleitung ein und sendet keine Eingaben ans Gerät. Eine Anfrage zur Benutzerzustimmung kann trotzdem einen Code auf dem Bildschirm des Geräts anzeigen; das ändert keine Einstellung.</dd>
-  <dt><code>allowed_devices</code></dt><dd>Namen der Favoriten, die der Agent nutzen darf. Leer heißt alle.</dd>
+  <dt><code>read_only</code></dt><dd>Lässt nur die lesenden Werkzeuge übrig: Status, Protokolle, Einstellungen und Konten, den Screenshot, das Lesen der seriellen Konsole und <code>scan_network</code>. Es schreibt nie eine Einstellung, schaltet nie KVM, SOL oder die Medienumleitung ein und sendet keine Eingaben ans Gerät. Eine Anfrage zur Benutzerzustimmung kann trotzdem einen Code auf dem Bildschirm des Geräts anzeigen; das ändert keine Einstellung.</dd>
+  <dt><code>allowed_devices</code></dt><dd>Namen der Favoriten, die der Agent nutzen, anlegen oder vergeben darf. Leer heißt alle.</dd>
   <dt><code>tool_groups</code></dt><dd>Schaltet die Gruppen der <a href="#tools">Werkzeugtabelle</a> ein und aus.</dd>
-  <dt><code>require_client_confirmation</code></dt><dd>Fragt dich im MCP-Client vor jeder Power-Aktion, jedem Tasten-, Maus- oder Tippaufruf, jedem Einhängen und <code>media_boot_next</code> sowie jeder Änderung an Einstellungen oder Konten. Orange und rote Änderungen fragen immer. Die Rückfrage zeigt jede Taste, den zu tippenden Text und den vollen Pfad zum Einhängen, nachdem Links aufgelöst sind. Jeder Zeilenumbruch (ein Druck auf Enter) erscheint als ⏎, unsichtbare oder richtungsändernde Zeichen als ihr Codepoint. Markiert der Agent eine einzelne Zeile als <code>secret</code>, sagt die Rückfrage, dass der Agent sie verbergen wollte. Ein Client, der nicht fragen kann, bekommt eine Ablehnung.</dd>
+  <dt><code>require_client_confirmation</code></dt><dd>Fragt dich im MCP-Client vor jeder Power-Aktion, jedem Tasten-, Maus- oder Tippaufruf, jedem Einhängen und <code>media_boot_next</code>, jeder Änderung an Einstellungen oder Konten sowie jedem neuen Favoriten. Orange und rote Änderungen fragen immer. Die Rückfrage zeigt jede Taste, den zu tippenden Text und den vollen Pfad zum Einhängen, nachdem Links aufgelöst sind. Jeder Zeilenumbruch (ein Druck auf Enter) erscheint als ⏎, unsichtbare oder richtungsändernde Zeichen als ihr Codepoint. Markiert der Agent eine einzelne Zeile als <code>secret</code>, sagt die Rückfrage, dass der Agent sie verbergen wollte. Ein Client, der nicht fragen kann, bekommt eine Ablehnung.</dd>
   <dt><code>action_log</code></dt><dd>Schreibt eine Zeile pro Werkzeugaufruf nach <code>openlamt-mcp-actions.log</code> neben der Konfigurationsdatei, oder nach <code>path</code>. Darin stehen Tasten und Mausaktionen, eingehängte Pfade und die geänderten Einstellungen, aber nie Text, der über KVM oder die serielle Konsole getippt wurde, kein Consent-Code und kein Passwort.</dd>
   <dt><code>kvm</code></dt><dd>Das Leerlauf-Timeout einer KVM-Sitzung (<code>0</code> hält sie offen, bis der Server stoppt) und die Standardgröße, das Format (<code>jpeg</code> oder <code>png</code>) und die Qualität von Screenshots. Der Agent kann pro Aufruf eine andere Größe oder ein anderes Format verlangen.</dd>
   <dt><code>sol</code></dt><dd>Das Leerlauf-Timeout einer Sitzung der seriellen Konsole.</dd>
   <dt><code>media.allowed_paths</code></dt><dd>Begrenzt <code>media_mount</code> auf die Ordner, die du aufzählst (absolute Pfade). Leer heißt überall außer in den geschützten Ordnern.</dd>
+  <dt><code>passwords.command</code></dt><dd>Programm und Argumente, die ein Gerätepasswort ausgeben, siehe <a href="#password-sources">Woher Passwörter kommen</a>. Leer heißt keines.</dd>
+  <dt><code>passwords.allow_plaintext_passwords</code></dt><dd>Liest Passwörter auch aus Umgebungsvariablen und <code>.env</code>, mit einer Warnung bei jedem Start und in jeder Antwort.</dd>
 </dl>
 <div class="prose">
 <h3 id="hardening">Ein sicherer Start</h3>

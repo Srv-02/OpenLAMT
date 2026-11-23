@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"sync"
@@ -10,16 +11,25 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/keychain"
+	"github.com/Srv-02/openlamt/internal/scan"
 	"github.com/Srv-02/openlamt/internal/session"
 )
 
 // Options wires the server.
 type Options struct {
-	Config    Config
+	Config Config
+	// Favorites lists the favorites. If it is also a FavoriteEditor (*favorites.Manager), the
+	// tool group favorites offers add_favorite, update_favorite and delete_favorite.
 	Favorites FavoriteSource
 	Keys      keychain.Store
 	Connect   session.ConnectFunc // session.AMTConnect outside tests
+	// Scanner runs scan_network; nil scans the network with internal/scan.
+	Scanner Scanner
+	// FetchFingerprint reads the certificate fingerprint of a TLS host for add_favorite; nil
+	// asks the device on its TLS port (amt.FetchFingerprint).
+	FetchFingerprint func(ctx context.Context, host string) (string, error)
 	// Logins follows a changed login or certificate pin of a device into the keychain and the
 	// favorites, as in the app (*favorites.Manager); nil saves nothing.
 	Logins  session.LoginStore
@@ -31,7 +41,11 @@ type Options struct {
 type server struct {
 	cfg     Config
 	favs    FavoriteSource
+	editor  FavoriteEditor // nil: the favorites cannot be changed
 	keys    keychain.Store
+	pws     *passwords
+	scanner Scanner
+	fetchFP func(ctx context.Context, host string) (string, error)
 	connect session.ConnectFunc
 	logins  session.LoginStore
 	log     *ActionLog
@@ -65,7 +79,8 @@ func (s *Server) Close() {
 
 const instructions = `openlamt-mcp controls Intel AMT devices saved as favorites in the OpenLAMT app.
 Call list_devices first; every other tool takes the favorite name as "device".
-Device passwords are never needed: they come from the OS keychain.
+Device passwords are never needed and never asked from you: the server finds them itself (keychain, password command). list_devices shows password_found and certificate_pinned. When one is missing, ask the person to run "openlamt-mcp password <name>" or "openlamt-mcp trust <name>" in a terminal on this computer (or to use the OpenLAMT app).
+To find devices: scan_network a network or range, then add_favorite; update_favorite and delete_favorite always ask the person first.
 Power actions act on real hardware: check device_status before and after.
 boot_to_bios, kvm_connect, sol_connect and media_mount may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.
 For the screen: kvm_connect once, then kvm_screenshot, kvm_send_keys, kvm_mouse and kvm_type_text as often as needed; kvm_disconnect when done.
@@ -81,7 +96,16 @@ func New(o Options) *Server {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &server{cfg: o.Config, favs: o.Favorites, keys: o.Keys, connect: o.Connect, logins: o.Logins, log: o.Log, logger: logger,
-		stateKey: make([]byte, 32)}
+		pws: newPasswords(o.Config.Passwords, o.Keys), scanner: o.Scanner, fetchFP: o.FetchFingerprint, stateKey: make([]byte, 32)}
+	s.editor, _ = o.Favorites.(FavoriteEditor)
+	if s.scanner == nil {
+		s.scanner = &scan.Scanner{}
+	}
+	if s.fetchFP == nil {
+		s.fetchFP = func(ctx context.Context, host string) (string, error) {
+			return amt.FetchFingerprint(ctx, amt.Config{Host: host, UseTLS: true}.Address())
+		}
+	}
 	_, _ = rand.Read(s.stateKey) // never fails (crypto/rand)
 	s.kvm = newKVMManager(o.Config.KVMIdleTimeout, s.openKVM)
 	s.sol = newSOLManager(o.Config.SOLIdleTimeout, s.openSOL)
@@ -128,10 +152,33 @@ func addTool[In, Out any](s *server, srv *mcp.Server, t *mcp.Tool, h handler[In,
 		}
 		if err != nil {
 			var zero Out
-			return nil, zero, &refusal{msg: e.Message}
+			msg := e.Message
+			if s.cfg.Passwords.AllowPlaintext {
+				msg = PlaintextWarning + "\n\n" + msg
+			}
+			return nil, zero, &refusal{msg: msg}
+		}
+		if s.cfg.Passwords.AllowPlaintext && (res == nil || res.InputRequests == nil) {
+			res = withWarning(res, out, PlaintextWarning)
 		}
 		return res, out, nil
 	})
+}
+
+// withWarning adds warning as a text block before the answer. The SDK writes the structured
+// output as text only when Content is empty, so it is added here as well.
+func withWarning[Out any](res *mcp.CallToolResult, out Out, warning string) *mcp.CallToolResult {
+	if res == nil {
+		res = &mcp.CallToolResult{}
+	}
+	content := []mcp.Content{&mcp.TextContent{Text: warning}}
+	if res.Content == nil {
+		if b, err := json.Marshal(out); err == nil {
+			content = append(content, &mcp.TextContent{Text: string(b)})
+		}
+	}
+	res.Content = append(content, res.Content...)
+	return res
 }
 
 func boolPtr(b bool) *bool { return &b }
@@ -174,4 +221,5 @@ func (s *server) register(srv *mcp.Server) {
 	s.registerMedia(srv)
 	s.registerSettings(srv)
 	s.registerUsers(srv)
+	s.registerFavorites(srv)
 }

@@ -207,6 +207,7 @@ var errorExceptions = map[string]string{
 	"configfile.NewerError":     "shown by importErrorText as \"Cannot import this file\", not in the error dialog",
 	"scan.ErrInvalid":           "shown by scanErrorText below the address range of the scan dialog",
 	"scan.ErrTooMany":           "shown by scanErrorText below the address range of the scan dialog",
+	"favorites.ErrNameExists":   "only Manager.Add and Manager.Update return it, and only openlamt-mcp calls them",
 }
 
 // TestDescribeCoversExportedErrors parses the internal packages for exported errors and checks

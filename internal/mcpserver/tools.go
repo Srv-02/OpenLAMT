@@ -30,8 +30,10 @@ type deviceInfo struct {
 	Host              string   `json:"host"`
 	Username          string   `json:"username"`
 	TLS               bool     `json:"tls"`
-	CertificatePinned bool     `json:"certificate_pinned" jsonschema:"TLS only: the certificate was pinned in the OpenLAMT app; without a pin a TLS device is refused"`
-	PasswordStored    bool     `json:"password_stored" jsonschema:"a password is in the keychain; without one the device cannot be used"`
+	CertificatePinned bool     `json:"certificate_pinned" jsonschema:"TLS only: the certificate is trusted (pinned with openlamt-mcp trust or in the OpenLAMT app); without a pin a TLS device is refused"`
+	PasswordStored    bool     `json:"password_stored" jsonschema:"a password is in the system keychain"`
+	PasswordFound     bool     `json:"password_found" jsonschema:"the server finds a password for the device (keychain, password command or, if allowed, environment); without one the device cannot be used"`
+	PasswordSource    string   `json:"password_source,omitempty" jsonschema:"where the password comes from: keychain, command or environment"`
 	Warnings          []string `json:"warnings,omitempty"`
 }
 
@@ -39,7 +41,7 @@ type listDevicesOutput struct {
 	Devices []deviceInfo `json:"devices"`
 }
 
-func (s *server) listDevices(_ context.Context, _ *mcp.CallToolRequest, _ struct{}, _ *record) (*mcp.CallToolResult, listDevicesOutput, error) {
+func (s *server) listDevices(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}, _ *record) (*mcp.CallToolResult, listDevicesOutput, error) {
 	list, err := s.favs.List()
 	if err != nil {
 		return nil, listDevicesOutput{}, fmt.Errorf("read the OpenLAMT favorites: %w", err)
@@ -55,9 +57,19 @@ func (s *server) listDevices(_ context.Context, _ *mcp.CallToolRequest, _ struct
 			continue
 		}
 		d := deviceInfo{Name: name, Host: f.Host, Username: f.Username, TLS: f.UseTLS}
-		pw, err := s.keys.Get(f.Host, f.Username)
-		d.PasswordStored = err == nil && pw != ""
-		keyErr := err
+		_, source, err := s.pws.lookup(ctx, f, list)
+		if ctx.Err() != nil {
+			return nil, listDevicesOutput{}, ctx.Err()
+		}
+		d.PasswordFound, d.PasswordSource, d.PasswordStored = err == nil, source, source == sourceKeychain
+		var keyErr error
+		var nf *passwordNotFoundError
+		if errors.As(err, &nf) {
+			keyErr = nf.keychainErr
+			if len(nf.reasons) > 0 {
+				d.Warnings = append(d.Warnings, strings.Join(nf.reasons, " "))
+			}
+		}
 		if f.UseTLS {
 			fp, err := s.keys.GetFingerprint(f.Host, f.Username)
 			d.CertificatePinned = err == nil && fp != ""
@@ -67,8 +79,15 @@ func (s *server) listDevices(_ context.Context, _ *mcp.CallToolRequest, _ struct
 		} else {
 			d.Warnings = append(d.Warnings, noTLSWarning)
 		}
-		if keyErr != nil && !errors.Is(keyErr, keychain.ErrNotFound) {
+		broken := keyErr != nil && !errors.Is(keyErr, keychain.ErrNotFound)
+		if broken {
 			d.Warnings = append(d.Warnings, explain(keychainError(keyErr)))
+		}
+		if !broken && !d.PasswordFound {
+			d.Warnings = append(d.Warnings, s.passwordHint(name))
+		}
+		if !broken && f.UseTLS && !d.CertificatePinned {
+			d.Warnings = append(d.Warnings, "Certificate not trusted yet: a person runs "+commandLine("trust", name)+" in a terminal on this computer.")
 		}
 		if count[name] > 1 {
 			d.Warnings = append(d.Warnings, "Another favorite has the same name: give them distinct names in the OpenLAMT app to use them here.")
@@ -76,6 +95,14 @@ func (s *server) listDevices(_ context.Context, _ *mcp.CallToolRequest, _ struct
 		out.Devices = append(out.Devices, d)
 	}
 	return nil, out, nil
+}
+
+// passwordHint tells the agent how the person provides the missing password of the favorite name.
+func (s *server) passwordHint(name string) string {
+	if len(s.cfg.Passwords.Command) > 0 {
+		return "No password found: the person stores it in the password manager that passwords.command reads."
+	}
+	return "No password found: a person runs " + commandLine("password", name) + " in a terminal on this computer."
 }
 
 // --- device_status

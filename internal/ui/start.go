@@ -1330,7 +1330,7 @@ func (s *StartWindow) end(host, user string) {
 // poller drives the status dot of the favorite and the background probe skips it; afterwards
 // the probe takes over again with its own rules.
 func (s *StartWindow) addDevice(sess *session.Session, st amt.Status, name string) *DeviceWindow {
-	k := deviceKey(sess.Config().Host, sess.Config().Username)
+	k := deviceKey(sess.Config().Host, sess.Config().Username) // moves with a rename of the own account (followLogin)
 	var d *DeviceWindow
 	// Only remove the entry while it still points at this window: after an abort the key may
 	// already belong to a newer window.
@@ -1351,7 +1351,12 @@ func (s *StartWindow) addDevice(sess *session.Session, st amt.Status, name strin
 	d.exitWork = s.exitWork
 	d.mainWin = s.win
 	if s.mgr != nil { // a typed nil would count as a store
-		d.loginStore = s.mgr
+		d.loginStore = &loginFollower{LoginStore: s.mgr, changed: func() {
+			if s.open[k] == d { // closed meanwhile: nothing to move
+				k = s.followLogin(d, k)
+			}
+			s.reload()
+		}}
 	}
 	d.onFavoriteChanged = s.reload // the read-only view and edit mode show the stored quality
 	d.onStatus = func(st amt.Status, known bool) {
@@ -1365,6 +1370,53 @@ func (s *StartWindow) addDevice(sess *session.Session, st amt.Status, name strin
 	s.relockEdit()
 	s.windowStatus(k, st, true) // the status read by the connect
 	return d
+}
+
+// followLogin moves the open device window d from key k to the login its session now uses,
+// after the own account was renamed in device management (the favorite was renamed with it):
+// the registry, the probe skip, the cached keychain state and the selection follow, so a double
+// click focuses the window and edit mode keeps host and user locked. It returns the new key; the
+// caller reloads the list.
+func (s *StartWindow) followLogin(d *DeviceWindow, k string) string {
+	c := d.sess.Config()
+	nk := deviceKey(c.Host, c.Username)
+	if nk == k {
+		return k
+	}
+	delete(s.open, k)
+	s.prober.SetSkip(k, false)
+	s.open[nk] = d
+	s.prober.SetSkip(nk, true)
+	if r, ok := s.probes[k]; ok {
+		s.probes[nk] = r
+	}
+	old := strings.TrimSuffix(k, "@"+c.Host)
+	s.forgetSaved(c.Host, old) // the password moved with the login
+	s.forgetSaved(c.Host, c.Username)
+	// The selection moves with the favorite; one that could not be renamed (a favorite with the
+	// new name existed already) stays where it is.
+	if _, found, err := s.mgr.Find(c.Host, old); s.selKey == k && err == nil && !found {
+		s.selKey = nk
+		if s.mode == modeEdit {
+			s.user.SetText(c.Username) // locked while the window is open
+		}
+		s.refreshSaved(c.Host, c.Username)
+	}
+	return nk
+}
+
+// loginFollower is the login store of a device window: once the favorites followed an account
+// change (session.LoginStore.ChangeLogin, also after a partial failure), the start window
+// follows on the Fyne thread.
+type loginFollower struct {
+	session.LoginStore
+	changed func() // on the Fyne thread
+}
+
+func (l *loginFollower) ChangeLogin(host, oldUser, newUser, newPassword string) error {
+	err := l.LoginStore.ChangeLogin(host, oldUser, newUser, newPassword)
+	fyne.Do(l.changed)
+	return err
 }
 
 func (s *StartWindow) showDevice(sess *session.Session, st amt.Status, name string) {

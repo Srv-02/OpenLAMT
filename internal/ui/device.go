@@ -425,7 +425,9 @@ func endsKVM(action amt.PowerAction) bool {
 const kvmCloseWait = 5 * time.Second
 
 func (d *DeviceWindow) execute(action amt.PowerAction) {
-	d.setPowerBusy(true)
+	if d.claimPower(lang.L("Wait until the running power action ends, then try again.")) != nil {
+		return
+	}
 	if !endsKVM(action) || (d.kvmClient == nil && d.kvmCancel == nil) {
 		d.sendPower(action)
 		return
@@ -508,6 +510,23 @@ func (d *DeviceWindow) powerDone(action amt.PowerAction, err error) {
 	if d.onActionDone != nil {
 		d.onActionDone()
 	}
+}
+
+// claimPower takes the lock that every power, boot and erase action of the window shares: the
+// locked Power menu (powerBusy) and the consent cancel (biosCancel). While another action holds
+// it, claimPower reports wait and returns it as the error, so a second action can neither
+// overwrite biosCancel (closing the window would then not end its consent dialog, #126) nor mix
+// its boot settings with the first one's (issue #135). Its dialogs can be open at the same time:
+// the confirmation or Boot Options in the device window, Erase drives in the popped-out device
+// management.
+func (d *DeviceWindow) claimPower(wait string) error {
+	if d.powerBusy {
+		err := userError(wait)
+		d.onError(err)
+		return err
+	}
+	d.setPowerBusy(true)
+	return nil
 }
 
 // setPowerBusy locks the Power menu while an action runs.

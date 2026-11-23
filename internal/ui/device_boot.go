@@ -567,9 +567,12 @@ func (d *DeviceWindow) releaseBoot() func() {
 }
 
 // startBoot runs the boot as a poller job: the consent (KVM's dialog), then the boot options,
-// for a file also the local server and the temporary root first.
+// for a file also the local server and the temporary root first. It is refused while another
+// power action runs (claimPower).
 func (d *DeviceWindow) startBoot(o amt.BootOptions, file *bootFile) {
-	d.setPowerBusy(true)
+	if d.claimPower(lang.L("Wait until the running power action ends, then try again.")) != nil {
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	d.biosCancel = cancel // shutdown ends a consent dialog through it, as for Reboot to BIOS
 	prompt := &consentPrompt{ctx: ctx, ask: d.askConsent}

@@ -450,5 +450,6 @@
   "GitHub's rate limit is reached. Try again later.": "GitHub's rate limit is reached. Try again later.",
   "GitHub answered with HTTP {{.Status}}. Try again later.": "GitHub answered with HTTP {{.Status}}. Try again later.",
   "GitHub did not answer. Try again later.": "GitHub did not answer. Try again later.",
-  "GitHub could not be reached. Try again later.": "GitHub could not be reached. Try again later."
+  "GitHub could not be reached. Try again later.": "GitHub could not be reached. Try again later.",
+  "Wait until the running power action ends, then try again.": "Wait until the running power action ends, then try again."
 }

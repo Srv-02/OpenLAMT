@@ -326,3 +326,52 @@ func (m *Manager) ChangeFingerprint(host, user, oldFP, newFP string) error {
 	}
 	return keychainErr(errs...)
 }
+
+// Incoming is a favorite to merge in, with the certificate pin that goes with it (empty for none).
+type Incoming struct {
+	Favorite    Favorite
+	Fingerprint string
+}
+
+// Merge adds the favorites of items that are new and leaves the others alone: a favorite whose
+// host already exists (or was added earlier in items) is skipped, whatever its user name. It
+// never replaces or deletes anything. A pin is stored only for an added favorite. The favorites
+// file is written once; keychain failures afterwards return *KeychainError, the favorites are
+// added anyway. Passwords are not part of it.
+func (m *Manager) Merge(items []Incoming) (added, skipped []Favorite, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	list, err := m.store.Load()
+	if err != nil {
+		return nil, nil, err
+	}
+	known := map[string]bool{}
+	for _, f := range list {
+		known[f.Host] = true
+	}
+	var pins []Incoming
+	for _, it := range items {
+		f := it.Favorite
+		if known[f.Host] {
+			skipped = append(skipped, f)
+			continue
+		}
+		known[f.Host] = true
+		list = append(list, f)
+		added = append(added, f)
+		if it.Fingerprint != "" {
+			pins = append(pins, it)
+		}
+	}
+	if len(added) == 0 {
+		return nil, skipped, nil
+	}
+	if err := m.store.Save(list); err != nil {
+		return nil, skipped, err
+	}
+	var errs []error
+	for _, p := range pins {
+		errs = append(errs, m.keys.SetFingerprint(p.Favorite.Host, p.Favorite.Username, p.Fingerprint))
+	}
+	return added, skipped, keychainErr(errs...)
+}

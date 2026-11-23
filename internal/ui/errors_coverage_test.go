@@ -164,6 +164,11 @@ var errorExceptions = map[string]string{
 	"update.ErrDeclined":        "the update fallback dialog words it (updateFallbackText), not the error dialog",
 	"update.ErrReplace":         "the update fallback dialog words it (updateFallbackText), not the error dialog",
 	"update.ErrNoExe":           "the update fallback dialog words it (updateFallbackText), not the error dialog",
+	"configfile.ErrNotConfig":   "shown by importErrorText as \"Cannot import this file\", not in the error dialog",
+	"configfile.DamagedError":   "shown by importErrorText as \"Cannot import this file\", not in the error dialog",
+	"configfile.NewerError":     "shown by importErrorText as \"Cannot import this file\", not in the error dialog",
+	"scan.ErrInvalid":           "shown by scanErrorText below the address range of the scan dialog",
+	"scan.ErrTooMany":           "shown by scanErrorText below the address range of the scan dialog",
 }
 
 // TestDescribeCoversExportedErrors parses the internal packages for exported errors and checks

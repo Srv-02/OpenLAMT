@@ -30,6 +30,7 @@ type designDialog struct {
 	canvas  fyne.Canvas
 	prevKey func(*fyne.KeyEvent)
 	closed  bool
+	onClose func() // runs once when the dialog closes, whichever way
 }
 
 // Close hides the dialog; Esc and the dialog's own buttons call it. It is safe to call twice.
@@ -40,6 +41,9 @@ func (d *designDialog) Close() {
 	d.closed = true
 	d.canvas.SetOnTypedKey(d.prevKey)
 	d.pop.Hide()
+	if d.onClose != nil {
+		d.onClose()
+	}
 }
 
 // showDesignDialog shows body (stacked top to bottom, full width) in a framed panel on parent.

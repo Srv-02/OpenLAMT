@@ -465,7 +465,14 @@ type settingsDialog struct {
 	relayout func()
 	update   *updateRow
 	folder   *folderRow
+	config   *configTransfer // nil: Export and Import stay disabled
 }
+
+// settingsOption adds something to the settings dialog that the caller owns.
+type settingsOption func(*settingsDialog)
+
+// withConfig enables Export Config and Import Config of the row "Configuration".
+func withConfig(t *configTransfer) settingsOption { return func(c *settingsDialog) { c.config = t } }
 
 // section is a heading (12 px semibold, secondary) above a card of rows, like the pages of the
 // device management.
@@ -511,12 +518,46 @@ func (c *settingsDialog) remoteScreenSection() fyne.CanvasObject {
 
 func (c *settingsDialog) dataSection() fyne.CanvasObject {
 	hidden, _ := hiddenMessagesRow(c.s, c.d.Close)
-	return c.section(lang.L("Data"), hidden)
+	return c.section(lang.L("Data"), c.configRow(), hidden)
+}
+
+// configRow is the row "Configuration": a label with its explanation and the buttons Export…
+// and Import…, which open their dialogs above the settings dialog (#7).
+func (c *settingsDialog) configRow() fyne.CanvasObject {
+	export := settingsIconButton(lang.L("Export…"), icons.Upload, nil)
+	imp := settingsIconButton(lang.L("Import…"), icons.Download, nil)
+	export.OnEscape, imp.OnEscape = c.d.Close, c.d.Close
+	if c.config == nil {
+		export.Disable()
+		imp.Disable()
+	} else {
+		c.config.reloadForm = func() { c.f.reload(c.s) }
+		export.OnTapped, imp.OnTapped = c.config.export, c.config.importConfig
+	}
+	buttons := container.New(&rowLayout{gap: 8, fill: -1}, export, imp)
+	// The dialog has a fixed width: the explanation wraps at the width left of the buttons.
+	width := settingsWidth - 2*22 - 2*rowPadH - buttons.MinSize().Width - 16 - 2
+	size := style.Size(style.SizeNameSecondaryText)
+	lines := []fyne.CanvasObject{designText(lang.L("Configuration"), style.Size("text"), "foreground", false)}
+	for _, l := range wrapWords(lang.L("Favorites and settings as a file. Passwords stay in the keychain."), size, width) {
+		lines = append(lines, designText(l, size, style.ColorNameTextSecondary, false))
+	}
+	label := container.New(layout.NewCustomPaddedVBoxLayout(1), lines...)
+	return container.New(layout.NewCustomPaddedLayout(colorBlindPadV, colorBlindPadV, rowPadH, rowPadH),
+		container.New(&rowLayout{gap: 16, fill: 0}, label, buttons))
+}
+
+// settingsIconButton is the bordered 26 px button of a settings row with a symbol before the text.
+func settingsIconButton(text string, icon icons.Name, tapped func()) *widgets.PrimaryButton {
+	b := settingsButton(text, tapped)
+	b.SetIcon(icons.Get(icon, icons.Secondary))
+	return b
 }
 
 // showSettingsDialog shows the global settings on parent; Save stays disabled while the
-// interval is invalid. checkNow runs the manual update check of the row "Check for updates".
-func showSettingsDialog(parent fyne.Window, s *Settings, checkNow func(report func(updateCheckResult))) {
+// interval is invalid. checkNow runs the manual update check of the row "Check for updates";
+// withConfig turns on Export and Import.
+func showSettingsDialog(parent fyne.Window, s *Settings, checkNow func(report func(updateCheckResult)), opts ...settingsOption) {
 	a := fyne.CurrentApp()
 	f := newSettingsForm(s)
 	showDesignDialog(parent, dialogSpec{width: settingsWidth, height: settingsHeight, padTop: 20, padRight: 22 - scrollInset,
@@ -558,6 +599,9 @@ func showSettingsDialog(parent fyne.Window, s *Settings, checkNow func(report fu
 			// The sections run top to bottom in this order; Tab follows the same order,
 			// because Fyne moves the focus through the widget tree.
 			c := &settingsDialog{parent: parent, app: a, s: s, f: f, d: d, checkNow: checkNow}
+			for _, o := range opts {
+				o(c)
+			}
 			var sections []fyne.CanvasObject
 			for _, build := range []func() fyne.CanvasObject{
 				c.generalSection, c.updatesSection, c.devicesSection, c.remoteScreenSection, c.dataSection,

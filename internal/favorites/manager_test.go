@@ -437,3 +437,39 @@ func TestSetReverseWheelSurvivesUpsertAndEdit(t *testing.T) {
 		t.Fatalf("false must not be written: %s", b)
 	}
 }
+
+func TestMergeAddsNewHostsAndKeepsTheRest(t *testing.T) {
+	m, keys := seeded(t)
+	added, skipped, err := m.Merge([]Incoming{
+		{Favorite: Favorite{Name: "Same host", Host: "device.example.com", Username: "root"}, Fingerprint: fp},
+		{Favorite: Favorite{Name: "New", Host: "new.example.com", Username: "admin", UseTLS: true}, Fingerprint: fp},
+		{Favorite: Favorite{Name: "New twice", Host: "new.example.com", Username: "other"}},
+	})
+	if err != nil || len(added) != 1 || len(skipped) != 2 {
+		t.Fatalf("added %v skipped %v err %v", added, skipped, err)
+	}
+	list, _ := m.List()
+	if len(list) != 2 || list[0].Name != "Büro" || list[1].Name != "New" {
+		t.Fatalf("list %+v", list)
+	}
+	if got, _ := keys.GetFingerprint("new.example.com", "admin"); got != fp {
+		t.Errorf("pin %q", got)
+	}
+	if _, err := keys.GetFingerprint("device.example.com", "root"); err == nil {
+		t.Error("a skipped favorite got a pin")
+	}
+}
+
+// A keychain that fails after the file was written reports it; the favorites are there anyway.
+func TestMergeKeychainFailureKeepsTheFavorites(t *testing.T) {
+	m, keys := newManager(t)
+	keys.Err = errors.New("locked")
+	added, _, err := m.Merge([]Incoming{{Favorite: fav, Fingerprint: fp}})
+	var kc *KeychainError
+	if !errors.As(err, &kc) || len(added) != 1 {
+		t.Fatalf("added %v, err %v", added, err)
+	}
+	if list, _ := m.List(); len(list) != 1 {
+		t.Errorf("list %+v", list)
+	}
+}

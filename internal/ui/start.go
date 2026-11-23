@@ -63,6 +63,7 @@ type StartWindow struct {
 	rows        map[string]*widgets.SidebarRow
 	newConnBtn  *managerButton
 	settingsBtn *managerButton
+	scanBtn     *managerButton
 
 	// Detail pane
 	mode     detailMode
@@ -129,7 +130,10 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}}
 	s.onError = func(err error) { showError(s.win, err) }
 	s.openDevice = s.showDevice
-	s.showSettings = func() { showSettingsDialog(s.win, &s.settings, s.checkUpdateNow) }
+	s.showSettings = func() {
+		showSettingsDialog(s.win, &s.settings, s.checkUpdateNow,
+			withConfig(newConfigTransfer(s.win, &s.settings, s.mgr, s.keys, s.showImported)))
+	}
 	s.lookupPassword = s.lookupPasswordAsync
 	s.conn = newConnector(s.win, mgr, keys, connect)
 	// A password saved while connecting (dialog, "Save password") is also in the keychain when
@@ -189,6 +193,21 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 
 func (s *StartWindow) Window() fyne.Window { return s.win }
 
+// showScan opens the dialog "Scan Network" (icon of the sidebar footer, button of the empty list).
+func (s *StartWindow) showScan() { showScanDialog(s.win, s.mgr, s.showImported) }
+
+// showImported shows the favorites an import added: the list reloads and the first new
+// favorite is selected.
+func (s *StartWindow) showImported(added []favorites.Favorite) {
+	s.reload()
+	if len(added) == 0 {
+		return
+	}
+	if f, ok := s.find(deviceKey(added[0].Host, added[0].Username)); ok {
+		s.selectFavorite(f)
+	}
+}
+
 // ---- Sidebar ----
 
 func (s *StartWindow) buildSidebar() fyne.CanvasObject {
@@ -197,6 +216,7 @@ func (s *StartWindow) buildSidebar() fyne.CanvasObject {
 	s.list = container.New(layout.NewCustomPaddedVBoxLayout(2))
 	s.newConnBtn = newManagerTextButton(icons.Add, lang.L("Quick Connect"), s.newConnection)
 	s.settingsBtn = newManagerIconButton(icons.Settings, func() { s.showSettings() })
+	s.scanBtn = newManagerIconButton(icons.Radar, s.showScan)
 
 	searchBox := container.New(layout.NewCustomPaddedLayout(12, 10, 12, 12), newSearchField(s.search))
 	heading := container.New(layout.NewCustomPaddedLayout(8, 6, 20, 20), sectionLabel(lang.L("Favorites")))
@@ -204,7 +224,7 @@ func (s *StartWindow) buildSidebar() fyne.CanvasObject {
 	listBox := container.NewVScroll(container.New(layout.NewCustomPaddedLayout(0, 10, 10, 10), s.list))
 	footer := container.NewBorder(hairline(style.ColorNameCardBorder), nil, nil, nil,
 		container.New(layout.NewCustomPaddedLayout(10, 10, 10, 10),
-			container.NewBorder(nil, nil, nil, container.NewCenter(s.settingsBtn), s.newConnBtn)))
+			container.NewBorder(nil, nil, nil, container.NewHBox(container.NewCenter(s.scanBtn), container.NewCenter(s.settingsBtn)), s.newConnBtn)))
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSidebar, "")
 	pane := container.NewStack(bg, container.NewBorder(top, footer, nil, nil, listBox))
 	edge := hairline(style.ColorNameSeparatorDark)
@@ -293,7 +313,12 @@ func (s *StartWindow) emptyHint() fyne.CanvasObject {
 	m.Wrapping = fyne.TextWrapWord
 	m.SizeName = theme.SizeNameCaptionText // 11.5 in style.Theme
 	m.Importance = widget.LowImportance
-	return container.New(layout.NewCustomPaddedLayout(24, 0, 0, 0), container.NewVBox(t, m))
+	box := container.NewVBox(t, m)
+	if len(s.items) == 0 { // the empty list offers the scan (#12)
+		scanBtn := settingsIconButton(lang.L("Scan Network…"), icons.Radar, s.showScan)
+		box.Add(container.New(layout.NewCustomPaddedLayout(10, 0, 0, 0), container.NewCenter(scanBtn)))
+	}
+	return container.New(layout.NewCustomPaddedLayout(24, 0, 0, 0), box)
 }
 
 func (s *StartWindow) dotOf(key string) widgets.DotState {

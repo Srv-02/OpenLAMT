@@ -27,6 +27,18 @@ type Manager struct {
 	keys  keychain.Store
 }
 
+// lockWrite takes the in-process mutex and the cross-process file lock. A change then reads the
+// file after any other process finished writing it and saves before the next one reads.
+func (m *Manager) lockWrite() (unlock func(), err error) {
+	m.mu.Lock()
+	release, err := m.store.Lock()
+	if err != nil {
+		m.mu.Unlock()
+		return nil, err
+	}
+	return func() { release(); m.mu.Unlock() }, nil
+}
+
 func NewManager(store *Store, keys keychain.Store) *Manager {
 	return &Manager{store: store, keys: keys}
 }
@@ -54,8 +66,11 @@ func (m *Manager) Find(host, username string) (Favorite, bool, error) {
 // f.Quality or f.AutoConnect keeps the value already stored for that entry; the stored
 // ReverseWheel always stays (SetReverseWheel changes it).
 func (m *Manager) Upsert(f Favorite) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	list, err := m.store.Load()
 	if err != nil {
 		return err
@@ -84,8 +99,11 @@ func (m *Manager) SetQuality(host, username, quality string) error {
 	if quality != QualityHigh && quality != QualityLow {
 		return fmt.Errorf("favorites: unknown KVM quality %q", quality)
 	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	list, err := m.store.Load()
 	if err != nil {
 		return err
@@ -108,8 +126,11 @@ func (m *Manager) SetQuality(host, username, quality string) error {
 // unchanged. File first, keychain second; keychain failures (other than ErrNotFound) return
 // *KeychainError.
 func (m *Manager) Edit(host, username string, f Favorite, resetFingerprint bool) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	list, err := m.store.Load()
 	if err != nil {
 		return err
@@ -161,8 +182,11 @@ func (m *Manager) movePassword(oldHost, oldUser, newHost, newUser string) error 
 
 // Delete removes the favorite and always its fingerprint; the password only with deletePassword.
 func (m *Manager) Delete(host, username string, deletePassword bool) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	list, err := m.store.Load()
 	if err != nil {
 		return err
@@ -222,8 +246,11 @@ func (m *Manager) SetReverseWheel(host, username string, on bool) error {
 
 // setField applies change to the favorite host/username and saves the file.
 func (m *Manager) setField(host, username string, change func(*Favorite)) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	list, err := m.store.Load()
 	if err != nil {
 		return err
@@ -249,8 +276,11 @@ func (m *Manager) setField(host, username string, change func(*Favorite)) error 
 // already exists returns ErrExists before anything changes. Keychain failures return
 // *KeychainError.
 func (m *Manager) ChangeLogin(host, oldUser, newUser, newPassword string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return err
+	}
+	defer unlock()
 	list, err := m.store.Load()
 	if err != nil {
 		return err
@@ -342,8 +372,11 @@ type Incoming struct {
 // file is written once; keychain failures afterwards return *KeychainError, the favorites are
 // added anyway. Passwords are not part of it.
 func (m *Manager) Merge(items []Incoming) (added, skipped, pinConflicts []Favorite, err error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	defer unlock()
 	list, err := m.store.Load()
 	if err != nil {
 		return nil, nil, nil, err

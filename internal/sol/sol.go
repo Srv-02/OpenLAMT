@@ -311,11 +311,21 @@ func (c *Client) keepalive(d time.Duration) {
 				return
 			}
 			if err := c.send(writeTimeout, cmdHeartbeat); err != nil {
-				c.fail(err)
+				c.failWrite(err)
 				return
 			}
 		}
 	}
+}
+
+// failWrite handles an error of send. ErrClosed means Close started and nothing was written:
+// Close runs the goodbye, so the read loop must keep reading for END_SOL_REPLY. Any other
+// error is a failed write (fail).
+func (c *Client) failWrite(err error) {
+	if errors.Is(err, ErrClosed) {
+		return
+	}
+	c.fail(err)
 }
 
 // fail records a write error and aborts the read loop, which then ends the session.
@@ -392,7 +402,7 @@ func (c *Client) Write(p []byte) (int, error) {
 		var l [2]byte
 		binary.LittleEndian.PutUint16(l[:], uint16(k))
 		if err := c.send(writeTimeout, cmdDataToHost, l[:], p[:k]); err != nil {
-			c.fail(err)
+			c.failWrite(err)
 			if werr := c.writeErr(); werr != nil {
 				return n, werr
 			}

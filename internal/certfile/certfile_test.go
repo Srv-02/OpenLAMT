@@ -58,6 +58,27 @@ func TestCertificateReadsPEMAndDER(t *testing.T) {
 	}
 }
 
+// A DER certificate may end with a byte that counts as white space; the import must not cut
+// it (the signature is random, so about one certificate in 40 does).
+func TestCertificateKeepsATrailingSpaceByteOfDER(t *testing.T) {
+	for range 5000 {
+		k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		c := makeCert(t, k, &k.PublicKey)
+		if !bytes.ContainsAny(c.Raw[len(c.Raw)-1:], " \t\n\v\f\r") {
+			continue
+		}
+		der, err := Certificate(c.Raw)
+		if err != nil || !bytes.Equal(der, c.Raw) {
+			t.Fatalf("DER ending in %#x: %v", c.Raw[len(c.Raw)-1], err)
+		}
+		return
+	}
+	t.Fatal("no certificate with a trailing white space byte generated")
+}
+
 func TestCertificateRejectsOtherFiles(t *testing.T) {
 	k := rsaKey(t)
 	for name, data := range map[string][]byte{

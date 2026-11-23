@@ -46,11 +46,13 @@ func Certificate(data []byte) ([]byte, error) {
 			return b.Bytes, nil
 		}
 	}
-	der := bytes.TrimSpace(data)
-	if _, err := x509.ParseCertificate(der); err != nil {
-		return nil, ErrNotCertificate
+	// DER as it is first: its last byte can be one TrimSpace would cut (0x20, 0x0A, ...)
+	for _, der := range [][]byte{data, bytes.TrimSpace(data)} {
+		if _, err := x509.ParseCertificate(der); err == nil {
+			return der, nil
+		}
 	}
-	return der, nil
+	return nil, ErrNotCertificate
 }
 
 // PKCS12 opens a .p12 or .pfx file with password and returns its certificate (DER) and RSA

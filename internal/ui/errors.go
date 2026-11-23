@@ -20,6 +20,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
+	"github.com/Srv-02/openlamt/internal/localme"
 	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/redir"
 	"github.com/Srv-02/openlamt/internal/session"
@@ -117,6 +118,10 @@ func describe(err error) string {
 		return lang.L("The keychain could not be used: {{.Err}}", map[string]any{"Err": ke.Err.Error()})
 	case errors.As(err, &syn):
 		return lang.L("The favorites file is damaged and could not be read.")
+	case errors.Is(err, localme.ErrDeclined):
+		return lang.L("Administrator rights were not granted. Nothing was changed.")
+	case errors.Is(err, localme.ErrNoPkexec):
+		return lang.L("Check needs pkexec to ask for administrator rights. Install polkit and try again.")
 	}
 	if msg, ok := describeDevice(err); ok {
 		return msg

@@ -7,6 +7,10 @@ It uses and includes code derived from the following projects:
 
 - go-wsman-messages, Copyright Intel Corporation, Apache License 2.0
   https://github.com/device-management-toolkit/go-wsman-messages
+- rpc-go, Copyright Intel Corporation, Apache License 2.0
+  https://github.com/device-management-toolkit/rpc-go
+  (used as a library, not copied: its pkg/amt package reads Intel AMT through the Intel ME
+  driver for "This computer"; version v3.0.0-beta.86, a preview release)
 - ui-toolkit, Copyright Intel Corporation, Apache License 2.0
   https://github.com/device-management-toolkit/ui-toolkit
   (KVM client code, IDE-R client code (AMTIDER.ts, IDERDataProcessor.ts, Constants.ts) and Serial-over-LAN client code (AMTRedirector.ts) ported from TypeScript to Go at commit e1eb6980963b1e59df45e05edf94b68dd5c36920; ported files are marked in their header)
@@ -30,7 +34,7 @@ It uses and includes code derived from the following projects:
   (license text: internal/ui/style/fonts/OFL.txt)
 
 Third-party Go modules included in the binary (build target macOS arm64, Windows x64,
-Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenity are listed above):
+Linux x64; the union of all three; go-wsman-messages, rpc-go, Fyne, go-keyring and zenity are listed above):
 
 - Go standard library, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://go.dev
@@ -68,6 +72,8 @@ Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenit
   https://github.com/go-text/render
 - github.com/go-text/typesetting, Copyright 2021 The go-text authors, Unlicense OR BSD 3-Clause License
   https://github.com/go-text/typesetting
+- github.com/go-ole/go-ole (Windows builds only, used by rpc-go), Copyright (c) 2013-2017 Yasuhiro Matsumoto, MIT License
+  https://github.com/go-ole/go-ole
 - github.com/godbus/dbus/v5, Copyright (c) 2013, Georg Reinke, Google, BSD 2-Clause License
   https://github.com/godbus/dbus
 - github.com/google/uuid, Copyright (c) 2009,2014 Google Inc., BSD 3-Clause License
@@ -86,14 +92,22 @@ Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenit
   https://github.com/nicksnyder/go-i18n
 - github.com/rymdport/portal, Copyright the portal authors (no copyright line in LICENSE), Apache License 2.0
   https://github.com/rymdport/portal
+- github.com/shirou/gopsutil/v4 (Linux and Windows builds, used by rpc-go), Copyright (c) 2014, WAKAYAMA Shirou, BSD 3-Clause License
+  https://github.com/shirou/gopsutil
 - github.com/sirupsen/logrus, Copyright (c) 2014 Simon Eskildsen, MIT License
   https://github.com/sirupsen/logrus
 - github.com/srwiley/oksvg, Copyright (c) 2018, Steven R Wiley, BSD 3-Clause License
   https://github.com/srwiley/oksvg
 - github.com/srwiley/rasterx, Copyright (c) 2018, Steven R Wiley, BSD 3-Clause License
   https://github.com/srwiley/rasterx
+- github.com/tklauser/go-sysconf (Linux builds only, used by rpc-go), Copyright (c) 2018-2022, Tobias Klauser, BSD 3-Clause License
+  https://github.com/tklauser/go-sysconf
+- github.com/tklauser/numcpus (Linux builds only, used by rpc-go), Copyright 2018 Tobias Klauser, Apache License 2.0
+  https://github.com/tklauser/numcpus
 - github.com/yuin/goldmark, Copyright (c) 2019 Yusuke Inuzuka, MIT License
   https://github.com/yuin/goldmark
+- github.com/yusufpapurcu/wmi (Windows builds only, used by rpc-go), Copyright (c) 2013 Stack Exchange, MIT License
+  https://github.com/yusufpapurcu/wmi
 - golang.org/x/crypto (pbkdf2, used by go-pkcs12), Copyright 2009 The Go Authors, BSD 3-Clause License
   https://pkg.go.dev/golang.org/x/crypto
 - golang.org/x/image, Copyright 2009 The Go Authors, BSD 3-Clause License
@@ -102,6 +116,8 @@ Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenit
   https://pkg.go.dev/golang.org/x/net
 - golang.org/x/sys, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://pkg.go.dev/golang.org/x/sys
+- golang.org/x/term (Linux and Windows builds, used by rpc-go), Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/term
 - golang.org/x/text, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://pkg.go.dev/golang.org/x/text
 - gopkg.in/yaml.v3, Copyright (c) 2006-2011 Kirill Simonov; Copyright 2011-2016 Canonical Ltd., MIT License and Apache License 2.0

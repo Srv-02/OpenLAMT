@@ -84,8 +84,8 @@ func TestLocalDetailShowsNotChecked(t *testing.T) {
 		strings.Join(richTexts(s.localCard), "") != "Check reads Intel AMT through the Intel ME driver of this computer. Nothing is changed." {
 		t.Fatalf("card texts %q", richTexts(s.localCard))
 	}
-	if len(s.actions.Objects) != 0 {
-		t.Fatalf("%d header buttons; the first cut has none", len(s.actions.Objects))
+	if len(s.actions.Objects) != 1 || s.actions.Objects[0] != s.localActions || !s.localActions.Visible() || s.checkBtn.Text != "Check" {
+		t.Fatalf("header %d objects, button %q", len(s.actions.Objects), s.checkBtn.Text)
 	}
 	if !s.editBtn.Disabled() || !s.dupBtn.Disabled() || !s.delBtn.Disabled() {
 		t.Fatal("toolbar enabled without a favorite")

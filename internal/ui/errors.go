@@ -197,6 +197,14 @@ func describeMethod(e *amt.MethodError) string {
 	if e.Method == "SetPowerScheme" && e.ReturnValue == 38 {
 		return lang.L("The device cannot change the power package now: its flash write limit is reached. Try again later.")
 	}
+	if e.Method == "AddWiFiSettings" || e.Method == "UpdateWiFiSettings" {
+		switch e.ReturnValue {
+		case 1:
+			return lang.L("The device does not support this Wi-Fi profile. Older Intel AMT versions have no WPA3-Personal; choose WPA2-Personal.")
+		case 3:
+			return lang.L("The device did not accept the Wi-Fi profile. Check the values; older Intel AMT versions have no WPA3-Personal.")
+		}
+	}
 	return lang.L("The device refused the request {{.Method}} (return value {{.Code}}).", map[string]any{"Method": e.Method, "Code": e.ReturnValue})
 }
 

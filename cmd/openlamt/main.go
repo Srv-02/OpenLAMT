@@ -31,10 +31,10 @@ const appID = "io.github.srv02.openlamt"
 var iconPNG []byte
 
 func main() {
-	// The elevated check helper of "This computer" (#11) only reads Intel AMT and exits; it
+	// The elevated helpers of "This computer" (#11) read or change Intel AMT and exit; they
 	// must not start the app (no window, no settings, no keychain).
 	if localme.IsHelper(os.Args[1:]) {
-		os.Exit(localme.RunHelper(os.Args[1:], os.Stdout))
+		os.Exit(localme.RunHelper(os.Args[1:], os.Stdin, os.Stdout))
 	}
 	a := app.NewWithID(appID)
 	a.SetIcon(fyne.NewStaticResource("Icon.png", iconPNG))

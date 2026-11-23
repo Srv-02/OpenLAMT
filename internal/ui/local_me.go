@@ -22,8 +22,8 @@ import (
 // this computer has an Intel ME device. The detection runs once at start, without
 // administrator rights (internal/localme). "Check" reads Intel AMT through the Intel ME in a
 // short elevated helper process; the app itself never runs elevated. The last result is stored
-// and shown as the row's subline. Turning on, activating and deactivating Intel AMT are not
-// built yet: they wait for a stable rpc-go v3.
+// and shown as the row's subline. Below the result the "Setup" card offers exactly one action
+// (local_setup.go): turn Intel AMT on, activate it in Client Control Mode or deactivate it.
 
 // buildLocalSection returns the hidden section: heading and the "This computer" row.
 func (s *StartWindow) buildLocalSection() fyne.CanvasObject {
@@ -70,7 +70,7 @@ func localMeta() string {
 // the two hints, all right-aligned.
 func (s *StartWindow) buildLocalActions() {
 	s.checkBtn = widgets.NewPrimaryButton(lang.L("Check"), icons.GetStroke(icons.AuditLog, icons.White, 2), s.runLocalCheck)
-	s.betaPill = wsmanPill(lang.L("Beta"))
+	s.betaPill = newBetaPill()
 	hint := func(t string) fyne.CanvasObject {
 		c := designText(t, 11.5, style.ColorNameTextSecondary, false)
 		c.Alignment = fyne.TextAlignTrailing
@@ -80,9 +80,16 @@ func (s *StartWindow) buildLocalActions() {
 		container.New(layout.NewCustomPaddedHBoxLayout(8), container.NewCenter(s.betaPill), s.checkBtn))
 	s.localActions = container.New(layout.NewCustomPaddedVBoxLayout(4), row,
 		hint(lang.L("Asks for administrator rights.")),
-		hint(lang.L("Uses a preview of Intel’s rpc-go library.")))
+		hint(betaHint()))
 	s.localCard = container.NewStack()
 }
+
+// newBetaPill is the gray "Beta" pill of everything that uses rpc-go's preview (#11): Check, the
+// setup buttons and their dialogs.
+func newBetaPill() fyne.CanvasObject { return wsmanPill(lang.L("Beta")) }
+
+// betaHint is the note that goes with the "Beta" pill.
+func betaHint() string { return lang.L("Uses a preview of Intel’s rpc-go library.") }
 
 // refreshLocal shows the last result in the row, the button and the card.
 func (s *StartWindow) refreshLocal() {
@@ -98,6 +105,7 @@ func (s *StartWindow) refreshLocal() {
 		s.checkBtn.Enable()
 	}
 	var card fyne.CanvasObject
+	s.setupBtn = nil
 	switch r := s.localLast; {
 	case r == nil:
 		card = newEmptyCard(lang.L("Not checked yet"),
@@ -106,6 +114,9 @@ func (s *StartWindow) refreshLocal() {
 		card = newLocalNoneCard()
 	default:
 		card = newLocalResultCard(*r)
+		if setup := s.newLocalSetup(*r); setup != nil {
+			card = container.New(layout.NewCustomPaddedVBoxLayout(localSetupGap), card, setup)
+		}
 	}
 	s.localCard.Objects = []fyne.CanvasObject{card}
 	if s.cards != nil { // lays out the header again for the new card
@@ -124,21 +135,25 @@ func (s *StartWindow) runLocalCheck() {
 	check := s.localCheck
 	s.localRun(func() {
 		r, err := check()
-		fyne.Do(func() {
-			s.localChecking = false
-			switch {
-			case errors.Is(err, localme.ErrDeclined):
-				showMessage(s.win, lang.L("This computer"), describe(err), "")
-			case err != nil:
-				s.onError(err)
-			default:
-				r.Checked = time.Now()
-				s.settings.SetLastLocalCheck(r)
-				s.localLast = &r
-			}
-			s.refreshLocal()
-		})
+		fyne.Do(func() { s.localDone(r, err) })
 	})
+}
+
+// localDone shows the end of a helper run on the Fyne thread: refused rights as information,
+// a failure as an error, a result as the new stored state.
+func (s *StartWindow) localDone(r localme.Result, err error) {
+	s.localChecking = false
+	switch {
+	case errors.Is(err, localme.ErrDeclined):
+		showMessage(s.win, lang.L("This computer"), describe(err), "")
+	case err != nil:
+		s.onError(err)
+	default:
+		r.Checked = time.Now()
+		s.settings.SetLastLocalCheck(r)
+		s.localLast = &r
+	}
+	s.refreshLocal()
 }
 
 // localSubline is the row's subline: the stored result, e.g. "AMT 16.1 · not activated".

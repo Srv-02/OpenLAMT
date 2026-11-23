@@ -30,12 +30,12 @@ func (m meiReader) Open() error { return m.c.Initialize() }
 
 func (m meiReader) Version() (string, error) { return m.c.GetVersionDataFromME("AMT", versionTimeout) }
 
-func (m meiReader) OperationalState() (bool, bool, error) {
+func (m meiReader) OperationalState() (bool, bool, bool, error) {
 	r, err := m.c.GetChangeEnabled()
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
-	return r.IsNewInterfaceVersion(), r.IsAMTEnabled(), nil
+	return r.IsNewInterfaceVersion(), r.IsAMTEnabled(), r.IsTransitionAllowed(), nil
 }
 
 func (m meiReader) ControlMode() (int, error)       { return m.c.GetControlMode() }

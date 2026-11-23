@@ -64,10 +64,11 @@ func newListHarness(t *testing.T, tl *testList, refresh, footer, action bool, to
 	return newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
 }
 
-// showWindowPage opens the management window on the test page and returns its pane.
+// showWindowPage opens the management window on the test page and returns its pane. It opens
+// right on that page, so Hardware is never read: with two reads in flight, h.wait would apply
+// whichever ends first.
 func showWindowPage(h *manageHarness) *managePane {
-	h.m.OpenWindow()
-	test.Tap(h.m.win.nav[5])
+	h.m.openWindowAt(5)
 	return h.m.win.view.panes[5]
 }
 

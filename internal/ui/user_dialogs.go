@@ -40,6 +40,12 @@ func formSubhead(text string) fyne.CanvasObject {
 	return container.New(layout.NewCustomPaddedLayout(4, 0, 0, 0), designText(text, 12, style.ColorNameTextSecondary, true))
 }
 
+// formSubheadHelp is formSubhead with the info button of the setting behind it.
+func formSubheadHelp(text string, id helpID) fyne.CanvasObject {
+	return container.New(layout.NewCustomPaddedLayout(4, 0, 0, 0),
+		container.NewHBox(designText(text, 12, style.ColorNameTextSecondary, true), helpButton(id)))
+}
+
 // formHint is a wrapped 12 px gray note (Forms.dc.html .hint), aligned with the fields: the
 // rich text's own padding is taken back.
 func formHint(text string) fyne.CanvasObject {
@@ -271,8 +277,8 @@ func (m *manager) showUserDialog(v *usersPane, u *amt.User) *userDialog {
 		}
 		d.name.OnChanged = func(string) { d.validate() }
 		return append(objs,
-			formSubhead(lang.L("Access")), container.NewHBox(d.access),
-			formSubhead(lang.L("Permissions")), container.NewGridWithColumns(2, checks...))
+			formSubheadHelp(lang.L("Access"), helpUserAccess), container.NewHBox(d.access),
+			formSubheadHelp(lang.L("Permissions"), helpUserPerms), container.NewGridWithColumns(2, checks...))
 	})
 	d.validate()
 	return d

@@ -104,3 +104,22 @@ func TestInfoButtonKeyboard(t *testing.T) {
 		t.Fatal("Space must open the popover")
 	}
 }
+
+// A fresh InfoButton shows no focus ring: the ring is hidden before the first Refresh, not only
+// after it.
+func TestInfoButtonNoRingBeforeFirstRefresh(t *testing.T) {
+	themedApp(t)
+	b := NewInfoButton(helpFull)
+	r := test.TempWidgetRenderer(t, b).(*infoButtonRenderer)
+	if !r.ring.Hidden {
+		t.Fatal("the focus ring is visible on a button without focus")
+	}
+	b.FocusGained()
+	if r.ring.Hidden {
+		t.Error("the ring must show with the focus")
+	}
+	b.FocusLost()
+	if !r.ring.Hidden {
+		t.Error("the ring must hide when the focus is lost")
+	}
+}

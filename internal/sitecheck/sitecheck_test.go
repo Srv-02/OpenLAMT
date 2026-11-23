@@ -242,3 +242,64 @@ func TestExampleAddressesOnly(t *testing.T) {
 		}
 	}
 }
+
+var (
+	sideNavRe  = regexp.MustCompile(`(?s)<nav class="side"[^>]*>(.*?)</nav>`)
+	navPageRe  = regexp.MustCompile(`<li><a href="([a-z0-9-]+\.html)"( aria-current="page")?>`)
+	navTOCRe   = regexp.MustCompile(`(?s)<ol class="toc">(.*?)</ol>`)
+	navFragRe  = regexp.MustCompile(`<a href="#([^"]+)"`)
+	headingIDs = regexp.MustCompile(`<h2 id="([^"]+)"`)
+)
+
+// TestSideNavListsEveryPage keeps the guide's side navigation the same on every page: it lists
+// every page in one order, marks the page itself as current, and its table of contents names
+// every section (h2) of that page.
+func TestSideNavListsEveryPage(t *testing.T) {
+	files := site(t)
+	all := pages(files)
+	var want []string
+	for _, page := range all {
+		nav := sideNavRe.FindStringSubmatch(files[page])
+		if nav == nil {
+			t.Errorf("%s: no <nav class=\"side\">", page)
+			continue
+		}
+		var got []string
+		current := ""
+		for _, g := range navPageRe.FindAllStringSubmatch(nav[1], -1) {
+			got = append(got, g[1])
+			if g[2] != "" {
+				if current != "" {
+					t.Errorf("%s: more than one page marked current", page)
+				}
+				current = g[1]
+			}
+		}
+		if current != page {
+			t.Errorf("%s: the side navigation marks %q as current", page, current)
+		}
+		if want == nil {
+			want = got
+			sorted := slices.Clone(got)
+			slices.Sort(sorted)
+			if !slices.Equal(sorted, all) {
+				t.Errorf("%s: the side navigation lists %v, the site has %v", page, got, all)
+			}
+		} else if !slices.Equal(got, want) {
+			t.Errorf("%s: the side navigation lists %v, other pages list %v", page, got, want)
+		}
+		var toc []string
+		if m := navTOCRe.FindStringSubmatch(nav[1]); m != nil {
+			for _, g := range navFragRe.FindAllStringSubmatch(m[1], -1) {
+				toc = append(toc, g[1])
+			}
+		}
+		var sections []string
+		for _, g := range headingIDs.FindAllStringSubmatch(files[page], -1) {
+			sections = append(sections, g[1])
+		}
+		if !slices.Equal(toc, sections) {
+			t.Errorf("%s: the table of contents lists %v, the sections are %v", page, toc, sections)
+		}
+	}
+}

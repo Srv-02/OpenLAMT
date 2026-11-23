@@ -33,7 +33,7 @@
 <li><a href="amt-settings.html">AMT settings explained</a></li>
 <li><a href="confirmations.html">Confirmations and permissions</a></li>
 <li><a href="settings.html">App settings and updates</a></li>
-<li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a><ol class="toc"><li><a href="#start">The app does not start</a></li><li><a href="#connect">Cannot connect</a></li><li><a href="#permissions">Permission messages</a></li><li><a href="#consent">User consent</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console</a></li><li><a href="#media">Media</a></li><li><a href="#keychain">Passwords and keychain</a></li><li><a href="#updates">Updates</a></li><li><a href="#report">Report a problem</a></li></ol></li>
+<li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a><ol class="toc"><li><a href="#start">The app does not start</a></li><li><a href="#connect">Cannot connect</a></li><li><a href="#permissions">Permission messages</a></li><li><a href="#consent">User consent</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console</a></li><li><a href="#media">Media</a></li><li><a href="#boot">Boot options and erase</a></li><li><a href="#certificates">Certificates and forwarding</a></li><li><a href="#keychain">Passwords and keychain</a></li><li><a href="#updates">Updates</a></li><li><a href="#report">Report a problem</a></li></ol></li>
 <li><a href="mcp.html">MCP server</a></li>
 </ol>
 </nav>
@@ -93,7 +93,7 @@
   <dt>OpenLAMT asks for a consent code</dt>
   <dd>The device shows a six-digit code on its screen. Ask the person at the device for it. See <a href="amt-settings.html#user-consent">User consent</a>.</dd>
   <dt>“The device did not accept the consent code.”</dt>
-  <dd>Check the six digits on the device screen and try again. The code is valid for a limited time; a new attempt shows a new one.</dd>
+  <dd>Check the six digits on the device screen and try again. The code is valid for a limited time; a new attempt shows a new one. Nothing was changed on the device.</dd>
   <dt>Nobody is at the device</dt>
   <dd>On a device in Admin Control Mode, an administrator can set <span class="ui">User consent</span> to <span class="ui">None</span> on the Settings page. In Client Control Mode, consent is always required.</dd>
 </dl>
@@ -134,6 +134,46 @@
   <dd>A folder becomes an ISO image first, which has limits: each file under 4 GiB, names up to 103 characters, names that differ in more than upper and lower case. The message names the limit.</dd>
   <dt>“The device closed the media session.”</dt>
   <dd>AMT ended the session. Mount the image again.</dd>
+</dl>
+
+<h2 id="boot">Boot options and erase</h2>
+<dl class="terms">
+  <dt>“The device is asleep. Waking it does not restart it, so the boot options would not apply.”</dt>
+  <dd>Boot Options, One Click Recovery and Erase drives refuse a sleeping device. Wake it with <span class="ui">Power On</span>, wait until it runs, then try again. Nothing was changed.</dd>
+  <dt>“… the next restart of the device may still use them.”</dt>
+  <dd>A step failed after the boot options were written, and OpenLAMT could not clear them again. Connect again and start <a href="device-window.html#boot-options">Boot Options</a> with <span class="ui">Hard disk (default order)</span>.</dd>
+  <dt>“… the next restart of the device may still erase the drives.”</dt>
+  <dd>The same for an erase. Do not restart the device if you do not want the erase. Connect again and start Boot Options with <span class="ui">Hard disk (default order)</span>: it clears the erase before the restart.</dd>
+  <dt>“Port 8443 is in use. Choose another port.”</dt>
+  <dd>Another program uses the port for One Click Recovery from a file. Enter another port in the dialog.</dd>
+  <dt>“Lab-Server did not download the image. Check the firewall on this computer.”</dt>
+  <dd>The device did not fetch the image within 10 minutes. Allow incoming connections on the port, check that the chosen address is reachable from the device, and that HTTPS boot is on in its BIOS.</dd>
+  <dt>“OpenLAMT could not remove the temporary root certificate …”</dt>
+  <dd>Delete “OpenLAMT recovery (temporary)” on the <a href="management.html#certificates">Certificates page</a>.</dd>
+  <dt>“Turn it on in the BIOS first.”</dt>
+  <dd>One Click Recovery or Remote Platform Erase is off in the BIOS of the device. Only the BIOS at the device can turn it on.</dd>
+  <dt>“Remote Platform Erase needs a TLS connection.”</dt>
+  <dd>Turn on <span class="ui">Use TLS</span> for the favorite, connect again and try again.</dd>
+  <dt>“Remote Platform Erase is off”</dt>
+  <dd>Turn on <span class="ui">Remote Platform Erase</span> under <span class="ui">Remote features</span> on the <a href="management.html#settings">Settings page</a>.</dd>
+</dl>
+
+<h2 id="certificates">Certificates and forwarding</h2>
+<dl class="terms">
+  <dt>“The file is not a certificate.”</dt>
+  <dd>Choose a <code>.pem</code>, <code>.cer</code> or <code>.crt</code> file for a trusted root, or a <code>.p12</code> or <code>.pfx</code> file for a certificate with key. The switch at the top of the import dialog decides which.</dd>
+  <dt>“Wrong password for the .p12 file.”</dt>
+  <dd>Enter the password the file was exported with. The dialog stays open.</dd>
+  <dt>“No certificate in the file matches its private key.” or “The key in the file is not an RSA key.”</dt>
+  <dd>Export the file again with the certificate that belongs to the key. Intel AMT accepts only RSA keys.</dd>
+  <dt>“Lab-Server has no space for more certificates.”</dt>
+  <dd>Delete certificates or keys the device no longer needs, then import again.</dd>
+  <dt>“Certificate in use”</dt>
+  <dd>The device uses this certificate for TLS. Choose another TLS certificate on the Settings page first.</dd>
+  <dt>“Lab-Server refused the target: …”</dt>
+  <dd>The device did not accept the forwarding target. The reason comes from the device; check the address and the sign-in.</dd>
+  <dt>“No permission for audit settings”</dt>
+  <dd>Sign in with an account that has the <span class="ui">Audit log</span> permission.</dd>
 </dl>
 
 <h2 id="keychain">Passwords and keychain</h2>

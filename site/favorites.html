@@ -132,7 +132,7 @@
 <h3 id="scan-columns">What the columns mean</h3>
 <dl class="terms">
   <dt>Intel AMT</dt><dd>The AMT version the device reports without a login, or “unknown”.</dd>
-  <dt>Connection</dt><dd>“TLS” when port 16993 is open, “No TLS” when only 16992 is open. “Ports closed” means the device answered on UDP port 623 but its AMT ports are closed. AMT is then often not activated (“Not activated?”). You can still add it.</dd>
+  <dt>Connection</dt><dd>“TLS” when port 16993 is open, “No TLS” when only 16992 is open. “Ports closed” means the device answered on UDP port 623 as a DASH management device, but its AMT ports are closed. AMT is then often not activated (“Not activated?”). You can still add it. Other management controllers that answer on port 623, such as IPMI BMCs of servers, are not listed.</dd>
 </dl>
 <p>New favorites get the DNS name or the address as name, the user <code>admin</code>, TLS when port 16993 is open, and no password. OpenLAMT asks for the password on the first connection.</p>
 <p>The scan only reads. It sends a presence ping on UDP port 623 and checks TCP ports 16992 and 16993. One run covers at most 4,096 addresses (a <code>/20</code>). Scan larger networks in parts.</p>
@@ -187,7 +187,7 @@
 <h3 id="import">Import</h3>
 <p><span class="ui">Import…</span> opens a file, checks it and shows a preview first. Nothing changes before you click <span class="ui">Import</span>.</p>
 <ul>
-  <li>An import only adds. A favorite with the same host as an existing one is skipped and named in the preview.</li>
+  <li>An import only adds. A favorite with the same host and the same user name as an existing one is skipped and named in the preview. A second login on a known host, with another user name, is added as a new favorite.</li>
   <li>The settings change only when you tick <span class="ui">Also apply settings</span>.</li>
   <li>Imported favorites have no password. OpenLAMT asks on the first connection.</li>
   <li>An imported fingerprint never replaces one this computer already trusts. OpenLAMT then names the favorites where the file holds a different certificate.</li>

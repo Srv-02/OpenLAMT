@@ -140,6 +140,7 @@ figure.shot figcaption{color:var(--muted);font-size:14px;margin-top:2px;max-widt
   h1{font-size:28px}
   h2{font-size:21px}
   .brand small{display:none}
+  .ui{white-space:normal}
 }
 @media (max-width:480px){ .themebar button{padding:3px 7px} }
 

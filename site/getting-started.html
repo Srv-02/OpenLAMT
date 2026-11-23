@@ -146,7 +146,7 @@
 <h3 id="consent">User consent code</h3>
 <div class="prose">
 <p>Some devices ask a person at the device to agree before a remote session starts. The device then shows a six-digit code on its own screen. OpenLAMT asks for it in the dialog <span class="ui">User consent</span>. Ask the person at the device for the code and enter it. Without the code, the session does not start.</p>
-<p>When AMT asks for consent depends on the control mode and the <a href="amt-settings.html#user-consent">user consent setting</a> of the device.</p>
+<p>When AMT asks for consent depends on the control mode and the <a href="amt-settings.html#user-consent">user consent setting</a> of the device. Besides remote sessions, the same dialog appears before Reboot to BIOS, Boot Options and Erase drives on devices that require consent for boot changes. A cancelled dialog changes nothing.</p>
 </div>
 
 <figure class="shot">
@@ -214,10 +214,12 @@
     <tr><td>Passwords and certificate fingerprints</td><td>The system keychain, services <code>openlamt</code> and <code>openlamt-fingerprint</code>. Never in a file.</td></tr>
     <tr><td>Temporary ISOs of mounted folders</td><td><code>OpenLAMT/ider</code> in your cache folder, deleted on unmount</td></tr>
     <tr><td>Screenshots and recordings</td><td>The folder you choose in <a href="settings.html#remote-screen">Settings</a>, or where the save dialog puts them</td></tr>
+    <tr><td>Downloaded updates</td><td><code>~/Downloads</code>, only when you click <a href="settings.html#update-window">Update</a></td></tr>
+    <tr><td>MCP server settings and action log</td><td><code>openlamt/openlamt-mcp.json</code> and <code>openlamt/openlamt-mcp-actions.log</code> in the configuration folder, only if you use <a href="mcp.html">openlamt-mcp</a></td></tr>
   </tbody>
 </table></div>
 <div class="prose">
-<p>OpenLAMT changes nothing on a device that you did not start. On the network it talks only to your AMT devices and, once per start, to <code>api.github.com</code> for the <a href="settings.html#updates">update check</a>. You can turn the update check off.</p>
+<p>OpenLAMT changes nothing on a device that you did not start. On the network it talks only to your AMT devices and, once per start, to <code>api.github.com</code> for the <a href="settings.html#updates">update check</a>. You can turn the update check off. Only during <a href="device-window.html#one-click-recovery">One Click Recovery from a file</a> does OpenLAMT accept connections: it serves the image on the port you choose, for at most 10 minutes.</p>
 </div>
 
 <h2 id="remove">Remove OpenLAMT</h2>

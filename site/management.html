@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Device management · OpenLAMT User Guide</title>
-<meta name="description" content="Hardware, event log, audit log, AMT settings, user accounts, power policy, Wi-Fi, System Defense and the WSMAN Browser.">
+<meta name="description" content="Hardware, event log and forwarding, audit log and its settings, AMT settings and erase, user accounts, power policy, Wi-Fi, System Defense, certificates and the WSMAN Browser.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/guide.css">
 <script src="assets/guide.js"></script>
@@ -29,7 +29,7 @@
 <li><a href="getting-started.html">Getting started</a></li>
 <li><a href="favorites.html">Favorites and scan</a></li>
 <li><a href="device-window.html">Device window</a></li>
-<li><a href="management.html" aria-current="page">Device management</a><ol class="toc"><li><a href="#open">Sidebar and window</a></li><li><a href="#hardware">Hardware</a></li><li><a href="#event-log">Event log</a></li><li><a href="#audit-log">Audit log</a></li><li><a href="#settings">Settings</a></li><li><a href="#users">Users</a></li><li><a href="#power">Power</a></li><li><a href="#wifi">Wi-Fi</a></li><li><a href="#system-defense">System Defense</a></li><li><a href="#wsman">WSMAN Browser</a></li></ol></li>
+<li><a href="management.html" aria-current="page">Device management</a><ol class="toc"><li><a href="#open">Sidebar and window</a></li><li><a href="#hardware">Hardware</a></li><li><a href="#event-log">Event log</a></li><li><a href="#audit-log">Audit log</a></li><li><a href="#settings">Settings</a></li><li><a href="#users">Users</a></li><li><a href="#power">Power</a></li><li><a href="#wifi">Wi-Fi</a></li><li><a href="#system-defense">System Defense</a></li><li><a href="#certificates">Certificates</a></li><li><a href="#wsman">WSMAN Browser</a></li></ol></li>
 <li><a href="amt-settings.html">AMT settings explained</a></li>
 <li><a href="confirmations.html">Confirmations and permissions</a></li>
 <li><a href="settings.html">App settings and updates</a></li>
@@ -40,12 +40,12 @@
 <main id="main">
 <div class="content">
 <h1>Device management</h1>
-<p class="lead">Device management shows what is in a device and what its Intel AMT is set to. Change settings, manage accounts and plan wake-ups, next to the remote screen or in a window of its own.</p>
+<p class="lead">Device management shows what is in a device and what its Intel AMT is set to. Change settings, manage accounts, certificates and wake-ups, forward events or erase the drives, next to the remote screen or in a window of its own.</p>
 
 <h2 id="open">Sidebar and window</h2>
 <div class="prose">
 <p>Click <span class="ui">Manage</span> in the device window. A sidebar opens next to the remote screen. The external-link symbol <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg> in its head opens the same pages in a window of their own, with a list of pages on the left.</p>
-<p>The sidebar has a tab for each main page: <span class="ui">Hardware</span>, <span class="ui">Events</span>, <span class="ui">Audit</span>, <span class="ui">Settings</span> and <span class="ui">Users</span>. The last tab, <span class="ui">More</span>, opens a menu with further pages. A page you choose there gives the tab its name, for example <span class="ui">Power</span>. Pages marked with <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg> in the menu, such as the WSMAN Browser, need more room and open in the window.</p>
+<p>The sidebar has a tab for each main page: <span class="ui">Hardware</span>, <span class="ui">Events</span>, <span class="ui">Audit</span>, <span class="ui">Settings</span> and <span class="ui">Users</span>. The last tab, <span class="ui">More</span>, opens a menu with further pages. A page you choose there gives the tab its name, for example <span class="ui">Power</span>, or <span class="ui">Certs</span> for Certificates. Pages marked with <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg> in the menu, such as the WSMAN Browser, need more room and open in the window.</p>
 </div>
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
@@ -59,6 +59,7 @@
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div>
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div>
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div>
         <div class="msep"></div>
         <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser<span class="k"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg></span></div>
       </div>
@@ -69,7 +70,7 @@
 <figcaption>The sidebar with the More menu open.</figcaption>
 </figure>
 <div class="prose">
-<p>The pages under <span class="ui">More</span> are <a href="#power">Power</a>, <a href="#wifi">Wi-Fi</a> and <a href="#system-defense">System Defense</a>. The <a href="#wsman">WSMAN Browser</a> is under <span class="ui">Diagnostics</span>.</p>
+<p>The pages under <span class="ui">More</span> are <a href="#power">Power</a>, <a href="#wifi">Wi-Fi</a>, <a href="#system-defense">System Defense</a> and <a href="#certificates">Certificates</a>. The <a href="#wsman">WSMAN Browser</a> is under <span class="ui">Diagnostics</span>.</p>
 <p>Every page reads its data when you open it. The foot of a page says how old the data is, for example “Read 12 s ago”. <span class="ui">Refresh</span> reads again.</p>
 <p>If the account may not read a page, the page says “This account is not allowed to read this information on the device.” Parts it may not read show “N/A”. See <a href="confirmations.html#limited-accounts">Limited accounts</a>.</p>
 </div>
@@ -78,7 +79,7 @@
 <figure class="shot">
 <div class="scr"><div class="win w880 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>Hardware</h3><span class="cnt"></span></div>
       <div class="mbody">
         <div class="sect">System</div>
@@ -102,11 +103,11 @@
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:420px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:470px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>Event log</h3><span class="cnt">· 44 entries</span>
         <div class="chips"><span class="on">All</span><span>Warning</span><span>Critical</span></div>
         <div class="fld ph" style="width:180px;height:30px;border-radius:8px"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>&nbsp;Filter</div>
-        <span class="b out">Refresh</span></div>
+        <span class="b out">Forwarding…</span><span class="b out">Refresh</span></div>
       <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Time</th><th>Severity</th><th>Source</th><th>Description</th></tr></thead><tbody>
         <tr><td>Nov 23, 2026 09:58:12</td><td><span class="dot" style="background:#6E6E73"></span> Info</td><td>BIOS</td><td>Starting operating system boot process</td></tr>
         <tr><td>Nov 23, 2026 09:57:31</td><td><span class="dot" style="background:#C75300"></span> Warning</td><td>BIOS</td><td>No bootable media found</td></tr>
@@ -115,7 +116,7 @@
     </div>
   </div>
 </div></div>
-<figcaption>The event log, filtered by severity and text.</figcaption>
+<figcaption>The event log, filtered by severity and text. <span class="ui">Forwarding…</span> sets where Intel AMT sends events.</figcaption>
 </figure>
 <div class="prose">
 <p>The event log holds what the platform reported: BIOS progress, boot problems, sensor events and AMT messages. The device keeps it in its own memory, so it also covers times when the operating system did not run.</p>
@@ -125,10 +126,104 @@
 </ul>
 </div>
 
+<h3 id="forwarding">Event forwarding</h3>
+<div class="prose">
+<p><span class="ui">Forwarding…</span> in the head of the event log lists the targets to which Intel AMT sends its events as they happen, for example a SIEM collector or a monitoring server. AMT sends them as WS-Management events (WS-Eventing). OpenLAMT only sets the target on the device; it does not receive events itself and runs no listener. Syslog is not offered.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w600">
+    <h4>Event forwarding</h4>
+    <p style="color:var(--text2)">Intel AMT sends events to these targets. OpenLAMT only sets the target; it does not receive events.</p>
+    <div class="tcard"><table class="mt"><thead><tr><th>Target</th><th>Delivery</th><th>Events</th><th></th></tr></thead><tbody>
+      <tr><td class="mono">http://192.0.2.5:16997/events</td><td>Push</td><td>All</td><td class="ra"><span class="b out sm">Edit</span></td></tr>
+      <tr><td class="mono">https://siem.example.com/amt</td><td>Push with acknowledgement</td><td>All</td><td class="ra"><span class="b out sm">Edit</span></td></tr>
+    </tbody></table></div>
+    <div class="foot"><span class="b out left">+ Add Target</span><span class="b pri">Done</span></div>
+  </div>
+  <div class="dlg w520">
+    <h4>Add forwarding target</h4>
+    <div class="fl" style="margin-top:0">Address</div><div class="fld mono" style="font-size:12px">http://192.0.2.5:16997/events</div>
+    <div class="hint">A listener that accepts WS-Management events, for example a SIEM collector.</div>
+    <div class="grid2"><div><div class="fl">Delivery</div><span class="seg"><span class="on">Push</span><span>With acknowledgement</span></span></div><div><div class="fl">Events</div><span class="dd" style="height:30px;width:100%">All <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div></div>
+    <div class="fl">Sign-in at the target</div><span class="seg"><span class="on">None</span><span>Digest</span></span>
+    <div class="grid2" style="opacity:.4"><div><div class="fl">User name</div><div class="fld ph">User name</div></div><div><div class="fl">Password</div><div class="fld ph">Password</div></div></div>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Add Target</span></div>
+  </div>
+</div></div>
+<figcaption>The list of targets and the dialog for a new one. Without targets the list says “No targets”: Intel AMT keeps events only in its own event log.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Address</dt><dd>The URL of the listener, starting with <code>http://</code> or <code>https://</code>, up to 253 characters. Anything else shows “Enter an address that starts with http:// or https://.” below the field.</dd>
+  <dt>Delivery</dt><dd><span class="ui">Push</span> sends each event once. <span class="ui">With acknowledgement</span> waits until the listener confirms each event.</dd>
+  <dt>Events</dt><dd>Which events AMT sends. The list shows the event groups the device offers, with the device’s own names. <span class="ui">All</span> is the default.</dd>
+  <dt>Sign-in at the target</dt><dd><span class="ui">None</span>, or <span class="ui">Digest</span> with a user name and password for the listener. Over a connection without TLS, OpenLAMT first asks <span class="ui">Send the key without TLS?</span>, because the password travels unencrypted.</dd>
+</dl>
+<p>Adding a target asks nothing. If the device refuses it, OpenLAMT shows the reason, for example “Lab-Server refused the target: …”.</p>
+<p>Intel AMT cannot change a target. <span class="ui">Edit</span> therefore opens <span class="ui">Edit forwarding target</span>, which only shows address, delivery and events. To change a target, click <span class="ui">Delete Target…</span> there (<span class="lv simple">simple</span>: “Intel AMT stops sending events to …”) and add a new one.</p>
+</div>
+
 <h2 id="audit-log">Audit log</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:470px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Audit log</h3><span class="cnt">· 34 entries</span>
+        <div class="fld ph" style="width:200px;height:30px;border-radius:8px"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>&nbsp;Filter</div>
+        <span class="b out">Settings…</span><span class="b out">Refresh</span></div>
+      <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Time</th><th>Initiator</th><th>Address</th><th>Event</th></tr></thead><tbody>
+        <tr><td>Nov 23, 2026 10:00:00</td><td>admin</td><td>192.0.2.50</td><td>KVM Session Started</td></tr>
+        <tr><td>Nov 22, 2026 18:12:09</td><td>admin</td><td>192.0.2.50</td><td>Audit Policy Changed</td></tr>
+        <tr><td>Nov 22, 2026 18:11:47</td><td>helpdesk</td><td>192.0.2.51</td><td>Remote Power Action</td></tr>
+      </tbody></table></div><div class="mfoot">Newest first. Read in 0.3 s.</div></div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The audit log. <span class="ui">Settings…</span> opens the audit log settings.</figcaption>
+</figure>
 <div class="prose">
 <p>The audit log records who did what on the device: sign-ins, remote sessions, power actions and changes to settings and accounts. Each entry names the <span class="ui">Initiator</span> (the account), the network <span class="ui">Address</span> it came from and the <span class="ui">Event</span>. <span class="ui">Filter</span> searches the text, and a click opens the details, as in the event log.</p>
 <p>Which events AMT records depends on the audit policy of the device. An account needs the permission <span class="ui">Audit log</span> to read the log.</p>
+</div>
+
+<h3 id="audit-settings">Audit log settings</h3>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Audit log settings</h4>
+    <div class="card">
+      <div class="r"><span class="lw" style="display:flex;gap:6px;align-items:center">Record events <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="sw on"></span></div>
+      <div class="r"><span class="lw" style="display:flex;gap:6px;align-items:center">When the log is full <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="dd">Overwrite oldest entries <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+      <div class="r"><span class="lw">Space used</span><span class="rt">34 entries · 9 %</span></div>
+    </div>
+    <div class="fl">Recorded events</div>
+    <div class="grid2" style="font-size:12.5px"><span class="ck on"><i></i>Accounts and security</span><span class="ck on"><i></i>Power and boot (remote control)</span><span class="ck on"><i></i>KVM, media and console sessions</span><span class="ck on"><i></i>Firmware updates</span><span class="ck on"><i></i>Network settings</span><span class="ck on"><i></i>Clock</span><span class="ck"><i></i>Event forwarding</span><span class="ck"><i></i>System Defense</span><span class="ck"><i></i>Agent watchdog</span><span class="ck"><i></i>Wi-Fi</span><span class="ck on"><i></i>User consent</span><span class="ck on"><i></i>Audit log changes</span></div>
+    <div class="card" style="margin-top:12px">
+      <div class="r"><div class="lw">Clear the log<div class="d">Deletes all 34 entries.</div></div><span class="b red sm">Clear Log…</span></div>
+    </div>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Save</span></div>
+  </div>
+  <div class="dlg">
+    <h4>Clear the audit log of Lab-Server?</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg><div><b>This cannot be undone.</b> All 34 entries are deleted. The log keeps one new entry that says it was cleared.</div></div>
+    <label class="risk"><input type="checkbox" disabled>I understand the risk for Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Cancel</span><span class="b red dis">Clear Log</span></div>
+  </div>
+</div></div>
+<figcaption>The audit log settings, and the red confirmation before the log is cleared.</figcaption>
+</figure>
+<div class="prose">
+<p><span class="ui">Settings…</span> in the head of the audit log opens the audit policy of the device. Changes are written when you click <span class="ui">Save</span>.</p>
+<dl class="terms">
+  <dt>Record events</dt><dd>Switches the audit log on or off. Leave it on. While it is off, changes to the device leave no trace in the audit log; a few events are always recorded. Switching it off asks <span class="lv or">orange</span> (“Changes to Lab-Server are no longer recorded.”).</dd>
+  <dt>When the log is full</dt><dd><span class="ui">Overwrite oldest entries</span> keeps recording. <span class="ui">Overwrite after a minimum age</span> keeps entries for the <span class="ui">Days to keep</span> you enter (1 to 100) before it overwrites them. <span class="ui">Stop recording</span> keeps every entry until you clear the log; while the log is full, Intel AMT then blocks critical actions.</dd>
+  <dt>Space used</dt><dd>How many entries the log holds and how full it is.</dd>
+  <dt>Recorded events</dt><dd>Twelve groups of events in plain words, from <span class="ui">Accounts and security</span> to <span class="ui">Audit log changes</span>. A group is ticked when the device records any event of it. Ticking a group records all its events; clearing the tick stops them.</dd>
+  <dt>Clear the log</dt><dd><span class="ui">Clear Log…</span> deletes every entry at once and asks <span class="lv red">red</span>. The log then holds one new entry that says it was cleared.</dd>
+</dl>
+<p>An account that may read the audit log but not change its settings gets “No permission for audit settings”. Changing the settings needs an account with the <span class="ui">Audit log</span> permission on the device; see <a href="amt-settings.html#realms">Accounts and realms</a>.</p>
+<p>OpenLAMT offers no way to pause the audit log. Intel AMT can lock the log for at most five minutes, records nothing meanwhile and refuses critical actions. OpenLAMT uses this lock only for a moment while it clears the log.</p>
 </div>
 
 <h2 id="settings">Settings</h2>
@@ -138,44 +233,48 @@
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:900px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:1010px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>Settings</h3><span class="cnt"></span></div>
       <div class="mbody" style="gap:8px">
         <div class="sect">General</div>
         <div class="card">
-          <div class="r"><span class="lw">Host name</span><span class="rt">labserver <span class="b out sm">Change…</span></span></div>
-          <div class="r"><span class="lw">Domain</span><span class="rt">example.com <span class="b out sm">Change…</span></span></div>
-          <div class="r"><span class="lw">Respond to ping</span><span class="sw on g"></span></div>
-          <div class="r"><span class="lw">Dynamic DNS</span><span class="sw"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Host name <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="rt">labserver <span class="b out sm">Change…</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Domain <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="rt">example.com <span class="b out sm">Change…</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Respond to ping <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Dynamic DNS <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="sw"></span></div>
         </div>
         <div class="sect">Environment detection</div>
-        <div class="card"><div class="r"><span class="lw">Intranet domains</span><span class="rt">example.com <span class="b out sm">Change…</span></span></div></div>
+        <div class="card"><div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Intranet domains <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="rt">example.com <span class="b out sm">Change…</span></span></div></div>
         <div class="sect">Network</div>
-        <div class="card"><div class="r"><span class="lw">Address</span><span class="seg"><span class="on">DHCP</span><span>Static</span></span></div><div class="r"><span class="lw">IP address</span><span class="rt" style="color:var(--text)">192.0.2.10 / 24 · gateway 192.0.2.1</span></div></div>
+        <div class="card"><div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Address <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="seg"><span class="on">DHCP</span><span>Static</span></span></div><div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">IP address <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="rt" style="color:var(--text)">192.0.2.10 / 24 · gateway 192.0.2.1</span></div></div>
         <div class="sect">Remote features</div>
         <div class="card">
-          <div class="r"><span class="lw">KVM</span><span class="sw on g"></span></div>
-          <div class="r"><span class="lw">Media redirection (IDE-R)</span><span class="sw on g"></span></div>
-          <div class="r"><span class="lw">Serial over LAN (SOL)</span><span class="sw"></span></div>
-          <div class="r"><span class="lw">User consent</span><span class="seg"><span>None</span><span class="on">KVM only</span><span>All</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">KVM <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Media redirection (IDE-R) <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Serial over LAN (SOL) <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="sw"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">User consent <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="seg"><span>None</span><span class="on">KVM only</span><span>All</span></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">One Click Recovery (HTTPS boot) <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><div class="d">Also needs to be on in the BIOS.</div></div><span class="sw on g"></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">Remote Platform Erase <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><div class="d">Allows Erase drives in the danger zone.</div></div><span class="sw on g"></span></div>
         </div>
         <div class="sect">Clock and TLS</div>
         <div class="card">
-          <div class="r"><span class="lw">AMT clock</span><span class="rt">15 s behind <span class="b out sm">Sync Now</span></span></div>
-          <div class="r"><span class="lw">TLS certificate</span><span class="rt">SHA-256 4F:2A:…:9C <span class="b out sm">Change…</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">AMT clock <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="rt">15 s behind <span class="b out sm">Sync Now</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">TLS certificate <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="rt">SHA-256 4F:2A:…:9C <span class="b out sm">Change…</span></span></div>
         </div>
         <div class="sect" style="color:var(--danger)">Danger zone</div>
         <div class="redcard">
-          <div class="r"><div class="lw"><b>Turn off AMT</b><div class="d">Only the BIOS (MEBx) at the device can turn it back on.</div></div><span class="b red sm">Turn Off…</span></div>
+          <div class="r"><div class="lw"><b style="display:inline-flex;align-items:center;gap:6px">Turn off AMT <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></b><div class="d">Only the BIOS (MEBx) at the device can turn it back on.</div></div><span class="b red sm">Turn Off…</span></div>
+          <div class="r"><div class="lw"><b>Erase drives</b><div class="d">Restarts the device and erases its drives.</div></div><span class="b red sm">Erase…</span></div>
         </div>
       </div>
     </div>
   </div>
 </div></div>
-<figcaption>The Settings page of a device in Admin Control Mode.</figcaption>
+<figcaption>The Settings page of a device in Admin Control Mode that supports One Click Recovery and Remote Platform Erase. The ⓘ buttons explain each setting.</figcaption>
 </figure>
 <div class="prose">
 <p>Switches and choices write at once. A change that can cut you off from the device asks first and names the device. <span class="ui">Change…</span> opens a dialog with the new value.</p>
+<p><span class="ui">One Click Recovery (HTTPS boot)</span> and <span class="ui">Remote Platform Erase</span> appear only where the device supports them, on newer devices (Intel AMT 16 and later). <span class="ui">Erase drives</span> shows “Lab-Server does not support remote erase.” and a grey button on a device without any remote erase.</p>
 </div>
 <div class="tbl"><table class="ref">
   <thead><tr><th>Setting</th><th>Change</th><th>Asks</th></tr></thead>
@@ -187,13 +286,34 @@
     <tr><td>Address (DHCP or Static)</td><td>Choice opens <span class="ui">Change network settings</span> with address, subnet mask, gateway and DNS</td><td><span class="lv red">red</span></td></tr>
     <tr><td>KVM, Media redirection, Serial over LAN</td><td>Switch. Turning on asks nothing</td><td><span class="lv or">orange</span> to turn off</td></tr>
     <tr><td>User consent</td><td>Choice: None, KVM only, All</td><td><span class="lv none">no</span></td></tr>
+    <tr><td>One Click Recovery (HTTPS boot)</td><td>Switch. Allows <a href="device-window.html#one-click-recovery">HTTPS boot</a> from <span class="ui">Boot Options…</span></td><td><span class="lv none">no</span></td></tr>
+    <tr><td>Remote Platform Erase</td><td>Switch. Allows <a href="#erase">Erase drives</a></td><td><span class="lv none">no</span></td></tr>
     <tr><td>AMT clock</td><td><span class="ui">Sync Now</span> sets it to the time of your computer</td><td><span class="lv none">no</span></td></tr>
     <tr><td>TLS certificate</td><td><span class="ui">Change…</span>: choose one of the certificates on the device</td><td><span class="lv or">orange</span></td></tr>
     <tr><td>Turn off AMT</td><td><span class="ui">Turn Off…</span></td><td><span class="lv red">red</span>, cannot be undone remotely</td></tr>
+    <tr><td>Erase drives</td><td><span class="ui">Erase…</span></td><td><span class="lv red">red</span>, cannot be undone</td></tr>
   </tbody>
 </table></div>
 <div class="prose">
 <p>Some devices do not let you change a setting remotely, for example the user consent policy in Client Control Mode. The control is then disabled, or the device answers “The device does not allow changing this setting.”</p>
+<p>One Click Recovery and Remote Platform Erase must also be on in the BIOS of the device. If the BIOS has them off, the switch fails with “Turn it on in the BIOS first.”</p>
+</div>
+
+<h3 id="help">The ⓘ buttons</h3>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="pop" style="position:static">
+    <h5>Intranet domains</h5>
+    <p><span class="k">What it does:</span> Intel AMT compares the DNS suffix it gets from DHCP with these domains. If none matches, AMT assumes it is outside your network.</p>
+    <p><span class="k">When you need it:</span> Only for management from outside your network. On a home or lab network, leave it as it is.</p>
+    <p><span class="k">What can go wrong:</span> A wrong entry can make AMT treat your own network as outside, so it may stop answering there.</p>
+    <p style="margin:0"><span class="k">How to recover:</span> Correct the list here. If the device does not answer any more, use the BIOS (MEBx) at the device.</p>
+  </div>
+</div></div>
+<figcaption>The help of the Intranet domains row.</figcaption>
+</figure>
+<div class="prose">
+<p>The ⓘ next to a setting opens a short help: what it does and when you need it. Where a change carries a risk, it also says what can go wrong and how to recover. A click next to it or <kbd>Esc</kbd> closes it. The ⓘ buttons are on the Settings page, in the user dialog (Access and Permissions), on the Power, Wi-Fi and System Defense pages and in the audit log settings. <a href="amt-settings.html">AMT settings explained</a> is the long form.</p>
 </div>
 
 <figure class="shot">
@@ -211,11 +331,61 @@
 <figcaption>A red confirmation. The button stays disabled until the checkbox with the device name is ticked.</figcaption>
 </figure>
 
+<h3 id="erase">Erase drives</h3>
+<div class="prose">
+<p><span class="ui">Erase…</span> in the <span class="ui">Danger zone</span> has the BIOS of the device erase its drives at the next start, without anyone at the device. Use it before you pass a device on or dispose of it.</p>
+</div>
+<div class="warn"><b>This cannot be undone.</b>The operating system and every file on the drives are lost. Try it first on a device with a spare, blank drive.</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w520">
+    <h4>Erase drives on Lab-Server?</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg><div><b>This cannot be undone.</b> Lab-Server restarts and erases what you select below. The operating system and all files on the drives are lost.</div></div>
+    <div class="fl">Erase</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+          <span class="ck on"><i></i>Securely erase all SSDs</span>
+          <span class="ck on"><i></i>Verify the erase</span>
+          <span class="ck"><i></i>Clear the TPM</span>
+          <span class="ck"><i></i>Reset BIOS settings (clear BIOS variables)</span>
+          <span class="ck dis"><i></i>Reload the BIOS factory configuration (not supported)</span>
+          <span class="ck"><i></i>Unconfigure Intel AMT · remote access ends</span>
+    </div>
+    <div class="fl">Drive password</div><div class="fld ph">Only if the drive has a password</div>
+    <div class="hint" style="margin-bottom:10px">Sent over TLS. Without TLS, OpenLAMT warns first.</div>
+    <label class="risk"><input type="checkbox" disabled>I understand the risk for Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Cancel</span><span class="b red dis">Erase Drives</span></div>
+  </div>
+  <div class="dlg">
+    <div class="qhead"><div class="qtile blue"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg></div><div>
+    <h4>Erase started</h4>
+    <p>Lab-Server restarts and erases the drives. The BIOS reports progress and the result in the event log.</p></div></div>
+    <div class="foot"><span class="b">Open Event Log</span><span class="b pri">OK</span></div>
+  </div>
+</div></div>
+<figcaption>The red confirmation with Remote Platform Erase, and the message after the start. The device in this example cannot reload its BIOS factory configuration.</figcaption>
+</figure>
+<div class="prose">
+<p>What the dialog offers depends on the device:</p>
+<ul>
+  <li><b>Remote Platform Erase</b> (newer devices): a list of what to erase. <span class="ui">Securely erase all SSDs</span> and <span class="ui">Verify the erase</span> are ticked. You can also clear the TPM, reset the BIOS settings, reload the BIOS factory configuration and unconfigure Intel AMT. Unconfiguring AMT ends remote access after the erase. What the BIOS cannot do is grey with “(not supported)”.</li>
+  <li><b>Remote Secure Erase</b> (older devices): one choice, <span class="ui">Securely erase the boot drive</span>.</li>
+</ul>
+<p><span class="ui">Drive password</span> is only needed if the drive has a password; up to 32 printable ASCII characters. Over a connection without TLS, OpenLAMT asks <span class="ui">Send the key without TLS?</span> first. <span class="ui">Erase Drives</span> works only after you choose something and tick the checkbox with the device name. Nothing is sent before.</p>
+<p>Then OpenLAMT asks for the <a href="getting-started.html#consent">user consent code</a> if the device requires one, sets the erase and restarts the device; a device that is off is powered on. The Power menu is locked meanwhile. <span class="ui">Open Event Log</span> shows the progress the BIOS reports.</p>
+<ul>
+  <li>Remote Platform Erase must be on under <span class="ui">Remote features</span>. If it is off, <span class="ui">Erase…</span> shows <span class="ui">Remote Platform Erase is off</span> with the way to turn it on. It must also be on in the BIOS.</li>
+  <li>Remote Platform Erase needs a TLS connection: “Remote Platform Erase needs a TLS connection. Connect to the device with TLS and try again.”</li>
+  <li>A device that sleeps is refused. Wake it with <span class="ui">Power On</span>, wait until it runs, then try again.</li>
+  <li>While another power action runs, OpenLAMT asks you to wait until it ends.</li>
+  <li>If a step fails after the erase was set, OpenLAMT clears it again. If even that fails, it says that the next restart may still erase the drives. Do not restart the device then. Connect again and start <a href="device-window.html#boot-options">Boot Options</a> with <span class="ui">Hard disk (default order)</span>: that clears the erase.</li>
+</ul>
+</div>
+
 <h2 id="users">Users</h2>
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:440px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:440px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>Users</h3><span class="cnt"></span><span class="b out">+ Add user</span></div>
       <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Name</th><th>Status</th><th>Access</th><th>Permissions</th><th></th></tr></thead><tbody>
         <tr><td>admin</td><td>Enabled</td><td>Network and local</td><td>Administrator</td><td class="ra"><span class="b out sm">Edit</span></td></tr>
@@ -246,7 +416,7 @@
 <h3 id="admin-account">The admin account</h3>
 <p>The built-in admin account has every permission and cannot be deleted. <span class="ui">Edit</span> on it opens <span class="ui">Change the admin account</span> for a new name or password. This asks <span class="lv red">red</span>: if the new password is lost, only the BIOS (MEBx) at the device can reset it. Tick <span class="ui">Update the password in the keychain</span> when OpenLAMT signs in with this account.</p>
 <h3 id="own-account">Your own account</h3>
-<p>The account OpenLAMT is signed in with carries a red <span style="color:var(--danger)">*</span>. Its <span class="ui">Edit</span> opens <span class="ui">Edit your account</span>, without <span class="ui">Enabled</span> and without <span class="ui">Delete User…</span>, because AMT does not allow either for the account of the running connection. Saving asks <span class="lv or">orange</span> and lists the changes, because a wrong password or a removed permission can lock you out. After a password change OpenLAMT updates the keychain. If that fails, it shows the new password once so you can copy it.</p>
+<p>The account OpenLAMT is signed in with carries a red <span style="color:var(--danger)">*</span>. Its <span class="ui">Edit</span> opens <span class="ui">Edit your account</span>, without <span class="ui">Enabled</span> and without <span class="ui">Delete User…</span>, because AMT does not allow either for the account of the running connection. <span class="ui">Access</span> cannot be <span class="ui">Local</span> for it, because AMT refuses that for the account of the running connection. Saving asks <span class="lv or">orange</span> and lists the changes, because a wrong password or a removed permission can lock you out. After a password change OpenLAMT updates the keychain. If that fails, it shows the new password once so you can copy it.</p>
 </div>
 
 <figure class="shot">
@@ -280,7 +450,7 @@
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>Power</h3><span class="cnt"></span><span class="b out">Refresh</span></div>
       <div class="mbody">
         <div class="sect">Power policy</div>
@@ -352,7 +522,7 @@
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>Wi-Fi</h3><span class="cnt">· 2 profiles</span><span class="b out">+ Add Profile</span><span class="b out">Refresh</span></div>
       <div class="mbody">
         <div class="card">
@@ -401,7 +571,7 @@
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:640px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:640px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>System Defense</h3><span class="cnt">· Active policy: Allow all</span><span class="b out">Refresh</span></div>
       <div class="mbody" style="gap:8px">
         <div class="sect" style="margin-bottom:0">Policies <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span><span class="sp"></span><span class="b out sm" style="margin-bottom:6px">+ Add Policy</span></div>
@@ -446,6 +616,100 @@
 </ul>
 </div>
 
+<h2 id="certificates">Certificates</h2>
+<div class="prose">
+<p>The Certificates page is under <span class="ui">More</span>; its tab is called <span class="ui">Certs</span>. It lists the certificates and key pairs stored in Intel AMT: the TLS certificate of the device, trusted roots and other certificates. Choosing which certificate AMT uses for TLS stays on the <a href="#settings">Settings page</a>.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Certificates</h3><span class="cnt">· 3 certificates</span><span class="b out">Import…</span><span class="b out">Refresh</span></div>
+      <div class="mbody" style="gap:8px">
+        <div class="tcard"><table class="mt"><thead><tr><th>Name</th><th>Type</th><th>Valid until</th><th>Used for</th><th></th></tr></thead><tbody>
+          <tr><td>Lab-Server TLS</td><td>Certificate with key</td><td>Nov 10, 2036</td><td><span class="pill ok">TLS</span></td><td class="ra"><span style="color:var(--text2);display:inline-flex"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chevr"/></svg></span></td></tr>
+          <tr><td>ACME Lab Root CA</td><td>Trusted root</td><td>Jan 01, 2035</td><td></td><td class="ra"><span style="color:var(--text2);display:inline-flex"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chevr"/></svg></span></td></tr>
+          <tr><td>old.example.com</td><td>Certificate</td><td><span class="pill bad">Expired Mar 2025</span></td><td></td><td class="ra"><span style="color:var(--text2);display:inline-flex"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chevr"/></svg></span></td></tr>
+        </tbody></table></div>
+        <div class="sect" style="margin-top:8px">Key pairs</div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Key</th><th>Certificate</th><th></th></tr></thead><tbody>
+          <tr><td class="mono">RSA 2048 · 4F:2A:…:9C</td><td>Lab-Server TLS</td><td class="ra"><span class="b out sm dis">Delete…</span></td></tr>
+          <tr><td class="mono">RSA 2048 · 7B:E1:…:04</td><td>none</td><td class="ra"><span class="b out sm">Delete…</span></td></tr>
+        </tbody></table></div>
+        <div class="mfoot">Click a certificate for details. Choose the TLS certificate in Settings › Clock and TLS.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The Certificates page. An expired certificate has a red date.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Type</dt><dd><span class="ui">Trusted root</span>: a certificate authority the device trusts, for example for HTTPS boot. <span class="ui">Certificate with key</span>: a certificate whose private key is on the device, such as the TLS certificate. <span class="ui">Certificate</span>: one without a key.</dd>
+  <dt>Used for</dt><dd><span class="ui">TLS</span> marks the certificate AMT presents on its TLS ports.</dd>
+  <dt>Key pairs</dt><dd>The private keys on the device and the certificate each belongs to. A key that belongs to a certificate cannot be deleted; its grey <span class="ui">Delete…</span> says which certificate to delete first. A key without a certificate (“none”) can be deleted, <span class="lv simple">simple</span>.</dd>
+</dl>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Lab-Server TLS</h4>
+    <div class="card">
+      <div class="r"><span class="l">Subject</span><span class="v">CN=lab.example.com, O=ACME Lab</span></div>
+      <div class="r"><span class="l">Issuer</span><span class="v">CN=ACME Lab Root CA</span></div>
+      <div class="r"><span class="l">Valid</span><span class="v">Nov 10, 2026 to Nov 10, 2036</span></div>
+      <div class="r"><span class="l">Serial</span><span class="v mono">0A:3F:91:22:5C</span></div>
+      <div class="r"><span class="l">SHA-256</span><span class="v mono" style="font-size:11px;word-break:break-all">4F:2A:8C:11:D0:5B:77:E2:19:AC:3E:60:F4:0B:9D:12:55:C7:81:2E:6A:F9:03:B4:DE:71:28:9A:C5:0F:4E:9C</span></div>
+      <div class="r"><span class="l">Key</span><span class="v">RSA 2048, private key on the device</span></div>
+      <div class="r"><span class="l">Used for</span><span class="v">TLS</span></div>
+    </div>
+    <div class="foot"><span class="b red left">Delete Certificate…</span><span class="b">Save as File…</span><span class="b pri">Close</span></div>
+  </div>
+  <div class="dlg">
+    <h4>Import certificate</h4>
+    <span class="seg"><span class="on">Trusted root</span><span>Certificate with private key</span></span>
+    <div class="fl">File</div><div style="display:flex;gap:8px"><div class="fld mono" style="flex:1;font-size:12px">acme-root.pem</div><span class="b out">Choose File…</span></div>
+    <div class="hint">.pem, .cer or .crt. For a certificate with key: .p12 or .pfx with password.</div>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Import</span></div>
+  </div>
+</div></div>
+<figcaption>The details of a certificate, and the import of a trusted root.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="certificate-details">Details</h3>
+<p>A click on a row shows subject, issuer, validity, serial number, SHA-256 fingerprint, key and use. <span class="ui">Save as File…</span> saves the public certificate as a <code>.pem</code> file. The private key never leaves the device.</p>
+<h3 id="certificate-import">Import</h3>
+<ul>
+  <li><span class="ui">Trusted root</span>: a <code>.pem</code>, <code>.cer</code> or <code>.crt</code> file. Use it so the device trusts your own HTTPS server for <a href="device-window.html#one-click-recovery">One Click Recovery</a> from a URL.</li>
+  <li><span class="ui">Certificate with private key</span>: a <code>.p12</code> or <code>.pfx</code> file and its password, for example a TLS certificate from your own certificate authority. OpenLAMT picks the certificate in the file that matches the private key. Intel AMT accepts only RSA keys. After the import, choose it as TLS certificate on the Settings page.</li>
+  <li>OpenLAMT reads the file while the dialog stays open, so you can pick another file or correct the password. The password is not saved, and the private key stays only in memory until it is sent.</li>
+  <li>Over a connection without TLS, OpenLAMT asks <span class="ui">Send the key without TLS?</span> before it sends a private key. A trusted root holds no secret and needs no question.</li>
+  <li>Importing asks nothing else. Messages you may see: “The file is not a certificate.”, “Wrong password for the .p12 file.”, “No certificate in the file matches its private key.”, “The key in the file is not an RSA key.”, “The device already has this certificate or key.” and “Lab-Server has no space for more certificates.”</li>
+</ul>
+<h3 id="certificate-delete">Delete</h3>
+<ul>
+  <li><span class="ui">Delete Certificate…</span> in the details removes a certificate. For a certificate or key nothing uses, it asks <span class="lv simple">simple</span>.</li>
+  <li>Deleting a trusted root asks <span class="lv or">orange</span>: the device no longer trusts servers signed by this root, and HTTPS boot from such servers stops working.</li>
+  <li>The device refuses to delete the certificate it uses for TLS. OpenLAMT then shows <span class="ui">Certificate in use</span> with <span class="ui">Open Settings</span>: choose another TLS certificate there first.</li>
+</ul>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>Delete “ACME Lab Root CA”?</h4>
+    <div class="wbox"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg><div>Lab-Server no longer trusts servers signed by this root. HTTPS boot from such servers stops working.</div></div>
+    <label class="risk"><input type="checkbox" disabled>I understand the risk for Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Cancel</span><span class="b red dis">Delete Certificate</span></div>
+  </div>
+  <div class="dlg">
+    <div class="qhead"><div class="qtile blue"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></div><div>
+    <h4>Certificate in use</h4><p>Lab-Server uses “Lab-Server TLS” for TLS. Choose another TLS certificate in Settings first, then delete this one.</p></div></div>
+    <div class="foot"><span class="b">Open Settings</span><span class="b pri">OK</span></div>
+  </div>
+</div></div>
+<figcaption>The orange question before a trusted root goes, and the message when you try to delete the TLS certificate.</figcaption>
+</figure>
+
 <h2 id="wsman">WSMAN Browser</h2>
 <div class="prose">
 <p>The WSMAN Browser shows the raw data of Intel AMT: the classes of the WS-Management interface and their values. Use it to look up a setting OpenLAMT does not show, or to compare devices. It only reads.</p>
@@ -454,7 +718,7 @@
 <figure class="shot">
 <div class="scr"><div class="win w1120 app">
   <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
-  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cert"/></svg>Certificates</div><div class="ngrp">Diagnostics</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
     <div class="mpage"><div class="mhead"><h3>WSMAN Browser</h3><span class="pill" style="margin-left:8px">Read only</span><span class="cnt"></span><span class="b out">Copy as XML</span><span class="b out">Refresh</span></div>
       <div class="split" style="flex:1">
         <div class="clslist">

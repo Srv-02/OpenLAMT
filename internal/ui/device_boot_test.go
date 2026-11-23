@@ -316,8 +316,8 @@ func fileDialog(t *testing.T, h *bootHarness) (*bootDialog, []byte) {
 	if b.fileText.Text != "recovery.efi · 0.0 MB" || !b.action.Disabled() {
 		t.Fatalf("file %q, Restart enabled before the risk was ticked", b.fileText.Text)
 	}
-	if b.risk.Text != "I understand the risk for Büro (device.example.com)" {
-		t.Fatalf("risk %q", b.risk.Text)
+	if b.risk.Text != "I understand the risk for Büro (device.example.com)" || !b.risk.wrap {
+		t.Fatalf("risk %q wraps %v", b.risk.Text, b.risk.wrap)
 	}
 	b.port.SetText("70000")
 	b.risk.SetChecked(true)

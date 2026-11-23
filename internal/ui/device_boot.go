@@ -301,7 +301,7 @@ func (b *bootDialog) build() []fyne.CanvasObject {
 	box, _ := warningBox(false, "", lang.L("OpenLAMT adds a temporary root certificate to {{.Name}}, so the device trusts this computer’s HTTPS server. OpenLAMT removes it after the download or after 10 minutes.",
 		map[string]any{"Name": d.name}))
 	host := d.sess.Config().Host
-	b.risk = b.newCheck(riskCheckText(deviceLabel(d.name, host), host), false)
+	b.risk = b.newWrapCheck(riskCheckText(deviceLabel(d.name, host), host), false)
 	b.risk.OnChanged = func(bool) { b.validate() }
 	b.warn = container.New(layout.NewCustomPaddedVBoxLayout(panelFormGap), box, b.risk)
 	b.hint = formHint(lang.L("Applies to the next boot only."))

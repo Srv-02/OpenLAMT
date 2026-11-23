@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -258,5 +259,179 @@ func TestTTYTerminalSeesNoTerminal(t *testing.T) {
 	defer f.Close()
 	if (ttyTerminal{in: f, out: &bytes.Buffer{}}).isTerminal() {
 		t.Fatal("a file counts as a terminal")
+	}
+}
+
+// pinConfig writes a config with certificates.pin_file into another folder than the favorites and
+// returns it with the path of the pin file, which stays next to favorites.json. Call it after isolate.
+func pinConfig(t *testing.T) (cfg, pinPath string) {
+	t.Helper()
+	favPath, err := favorites.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg = filepath.Join(t.TempDir(), "elsewhere.json")
+	if err := os.WriteFile(cfg, []byte(`{"certificates": {"pin_file": true}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return cfg, filepath.Join(filepath.Dir(favPath), mcpserver.PinFileName)
+}
+
+// TestTrustSubcommandWithPinFile: with certificates.pin_file "trust" needs no keychain and pins
+// into openlamt-pins.json next to favorites.json; "password" still uses the keychain.
+func TestTrustSubcommandWithPinFile(t *testing.T) {
+	dir := isolate(t)
+	saveFavorites(t, dir, labTLS)
+	cfg, pinPath := pinConfig(t)
+	want := strings.Repeat("ab", 32)
+	fetch := func(context.Context, string) (string, error) { return want, nil }
+	keys := keychain.NewMemory()
+	keys.Err = errors.New("the name org.freedesktop.secrets was not provided")
+
+	term := &fakeTerminal{tty: true, line: "y"}
+	code, stdout, stderr := runSub(t, []string{"--config", cfg, "trust", "Lab Server"}, deps{keys: keys, term: term, fetchFP: fetch})
+	if code != 0 || !strings.Contains(stdout, "Trusted.") || !strings.Contains(stdout, pinPath) || strings.Contains(stdout, "and the OpenLAMT app accept") {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout, stderr)
+	}
+	b, err := os.ReadFile(pinPath)
+	if wantFile := "{\n  \"admin@lab.example.com\": \"" + want + "\"\n}\n"; err != nil || string(b) != wantFile {
+		t.Fatalf("pin file %q (%v)", b, err)
+	}
+	term = &fakeTerminal{tty: true, line: "y"}
+	if code, stdout, _ = runSub(t, []string{"trust", "--config", cfg, "Lab Server"}, deps{keys: keys, term: term, fetchFP: fetch}); code != 0 ||
+		!strings.Contains(stdout, "trusted already") || len(term.prompts) != 0 {
+		t.Fatalf("again: code=%d stdout=%q", code, stdout)
+	}
+
+	keys.Err = nil
+	term = &fakeTerminal{tty: true, passwords: []string{"S3cret!", "S3cret!"}}
+	if code, _, stderr = runSub(t, []string{"--config", cfg, "password", "Lab Server"}, deps{keys: keys, term: term}); code != 0 {
+		t.Fatalf("password: code=%d stderr=%q", code, stderr)
+	}
+	if pw, _ := keys.Get("lab.example.com", "admin"); pw != "S3cret!" {
+		t.Fatalf("stored %q", pw)
+	}
+	if _, err := keys.GetFingerprint("lab.example.com", "admin"); !errors.Is(err, keychain.ErrNotFound) {
+		t.Fatalf("a fingerprint reached the keychain: %v", err)
+	}
+}
+
+// TestTrustWithoutPinFileNamesTheOption: without the option nothing changes: a keychain that
+// cannot be read stops "trust", the message names certificates.pin_file, and no pin file appears.
+func TestTrustWithoutPinFileNamesTheOption(t *testing.T) {
+	dir := isolate(t)
+	saveFavorites(t, dir, labTLS)
+	_, pinPath := pinConfig(t) // the config is not passed
+	keys := keychain.NewMemory()
+	keys.Err = errors.New("the name org.freedesktop.secrets was not provided")
+	fetch := func(context.Context, string) (string, error) {
+		t.Error("contacted the device")
+		return "", nil
+	}
+	code, _, stderr := runSub(t, []string{"trust", "Lab Server"}, deps{keys: keys, term: &fakeTerminal{tty: true, line: "y"}, fetchFP: fetch})
+	if code != 1 || !strings.Contains(stderr, "cannot read the system keychain") || !strings.Contains(stderr, `"certificates": {"pin_file": true}`) {
+		t.Fatalf("code=%d stderr=%q", code, stderr)
+	}
+	if _, err := os.Stat(pinPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("a pin file appeared: %v", err)
+	}
+}
+
+// TestRunChecksPinFileOnlyWithTheOption: with certificates.pin_file a pin file that is damaged or
+// that others may read stops the server and the subcommands before they do anything; without the
+// option the file is not even read.
+func TestRunChecksPinFileOnlyWithTheOption(t *testing.T) {
+	dir := isolate(t)
+	saveFavorites(t, dir, labTLS)
+	cfg, pinPath := pinConfig(t)
+	d := deps{keys: keychain.NewMemory(), term: &fakeTerminal{tty: true, line: "y"},
+		fetchFP: func(context.Context, string) (string, error) {
+			t.Error("contacted the device")
+			return "", nil
+		}}
+	serve := func(args ...string) (code int, served bool, stderr string) {
+		var out, errOut bytes.Buffer
+		code = runWith(args, &out, &errOut, func(context.Context, *mcp.Server) error { served = true; return nil }, d)
+		if out.Len() != 0 {
+			t.Errorf("stdout %q", out.String())
+		}
+		return code, served, errOut.String()
+	}
+	if err := os.WriteFile(pinPath, []byte(`{"admin@lab.example.com": "s3cret-value"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if code, served, stderr := serve("--config", cfg); code != 1 || served || !strings.Contains(stderr, mcpserver.PinFileName) || strings.Contains(stderr, "s3cret") {
+		t.Fatalf("damaged: code=%d served=%v stderr=%q", code, served, stderr)
+	}
+	if code, _, stderr := runSub(t, []string{"--config", cfg, "trust", "Lab Server"}, d); code != 1 || !strings.Contains(stderr, mcpserver.PinFileName) {
+		t.Fatalf("trust with a damaged file: code=%d stderr=%q", code, stderr)
+	}
+	if code, served, stderr := serve(); code != 0 || !served || !strings.Contains(stderr, "pin_file=off") {
+		t.Fatalf("without the option: code=%d served=%v stderr=%q", code, served, stderr)
+	}
+	if err := os.WriteFile(pinPath, []byte("{}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if os.PathSeparator != '\\' {
+		if err := os.Chmod(pinPath, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if code, served, stderr := serve("--config", cfg); code != 1 || served || !strings.Contains(stderr, "0600") {
+			t.Fatalf("0644: code=%d served=%v stderr=%q", code, served, stderr)
+		}
+		if err := os.Chmod(pinPath, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if code, served, stderr := serve("--config", cfg); code != 0 || !served || !strings.Contains(stderr, "pin_file=") ||
+		!strings.Contains(stderr, mcpserver.PinFileName) || strings.Contains(stderr, "pin_file=off") {
+		t.Fatalf("0600: code=%d served=%v stderr=%q", code, served, stderr)
+	}
+}
+
+// TestRunServesPinsFromTheFile: the server that runWith builds reads the pin from the file, with a
+// keychain that cannot be read: the favorites manager and Options.Keys both get the pin store.
+func TestRunServesPinsFromTheFile(t *testing.T) {
+	dir := isolate(t)
+	saveFavorites(t, dir, labTLS)
+	cfg, pinPath := pinConfig(t)
+	if err := os.WriteFile(pinPath, []byte(`{"admin@lab.example.com": "`+strings.Repeat("ab", 32)+`"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	keys := keychain.NewMemory()
+	keys.Err = errors.New("the name org.freedesktop.secrets was not provided")
+	pinned := false
+	serve := func(ctx context.Context, srv *mcp.Server) error {
+		ct, st := mcp.NewInMemoryTransports()
+		ss, err := srv.Connect(ctx, st, nil)
+		if err != nil {
+			return err
+		}
+		defer ss.Close()
+		cs, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "v0"}, nil).Connect(ctx, ct, nil)
+		if err != nil {
+			return err
+		}
+		defer cs.Close()
+		res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "list_devices"})
+		if err != nil {
+			return err
+		}
+		var out struct {
+			Devices []struct {
+				Pinned bool `json:"certificate_pinned"`
+			} `json:"devices"`
+		}
+		b, _ := json.Marshal(res.StructuredContent)
+		if err := json.Unmarshal(b, &out); err != nil || len(out.Devices) != 1 {
+			t.Errorf("list_devices: %s (%v)", b, err)
+			return nil
+		}
+		pinned = out.Devices[0].Pinned
+		return nil
+	}
+	var stdout, stderr bytes.Buffer
+	if code := runWith([]string{"--config", cfg}, &stdout, &stderr, serve, deps{keys: keys}); code != 0 || !pinned {
+		t.Fatalf("code=%d pinned=%v stderr=%q", code, pinned, stderr.String())
 	}
 }

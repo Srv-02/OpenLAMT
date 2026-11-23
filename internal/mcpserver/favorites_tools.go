@@ -137,6 +137,12 @@ func commandLine(sub, name string) string {
 	return "`openlamt-mcp " + sub + " " + name + "`"
 }
 
+// trustAgain tells how a person trusts a changed certificate of the favorite name ("" if unknown).
+func trustAgain(name string) string {
+	return "a person checks and trusts it with " + commandLine("trust", name) + " in a terminal on this computer " +
+		"(without certificates.pin_file, accepting it in the OpenLAMT app works too)"
+}
+
 // checkNewFavorite refuses fav when list has its host and user or its name already, or when
 // allowed_devices would not let the agent use it. skip is the favorite being changed.
 func (s *server) checkNewFavorite(fav favorites.Favorite, list []favorites.Favorite, skip *favorites.Favorite) error {
@@ -160,7 +166,7 @@ func (s *server) checkNewFavorite(fav favorites.Favorite, list []favorites.Favor
 
 // editError turns an error of the favorites manager into the answer: a conflict is a refusal,
 // a keychain step that failed after the file was written is a warning.
-func editError(err error) (warning string, _ error) {
+func (s *server) editError(err error) (warning string, _ error) {
 	var ke *favorites.KeychainError
 	switch {
 	case err == nil:
@@ -172,7 +178,7 @@ func editError(err error) (warning string, _ error) {
 	case errors.Is(err, favorites.ErrNotFound):
 		return "", refuse("The favorite is gone (changed in the app meanwhile). Call list_devices.")
 	case errors.As(err, &ke):
-		return "The favorites were saved, but a keychain step failed: " + explain(keychainError(ke.Err)), nil
+		return "The favorites were saved, but a keychain step failed: " + explain(s.keychainError(ke.Err)), nil
 	}
 	return "", fmt.Errorf("save the OpenLAMT favorites: %w", err)
 }
@@ -206,8 +212,12 @@ func (s *server) describe(ctx context.Context, fav favorites.Favorite, fp string
 		pin, err := s.keys.GetFingerprint(fav.Host, fav.Username)
 		out.CertificatePinned = err == nil && pin != ""
 		if !out.CertificatePinned {
-			out.NextSteps = append(out.NextSteps, "Certificate not trusted yet: a person runs "+commandLine("trust", name)+
-				" in a terminal on this computer, or connects once with the OpenLAMT app.")
+			step := "Certificate not trusted yet: a person runs " + commandLine("trust", name) +
+				" in a terminal on this computer, or connects once with the OpenLAMT app."
+			if s.cfg.Certificates.PinFile {
+				step = "Certificate not trusted yet: a person runs " + commandLine("trust", name) + " in a terminal on this computer."
+			}
+			out.NextSteps = append(out.NextSteps, step)
 		}
 	} else {
 		out.Warnings = append(out.Warnings, noTLSWarning)
@@ -359,7 +369,7 @@ func (s *server) addFavorite(ctx context.Context, req *mcp.CallToolRequest, in a
 	}
 
 	// With TLS and a client that can ask, the person may trust the certificate right here. A
-	// pin that is in the keychain already (from an earlier favorite) stays as it is.
+	// pin from an earlier favorite (keychain or pin file) stays as it is.
 	var fp string
 	var notes []string
 	pinned := false
@@ -382,7 +392,7 @@ func (s *server) addFavorite(ctx context.Context, req *mcp.CallToolRequest, in a
 				_, err := s.ask(req, question{}) // the refusal for a client without elicitation
 				return nil, favoriteOutput{}, err
 			}
-			return addQuestion(fav, fp, state, s.cfg.RequireClientConfirmation), favoriteOutput{}, nil
+			return addQuestion(fav, fp, state, s.cfg.RequireClientConfirmation, s.cfg.Certificates.PinFile), favoriteOutput{}, nil
 		}
 		if subtle.ConstantTimeCompare([]byte(req.Params.RequestState), []byte(state)) != 1 {
 			return nil, favoriteOutput{}, refuse("The arguments or the certificate of the device changed while the question was open, " +
@@ -396,13 +406,13 @@ func (s *server) addFavorite(ctx context.Context, req *mcp.CallToolRequest, in a
 		trust = fp != "" && accepted && r.Content[trustField] == true
 	}
 
-	warning, err := editError(s.editor.Add(fav))
+	warning, err := s.editError(s.editor.Add(fav))
 	if err != nil {
 		return nil, favoriteOutput{}, err
 	}
 	if trust {
 		if err := s.keys.SetFingerprint(host, user, fp); err != nil {
-			notes = append(notes, "The certificate could not be pinned: "+explain(keychainError(err)))
+			notes = append(notes, "The certificate could not be pinned: "+explain(s.keychainError(err)))
 		} else {
 			rec.action += " pinned"
 		}
@@ -419,12 +429,16 @@ func (s *server) addFavorite(ctx context.Context, req *mcp.CallToolRequest, in a
 
 // addQuestion asks the person in the MCP client about a new favorite: whether to add it (with
 // require_client_confirmation) and, when the device presented a certificate, whether to trust it.
-func addQuestion(fav favorites.Favorite, fp, state string, confirm bool) *mcp.CallToolResult {
+func addQuestion(fav favorites.Favorite, fp, state string, confirm, pinFile bool) *mcp.CallToolResult {
 	tls := "without TLS"
 	if fav.UseTLS {
 		tls = "over TLS"
 	}
 	msg := fmt.Sprintf("The AI agent adds the OpenLAMT favorite %q: user %q on %s, %s.", visible(fav.Name), visible(fav.Username), fav.Host, tls)
+	later := "\"openlamt-mcp trust\" or in the OpenLAMT app"
+	if pinFile { // trusting in the app does not count with the pin file
+		later = commandLine("trust", fav.DisplayName())
+	}
 	props := map[string]*jsonschema.Schema{}
 	var required []string
 	if confirm {
@@ -434,7 +448,7 @@ func addQuestion(fav favorites.Favorite, fp, state string, confirm bool) *mcp.Ca
 	if fp != "" {
 		msg += "\n\nThe device presents this certificate (SHA-256):\n" + fingerprintLines(fp) +
 			"\n\nIf you trust it, OpenLAMT remembers the certificate and refuses the connection if it ever changes. " +
-			"If you are not sure, leave it unticked and check it later with \"openlamt-mcp trust\" or in the OpenLAMT app."
+			"If you are not sure, leave it unticked and check it later with " + later + "."
 		props[trustField] = &jsonschema.Schema{Type: "boolean", Title: "Trust this certificate",
 			Description: "Pin the certificate shown above for this favorite."}
 	}
@@ -551,7 +565,7 @@ func (s *server) updateFavorite(ctx context.Context, req *mcp.CallToolRequest, i
 	saved, err := s.editor.Update(fav.Host, fav.Username, func(f *favorites.Favorite) {
 		f.Name, f.Host, f.Username, f.UseTLS = next.Name, next.Host, next.Username, next.UseTLS
 	})
-	warning, err := editError(err)
+	warning, err := s.editError(err)
 	if err != nil {
 		return nil, favoriteOutput{}, err
 	}
@@ -592,7 +606,7 @@ func (s *server) deleteFavorite(_ context.Context, req *mcp.CallToolRequest, in 
 		stale: "The favorite changed while the question was open, so the answer was for something else. Nothing was deleted; call delete_favorite again."}); res != nil || err != nil {
 		return res, deleteFavoriteOutput{}, err
 	}
-	warning, err := editError(s.editor.Delete(fav.Host, fav.Username, true))
+	warning, err := s.editError(s.editor.Delete(fav.Host, fav.Username, true))
 	if err != nil {
 		return nil, deleteFavoriteOutput{}, err
 	}

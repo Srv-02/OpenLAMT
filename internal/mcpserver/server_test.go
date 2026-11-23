@@ -54,6 +54,10 @@ type harness struct {
 	mgr     *favorites.Manager
 	scanner Scanner
 	fetchFP func(ctx context.Context, host string) (string, error)
+	// store, if set, is what the server reads passwords and fingerprints from instead of keys: a
+	// pin file over keys (certificates.pin_file). pinPath is that file.
+	store   keychain.Store
+	pinPath string
 
 	mu       sync.Mutex
 	connects []amt.Config
@@ -138,7 +142,11 @@ func (h *harness) start() {
 	if h.mgr != nil {
 		favs = h.mgr
 	}
-	srv := New(Options{Config: h.cfg, Favorites: favs, Keys: h.keys, Connect: h.connect, Logins: h.logins, Log: log, Logger: h.logger,
+	var keys keychain.Store = h.keys
+	if h.store != nil {
+		keys = h.store
+	}
+	srv := New(Options{Config: h.cfg, Favorites: favs, Keys: keys, Connect: h.connect, Logins: h.logins, Log: log, Logger: h.logger,
 		Scanner: h.scanner, FetchFingerprint: h.fetchFP, Version: "test"})
 	h.srv = srv
 	t.Cleanup(srv.Close)
@@ -476,7 +484,10 @@ func TestFingerprintMismatchIsExplained(t *testing.T) {
 	h.addDevice("Lab Server", "lab.example.com", true)
 	h.start()
 	h.devices["lab.example.com"].StatusErr = &amt.FingerprintMismatchError{Host: "lab.example.com", Expected: testFP, Actual: strings.Repeat("cd", 32)}
-	h.mustFail("device_status", dev("Lab Server"), "TLS certificate of the device changed")
+	text := h.mustFail("device_status", dev("Lab Server"), "TLS certificate of the device changed")
+	if !strings.Contains(text, "`openlamt-mcp trust ") || !strings.Contains(text, "certificates.pin_file") {
+		t.Fatalf("%s", text)
+	}
 }
 
 // TestPowerActionFollowsTheAppRules: on when on, anything but on when off, and shutdown
@@ -812,10 +823,13 @@ func TestKeychainUnavailable(t *testing.T) {
 	h.addDevice("Lab Server", "lab.example.com", true)
 	h.keys.Err = errors.New("the name org.freedesktop.secrets was not provided")
 	h.start()
-	h.mustFail("device_status", dev("Lab Server"), "Cannot read the system keychain")
+	text := h.mustFail("device_status", dev("Lab Server"), "Cannot read the system keychain")
+	if !strings.Contains(text, "certificates.pin_file") {
+		t.Fatalf("%s", text)
+	}
 	out := h.mustOK("list_devices", nil)
 	d := out["devices"].([]any)[0].(map[string]any)
-	if w, _ := d["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "Secret Service") || d["password_stored"] != false {
+	if w, _ := d["warnings"].([]any); len(w) != 1 || !strings.Contains(w[0].(string), "Secret Service") || !strings.Contains(w[0].(string), "certificates.pin_file") || d["password_stored"] != false {
 		t.Fatalf("%v", d)
 	}
 	if n := len(h.connectCalls()); n != 0 {

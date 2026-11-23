@@ -101,6 +101,11 @@ func subcommand(name string, args []string, configFlag string, stdout, stderr io
 	if err != nil {
 		return fail(err)
 	}
+	keys, pinPath, err := pinStore(cfg, favPath, d.keys)
+	if err != nil {
+		return fail(err)
+	}
+	d.keys = keys
 	// The manager reads under the favorites lock, so a save by the app at the same time is no problem.
 	fav, err := findFavorite(favorites.NewManager(favorites.NewStore(favPath), d.keys), strings.TrimSpace(fs.Arg(0)))
 	if err != nil {
@@ -111,7 +116,7 @@ func subcommand(name string, args []string, configFlag string, stdout, stderr io
 	} else {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		err = trustCertificate(ctx, fav, stdout, d)
+		err = trustCertificate(ctx, fav, pinPath, stdout, d)
 	}
 	if err != nil {
 		return fail(err)
@@ -189,8 +194,9 @@ func storePassword(cfg mcpserver.Config, fav favorites.Favorite, stdout io.Write
 
 // trustCertificate reads the certificate of the TLS favorite fav, shows its SHA-256 fingerprint
 // and pins it after the person answered yes: trust on first use, as in the app. A pin that
-// matches is kept; a different one is replaced only after a warning and a yes.
-func trustCertificate(ctx context.Context, fav favorites.Favorite, stdout io.Writer, d deps) error {
+// matches is kept; a different one is replaced only after a warning and a yes. pinPath is the pin
+// file with certificates.pin_file, empty for the keychain.
+func trustCertificate(ctx context.Context, fav favorites.Favorite, pinPath string, stdout io.Writer, d deps) error {
 	if !fav.UseTLS {
 		return fmt.Errorf("%q does not use TLS, so there is no certificate to trust; turn TLS on for the favorite first", fav.DisplayName())
 	}
@@ -202,7 +208,7 @@ func trustCertificate(ctx context.Context, fav favorites.Favorite, stdout io.Wri
 	case errors.Is(err, keychain.ErrNotFound):
 		pinned = ""
 	case err != nil:
-		return fmt.Errorf("cannot read the system keychain (%v). On Linux a Secret Service provider such as gnome-keyring must be running", err)
+		return pinError("read", pinPath, err)
 	}
 	fmt.Fprintf(stdout, "Connecting to %s …\n", fav.Host)
 	fp, err := d.fetchFP(ctx, fav.Host)
@@ -233,10 +239,26 @@ func trustCertificate(ctx context.Context, fav favorites.Favorite, stdout io.Wri
 		return errors.New("not trusted; nothing was saved")
 	}
 	if err := d.keys.SetFingerprint(fav.Host, fav.Username, fp); err != nil {
-		return fmt.Errorf("cannot write the system keychain (%v). On Linux a Secret Service provider such as gnome-keyring must be running", err)
+		return pinError("write", pinPath, err)
+	}
+	if pinPath != "" {
+		fmt.Fprintf(stdout, "Trusted. openlamt-mcp accepts only this certificate for %q from now on. It is saved in %s; "+
+			"the OpenLAMT app keeps its own trusted certificates in the system keychain.\n", fav.DisplayName(), pinPath)
+		return nil
 	}
 	fmt.Fprintf(stdout, "Trusted. openlamt-mcp and the OpenLAMT app accept only this certificate for %q from now on.\n", fav.DisplayName())
 	return nil
+}
+
+// pinError explains a failed read or write (verb) of the trusted fingerprints: of the pin file
+// pinPath, or without one of the system keychain.
+func pinError(verb, pinPath string, err error) error {
+	if pinPath != "" {
+		return fmt.Errorf("cannot %s the file of trusted certificates: %v", verb, err)
+	}
+	return fmt.Errorf("cannot %s the system keychain (%v). On Linux a Secret Service provider such as gnome-keyring must be running; "+
+		"on a computer without one, set \"certificates\": {\"pin_file\": true} in the openlamt-mcp config to keep trusted "+
+		"certificates in a file (see the MCP guide)", verb, err)
 }
 
 // fingerprintBlock shows a fingerprint as four lines of eight bytes each, as the app does.

@@ -56,7 +56,15 @@ type Config struct {
 	MediaAllowedPaths         []string      // folders media_mount may mount from (cleaned, absolute); empty means anywhere
 	Screenshot                ScreenshotConfig
 	Passwords                 PasswordConfig
+	Certificates              CertificateConfig
 	Source                    string // the file read; empty when the defaults apply
+}
+
+// CertificateConfig says where the server keeps trusted certificate fingerprints.
+type CertificateConfig struct {
+	// PinFile keeps them in PinFileName next to favorites.json instead of the OS keychain, for
+	// Linux without a Secret Service. The app always uses the keychain.
+	PinFile bool
 }
 
 // PasswordConfig says where the server finds device passwords besides the OS keychain.
@@ -175,6 +183,9 @@ type fileConfig struct {
 		Command                 []string `json:"command"`
 		AllowPlaintextPasswords *bool    `json:"allow_plaintext_passwords"`
 	} `json:"passwords"`
+	Certificates *struct {
+		PinFile *bool `json:"pin_file"`
+	} `json:"certificates"`
 }
 
 // Load reads the config file at path. A missing file yields Defaults of its folder, unless
@@ -283,6 +294,9 @@ func Load(path string, mustExist bool) (Config, error) {
 					"to the host it goes to ({name} and {user} may be used in addition)", path)
 			}
 		}
+	}
+	if ce := f.Certificates; ce != nil {
+		set(&c.Certificates.PinFile, ce.PinFile)
 	}
 	c.Source = path
 	return c, nil

@@ -24,9 +24,23 @@ type FavoriteEditor interface {
 	Delete(host, username string, deletePassword bool) error
 }
 
-// keychainError explains a keychain that cannot be read (on Linux: no Secret Service running).
-func keychainError(err error) error {
-	return refuse("Cannot read the system keychain (%v). On Linux a Secret Service provider such as gnome-keyring must be running.", err)
+// keychainError explains a store of device secrets that cannot be used: the pin file of
+// certificates.pin_file, or the system keychain (on Linux: no Secret Service running).
+func (s *server) keychainError(err error) error {
+	var pf *pinFileError
+	switch {
+	case errors.As(err, &pf):
+		return refuse("Cannot use the file of trusted certificates (certificates.pin_file): %v.", pf)
+	case s.cfg.Certificates.PinFile && len(s.cfg.Passwords.Command) > 0:
+		return refuse("The system keychain cannot be read (%v), so no password was saved or removed there. "+
+			"Passwords come from passwords.command, so nothing else is needed.", err)
+	case s.cfg.Certificates.PinFile:
+		return refuse("Cannot read the system keychain (%v). Trusted certificates do not need it (certificates.pin_file is on), "+
+			"passwords do: on a computer without a keychain, set passwords.command in the openlamt-mcp config.", err)
+	}
+	return refuse("Cannot read the system keychain (%v). On Linux a Secret Service provider such as gnome-keyring must be running. "+
+		"On a computer without one, set certificates.pin_file (trusted certificates in a file) and passwords.command "+
+		"(passwords from a program) in the openlamt-mcp config; the MCP guide explains both.", err)
 }
 
 const noTLSWarning = "The connection to this device is not encrypted (TLS is off in the favorite): " +
@@ -90,7 +104,7 @@ func (s *server) openDevice(ctx context.Context, name string) (*session.Session,
 }
 
 // openFav opens a session to exactly the host and user of fav, the favorite a call resolved
-// (and a question showed), with the password and the pinned fingerprint from the keychain. A
+// (and a question showed), with the password and the pinned fingerprint from the keychain or pin file. A
 // TLS favorite without a pin is refused: the MCP server never pins a certificate (no
 // TrustPrompt is passed). The session never switches a redirection feature on (see
 // openRedirection). The caller closes the session.
@@ -138,11 +152,16 @@ func (s *server) openFavEnable(ctx context.Context, fav favorites.Favorite, enab
 		fp, err := s.keys.GetFingerprint(fav.Host, fav.Username)
 		switch {
 		case errors.Is(err, keychain.ErrNotFound) || err == nil && strings.TrimSpace(fp) == "":
+			if s.cfg.Certificates.PinFile {
+				return nil, amt.Status{}, nil, refuse("The TLS certificate of %q is not trusted yet. A person runs %s in a terminal on this computer "+
+					"to check and pin it; the MCP server never trusts a certificate by itself. certificates.pin_file is on, so a certificate "+
+					"trusted in the OpenLAMT app does not count here.", name, commandLine("trust", name))
+			}
 			return nil, amt.Status{}, nil, refuse("The TLS certificate of %q is not trusted yet. A person runs %s "+
 				"in a terminal on this computer, or connects once with the OpenLAMT app, to check and pin it; "+
 				"the MCP server never trusts a certificate by itself.", name, commandLine("trust", name))
 		case err != nil:
-			return nil, amt.Status{}, nil, keychainError(err)
+			return nil, amt.Status{}, nil, s.keychainError(err)
 		}
 		cfg.Fingerprint = fp
 	} else {

@@ -122,46 +122,56 @@ func (s *Store) Save(list []Favorite) error {
 	if err != nil {
 		return err
 	}
-	dir := filepath.Dir(s.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return fmt.Errorf("create %s: %w", dir, err)
-	}
-	tmp, err := os.CreateTemp(dir, ".favorites-*.tmp")
-	if err != nil {
-		return fmt.Errorf("write %s: %w", s.path, err)
-	}
-	defer os.Remove(tmp.Name())
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return fmt.Errorf("write %s: %w", s.path, err)
-	}
-	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
-		return fmt.Errorf("write %s: %w", s.path, err)
-	}
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("write %s: %w", s.path, err)
-	}
-	if err := os.Rename(tmp.Name(), s.path); err != nil {
-		return fmt.Errorf("write %s: %w", s.path, err)
-	}
-	return nil
+	return WriteFileAtomic(s.path, ".favorites-*.tmp", b)
 }
 
 // Lock takes the cross-process lock of the favorites file (an advisory lock on
 // "<path>.lock") and returns the function that releases it. Hold it around every
 // load-modify-save, so the app and openlamt-mcp never overwrite each other's change.
-func (s *Store) Lock() (unlock func(), err error) {
-	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
-		return nil, fmt.Errorf("create %s: %w", filepath.Dir(s.path), err)
+func (s *Store) Lock() (unlock func(), err error) { return LockPath(s.path) }
+
+// LockPath takes the cross-process advisory lock of the file at path (a lock on "<path>.lock")
+// and returns the function that releases it.
+func LockPath(path string) (unlock func(), err error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, fmt.Errorf("create %s: %w", filepath.Dir(path), err)
 	}
-	f, err := os.OpenFile(s.path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	f, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return nil, fmt.Errorf("lock %s: %w", s.path, err)
+		return nil, fmt.Errorf("lock %s: %w", path, err)
 	}
 	if err := lockFile(f); err != nil {
 		f.Close()
-		return nil, fmt.Errorf("lock %s: %w", s.path, err)
+		return nil, fmt.Errorf("lock %s: %w", path, err)
 	}
 	return func() { unlockFile(f); f.Close() }, nil
+}
+
+// WriteFileAtomic writes b to path atomically (temp file named by tmpPattern in the same folder,
+// then rename) with mode 0600, and creates the folder with mode 0700 if it is missing.
+func WriteFileAtomic(path, tmpPattern string, b []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create %s: %w", dir, err)
+	}
+	tmp, err := os.CreateTemp(dir, tmpPattern)
+	if err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if _, err := tmp.Write(b); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	if err := os.Rename(tmp.Name(), path); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
 }

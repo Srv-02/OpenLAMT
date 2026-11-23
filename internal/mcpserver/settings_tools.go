@@ -554,8 +554,8 @@ func (s *server) setTLSCertificate(ctx context.Context, req *mcp.CallToolRequest
 		switch {
 		case errors.As(err, &ns):
 			return "AMT presents the new certificate now.", []string{sessionsEnd, fmt.Sprintf("Saving the new certificate pin (%s) failed: %s. "+
-				"The next connection to the device is refused until you accept the new certificate in the OpenLAMT app.",
-				amt.FormatFingerprint(ns.Fingerprint), explain(ns.Err))}, nil
+				"The next connection to the device is refused until %s.",
+				amt.FormatFingerprint(ns.Fingerprint), explain(ns.Err), trustAgain(fav.DisplayName()))}, nil
 		case err != nil:
 			return "", nil, err
 		}

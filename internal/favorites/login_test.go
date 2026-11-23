@@ -3,6 +3,7 @@ package favorites
 import (
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Srv-02/openlamt/internal/keychain"
@@ -23,6 +24,13 @@ func (k *flakyKeys) Set(h, u, p string) error {
 		return errKeychain
 	}
 	return k.Memory.Set(h, u, p)
+}
+
+func (k *flakyKeys) Get(h, u string) (string, error) {
+	if k.fail["Get"] {
+		return "", errKeychain
+	}
+	return k.Memory.Get(h, u)
 }
 
 func (k *flakyKeys) SetFingerprint(h, u, f string) error {
@@ -177,5 +185,46 @@ func TestChangeFingerprint(t *testing.T) {
 	var ke *KeychainError
 	if err := m2.ChangeFingerprint("device.example.com", "admin", fp, fp2); !errors.As(err, &ke) {
 		t.Errorf("err = %v", err)
+	}
+}
+
+// TestChangeLoginKeychainReadFailure: an unreadable keychain must not leave the favorite and
+// its pin on the old user name; the error still comes back for the caller to warn.
+func TestChangeLoginKeychainReadFailure(t *testing.T) {
+	m, keys := flakySeeded(t, "Get")
+	err := m.ChangeLogin("device.example.com", "admin", "newadmin", "New-Secret2")
+	var ke *KeychainError
+	if !errors.As(err, &ke) || !errors.Is(err, errKeychain) {
+		t.Fatalf("err = %v", err)
+	}
+	if strings.Contains(err.Error(), "New-Secret2") {
+		t.Errorf("error holds the password: %v", err)
+	}
+	if list, _ := m.List(); len(list) != 1 || list[0].Username != "newadmin" {
+		t.Errorf("the favorite must follow the login: %+v", list)
+	}
+	if got, _ := keys.Memory.GetFingerprint("device.example.com", "newadmin"); got != fp {
+		t.Errorf("pin on the new name: %q", got)
+	}
+	if _, err := keys.Memory.GetFingerprint("device.example.com", "admin"); !errors.Is(err, keychain.ErrNotFound) {
+		t.Errorf("old pin left behind: %v", err)
+	}
+	if _, err := keys.Memory.Get("device.example.com", "newadmin"); !errors.Is(err, keychain.ErrNotFound) {
+		t.Errorf("no password may be written under the new name: %v", err)
+	}
+	if pw, _ := keys.Memory.Get("device.example.com", "admin"); pw != "secret-1" {
+		t.Error("the old password must stay")
+	}
+
+	m, keys = flakySeeded(t, "Get")
+	err = m.ChangeLogin("device.example.com", "admin", "admin", "New-Secret2")
+	if !errors.As(err, &ke) {
+		t.Fatalf("password-only: %v", err)
+	}
+	if pw, _ := keys.Memory.Get("device.example.com", "admin"); pw != "secret-1" {
+		t.Error("nothing may change")
+	}
+	if got, _ := keys.Memory.GetFingerprint("device.example.com", "admin"); got != fp {
+		t.Error("pin must stay")
 	}
 }

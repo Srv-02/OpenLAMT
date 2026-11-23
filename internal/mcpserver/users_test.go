@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/session"
 )
 
@@ -189,13 +190,16 @@ func TestLoginNotSavedIsAWarning(t *testing.T) {
 	h := newHarness(t)
 	f := h.addDeviceAs("Lab", "lab.example.com", "operator", true)
 	f.Cfg.Users = deviceUsers()
-	h.logins.err = errors.New("keychain locked")
+	h.logins.err = &favorites.KeychainError{Err: errors.New("keychain locked")}
 	h.elicit = (&askAll{}).handler
 	h.start()
 	out := mustOKNoPassword(t, h, "update_user", dev("Lab", "user", "operator", "password", newPassword))
 	w, _ := json.Marshal(out["warnings"])
-	if !strings.Contains(string(w), "saving the new login") || !strings.Contains(string(w), "keychain locked") {
+	if !strings.Contains(string(w), "the system keychain is locked") || !strings.Contains(string(w), `openlamt-mcp password \"Lab\"`) {
 		t.Fatalf("warnings %s", w)
+	}
+	if strings.Contains(out["result"].(string), "from now on") {
+		t.Errorf("the result says the login works: %v", out["result"])
 	}
 }
 

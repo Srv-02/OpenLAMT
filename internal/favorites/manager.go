@@ -361,7 +361,8 @@ func (m *Manager) setField(host, username string, change func(*Favorite)) error 
 // The new password is written first, so no later failure loses it; removing the old entries is
 // best effort (the old password no longer works on the device). A favorite host/newUser that
 // already exists returns ErrExists before anything changes. Keychain failures return
-// *KeychainError.
+// *KeychainError; if the keychain cannot even be read, the pin move and the favorite rename
+// still run (the old password stays where it is) and the error comes back at the end.
 func (m *Manager) ChangeLogin(host, oldUser, newUser, newPassword string) error {
 	unlock, err := m.lockWrite()
 	if err != nil {
@@ -376,10 +377,13 @@ func (m *Manager) ChangeLogin(host, oldUser, newUser, newPassword string) error 
 	if moved && index(list, host, newUser) >= 0 {
 		return ErrExists
 	}
+	var errs []error
 	_, err = m.keys.Get(host, oldUser)
 	hasPassword := err == nil
 	if err != nil && !errors.Is(err, keychain.ErrNotFound) {
-		return &KeychainError{Err: err}
+		// Unreadable keychain: nothing is written under the new name and the old entry stays,
+		// but the pin and the favorite still follow, so the login does not stay behind.
+		errs = append(errs, err)
 	}
 	if hasPassword {
 		if err := m.keys.Set(host, newUser, newPassword); err != nil {
@@ -387,9 +391,8 @@ func (m *Manager) ChangeLogin(host, oldUser, newUser, newPassword string) error 
 		}
 	}
 	if !moved {
-		return nil
+		return keychainErr(errs...)
 	}
-	var errs []error
 	pin, err := m.keys.GetFingerprint(host, oldUser)
 	pinMoved := false
 	switch {

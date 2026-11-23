@@ -305,6 +305,13 @@ func runPasswordCommand(ctx context.Context, argv []string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+// envFromFile reports whether the password of host would come from the .env file, because its
+// environment variable is unset or empty.
+func (p *passwords) envFromFile(host string) bool {
+	v, ok := p.getenv(PasswordEnvVar(host))
+	return !ok || v == ""
+}
+
 // fromEnvironment reads the password of fav from its environment variable, else from the .env
 // file.
 func (p *passwords) fromEnvironment(fav favorites.Favorite) (string, error) {

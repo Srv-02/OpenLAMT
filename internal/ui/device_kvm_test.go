@@ -50,6 +50,12 @@ func newKVMDevice(t *testing.T, dev *sessionFake, opts kvmtest.Options) *kvmHarn
 	h.d.view.onFrame = func() { h.frames <- struct{}{} }
 	h.d.askConsent = func(answer func(string, bool)) func() { h.asked <- answer; return func() { h.hidden.Store(true) } }
 	h.show(t)
+	t.Cleanup(func() { // runs before the window closes: end the session, wait for its loop
+		if c := h.d.kvmClient; c != nil {
+			c.Close()
+		}
+		h.loopsDone(t)
+	})
 	return h
 }
 
@@ -75,6 +81,23 @@ func (h *kvmHarness) disconnect(t *testing.T) {
 	t.Helper()
 	tapKVM(h.d)
 	recv(t, h.changed)
+	h.loopsDone(t)
+}
+
+// loopsDone waits until no frame loop runs any more, kvmEnded included. In tests fyne.Do runs
+// inline, so the loop goroutine lays out the window itself when the session ends (endKVM,
+// resumeCheck); the test must not touch the window meanwhile (one global ThemeOverride stack
+// in Fyne, see viewsOnly). Call it only when no session is expected to run, so not while a
+// reconnect or resume is due.
+func (h *kvmHarness) loopsDone(t *testing.T) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() { h.d.view.loops.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("frame loop still running")
+	}
 }
 
 func TestKVMConnectShowsFrameAndDisconnects(t *testing.T) {

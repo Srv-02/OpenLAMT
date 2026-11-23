@@ -155,6 +155,7 @@ func TestManualKVMChoiceEndsResume(t *testing.T) {
 	h.d.execute(amt.PowerOff)
 	recv(t, h.actionDone)
 	recv(t, h.changed)
+	h.loopsDone(t)
 	h.connect(t, false) // the user connects while the device is off (the fake accepts) ...
 	h.disconnect(t)     // ... and disconnects again
 	dev.SetStatus(statusOn)

@@ -40,6 +40,13 @@ func freeUDP(t *testing.T) int {
 // fakePong answers every presence ping on ip:port with a pong; it returns the number of pings.
 func fakePong(t *testing.T, ip string, port int) *int {
 	t.Helper()
+	return fakePongWith(t, ip, port, 0x20)
+}
+
+// fakePongWith is fakePong with the given Supported Interactions byte: 0x20 is an AMT device
+// (DASH), 0x00 an IPMI BMC.
+func fakePongWith(t *testing.T, ip string, port int, interactions byte) *int {
+	t.Helper()
 	c, err := net.ListenPacket("udp", net.JoinHostPort(ip, strconv.Itoa(port)))
 	if err != nil {
 		t.Skip("cannot bind", ip, err)
@@ -61,7 +68,7 @@ func fakePong(t *testing.T, ip string, port int) *int {
 			*pings++
 			mu.Unlock()
 			pong := []byte{0x06, 0x00, 0xff, 0x06, 0x00, 0x00, 0x11, 0xbe, 0x40, buf[9], 0x00, 0x10,
-				0x00, 0x00, 0x11, 0xbe, 0, 0, 0, 0, 0x81, 0x00, 0, 0, 0, 0, 0, 0}
+				0x00, 0x00, 0x11, 0xbe, 0, 0, 0, 0, 0x81, interactions, 0, 0, 0, 0, 0, 0}
 			c.WriteTo(pong, from)
 		}
 	}()
@@ -202,13 +209,17 @@ func TestParseServerVersion(t *testing.T) {
 }
 
 func TestIsPong(t *testing.T) {
-	pong := []byte{0x06, 0x00, 0xff, 0x06, 0x00, 0x00, 0x11, 0xbe, 0x40, 0, 0, 0x10, 0, 0, 0x11, 0xbe}
+	pong := []byte{0x06, 0x00, 0xff, 0x06, 0x00, 0x00, 0x11, 0xbe, 0x40, 0, 0, 0x10,
+		0x00, 0x00, 0x11, 0xbe, 0, 0, 0, 0, 0x81, 0x20, 0, 0, 0, 0, 0, 0}
 	if !isPong(pong) {
-		t.Fatal("a pong is not recognized")
+		t.Fatal("a DASH pong is not recognized")
 	}
 	ping := slices.Clone(pong)
 	ping[8] = 0x80
-	for name, b := range map[string][]byte{"ping": ping, "short": pong[:8], "empty": nil} {
+	ipmi := slices.Clone(pong)
+	ipmi[21] = 0x00
+	for name, b := range map[string][]byte{"ping": ping, "short": pong[:8], "no DASH bit (IPMI)": ipmi,
+		"cut before the interactions byte": pong[:21], "empty": nil} {
 		if isPong(b) {
 			t.Errorf("%s counts as a pong", name)
 		}
@@ -261,5 +272,32 @@ func TestServerHeaderReadIsBounded(t *testing.T) {
 	port := l.Addr().(*net.TCPAddr).Port
 	if got := s.serverHeader(context.Background(), netip.MustParseAddr("127.0.0.1"), port, false); got != "" {
 		t.Errorf("Server header %q from an endless response", got)
+	}
+}
+
+// IPMI BMCs answer the presence ping with IANA 4542, entities 0x81 and interactions 0x00. They are
+// not listed; a DASH pong without open ports is; any pong with an open port is.
+func TestScanFiltersIPMIPongs(t *testing.T) {
+	udp, http1, https := freeUDP(t), freeTCP(t), freeTCP(t)
+	for https == http1 {
+		https = freeTCP(t)
+	}
+	fakePongWith(t, "127.0.0.1", udp, 0x00) // IPMI BMC, no ports
+	fakePongWith(t, "127.0.0.2", udp, 0x20) // DASH, no ports
+	fakePongWith(t, "127.0.0.3", udp, 0x00) // IPMI-style pong with an AMT port
+	fakeWeb(t, "127.0.0.3", http1, "Intel(R) Active Management Technology 16.1.25", false)
+
+	s := &Scanner{RMCPPort: udp, HTTPPort: http1, HTTPSPort: https, Timeout: 500 * time.Millisecond,
+		Lookup: func(context.Context, netip.Addr) string { return "" }}
+	got, _ := collect(t, s, "127.0.0.1", "127.0.0.2", "127.0.0.3")
+	want := []Result{
+		{Addr: netip.MustParseAddr("127.0.0.2"), RMCP: true},
+		{Addr: netip.MustParseAddr("127.0.0.3"), Version: "16.1", HTTP: true},
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("results\n got %+v\nwant %+v", got, want)
+	}
+	if !got[0].PortsClosed() || got[1].PortsClosed() {
+		t.Error("PortsClosed is wrong")
 	}
 }

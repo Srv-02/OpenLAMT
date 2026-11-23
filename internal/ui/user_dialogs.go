@@ -262,6 +262,9 @@ func (m *manager) showUserDialog(v *usersPane, u *amt.User) *userDialog {
 			d.name.SetText(u.Name)
 			d.access.SetSelected(slices.Index(accessOrder, u.Access))
 		}
+		if own { // the device refuses "Local" for the account of the connection (amt.UpdateUser)
+			d.access.SetSegmentDisabled(slices.Index(accessOrder, amt.AccessLocal), true)
+		}
 		// The own account has neither "Enabled" nor "Delete User…": the device refuses both for
 		// the account of the connection (amt.User.Protected; design V19).
 		if u != nil && !own {
@@ -362,6 +365,9 @@ func (d *userDialog) enabledChanged() bool {
 func (d *userDialog) ready() bool {
 	if !d.needsUpdate() {
 		return d.enabledChanged()
+	}
+	if d.edit != nil && d.edit.Self && d.accessValue() == amt.AccessLocal {
+		return false
 	}
 	return amt.ValidateUserName(d.name.Text) == nil && amt.ValidatePassword(d.pw.Text()) == nil &&
 		d.pw.Text() == d.repeat.Text() && len(d.realms()) > 0

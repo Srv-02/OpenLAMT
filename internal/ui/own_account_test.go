@@ -136,23 +136,41 @@ func TestOwnAccountPasswordNotSavedShowsIt(t *testing.T) {
 	}
 }
 
-// The own account refuses the access "Local" (the device needs network access for this connection).
-func TestOwnAccountLocalAccessIsAnErrorNotAWrite(t *testing.T) {
-	h, p := usersHarness(t, ownUsers())
+// The device refuses the access "Local" for the own account (it needs network access for this
+// connection): the segment is disabled, a tap does not select it and Save stays off even if
+// the selection is forced. The backend check stays (amt tests).
+func TestOwnAccountLocalAccessIsNotOffered(t *testing.T) {
+	_, p := usersHarness(t, ownUsers())
 	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
-	d.access.SetSelected(1)
+	local := slices.Index(accessOrder, amt.AccessLocal)
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
-	test.Tap(d.action)
-	test.Tap(p.ownDlg.check)
-	test.Tap(p.ownDlg.action)
-	h.wait(t)
-	h.wait(t)
-	if len(h.dev.ConfigWrites()) != 0 {
-		t.Fatalf("writes %v", h.dev.ConfigWrites())
+	before := d.access.Selected()
+	d.access.Tap(local)
+	if d.access.Selected() != before || d.accessValue() == amt.AccessLocal {
+		t.Fatalf("Local was selected: %d", d.access.Selected())
 	}
-	findLabel(t, h.m.parent.Canvas().Overlays().Top(), "Something went wrong")
+	if d.action.Disabled() {
+		t.Error("Save is off for a valid password change")
+	}
+	d.access.SetSelected(local)
+	d.validate()
+	if !d.action.Disabled() {
+		t.Error("Save is on with Local for the own account")
+	}
+}
+
+// Another account can still be set to "Local".
+func TestOtherUserCanBeLocal(t *testing.T) {
+	_, p := usersHarness(t, ownUsers())
+	test.Tap(p.table.lines[2].action)
+	d := p.userDlg
+	local := slices.Index(accessOrder, amt.AccessLocal)
+	d.access.Tap(local)
+	if d.accessValue() != amt.AccessLocal {
+		t.Error("Local cannot be selected for another account")
+	}
 }
 
 // Issue #37: adding an account over a session without TLS asks before anything is sent.

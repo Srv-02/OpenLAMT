@@ -1,4 +1,5 @@
 {
+  "A file with this name already exists. Replacing it cannot be undone.": "A file with this name already exists. Replacing it cannot be undone.",
   "AVI videos": "AVI videos",
   "Actual Size (100%)": "Actual Size (100%)",
   "Choose…": "Choose…",
@@ -13,6 +14,8 @@
   "Record": "Record",
   "Recording saved: {{.Name}}": "Recording saved: {{.Name}}",
   "Recording stopped at the 2 GB limit and saved: {{.Name}}": "Recording stopped at the 2 GB limit and saved: {{.Name}}",
+  "Replace": "Replace",
+  "Replace {{.Name}}?": "Replace {{.Name}}?",
   "Reverse Mouse Wheel": "Reverse Mouse Wheel",
   "Save Recording": "Save Recording",
   "Save Screenshot": "Save Screenshot",

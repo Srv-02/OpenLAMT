@@ -287,19 +287,22 @@ type Preview struct {
 
 // Plan sorts the favorites of f against the existing ones. Merge decides the same way.
 func Plan(f File, existing []favorites.Favorite) Preview {
-	known := map[string]favorites.Favorite{}
+	type key struct{ host, user string }
+	known := map[key]favorites.Favorite{}
 	for _, e := range existing {
-		if _, ok := known[e.Host]; !ok {
-			known[e.Host] = e
+		k := key{e.Host, e.Username}
+		if _, ok := known[k]; !ok {
+			known[k] = e
 		}
 	}
 	var p Preview
 	for _, fav := range f.Favorites {
-		if have, ok := known[fav.Host]; ok {
+		k := key{fav.Host, fav.Username}
+		if have, ok := known[k]; ok {
 			p.Skipped = append(p.Skipped, have)
 			continue
 		}
-		known[fav.Host] = fav.Favorite
+		known[k] = fav.Favorite
 		p.New = append(p.New, fav)
 		if fav.Fingerprint != "" {
 			p.Pins++

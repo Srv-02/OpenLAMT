@@ -441,15 +441,16 @@ func TestSetReverseWheelSurvivesUpsertAndEdit(t *testing.T) {
 func TestMergeAddsNewHostsAndKeepsTheRest(t *testing.T) {
 	m, keys := seeded(t)
 	added, skipped, _, err := m.Merge([]Incoming{
-		{Favorite: Favorite{Name: "Same host", Host: "device.example.com", Username: "root"}, Fingerprint: fp},
+		{Favorite: Favorite{Name: "Same host", Host: "device.example.com", Username: "admin"}, Fingerprint: fp},
 		{Favorite: Favorite{Name: "New", Host: "new.example.com", Username: "admin", UseTLS: true}, Fingerprint: fp},
-		{Favorite: Favorite{Name: "New twice", Host: "new.example.com", Username: "other"}},
+		{Favorite: Favorite{Name: "New twice", Host: "new.example.com", Username: "admin"}},
+		{Favorite: Favorite{Name: "Other user", Host: "new.example.com", Username: "operator"}},
 	})
-	if err != nil || len(added) != 1 || len(skipped) != 2 {
+	if err != nil || len(added) != 2 || len(skipped) != 2 {
 		t.Fatalf("added %v skipped %v err %v", added, skipped, err)
 	}
 	list, _ := m.List()
-	if len(list) != 2 || list[0].Name != "Büro" || list[1].Name != "New" {
+	if len(list) != 3 || list[0].Name != "Büro" || list[1].Name != "New" || list[2].Name != "Other user" {
 		t.Fatalf("list %+v", list)
 	}
 	if got, _ := keys.GetFingerprint("new.example.com", "admin"); got != fp {

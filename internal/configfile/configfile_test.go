@@ -194,11 +194,13 @@ func TestReadRefusesHugeFile(t *testing.T) {
 	}
 }
 
-// Import merges: new hosts are added with their pin, an existing host is skipped and keeps
-// its own pin, and nothing is replaced or removed.
+// Import merges: new favorites are added with their pin, an existing host and user name is
+// skipped and keeps its own pin, another user name on a known host is new, and nothing is
+// replaced or removed.
 func TestImportMerges(t *testing.T) {
 	file := File{Format: Format, Version: Version, Favorites: []Favorite{
-		{Favorite: favorites.Favorite{Name: "Lab renamed", Host: "lab.example.com", Username: "root"}, Fingerprint: pinB},
+		{Favorite: favorites.Favorite{Name: "Lab renamed", Host: "lab.example.com", Username: "admin"}, Fingerprint: pinB},
+		{Favorite: favorites.Favorite{Name: "Lab root", Host: "lab.example.com", Username: "root"}},
 		{Favorite: favorites.Favorite{Name: "NAS", Host: "nas.example.com", Username: "admin", UseTLS: true, Quality: "high"}, Fingerprint: pinB},
 		{Favorite: favorites.Favorite{Name: "Plain", Host: "plain.example.com", Username: "admin"}},
 		{Favorite: favorites.Favorite{Name: "NAS again", Host: "nas.example.com", Username: "admin"}},
@@ -207,7 +209,7 @@ func TestImportMerges(t *testing.T) {
 	existing, _ := m.List()
 
 	plan := Plan(file, existing)
-	if len(plan.New) != 2 || len(plan.Skipped) != 2 || plan.Pins != 1 || plan.Skipped[0].Name != "Lab" {
+	if len(plan.New) != 3 || len(plan.Skipped) != 2 || plan.Pins != 1 || plan.Skipped[0].Name != "Lab" {
 		t.Fatalf("plan: %+v", plan)
 	}
 
@@ -215,11 +217,11 @@ func TestImportMerges(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(added) != 2 || len(skipped) != 2 {
+	if len(added) != 3 || len(skipped) != 2 {
 		t.Fatalf("added %d, skipped %d", len(added), len(skipped))
 	}
 	list, _ := m.List()
-	if len(list) != 4 || list[0].Name != "Lab" || list[0].Username != "admin" || list[2].Host != "nas.example.com" || !list[2].UseTLS {
+	if len(list) != 5 || list[0].Name != "Lab" || list[0].Username != "admin" || list[2].Name != "Lab root" || list[3].Host != "nas.example.com" || !list[3].UseTLS {
 		t.Errorf("favorites after import: %+v", list)
 	}
 	if fp, _ := keys.GetFingerprint("nas.example.com", "admin"); fp != pinB {
@@ -229,14 +231,14 @@ func TestImportMerges(t *testing.T) {
 		t.Errorf("the pin of an existing favorite changed to %q", fp)
 	}
 	if _, err := keys.GetFingerprint("lab.example.com", "root"); err == nil {
-		t.Error("a pin of a skipped favorite was stored")
+		t.Error("a pin was stored for a favorite that has none")
 	}
 	if _, err := keys.Get("nas.example.com", "admin"); err == nil {
 		t.Error("an imported favorite has a password")
 	}
 	// A second import changes nothing.
 	added, skipped, _, err = Import(m, file)
-	if err != nil || len(added) != 0 || len(skipped) != 4 {
+	if err != nil || len(added) != 0 || len(skipped) != 5 {
 		t.Errorf("second import: %d added, %d skipped, %v", len(added), len(skipped), err)
 	}
 }

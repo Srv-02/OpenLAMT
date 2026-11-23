@@ -1,11 +1,6 @@
 package ui
 
 import (
-	"strings"
-
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
-
 	"github.com/Srv-02/openlamt/internal/ui/i18n"
 )
 
@@ -13,15 +8,10 @@ import (
 // internal/sitecheck checks that this is the address the guide itself names.
 const guideURL = "https://srv-02.github.io/OpenLAMT/"
 
-// userGuideURL returns the user guide in the language of the app's texts. setting is the
-// language the texts were loaded in (i18n.Active); with i18n.System the OS locale system decides,
-// as it does for the texts. German opens the German guide, every other language the English one,
+// userGuideURL returns the user guide for language, the language of the app's texts
+// (i18n.UILanguage). German opens the German guide, every other language the English one,
 // which is also what the texts fall back to.
-func userGuideURL(setting string, system fyne.Locale) string {
-	language := setting
-	if language == i18n.System {
-		language, _, _ = strings.Cut(string(system), "-") // "de-AT" -> "de"
-	}
+func userGuideURL(language string) string {
 	if language == i18n.German {
 		return guideURL + "de/"
 	}
@@ -29,4 +19,4 @@ func userGuideURL(setting string, system fyne.Locale) string {
 }
 
 // showHelp opens the user guide in the browser: the Help button of the sidebar footer.
-func (s *StartWindow) showHelp() { openURL(userGuideURL(i18n.Active(), lang.SystemLocale())) }
+func (s *StartWindow) showHelp() { openURL(userGuideURL(i18n.UILanguage())) }

@@ -575,6 +575,35 @@ func TestBootFromISO(t *testing.T) {
 	h.mustFail("boot_from_iso", dev("NUC"), "The device refused the boot from ISO (AMT ReturnValue 1). The IDE-R boot option may still be set")
 }
 
+// TestMediaMountEnablesIDEROnlyAsASettingsChange (#115): without the tool group settings
+// media_mount does not turn IDE-R on, names what to turn on, and its question does not say it
+// turns IDE-R on.
+func TestMediaMountEnablesIDEROnlyAsASettingsChange(t *testing.T) {
+	files := newMediaFiles(t)
+	var asked []string
+	h := newHarness(t)
+	h.cfg.Groups[GroupSettings] = false
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	addIDER(t, f)
+	f.Redirection().IDEROff = true
+	h.start()
+	r := h.await(h.callAsync("media_mount", dev("NUC", "path", files.iso)))
+	if !r.isError || !strings.Contains(r.text, `Media redirection (IDE-R) is turned off on the device. Turning it on changes a device setting, and the tool group "settings" is off`) {
+		t.Fatalf("%v %q", r.isError, r.text)
+	}
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("enabled %v", got)
+	}
+	if len(asked) != 1 || strings.Contains(asked[0], "IDE-R) is turned on") {
+		t.Fatalf("asked %q", asked)
+	}
+}
+
 // TestMediaMountConfirmationHoldsForTheShownFile (#116): an answer to a media_mount question
 // mounts only the file the question showed. A file replaced at the same path while the
 // question is open, with the same size and modification time, is refused, and so is one of

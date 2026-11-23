@@ -18,9 +18,10 @@ import (
 	"github.com/Srv-02/openlamt/internal/mkiso"
 )
 
-// iderOpener mounts img on the host and user of fav with the consent code (may be empty). On
-// error the caller still owns img.
-type iderOpener func(ctx context.Context, fav favorites.Favorite, img ider.Image, code consentCode) (*ider.Client, []string, error)
+// iderOpener mounts img on the host and user of fav with the consent code (may be empty).
+// agreed: the person in the MCP client agreed to turn IDE-R on (see server.mayEnable). On error
+// the caller still owns img.
+type iderOpener func(ctx context.Context, fav favorites.Favorite, img ider.Image, code consentCode, agreed bool) (*ider.Client, []string, error)
 
 var (
 	// buildImage builds the ISO of a folder in the image cache; tests count and hold builds.
@@ -292,7 +293,8 @@ func (f *isoFile) Size() int64 { return f.size }
 
 // mount prepares the image of src and mounts it on the device of fav, then runs fn with the
 // entry locked. It runs until ctx or the manager's base context ends (Close); Close waits for it.
-func (m *mediaManager) mount(ctx context.Context, fav favorites.Favorite, src mediaSource, code consentCode, fn func(e *mediaEntry)) error {
+// agreed goes to the opener.
+func (m *mediaManager) mount(ctx context.Context, fav favorites.Favorite, src mediaSource, code consentCode, agreed bool, fn func(e *mediaEntry)) error {
 	e, err := m.reserve(fav)
 	if err != nil {
 		return err
@@ -318,7 +320,7 @@ func (m *mediaManager) mount(ctx context.Context, fav favorites.Favorite, src me
 	if err != nil {
 		return fail(err)
 	}
-	c, warnings, err := m.open(ctx, fav, img, code)
+	c, warnings, err := m.open(ctx, fav, img, code, agreed)
 	var ce *amt.ConsentError
 	switch {
 	case errors.Is(err, errConsentCodeNeeded) || errors.As(err, &ce):

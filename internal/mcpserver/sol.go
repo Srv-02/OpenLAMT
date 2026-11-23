@@ -13,8 +13,9 @@ import (
 	"github.com/Srv-02/openlamt/internal/sol"
 )
 
-// solOpener opens a SOL session to the host and user of fav with the consent code (may be empty).
-type solOpener func(ctx context.Context, fav favorites.Favorite, code consentCode) (*sol.Client, []string, error)
+// solOpener opens a SOL session to the host and user of fav with the consent code (may be
+// empty). agreed: the person in the MCP client agreed to turn SOL on (see server.mayEnable).
+type solOpener func(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool) (*sol.Client, []string, error)
 
 // solManager keeps one serial console (SOL) session per device across tool calls, like
 // kvmManager: sol_connect opens it, the other SOL tools use it, an idle session is closed after
@@ -93,8 +94,8 @@ func (e *solEntry) shut() {
 
 // connect opens the session of the device of fav, or keeps the running one (already true), and
 // runs fn with the entry locked. A session that ended is opened again with code; the buffer and
-// its offsets go on.
-func (m *solManager) connect(ctx context.Context, fav favorites.Favorite, code consentCode, fn func(e *solEntry, already bool) error) error {
+// its offsets go on. agreed goes to the opener.
+func (m *solManager) connect(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool, fn func(e *solEntry, already bool) error) error {
 	key := favKey(fav)
 	for {
 		m.mu.Lock()
@@ -119,7 +120,7 @@ func (m *solManager) connect(ctx context.Context, fav favorites.Favorite, code c
 			if e.pumpDone != nil {
 				<-e.pumpDone // the old client is done, so its pump returns at once
 			}
-			c, warnings, err := m.open(ctx, fav, code)
+			c, warnings, err := m.open(ctx, fav, code, agreed)
 			if err != nil {
 				if created {
 					m.remove(e)

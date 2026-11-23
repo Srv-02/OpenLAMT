@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/sol"
 )
@@ -24,15 +26,15 @@ const (
 
 // openSOL opens a SOL session to the device of fav: login check, consent with code. The WS-Man
 // session is closed again; the SOL client has its own socket.
-func (s *server) openSOL(ctx context.Context, fav favorites.Favorite, code consentCode) (*sol.Client, []string, error) {
-	sess, _, warnings, err := s.openFav(ctx, fav)
+func (s *server) openSOL(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool) (*sol.Client, []string, error) {
+	sess, warnings, err := s.openRedirection(ctx, fav, agreed)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer sess.Close()
 	c, err := sess.OpenSOL(ctx, code)
 	if err != nil {
-		return nil, nil, &redirOpenError{kind: "sol", err: err}
+		return nil, nil, &redirOpenError{kind: "sol", err: s.offError(err, "sol_connect")}
 	}
 	return c, warnings, nil
 }
@@ -47,8 +49,9 @@ func (s *server) registerSOL(srv *mcp.Server) {
 		Description: "Open the serial console (Serial over LAN, SOL) of a device and keep it for the other sol_ tools. " +
 			"The console output is buffered from now on (the newest 1 MiB per device); read it with sol_read. " +
 			"AMT allows one SOL session per device: while this server holds it, the Console view of the OpenLAMT app, MeshCommander " +
-			"and other clients cannot connect, and the other way round. SOL is turned on without a question when it is off on the device " +
-			"(not in read_only mode). Devices that require user consent show a six-digit code on their screen: call without consent_code first, " +
+			"and other clients cannot connect, and the other way round. If SOL is off on the device, it is turned on only with the tool group " +
+			"\"settings\" (a settings change, like set_remote_features), after a question in the MCP client with require_client_confirmation; " +
+			"otherwise the call says what to turn on. Devices that require user consent show a six-digit code on their screen: call without consent_code first, " +
 			"ask a person at the device for the code, then call again with it. The session closes after the idle timeout without calls, " +
 			"with sol_disconnect, or when this server stops. Calling it again returns the open session; after the session ended it opens " +
 			"a new one and keeps the buffered output and its offsets."},
@@ -93,7 +96,7 @@ type solConnectOutput struct {
 	Warnings           []string `json:"warnings,omitempty"`
 }
 
-func (s *server) solConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmConnectInput, rec *record) (*mcp.CallToolResult, solConnectOutput, error) {
+func (s *server) solConnect(ctx context.Context, req *mcp.CallToolRequest, in kvmConnectInput, rec *record) (*mcp.CallToolResult, solConnectOutput, error) {
 	rec.device = in.Device
 	code, err := parseConsentCode(in.ConsentCode)
 	if err != nil {
@@ -106,12 +109,21 @@ func (s *server) solConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmC
 	if err != nil {
 		return nil, solConnectOutput{}, err
 	}
+	agreed, err := s.enableAnswered(req, fav, "sol_connect", in)
+	if err != nil {
+		return nil, solConnectOutput{}, err
+	}
 	var out solConnectOutput
-	err = s.sol.connect(ctx, fav, code, func(e *solEntry, already bool) error {
+	err = s.sol.connect(ctx, fav, code, agreed, func(e *solEntry, already bool) error {
 		out = solConnectOutput{Device: fav.DisplayName(), AlreadyOpen: already, NextOffset: e.out.end(),
 			IdleTimeoutSeconds: int(s.cfg.SOLIdleTimeout / time.Second), Warnings: e.warnings}
 		return nil
 	})
+	var off *amt.RedirectionOffError
+	if !agreed && s.enableAsks() && errors.As(err, &off) {
+		res, err := s.confirmEnable(req, fav, "sol_connect", in, "Serial over LAN (SOL)", off.Feature)
+		return res, solConnectOutput{}, err
+	}
 	if err != nil {
 		return nil, solConnectOutput{}, err
 	}

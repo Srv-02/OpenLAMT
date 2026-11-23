@@ -75,8 +75,45 @@ func (s *server) openDevice(ctx context.Context, name string) (*session.Session,
 // openFav opens a session to exactly the host and user of fav, the favorite a call resolved
 // (and a question showed), with the password and the pinned fingerprint from the keychain. A
 // TLS favorite without a pin is refused: the MCP server never pins a certificate (no
-// TrustPrompt is passed). The caller closes the session.
+// TrustPrompt is passed). The session never switches a redirection feature on (see
+// openRedirection). The caller closes the session.
 func (s *server) openFav(ctx context.Context, fav favorites.Favorite) (*session.Session, amt.Status, []string, error) {
+	return s.openFavEnable(ctx, fav, false)
+}
+
+// mayEnable reports whether a KVM, SOL or IDE-R open may switch its feature (and the
+// redirection port) on when it is off. That is a settings change, as with set_remote_features:
+// only with the tool group settings, and with require_client_confirmation only after the person
+// in the MCP client agreed (agreed).
+func (s *server) mayEnable(agreed bool) bool {
+	return s.cfg.Enabled(GroupSettings) && (agreed || !s.cfg.RequireClientConfirmation)
+}
+
+// openRedirection is openFav for opening a KVM, SOL or IDE-R session: the feature may be
+// switched on as mayEnable(agreed) says.
+func (s *server) openRedirection(ctx context.Context, fav favorites.Favorite, agreed bool) (*session.Session, []string, error) {
+	sess, _, warnings, err := s.openFavEnable(ctx, fav, s.mayEnable(agreed))
+	return sess, warnings, err
+}
+
+// offError explains a redirection feature that is off and was not switched on; tool is the
+// tool that switches it on after a question.
+func (s *server) offError(err error, tool string) error {
+	var off *amt.RedirectionOffError
+	if !errors.As(err, &off) {
+		return err
+	}
+	why := offAsk
+	switch {
+	case s.cfg.ReadOnly:
+		why = offReadOnly
+	case !s.cfg.Enabled(GroupSettings):
+		why = offNoSettings
+	}
+	return &featureOffError{off: off, why: why, tool: tool}
+}
+
+func (s *server) openFavEnable(ctx context.Context, fav favorites.Favorite, enable bool) (*session.Session, amt.Status, []string, error) {
 	name := fav.DisplayName()
 	cfg := amt.Config{Host: fav.Host, Username: fav.Username, UseTLS: fav.UseTLS}
 	var warnings []string
@@ -102,7 +139,7 @@ func (s *server) openFav(ctx context.Context, fav favorites.Favorite) (*session.
 		return nil, amt.Status{}, nil, keychainError(err)
 	}
 	cfg.Password = pw
-	cfg.NeverEnable = s.cfg.ReadOnly // read_only never switches a redirection feature on
+	cfg.NeverEnable = !enable
 	sess, st, err := session.Open(ctx, cfg, nil, s.connect)
 	if err != nil {
 		return nil, amt.Status{}, nil, err

@@ -21,15 +21,15 @@ import (
 
 // openIDER mounts img on the device of fav: login check, IDE-R turned on if off, consent with
 // code. The WS-Man session is closed again; the IDE-R client has its own socket.
-func (s *server) openIDER(ctx context.Context, fav favorites.Favorite, img ider.Image, code consentCode) (*ider.Client, []string, error) {
-	sess, _, warnings, err := s.openFav(ctx, fav)
+func (s *server) openIDER(ctx context.Context, fav favorites.Favorite, img ider.Image, code consentCode, agreed bool) (*ider.Client, []string, error) {
+	sess, warnings, err := s.openRedirection(ctx, fav, agreed)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer sess.Close()
 	c, err := sess.OpenIDER(ctx, img, ider.StartNow, code)
 	if err != nil {
-		return nil, nil, &redirOpenError{kind: "ider", err: err}
+		return nil, nil, &redirOpenError{kind: "ider", err: s.offError(err, "media_mount")}
 	}
 	return c, warnings, nil
 }
@@ -58,7 +58,8 @@ func (s *server) registerMedia(srv *mcp.Server) {
 			"(media redirection, IDE-R), for example to install an operating system or run a tool from it. A folder is built into a temporary ISO " +
 			"image first; a big folder takes a while, and the build runs within this call, so an MCP client with a short tool timeout may abort it. " +
 			"AMT allows one IDE-R session per device: while this server holds it, the Media menu of the OpenLAMT app, MeshCommander and other clients " +
-			"cannot mount, and the other way round. IDE-R is turned on without a question when it is off on the device and stays on. " +
+			"cannot mount, and the other way round. If IDE-R is off on the device, it is turned on and stays on, only with the tool group \"settings\" " +
+			"(a settings change, like set_remote_features); with require_client_confirmation the mount question includes it. " +
 			"Devices that require user consent show a six-digit code on their screen: call without consent_code first, ask a person at the device " +
 			"for the code, then call again with it (the image is kept for that call). The image stays mounted until media_unmount, until the device " +
 			"ends the session, or until this server stops. Then use media_boot_next or boot_from_iso to boot from it. " +
@@ -164,8 +165,9 @@ func sizeText(n int64) string {
 
 // mountPrompt is what the person confirming sees before media_mount runs: whether a file or a
 // folder is mounted and its full resolved path (and the path as given when a link led there),
-// so the agent cannot mount another file than the one shown.
-func mountPrompt(src mediaSource, given string, size int64) string {
+// so the agent cannot mount another file than the one shown, and, when the call may do it
+// (enable), that IDE-R is turned on.
+func mountPrompt(src mediaSource, given string, size int64, enable bool) string {
 	shown := "«" + visible(src.path) + "»"
 	if g := filepath.Clean(strings.TrimSpace(given)); g != src.path {
 		shown += " (given as «" + visible(g) + "»)"
@@ -173,6 +175,9 @@ func mountPrompt(src mediaSource, given string, size int64) string {
 	what := fmt.Sprintf("mount the ISO file %s (%s) as a read-only CD drive", shown, sizeText(size))
 	if src.folder {
 		what = fmt.Sprintf("mount the folder %s as a read-only CD drive (OpenLAMT builds an ISO image of it first)", shown)
+	}
+	if !enable {
+		return what
 	}
 	return what + "; media redirection (IDE-R) is turned on on the device if it is off and stays on"
 }
@@ -202,11 +207,12 @@ func (s *server) mediaMount(ctx context.Context, req *mcp.CallToolRequest, in me
 	if err := s.media.free(fav); err != nil {
 		return nil, mediaMountOutput{}, err
 	}
-	if res, err := s.confirmMount(req, fav, src, size, mountPrompt(src, in.Path, size)); res != nil || err != nil {
+	if res, err := s.confirmMount(req, fav, src, size, mountPrompt(src, in.Path, size, s.mayEnable(true))); res != nil || err != nil {
 		return res, mediaMountOutput{}, err
 	}
+	// The mount question, if any, said that IDE-R is turned on: the answer covers it.
 	var out mediaMountOutput
-	err = s.media.mount(ctx, fav, src, code, func(e *mediaEntry) {
+	err = s.media.mount(ctx, fav, src, code, true, func(e *mediaEntry) {
 		out = mediaMountOutput{Device: fav.DisplayName(), Name: e.name, Path: e.path, Kind: mediaKind(e.folder), SizeBytes: e.size, Warnings: e.warnings}
 		if i := e.info; i != nil {
 			out.Files, out.Skipped, out.UEFIBootable = i.Files, i.Skipped, boolPtr(i.Bootable)

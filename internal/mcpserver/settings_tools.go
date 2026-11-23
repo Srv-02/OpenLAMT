@@ -461,7 +461,8 @@ func (s *server) setRemoteFeatures(ctx context.Context, req *mcp.CallToolRequest
 		}
 		var w []string
 		if off {
-			w = append(w, sessionsEnd+" kvm_connect, sol_connect and media_mount turn a feature that is off on again (not in read_only).")
+			w = append(w, sessionsEnd+" kvm_connect, sol_connect and media_mount turn a feature that is off on again "+
+				"(after a question with require_client_confirmation).")
 		}
 		return acceptedReadAgain, w, nil
 	})

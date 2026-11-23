@@ -10,8 +10,9 @@ import (
 	"github.com/Srv-02/openlamt/internal/kvm"
 )
 
-// kvmOpener opens a KVM session to the host and user of fav with the consent code (may be empty).
-type kvmOpener func(ctx context.Context, fav favorites.Favorite, code consentCode) (*kvm.Client, []string, error)
+// kvmOpener opens a KVM session to the host and user of fav with the consent code (may be
+// empty). agreed: the person in the MCP client agreed to turn KVM on (see server.mayEnable).
+type kvmOpener func(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool) (*kvm.Client, []string, error)
 
 // kvmManager keeps one KVM session per device across tool calls. AMT allows one KVM session per
 // device, so the manager owns it: kvm_connect opens it, the other KVM tools use it, a session
@@ -98,8 +99,9 @@ func (m *kvmManager) has(fav favorites.Favorite) bool {
 }
 
 // connect opens the session of the device of fav, or keeps the running one (already true), and
-// runs fn with the entry locked. A session that ended is opened again with code.
-func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code consentCode, fn func(e *kvmEntry, already bool) error) error {
+// runs fn with the entry locked. A session that ended is opened again with code; agreed goes to
+// the opener.
+func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool, fn func(e *kvmEntry, already bool) error) error {
 	key := favKey(fav)
 	for {
 		m.mu.Lock()
@@ -121,7 +123,7 @@ func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code c
 		}
 		already := e.alive()
 		if !already {
-			c, warnings, err := m.open(ctx, fav, code)
+			c, warnings, err := m.open(ctx, fav, code, agreed)
 			if err != nil {
 				if created {
 					m.remove(e)
@@ -168,7 +170,7 @@ func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e 
 	}
 	if !e.alive() {
 		e.release()
-		c, warnings, err := m.open(ctx, fav, "")
+		c, warnings, err := m.open(ctx, fav, "", false)
 		switch {
 		case errors.Is(err, errConsentCodeNeeded):
 			return &consentNeededError{tool: "kvm_connect", reopen: true}

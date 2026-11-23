@@ -639,6 +639,43 @@ func TestReadOnlySOLConnectNeverEnablesSOL(t *testing.T) {
 	}
 }
 
+// TestSOLConnectEnablesSOLOnlyAsASettingsChange (#115): without the tool group settings
+// sol_connect does not turn SOL on and names what to turn on; with require_client_confirmation
+// it asks first.
+func TestSOLConnectEnablesSOLOnlyAsASettingsChange(t *testing.T) {
+	h := newHarness(t)
+	h.cfg.Groups[GroupSettings] = false
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().SOLOff = true
+	addSOL(t, f)
+	h.start()
+	h.mustFail("sol_connect", dev("NUC"), `Serial over LAN (SOL) is turned off on the device. Turning it on changes a device setting, and the tool group "settings" is off`)
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("enabled %v", got)
+	}
+
+	var asked []string
+	h = newHarness(t)
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
+	f = h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().SOLOff = true
+	d := addSOL(t, f)
+	h.start()
+	d.accept()
+	h.mustOK("sol_connect", dev("NUC"))
+	d.peer()
+	if got := f.RedirectionEnabled(); !reflect.DeepEqual(got, []string{"SOL"}) {
+		t.Fatalf("enabled %v", got)
+	}
+	if len(asked) != 1 || !strings.Contains(asked[0], "turn Serial over LAN (SOL) on (it is off on the device") {
+		t.Fatalf("asked %q", asked)
+	}
+}
+
 // TestConsoleText: escape sequences and control characters are dropped, line endings become
 // \n, and a token cut by the end of the buffer is held back while the session runs.
 func TestConsoleText(t *testing.T) {

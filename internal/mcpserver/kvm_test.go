@@ -804,6 +804,70 @@ func TestKVMTypeTextSecretRefusesControlCharacters(t *testing.T) {
 	}
 }
 
+// TestKVMConnectEnablesKVMOnlyAsASettingsChange (#115): turning KVM on is a settings change.
+// Without the tool group settings kvm_connect refuses and names what to turn on; with
+// require_client_confirmation it asks first, like set_remote_features; the wake keys are input
+// and need kvm_input.
+func TestKVMConnectEnablesKVMOnlyAsASettingsChange(t *testing.T) {
+	// settings and kvm_input off, KVM off: refused, nothing enabled, no redirection connection.
+	h := newHarness(t)
+	h.cfg.Groups[GroupSettings], h.cfg.Groups[GroupKVMInput] = false, false
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		t.Errorf("asked %q", r.Params.Message)
+		return &mcp.ElicitResult{Action: "decline"}, nil
+	}
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	srv := addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustFail("kvm_connect", dev("NUC"), `KVM is turned off on the device. Turning it on changes a device setting, and the tool group "settings" is off`)
+	f.Redirection().ListenerOff, f.Redirection().KVMOff = true, false
+	h.mustFail("kvm_connect", dev("NUC"), `The redirection port (needed for KVM, Serial over LAN and IDE-R) is turned off on the device. Turning it on`)
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("enabled %v", got)
+	}
+	if srv.Connections() != 0 {
+		t.Fatalf("redirection connections %d", srv.Connections())
+	}
+	// KVM on, kvm_input off: the session opens, and no wake key reaches the host.
+	f.Redirection().ListenerOff = false
+	h.mustOK("kvm_connect", dev("NUC"))
+	h.screenshot(dev("NUC"))
+	time.Sleep(300 * time.Millisecond) // a wake key would have gone out by now
+	if n := rawKeyMessages(srv); n != 0 {
+		t.Fatalf("%d key events without kvm_input", n)
+	}
+
+	// settings on, require_client_confirmation, KVM off: asked first; declined writes nothing,
+	// accepted turns KVM on.
+	var asked []string
+	answer := &mcp.ElicitResult{Action: "decline"}
+	h = newHarness(t)
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return answer, nil
+	}
+	f = h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustFail("kvm_connect", dev("NUC"), "not confirmed")
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("declined, enabled %v", got)
+	}
+	answer = &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}
+	h.mustOK("kvm_connect", dev("NUC"))
+	if got := f.RedirectionEnabled(); !reflect.DeepEqual(got, []string{"KVM"}) {
+		t.Fatalf("enabled %v", got)
+	}
+	want := `The AI agent asks OpenLAMT to turn KVM on (it is off on the device; this changes a device setting, and it stays on) on device "NUC"`
+	if len(asked) != 2 || !strings.Contains(asked[0], want) || asked[1] != asked[0] {
+		t.Fatalf("asked %q", asked)
+	}
+}
+
 // rawKeyMessages counts every RFB key event (type 4) the fake received, the wake key F15 included.
 func rawKeyMessages(srv *kvmtest.Server) int {
 	n := 0

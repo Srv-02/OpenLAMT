@@ -56,6 +56,51 @@ type redirOpenError struct {
 func (e *redirOpenError) Error() string { return e.kind + ": " + e.err.Error() }
 func (e *redirOpenError) Unwrap() error { return e.err }
 
+// offReason is what keeps a call from switching a redirection feature on.
+type offReason int
+
+const (
+	offReadOnly   offReason = iota // read_only
+	offNoSettings                  // the tool group settings is off
+	offAsk                         // require_client_confirmation: only the connect tool asks
+)
+
+// featureOffError: a redirection feature is off on the device and this call may not switch it
+// on (why). tool switches it on after a question. Nothing was written.
+type featureOffError struct {
+	off  *amt.RedirectionOffError
+	why  offReason
+	tool string
+}
+
+func (e *featureOffError) Error() string { return e.off.Error() }
+func (e *featureOffError) Unwrap() error { return e.off }
+
+// featureNames name the features of an amt.RedirectionOffError for the agent.
+var featureNames = map[string]string{
+	"redirection": "The redirection port (needed for KVM, Serial over LAN and IDE-R)",
+	"KVM":         "KVM",
+	"SOL":         "Serial over LAN (SOL)",
+	"IDE-R":       "Media redirection (IDE-R)",
+}
+
+func explainFeatureOff(e *featureOffError) string {
+	name := featureNames[e.off.Feature]
+	if name == "" {
+		name = e.off.Feature
+	}
+	name += " is turned off on the device"
+	switch e.why {
+	case offNoSettings:
+		return name + `. Turning it on changes a device setting, and the tool group "settings" is off in the openlamt-mcp config. ` +
+			`Turn it on in the AMT settings (for example in the OpenLAMT app), or enable the tool group "settings".`
+	case offAsk:
+		return name + ". Call " + e.tool + " to turn it on; the person in the MCP client is asked first."
+	}
+	return name + ", and read_only in the openlamt-mcp config forbids turning it on, because that changes a device setting. " +
+		"Turn it on in the AMT settings (for example in the OpenLAMT app) or switch read_only off."
+}
+
 // redirKinds are the words explain uses for a redirOpenError.
 var redirKinds = map[string]struct{ short, session, where, tool string }{
 	"sol":  {"SOL", "serial console (SOL)", "Console view", "sol_connect"},
@@ -106,6 +151,7 @@ func explain(err error) string {
 		re  *kvm.RedirectionError
 		ke  *amt.KVMError
 		rof *amt.RedirectionOffError
+		foe *featureOffError
 		roe *redirOpenError
 		se  *amt.SOLError
 		ie  *amt.IDERError
@@ -149,6 +195,8 @@ func explain(err error) string {
 		return fmt.Sprintf("The device refused the change (%s, AMT ReturnValue %d).", me.Method, me.ReturnValue)
 	case errors.As(err, &ref):
 		return ref.msg
+	case errors.As(err, &foe):
+		return explainFeatureOff(foe)
 	case errors.As(err, &rof):
 		const tail = " in the openlamt-mcp config forbids turning it on, because that changes a device setting. " +
 			"Turn it on in the AMT settings (for example in the OpenLAMT app) or switch read_only off."

@@ -19,7 +19,6 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -127,7 +126,7 @@ func Start(cfg Config) (*Server, error) {
 	}
 	name := filepath.Base(cfg.Path)
 	s := &Server{cfg: cfg, root: root, name: name, size: st.Size(), ln: ln, done: make(chan struct{}),
-		path: "/" + hex.EncodeToString(token) + "/" + url.PathEscape(name), modTime: st.ModTime()}
+		path: "/" + hex.EncodeToString(token) + safeExt(name), modTime: st.ModTime()}
 	s.url = "https://" + hostPort + s.path
 	s.srv = &http.Server{
 		Handler:           http.HandlerFunc(s.serve),
@@ -195,6 +194,22 @@ func (s *Server) finish(err error) {
 		s.ln.Close()
 		close(s.done)
 	})
+}
+
+// safeExt returns the file extension of name if it is plain ASCII letters and digits, else "".
+// The served URL path is random plus this extension, so the file name (spaces, non-ASCII,
+// percent signs) never has to be escaped or matched.
+func safeExt(name string) string {
+	ext := filepath.Ext(name)
+	if len(ext) < 2 || len(ext) > 12 {
+		return ""
+	}
+	for _, c := range ext[1:] {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9') {
+			return ""
+		}
+	}
+	return ext
 }
 
 // contentType names the image for the UEFI HTTP boot client, which decides by it (or by the

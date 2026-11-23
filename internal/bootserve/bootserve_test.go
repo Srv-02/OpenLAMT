@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +78,7 @@ func TestServerServesOnceAndStops(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(s.URL(), "https://127.0.0.1:") || !strings.HasSuffix(s.URL(), "/recovery.efi") || s.Size() != int64(len(data)) {
+	if !strings.HasPrefix(s.URL(), "https://127.0.0.1:") || !strings.HasSuffix(s.URL(), ".efi") || s.Size() != int64(len(data)) {
 		t.Fatalf("url %s size %d", s.URL(), s.Size())
 	}
 	c := client(t, s)
@@ -235,5 +236,42 @@ func TestRouteToLoopback(t *testing.T) {
 		if !a.IP.Is4() || a.IP.IsLoopback() || a.Interface == "" {
 			t.Fatalf("address %+v", a)
 		}
+	}
+}
+
+// TestServerAnyFileName: the served path is random plus the extension, so names with spaces,
+// non-ASCII characters or percent signs work; other paths stay 404.
+func TestServerAnyFileName(t *testing.T) {
+	for _, name := range []string{"Windows recovery.iso", "größe.iso", "a%20b.efi"} {
+		path, data := image(t, name, 4096)
+		s, err := Start(Config{Path: path, Addr: loopback, Port: freePort(t)})
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		if strings.ContainsAny(s.URL()[len("https://"):], " %") || !strings.HasSuffix(s.URL(), filepath.Ext(name)) {
+			t.Errorf("%s: url %s", name, s.URL())
+		}
+		c := client(t, s)
+		for _, other := range []string{"/" + url.PathEscape(name), "/x/" + url.PathEscape(name), "/"} {
+			base := s.URL()[:strings.Index(s.URL()[len("https://"):], "/")+len("https://")]
+			resp, err := c.Get(base + other)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != http.StatusNotFound {
+				t.Errorf("%s: %s gave %d", name, other, resp.StatusCode)
+			}
+		}
+		resp, err := c.Get(s.URL())
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK || !bytes.Equal(body, data) {
+			t.Errorf("%s: status %d, %d bytes", name, resp.StatusCode, len(body))
+		}
+		s.Close()
 	}
 }

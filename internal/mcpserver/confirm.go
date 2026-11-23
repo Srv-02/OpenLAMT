@@ -51,9 +51,13 @@ const secretNoTLSWarning = "The connection to this device has no TLS. The text i
 // typed on a device without TLS, asks regardless of require_client_confirmation, with the TLS
 // warning, as the app asks before it sends a password without TLS (#37); a client that cannot
 // ask gets a refusal. Otherwise it is confirm.
-func (s *server) confirmText(req *mcp.CallToolRequest, fav favorites.Favorite, what string, secret bool) (*mcp.CallToolResult, error) {
+//
+// tls is the TLS state of the connection that carries the text (the open session, not the
+// favorite); the question is bound to it.
+func (s *server) confirmText(req *mcp.CallToolRequest, fav favorites.Favorite, what string, secret, tls bool) (*mcp.CallToolResult, error) {
+	fav.UseTLS = tls
 	msg := confirmMessage(what, fav)
-	if !secret || fav.UseTLS {
+	if !secret || tls {
 		return s.confirm(req, fav, msg)
 	}
 	return s.ask(req, question{message: msg + "\n\n" + secretNoTLSWarning, state: s.bindState(fav, ""), noTLS: true,
@@ -62,10 +66,10 @@ func (s *server) confirmText(req *mcp.CallToolRequest, fav favorites.Favorite, w
 }
 
 // bindState is the request state of a question about state on the device of fav: an HMAC over
-// the favorite's name, host and user and state, with the server's own key.
+// the favorite's name, host, user and TLS setting and state, with the server's own key.
 func (s *server) bindState(fav favorites.Favorite, state string) string {
 	mac := hmac.New(sha256.New, s.stateKey)
-	for _, p := range []string{fav.DisplayName(), fav.Host, fav.Username, state} {
+	for _, p := range []string{fav.DisplayName(), fav.Host, fav.Username, strconv.FormatBool(fav.UseTLS), state} {
 		mac.Write([]byte(p))
 		mac.Write([]byte{0})
 	}

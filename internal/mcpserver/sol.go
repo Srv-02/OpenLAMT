@@ -39,6 +39,7 @@ type solEntry struct {
 	device   string      // favorite name, for messages
 	client   *sol.Client // nil only before the first open
 	warnings []string    // of the last open, e.g. no TLS
+	tls      bool        // the open session uses TLS (the favorite may have changed since)
 	removed  bool        // disconnected, idle or shut down: the entry is no longer in the manager
 	lastUsed time.Time
 	timer    *time.Timer
@@ -128,7 +129,7 @@ func (m *solManager) connect(ctx context.Context, fav favorites.Favorite, code c
 				e.mu.Unlock()
 				return err
 			}
-			e.client, e.warnings = c, warnings
+			e.client, e.warnings, e.tls = c, warnings, fav.UseTLS
 			e.out.restart()
 			e.pumpDone = make(chan struct{})
 			go e.out.pump(c, e.pumpDone)

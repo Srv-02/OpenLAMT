@@ -371,7 +371,12 @@ func (s *server) confirmInput(req *mcp.CallToolRequest, fav favorites.Favorite, 
 	if !s.kvm.has(fav) {
 		return nil, noSession(fav) // do not ask a person for a call that cannot run
 	}
-	return s.confirmText(req, fav, what, secret)
+	// The text goes over the open session, whatever the favorite says now.
+	tls := fav.UseTLS
+	if t, ok := s.kvm.sessionTLS(fav); ok {
+		tls = t
+	}
+	return s.confirmText(req, fav, what, secret, tls)
 }
 
 // sleepCtx waits d unless ctx ends first.

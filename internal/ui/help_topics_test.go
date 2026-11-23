@@ -136,3 +136,66 @@ func TestUserDialogHasInfoButtons(t *testing.T) {
 		t.Error("the popover does not open")
 	}
 }
+
+var helpBlockRE = regexp.MustCompile(`(?s)HelpContent\{(.*?)\n?\s*\}`)
+
+// Every HelpContent in the sources has a title, What and When, and every text exists in both
+// languages and is not empty. This covers the popovers outside help_topics.go (audit log, Remote
+// Platform Erase, One Click Recovery, Power, Wi-Fi, System Defense).
+func TestEveryPopoverTextExistsInBothLanguages(t *testing.T) {
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	en, de := helpTranslations(t, "en"), helpTranslations(t, "de")
+	blocks := 0
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") || f == "help_topics.go" {
+			continue
+		}
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range helpBlockRE.FindAllStringSubmatch(string(src), -1) {
+			if !strings.Contains(b[1], "lang.L(") {
+				continue
+			}
+			blocks++
+			for _, field := range []string{"Title:", "What:", "When:"} {
+				if !strings.Contains(b[1], field) {
+					t.Errorf("%s: popover without %s", f, field)
+				}
+			}
+			for _, m := range helpKeyRE.FindAllStringSubmatch(b[1], -1) {
+				k := strings.ReplaceAll(m[1], `\"`, `"`)
+				if en[k] == "" {
+					t.Errorf("%s: English text lacks %q", f, k)
+				}
+				if de[k] == "" {
+					t.Errorf("%s: German text lacks %q", f, k)
+				}
+			}
+		}
+	}
+	if blocks < 8 {
+		t.Fatalf("only %d popovers found", blocks)
+	}
+}
+
+// The audit log settings dialog carries the info buttons of the design (Record events, When the
+// log is full), the switch rows of Remote features carry theirs.
+func TestAuditAndRemoteFeatureRowsHaveInfoButtons(t *testing.T) {
+	h, _ := openAuditDialog(t, exampleAuditSettings())
+	got := infoButtons(h.m.parent.Canvas().Overlays().Top())
+	want := []string{"Record events", "When the log is full"}
+	if !slices.Equal(got, want) {
+		t.Errorf("audit dialog info buttons %v, want %v", got, want)
+	}
+	for _, b := range []*widgets.InfoButton{rpeHelpButton(), ocrHelpButton()} {
+		c := b.Content
+		if c.Title == "" || c.What == "" || c.When == "" || c.Wrong == "" || c.Recover == "" {
+			t.Errorf("incomplete popover %+v", c)
+		}
+	}
+}

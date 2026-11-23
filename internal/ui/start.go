@@ -15,6 +15,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/keychain"
+	"github.com/Srv-02/openlamt/internal/localme"
 	"github.com/Srv-02/openlamt/internal/session"
 	"github.com/Srv-02/openlamt/internal/typing"
 	"github.com/Srv-02/openlamt/internal/ui/icons"
@@ -26,9 +27,10 @@ import (
 type detailMode int
 
 const (
-	modeNew  detailMode = iota // "Quick Connect": empty form, Connect and Save as favorite; after Duplicate Cancel and Save
-	modeView                   // a favorite, read only, Connect
-	modeEdit                   // a favorite in edit mode, Save and Cancel
+	modeNew   detailMode = iota // "Quick Connect": empty form, Connect and Save as favorite; after Duplicate Cancel and Save
+	modeView                    // a favorite, read only, Connect
+	modeEdit                    // a favorite in edit mode, Save and Cancel
+	modeLocal                   // "This computer" (#11): the local Intel ME, not checked yet
 )
 
 // StartWindow is the manager window (ManagerA.html): the favorites in the sidebar, the
@@ -65,6 +67,13 @@ type StartWindow struct {
 	settingsBtn *managerButton
 	scanBtn     *managerButton
 
+	// "This computer" (local_me.go)
+	localME      localme.Detector // runs once at start; tests pass localme.Fake
+	meFound      bool
+	localSection *fyne.Container
+	localRow     *widgets.SidebarRow
+	localCard    fyne.CanvasObject
+
 	// Detail pane
 	mode     detailMode
 	selKey   string              // deviceKey of the selected favorite; "" in modeNew
@@ -72,6 +81,7 @@ type StartWindow struct {
 	editBtn  *managerButton      // toolbar
 	dupBtn   *managerButton      // toolbar
 	delBtn   *managerButton      // toolbar
+	tileIcon *widgets.Symbol     // server, or the chip for "This computer"
 	title    *ellipsisText       // 22 px heading
 	meta     *fyne.Container     // "AMT … · ACM · TLS"
 	busyRow  *fyne.Container     // "Connecting to …" in place of meta
@@ -128,7 +138,7 @@ func NewStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, connect session.ConnectFunc, setup func(*StartWindow)) *StartWindow {
 	s := &StartWindow{later: fyne.Do, exitWork: &pendingWork{}, app: a, win: a.NewWindow("OpenLAMT"), mgr: mgr, keys: keys, settings: NewSettings(a.Preferences()),
 		open: map[string]*DeviceWindow{}, busy: map[string]string{}, probes: map[string]probeResult{}, saved: map[string]bool{}, savedGen: map[string]int{},
-		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}}
+		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}, localME: localme.Present}
 	// User actions go through answerStore: a keychain answer there unblocks the status prober.
 	probeKeys := keys
 	keys = answerStore{Store: keys, answered: func() {
@@ -194,6 +204,7 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 	if setup != nil {
 		setup(s)
 	}
+	s.detectLocal()
 	s.reload()
 	if len(s.items) > 0 {
 		s.selectFavorite(s.items[0])
@@ -231,7 +242,7 @@ func (s *StartWindow) buildSidebar() fyne.CanvasObject {
 
 	searchBox := container.New(layout.NewCustomPaddedLayout(12, 10, 12, 12), newSearchField(s.search))
 	heading := container.New(layout.NewCustomPaddedLayout(8, 6, 20, 20), sectionLabel(lang.L("Favorites")))
-	top := container.NewVBox(searchBox, heading)
+	top := container.NewVBox(searchBox, s.buildLocalSection(), heading)
 	listBox := container.NewVScroll(container.New(layout.NewCustomPaddedLayout(0, 10, 10, 10), s.list))
 	footer := container.NewBorder(hairline(style.ColorNameCardBorder), nil, nil, nil,
 		container.New(layout.NewCustomPaddedLayout(10, 10, 10, 10),
@@ -663,8 +674,8 @@ func (s *StartWindow) buildDetail() {
 	tileBg := style.BindRect(&canvas.Rectangle{CornerRadius: style.DetailTileRadius, StrokeWidth: 1},
 		style.ColorNameDetailTile, style.ColorNameTileBorder)
 	tileBg.SetMinSize(fyne.NewSquareSize(style.DetailTileSize))
-	tileIcon := widgets.NewSymbol(icons.GetStroke(icons.Server, icons.Accent, 1.5), 32)
-	tile := container.NewStack(tileBg, container.NewCenter(tileIcon))
+	s.tileIcon = widgets.NewSymbol(icons.GetStroke(icons.Server, icons.Accent, 1.5), 32)
+	tile := container.NewStack(tileBg, container.NewCenter(s.tileIcon))
 
 	// ManagerA.html: name (22 px, bold) and metadata line 4 px apart, centred next to the tile;
 	// tile, heading and buttons 18 px apart.
@@ -677,7 +688,8 @@ func (s *StartWindow) buildDetail() {
 	s.card1, s.card2, s.card3 = widgets.NewFormCard(), widgets.NewFormCard(), widgets.NewFormCard()
 	s.advanced = container.New(layout.NewCustomPaddedVBoxLayout(6),
 		container.New(layout.NewCustomPaddedLayout(0, 0, 14, 0), sectionLabel(lang.L("Advanced"))), s.card3)
-	s.cards = container.New(&detailLayout{}, header, s.card1, s.card2, s.advanced)
+	s.localCard = newLocalCard()
+	s.cards = container.New(&detailLayout{}, header, s.localCard, s.card1, s.card2, s.advanced)
 	s.scroller = container.NewVScroll(s.cards)
 	s.detail = container.New(&columnLayout{fill: 1}, toolbar, s.scroller) // no padding below the toolbar
 	s.setMode(modeNew)
@@ -859,6 +871,20 @@ func (s *StartWindow) showDetail() {
 	s.editBtn.SetActive(s.mode == modeEdit)
 	s.refreshTitle()
 	s.refreshPasswordEye()
+	local := s.mode == modeLocal
+	if s.localRow != nil {
+		s.localRow.SetSelected(local)
+	}
+	tile := icons.Server
+	if local {
+		tile = icons.Hardware
+	}
+	if res := icons.GetStroke(tile, icons.Accent, 1.5); s.tileIcon.Resource() != res {
+		s.tileIcon.SetResource(res)
+	}
+	setShown(s.localCard, local)
+	setShown(s.card1, !local)
+	setShown(s.card2, !local)
 
 	switch s.mode {
 	case modeNew:
@@ -923,6 +949,8 @@ func (s *StartWindow) showDetail() {
 			widgets.NewIconRow(icons.Lock, lang.L("Reset fingerprint"), s.resetFP),
 		)
 		s.advanced.Show()
+	case modeLocal:
+		s.advanced.Hide()
 	}
 	// Quick Connect has no "Save password" switch: Save as favorite stores an entered password.
 	rows2 := []fyne.CanvasObject{widgets.NewIconRow(icons.Lock, lang.L("Use TLS"), s.useTLS)}
@@ -945,6 +973,10 @@ func (s *StartWindow) refreshTitle() {
 		if f, ok := s.selected(); ok {
 			s.title.SetText(f.DisplayName())
 		}
+		return
+	}
+	if s.mode == modeLocal {
+		s.title.SetText(lang.L("This computer"))
 		return
 	}
 	switch {
@@ -1060,7 +1092,10 @@ func (s *StartWindow) refreshMeta() {
 		}
 		parts = append(parts, o)
 	}
-	if f, ok := s.selected(); ok && s.mode != modeNew {
+	if s.mode == modeLocal {
+		add(text(localMeta()))
+	}
+	if f, ok := s.selected(); ok && s.mode != modeNew && s.mode != modeLocal {
 		if r, ok := s.probes[s.selKey]; ok && r.known() {
 			if r.st.AMTVersion != "" { // empty when denied
 				add(text("AMT " + r.st.AMTVersion))

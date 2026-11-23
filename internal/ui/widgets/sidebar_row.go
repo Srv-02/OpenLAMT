@@ -65,6 +65,15 @@ func (r *SidebarRow) Set(name, host string) {
 	r.Refresh()
 }
 
+// SetIcon changes the symbol of the tile (default: server; "This computer" uses the chip).
+func (r *SidebarRow) SetIcon(n icons.Name) {
+	r.icon = n
+	r.Refresh()
+}
+
+// Icon returns the symbol of the tile.
+func (r *SidebarRow) Icon() icons.Name { return r.icon }
+
 // Name and Host return the shown texts.
 func (r *SidebarRow) Name() string { return r.name }
 func (r *SidebarRow) Host() string { return r.host }

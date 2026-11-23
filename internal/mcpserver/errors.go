@@ -8,7 +8,9 @@ import (
 	"strings"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
+	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/session"
 	"github.com/Srv-02/openlamt/internal/sol"
 )
@@ -89,6 +91,8 @@ func explain(err error) string {
 		rof *amt.RedirectionOffError
 		roe *redirOpenError
 		se  *amt.SOLError
+		ie  *amt.IDERError
+		mpe *mkiso.PathError
 	)
 	switch {
 	case errors.As(err, &roe):
@@ -143,6 +147,34 @@ func explain(err error) string {
 		return "The device closed the serial console session."
 	case errors.Is(err, sol.ErrClosed):
 		return "The serial console session was closed."
+	case errors.As(err, &ie):
+		return fmt.Sprintf("The device refused to enable media redirection (AMT ReturnValue %d). IDE-R may be disabled in the AMT settings of the device.", ie.ReturnValue)
+	case errors.Is(err, amt.ErrIDERUnsupported):
+		return "This device does not support media redirection (IDE-R)."
+	case errors.Is(err, ider.ErrClosedByDevice):
+		return "The device closed the media session."
+	case errors.Is(err, ider.ErrToggleFailed):
+		return "The device did not attach the virtual CD drive. Try media_mount again."
+	case errors.Is(err, ider.ErrClosed):
+		return "The media session was closed."
+	case errors.As(err, &mpe):
+		return mpe.Path + ": " + explain(mpe.Err)
+	case errors.Is(err, mkiso.ErrEmpty):
+		return "The folder contains no files."
+	case errors.Is(err, mkiso.ErrFileTooLarge):
+		return "A file in the folder is 4 GiB or larger and does not fit on the image."
+	case errors.Is(err, mkiso.ErrNameTooLong):
+		return "A file or folder name is longer than 103 characters, which the image cannot hold."
+	case errors.Is(err, mkiso.ErrNameConflict):
+		return "Two names in the folder differ only in upper and lower case or in special characters, which the image cannot tell apart."
+	case errors.Is(err, mkiso.ErrTooManyDirs):
+		return "The folder has more than 65535 subfolders, which the image cannot hold."
+	case errors.Is(err, mkiso.ErrDirTooLarge):
+		return "A folder holds too many entries for the image."
+	case errors.Is(err, mkiso.ErrTooLarge):
+		return "The folder is too large for an image."
+	case errors.Is(err, mkiso.ErrFileChanged):
+		return "A file changed while the image was built. Call media_mount again."
 	case errors.Is(err, kvm.ErrClosed):
 		return "The KVM session was closed."
 	case errors.Is(err, kvm.ErrAuthUnsupported):
@@ -158,6 +190,9 @@ func explain(err error) string {
 		return fmt.Sprintf("The TLS certificate of the device changed (pinned fingerprint %s, device sent %s). "+
 			"The connection was refused. If the change is expected, connect with the OpenLAMT app and accept the new certificate there.",
 			amt.FormatFingerprint(mm.Expected), amt.FormatFingerprint(mm.Actual))
+	case errors.As(err, &pe) && pe.Action == amt.BootToISO:
+		return fmt.Sprintf("The device refused the boot from ISO (AMT ReturnValue %d). "+
+			"The IDE-R boot option may still be set on the device.", pe.ReturnValue)
 	case errors.As(err, &pe) && pe.Action == amt.BootToBIOS:
 		return fmt.Sprintf("The device refused the boot to BIOS (AMT ReturnValue %d). "+
 			"The BIOS setup boot option may still be set on the device.", pe.ReturnValue)

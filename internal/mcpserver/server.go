@@ -33,6 +33,7 @@ type server struct {
 	logger  *slog.Logger
 	kvm     *kvmManager
 	sol     *solManager
+	media   *mediaManager
 }
 
 // Server is the MCP server with the device sessions it keeps across tool calls. Close it when
@@ -42,12 +43,14 @@ type Server struct {
 	s *server
 }
 
-// Close ends every KVM session (held keys and buttons are released first) and every serial
-// console session, and refuses new ones. It is safe to call more than once.
+// Close ends every KVM session (held keys and buttons are released first), every serial
+// console session and every mount (a mount in progress is cancelled; boot options media_boot_next
+// set are cleared), and refuses new ones. It is safe to call more than once.
 func (s *Server) Close() {
 	var wg sync.WaitGroup
 	wg.Go(s.s.kvm.closeAll)
 	wg.Go(s.s.sol.closeAll)
+	wg.Go(s.s.media.closeAll)
 	wg.Wait()
 }
 
@@ -55,10 +58,11 @@ const instructions = `openlamt-mcp controls Intel AMT devices saved as favorites
 Call list_devices first; every other tool takes the favorite name as "device".
 Passwords are never needed: they come from the OS keychain.
 Power actions act on real hardware: check device_status before and after.
-boot_to_bios and kvm_connect may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.
+boot_to_bios, kvm_connect and media_mount may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.
 For the screen: kvm_connect once, then kvm_screenshot, kvm_send_keys, kvm_mouse and kvm_type_text as often as needed; kvm_disconnect when done.
 kvm_mouse takes x and y in the pixels of the last kvm_screenshot. After input, take a new screenshot (wait_ms helps when the screen changes slowly).
-For the serial console: sol_connect once, then sol_read (it goes on where the last read ended; wait_ms waits for new output), sol_type_text and sol_send_keys; sol_disconnect when done.`
+For the serial console: sol_connect once, then sol_read (it goes on where the last read ended; wait_ms waits for new output), sol_type_text and sol_send_keys; sol_disconnect when done.
+For media: media_mount an absolute path of an .iso file or a folder on this computer, then media_boot_next (boot from it at the next start) or boot_from_iso (restart from it now); media_status shows the mount; media_unmount when done.`
 
 // New builds the MCP server with the tools the config allows.
 func New(o Options) *Server {
@@ -69,6 +73,7 @@ func New(o Options) *Server {
 	s := &server{cfg: o.Config, favs: o.Favorites, keys: o.Keys, connect: o.Connect, log: o.Log, logger: logger}
 	s.kvm = newKVMManager(o.Config.KVMIdleTimeout, s.openKVM)
 	s.sol = newSOLManager(o.Config.SOLIdleTimeout, s.openSOL)
+	s.media = newMediaManager(s.openIDER, s.clearISOBoot, logger)
 	srv := mcp.NewServer(&mcp.Implementation{Name: "openlamt-mcp", Title: "OpenLAMT", Version: o.Version},
 		&mcp.ServerOptions{Instructions: instructions, Logger: logger})
 	s.register(srv)
@@ -152,4 +157,5 @@ func (s *server) register(srv *mcp.Server) {
 	}
 	s.registerKVM(srv)
 	s.registerSOL(srv)
+	s.registerMedia(srv)
 }

@@ -1,12 +1,12 @@
 package ui
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
@@ -19,10 +19,22 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
 
+// fakeHost is the host name of "This computer" in tests and screenshots.
+const fakeHost = "workstation.example.com"
+
+// fakeHostname makes hostname answer name and err until the test ends.
+func fakeHostname(t *testing.T, name string, err error) {
+	t.Helper()
+	old := hostname
+	hostname = func() (string, error) { return name, err }
+	t.Cleanup(func() { hostname = old })
+}
+
 // newLocalStart builds a start window whose Intel ME detection answers found, with one favorite.
 func newLocalStart(t *testing.T, found bool) *StartWindow {
 	t.Helper()
 	englishUI(t)
+	fakeHostname(t, fakeHost, nil)
 	a := test.NewTempApp(t)
 	a.Settings().SetTheme(style.Theme{}) // the empty card uses the app's sizes
 	keys := keychain.NewMemory()
@@ -74,8 +86,8 @@ func TestLocalDetailShowsNotChecked(t *testing.T) {
 	if s.title.Text != "This computer" {
 		t.Fatalf("title %q", s.title.Text)
 	}
-	if !s.meta.Visible() || !hasTextSuffix(s.meta, "Intel ME found") {
-		t.Fatal("meta line lacks \"Intel ME found\"")
+	if !s.meta.Visible() || !hasText(s.meta, fakeHost+" · Intel ME found") {
+		t.Fatal("meta line is not \"<host name> · Intel ME found\"")
 	}
 	if !s.localCard.Visible() || s.card1.Visible() || s.card2.Visible() || s.advanced.Visible() {
 		t.Fatal("detail shows the favorite cards")
@@ -125,12 +137,22 @@ func TestLocalDetailSurvivesReload(t *testing.T) {
 	}
 }
 
-func hasTextSuffix(o fyne.CanvasObject, suffix string) bool {
-	found := false
-	walk(o, func(c fyne.CanvasObject) {
-		if t, ok := c.(*canvas.Text); ok && strings.HasSuffix(t.Text, suffix) {
-			found = true
-		}
-	})
-	return found
+// TestLocalNamesWithoutHostname: without a host name the meta line and the confirmation
+// checkbox leave the name out.
+func TestLocalNamesWithoutHostname(t *testing.T) {
+	englishUI(t)
+	fakeHostname(t, "", errors.New("no host name"))
+	if got := localMeta(); got != "Intel ME found" {
+		t.Fatalf("meta %q", got)
+	}
+	if got := localRiskDevice(); got != "this computer" {
+		t.Fatalf("device %q", got)
+	}
+	fakeHostname(t, fakeHost, nil)
+	if got := localMeta(); got != fakeHost+" · Intel ME found" {
+		t.Fatalf("meta %q", got)
+	}
+	if got := localRiskDevice(); got != "this computer ("+fakeHost+")" {
+		t.Fatalf("device %q", got)
+	}
 }

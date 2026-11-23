@@ -33,6 +33,7 @@ func (f *fakeCheck) check() (localme.Result, error) { f.calls++; return f.r, f.e
 // Intel ME, whose Check answers through f inline, and selects "This computer".
 func newCheckStart(t *testing.T, a fyne.App, f *fakeCheck) *StartWindow {
 	t.Helper()
+	fakeHostname(t, fakeHost, nil)
 	keys := keychain.NewMemory()
 	mgr := favorites.NewManager(favorites.NewStore(filepath.Join(t.TempDir(), "favorites.json")), keys)
 	s := newStartWindow(a, mgr, keys, session.ConnectFake(&session.Fake{FP: fp}), func(s *StartWindow) {

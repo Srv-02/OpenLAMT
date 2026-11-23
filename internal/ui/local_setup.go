@@ -2,7 +2,6 @@ package ui
 
 import (
 	"errors"
-	"os"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -79,7 +78,7 @@ func (s *StartWindow) newLocalSetup(r localme.Result) fyne.CanvasObject {
 // localRiskDevice names this computer in the checkbox of the confirmations: "this computer
 // (<host name>)".
 func localRiskDevice() string {
-	if h, err := os.Hostname(); err == nil && strings.TrimSpace(h) != "" {
+	if h, err := hostname(); err == nil && strings.TrimSpace(h) != "" {
 		return lang.L("this computer ({{.Name}})", map[string]any{"Name": strings.TrimSpace(h)})
 	}
 	return lang.L("this computer")

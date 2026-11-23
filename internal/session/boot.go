@@ -78,7 +78,8 @@ func (s *Session) BootFromFile(prompt amt.ConsentPrompt, rootDER []byte, o amt.B
 	}
 	if err := d.Boot(o); err != nil {
 		if derr := certs.DeleteCertificate(id, confirm); derr != nil {
-			return "", classify(errors.Join(err, fmt.Errorf("remove the temporary root certificate: %w", derr)))
+			// Each part on its own: classify keeps only the *amt.BootMayBeSetError of a join.
+			return "", errors.Join(classify(err), fmt.Errorf("remove the temporary root certificate: %w", classify(derr)))
 		}
 		return "", classify(err)
 	}

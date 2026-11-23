@@ -11,6 +11,7 @@
   "Erase…": "Löschen…",
   "Only if the drive has a password": "Nur wenn das Laufwerk ein Passwort hat",
   "Open Event Log": "Ereignisprotokoll öffnen",
+  "OpenLAMT could not clear the erase again: the next restart of the device may still erase the drives. If you do not want that, do not restart the device. Connect again and start Boot Options with Hard disk (default order): it clears the erase before the restart.": "OpenLAMT konnte das Löschen nicht zurücksetzen: Der nächste Neustart des Geräts kann die Laufwerke noch löschen. Wenn du das nicht willst, starte das Gerät nicht neu. Verbinde dich erneut und starte die Boot-Optionen mit „Festplatte (Standardreihenfolge)“: Das setzt das Löschen vor dem Neustart zurück.",
   "Reload the BIOS factory configuration": "BIOS-Werkskonfiguration neu laden",
   "Remote Platform Erase": "Remote Platform Erase",
   "Remote Platform Erase is off": "Remote Platform Erase ist aus",

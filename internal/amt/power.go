@@ -125,29 +125,30 @@ func (d *Device) requestPowerState(action PowerAction, state power.PowerState) e
 func (d *Device) BootConsent(prompt ConsentPrompt) error { return d.userConsent(prompt, true) }
 
 // bootToBIOS sets the one-shot BIOS setup boot option and then resets (running) or powers on
-// (not running) the machine, following the console's SetBootOptions sequence.
+// (not running) the machine, following the console's SetBootOptions sequence. A sleeping device
+// is refused (ErrAsleep); a failed step from the Put onward takes the option back (undoBoot).
 func (d *Device) bootToBIOS() error {
+	const op = "boot to BIOS"
 	state, err := d.powerState()
 	if err != nil {
-		return fmt.Errorf("boot to BIOS: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if err := refuseAsleep(op, state); err != nil {
+		return err
 	}
 	target := power.PowerOn
 	if state == models.PowerStateOn {
 		target = power.MasterBusReset
 	}
-	got, err := d.msgs.AMT.BootSettingData.Get()
+	cur, err := d.getBootSettings(op)
 	if err != nil {
-		return fmt.Errorf("boot to BIOS: get boot settings: %w", err)
-	}
-	cur := got.Body.BootSettingDataGetResponse
-	if cur.InstanceID == "" {
-		return fmt.Errorf("boot to BIOS: %w: device returned no boot settings", ErrIncompleteResponse)
+		return err
 	}
 	if _, err := d.msgs.CIM.BootConfigSetting.ChangeBootOrder(""); err != nil {
-		return fmt.Errorf("boot to BIOS: clear boot order: %w", err)
+		return fmt.Errorf("%s: clear boot order: %w", op, err)
 	}
 	if err := d.setBIOSBoot(cur, target); err != nil {
-		return fmt.Errorf("boot to BIOS: %w (the BIOS setup boot option may still be set on the device)", err)
+		return d.undoBoot(op, cur, false, err)
 	}
 	return nil
 }

@@ -525,10 +525,15 @@ func (s *server) bootFromISO(ctx context.Context, req *mcp.CallToolRequest, in d
 		if !isOff(st) && !s.cfg.Enabled(GroupDestructive) {
 			return s.destructiveRefused("Boot from ISO on a device that is not off")
 		}
-		// A reset keeps a KVM session open (see endsKVM), so it is not closed first.
+		// A reset keeps a KVM session open (see endsKVM), so it is not closed first. Marked
+		// before the call: after a failure the IDE-R boot option may be set, the unmount clears
+		// it (issue #123). A started boot uses it, so the mark goes back then.
+		before := e.bootNext
+		e.bootNext = true
 		if err := sess.Power(amt.BootToISO); err != nil {
 			return err
 		}
+		e.bootNext = before
 		result := "The device accepted the request: it resets and boots once from " + visible(e.name) + "."
 		if isOff(st) {
 			result = "The device accepted the request: it powers on and boots once from " + visible(e.name) + "."

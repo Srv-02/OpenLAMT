@@ -100,6 +100,10 @@ func errorSamples() map[string]error {
 		"amt.ErrEraseNeedsTLS":          amt.ErrEraseNeedsTLS,
 		"amt.ErrRPEOff":                 amt.ErrRPEOff,
 		"amt.ErrRPEOffInBIOS":           amt.ErrRPEOffInBIOS,
+		"amt.ErrBootMayBeSet":           amt.ErrBootMayBeSet,
+		"amt.ErrEraseMayBeSet":          amt.ErrEraseMayBeSet,
+		"amt.ErrAsleep":                 amt.ErrAsleep,
+		"amt.BootMayBeSetError":         &amt.BootMayBeSetError{Err: errors.New("x"), ClearErr: errors.New("y")},
 		"bootserve.ErrNotDownloaded":    bootserve.ErrNotDownloaded,
 		"bootserve.PortInUseError":      &bootserve.PortInUseError{Port: 8443, Err: errors.New("x")},
 		"amt.ErrCertificateInUse":       amt.ErrCertificateInUse,
@@ -235,6 +239,26 @@ func TestDescribeCoversExportedErrors(t *testing.T) {
 		if wrapped != got {
 			t.Errorf("%s: wrapped error gives %q, want %q", name, wrapped, got)
 		}
+	}
+}
+
+// TestDescribeBootMayBeSet (issue #123): the error dialog's main text, not only "Copy details",
+// says that the boot options or the erase may still apply at the next restart, after the cause.
+func TestDescribeBootMayBeSet(t *testing.T) {
+	englishUI(t)
+	refused := &amt.PowerError{Action: amt.PowerCycle, ReturnValue: 2}
+	erase := describe(fmt.Errorf("erase: %w", &amt.BootMayBeSetError{Erase: true, Err: refused, ClearErr: errors.New("x")}))
+	if !strings.HasPrefix(erase, "The device refused the power request (return value 2).") ||
+		!strings.Contains(erase, "the next restart of the device may still erase the drives") {
+		t.Fatalf("erase: %q", erase)
+	}
+	// The warning wins over a cause that describe would otherwise match first.
+	boot := describe(&amt.BootMayBeSetError{Err: fmt.Errorf("x: %w", amt.ErrIncompleteResponse), ClearErr: errors.New("x")})
+	if !strings.Contains(boot, "the next restart of the device may still use them") || strings.Contains(boot, "erase") {
+		t.Fatalf("boot: %q", boot)
+	}
+	if got := describe(fmt.Errorf("boot: %w", amt.ErrAsleep)); !strings.Contains(got, "Wake it with Power On") {
+		t.Fatalf("asleep: %q", got)
 	}
 }
 

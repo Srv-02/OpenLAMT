@@ -79,8 +79,8 @@ func Open(ctx context.Context, cfg amt.Config, prompt amt.TrustPrompt, connect C
 
 // classify maps the WS-Man client's 401 error to ErrAuth and a missing permission to
 // amt.ErrAccessDenied; everything else passes through.
-// *amt.CredentialsUncertainError and *amt.CertificateUncertainError keep their type; only their
-// cause is classified.
+// *amt.CredentialsUncertainError, *amt.CertificateUncertainError and *amt.BootMayBeSetError keep
+// their type; only their causes are classified.
 func classify(err error) error {
 	if err == nil {
 		return nil
@@ -95,6 +95,12 @@ func classify(err error) error {
 	if errors.As(err, &ce) {
 		c := *ce
 		c.Err = classify(ce.Err)
+		return &c
+	}
+	var be *amt.BootMayBeSetError // the warning must survive a 401 or AccessDenied inside
+	if errors.As(err, &be) {
+		c := *be
+		c.Err, c.ClearErr = classify(be.Err), classify(be.ClearErr)
 		return &c
 	}
 	msg := err.Error()

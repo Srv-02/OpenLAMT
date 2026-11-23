@@ -126,6 +126,83 @@ const maxBootURL = 300
 // off in its BIOS.
 var ErrOCROffInBIOS = errors.New("one click recovery: HTTPS boot is off in the BIOS of the device")
 
+var (
+	// ErrBootMayBeSet: a step after the write of the boot settings failed and taking them back
+	// failed too (see BootMayBeSetError). The next start of the device may still use them.
+	ErrBootMayBeSet = errors.New("the boot options may still be set for the next start of the device")
+	// ErrEraseMayBeSet is ErrBootMayBeSet for an erase: the next start may erase the drives.
+	ErrEraseMayBeSet = errors.New("the erase may still be set: the next start of the device may erase the drives")
+	// ErrAsleep: the device sleeps (S3). Power On only resumes it without the start of the BIOS,
+	// so boot options and an erase would wait for a later restart. Nothing was written.
+	ErrAsleep = errors.New("the device is asleep: waking it does not restart it, so boot options cannot apply")
+)
+
+// BootMayBeSetError is returned when a step from the write of the boot settings onward failed
+// (Err) and the best-effort undo failed as well (ClearErr). It matches ErrBootMayBeSet and, with
+// Erase, ErrEraseMayBeSet.
+type BootMayBeSetError struct {
+	Erase    bool  // the boot settings carry an erase
+	Err      error // the step that failed
+	ClearErr error // why taking the boot settings back failed
+}
+
+func (e *BootMayBeSetError) Error() string {
+	s := ErrBootMayBeSet
+	if e.Erase {
+		s = ErrEraseMayBeSet
+	}
+	return fmt.Sprintf("%v: %v; clearing them failed: %v", s, e.Err, e.ClearErr)
+}
+
+func (e *BootMayBeSetError) Is(target error) bool {
+	return target == ErrBootMayBeSet || e.Erase && target == ErrEraseMayBeSet
+}
+
+func (e *BootMayBeSetError) Unwrap() error { return e.Err }
+
+// refuseAsleep refuses a device in Sleep - Light or Deep (S3) before anything is written: Power
+// On only resumes it without a start of the BIOS, so the one-shot boot settings (an erase too)
+// would stay set for a later restart. Hibernate (S4) starts through the BIOS and is not refused.
+func refuseAsleep(op string, state models.PowerState) error {
+	if state == models.PowerStateSleepLight || state == models.PowerStateSleepDeep {
+		return fmt.Errorf("%s: %w", op, ErrAsleep)
+	}
+	return nil
+}
+
+// undoBoot runs after step failed from the Put of the boot settings onward: one best-effort Put
+// with every boot option off (identity and EnforceSecureBoot from cur, UseIDER and the erase off)
+// and the default boot order. When that works the error says so; when it fails too the error is
+// *BootMayBeSetError.
+func (d *Device) undoBoot(op string, cur amtboot.BootSettingDataResponse, erase bool, step error) error {
+	if cerr := d.clearBootSettings(cur); cerr != nil {
+		return &BootMayBeSetError{Erase: erase, Err: fmt.Errorf("%s: %w", op, step), ClearErr: cerr}
+	}
+	return fmt.Errorf("%s: %w (OpenLAMT cleared the boot settings again)", op, step)
+}
+
+// clearBootSettings puts the boot settings with every option off and clears the boot order.
+func (d *Device) clearBootSettings(cur amtboot.BootSettingDataResponse) error {
+	if _, err := d.msgs.AMT.BootSettingData.Put(clearedBootRequest(cur)); err != nil {
+		return fmt.Errorf("put boot settings: %w", err)
+	}
+	if _, err := d.msgs.CIM.BootConfigSetting.ChangeBootOrder(""); err != nil {
+		return fmt.Errorf("clear boot order: %w", err)
+	}
+	return nil
+}
+
+// clearedBootRequest is the Put of the boot settings with every option off; identity fields and
+// EnforceSecureBoot come from cur.
+func clearedBootRequest(cur amtboot.BootSettingDataResponse) amtboot.BootSettingDataRequest {
+	return amtboot.BootSettingDataRequest{
+		ElementName:       cur.ElementName,
+		EnforceSecureBoot: cur.EnforceSecureBoot,
+		InstanceID:        cur.InstanceID,
+		OwningEntity:      cur.OwningEntity,
+	}
+}
+
 // CIM_BootService EnabledState of AMT 16 and later: the low bits switch One Click Recovery (1)
 // and Remote Platform Erase (2).
 const (
@@ -236,6 +313,8 @@ func (d *Device) setBootService(op string, bit int, on bool, biosOff func(amtboo
 // order, put the boot settings, set the boot config role, set the boot source (PXE, HTTPS or the
 // hard drive in safe mode) and send the power command. It checks o against BootCapabilities
 // before anything is changed. BootISO needs an open IDE-R session with an image (OpenIDER).
+// A sleeping device is refused (ErrAsleep). When a step from the Put onward fails, Boot takes the
+// boot settings back; if that fails too, the error is *BootMayBeSetError.
 func (d *Device) Boot(o BootOptions) error {
 	const op = "boot"
 	info, err := d.BootInfo()
@@ -253,6 +332,9 @@ func (d *Device) Boot(o BootOptions) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+	if err := refuseAsleep(op, state); err != nil {
+		return err
+	}
 	cur, err := d.getBootSettings(op)
 	if err != nil {
 		return err
@@ -261,7 +343,7 @@ func (d *Device) Boot(o BootOptions) error {
 		return fmt.Errorf("%s: clear boot order: %w", op, err)
 	}
 	if err := d.finishBoot(bootRequest(cur, o, info, tlv, params), bootSource(o), state); err != nil {
-		return fmt.Errorf("%s: %w (the boot options may still be set on the device)", op, err)
+		return d.undoBoot(op, cur, false, err)
 	}
 	return nil
 }

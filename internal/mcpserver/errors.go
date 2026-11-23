@@ -162,8 +162,16 @@ func explain(err error) string {
 		me  *amt.MethodError
 		cu  *amt.CredentialsUncertainError
 		cer *amt.CertificateUncertainError
+		bms *amt.BootMayBeSetError
 	)
 	switch {
+	case errors.As(err, &bms): // first: the warning must not give way to the cause
+		return explain(bms.Err) + " OpenLAMT could not clear the boot options again (" + explain(bms.ClearErr) + "): the next " +
+			"restart of the device may still use them. After boot_from_iso, media_unmount clears the IDE-R boot option; otherwise " +
+			"tell the person, who can clear them in the OpenLAMT app with Boot Options and Hard disk (default order)."
+	case errors.Is(err, amt.ErrAsleep):
+		return "The device is asleep (S3). Waking it does not restart it, so the boot option would not apply. Nothing was changed. " +
+			"Wake it with power_action on, wait until device_status reports it on, then call the tool again."
 	case errors.As(err, &roe):
 		return explainRedirOpen(roe)
 	case errors.As(err, &ve):
@@ -289,11 +297,9 @@ func explain(err error) string {
 			"The connection was refused. If the change is expected, connect with the OpenLAMT app and accept the new certificate there.",
 			amt.FormatFingerprint(mm.Expected), amt.FormatFingerprint(mm.Actual))
 	case errors.As(err, &pe) && pe.Action == amt.BootToISO:
-		return fmt.Sprintf("The device refused the boot from ISO (AMT ReturnValue %d). "+
-			"The IDE-R boot option may still be set on the device.", pe.ReturnValue)
+		return fmt.Sprintf("The device refused the boot from ISO (AMT ReturnValue %d).", pe.ReturnValue)
 	case errors.As(err, &pe) && pe.Action == amt.BootToBIOS:
-		return fmt.Sprintf("The device refused the boot to BIOS (AMT ReturnValue %d). "+
-			"The BIOS setup boot option may still be set on the device.", pe.ReturnValue)
+		return fmt.Sprintf("The device refused the boot to BIOS (AMT ReturnValue %d).", pe.ReturnValue)
 	case errors.As(err, &pe):
 		meaning := powerReturnValues[pe.ReturnValue]
 		if meaning == "" {

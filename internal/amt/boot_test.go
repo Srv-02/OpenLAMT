@@ -235,12 +235,13 @@ func TestBootFailedStepWarns(t *testing.T) {
 	d, f := bootDevice(seq)
 	err := d.Boot(BootOptions{Target: BootPXE})
 	var me *MethodError
-	if !errors.As(err, &me) || me.ReturnValue != 2 || !strings.Contains(err.Error(), "may still be set") {
+	if !errors.As(err, &me) || me.ReturnValue != 2 || !strings.Contains(err.Error(), "cleared the boot settings again") {
 		t.Fatalf("err %v", err)
 	}
 	if len(f.requestsFor("RequestPowerStateChange|CIM_PowerManagementService")) != 0 {
 		t.Fatal("power command after a failed step")
 	}
+	assertCleared(t, f)
 }
 
 func TestSetOCRKeepsRemoteErase(t *testing.T) {

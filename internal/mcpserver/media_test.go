@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -572,7 +573,39 @@ func TestBootFromISO(t *testing.T) {
 		t.Fatalf("powered %v", p)
 	}
 	f.PowerErr = &amt.PowerError{Action: amt.BootToISO, ReturnValue: 1}
-	h.mustFail("boot_from_iso", dev("NUC"), "The device refused the boot from ISO (AMT ReturnValue 1). The IDE-R boot option may still be set")
+	h.mustFail("boot_from_iso", dev("NUC"), "The device refused the boot from ISO (AMT ReturnValue 1).")
+}
+
+// TestBootFromISOFailureClearsOnUnmount (issue #123): after a failed boot_from_iso the IDE-R
+// boot option may be set, so the unmount clears it; the warning of a failed undo reaches the
+// agent. After a started boot the mount is not marked.
+func TestBootFromISOFailureClearsOnUnmount(t *testing.T) {
+	files := newMediaFiles(t)
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	srv := addIDER(t, f)
+	h.start()
+	p, _ := h.mount(srv, dev("NUC", "path", files.iso))
+	h.mustOK("boot_from_iso", dev("NUC"))
+	if out := h.mustOK("media_status", dev("NUC")); out["boot_next"] != false {
+		t.Fatalf("status after a started boot %v", out)
+	}
+	f.PowerErr = &amt.BootMayBeSetError{Err: &amt.PowerError{Action: amt.BootToISO, ReturnValue: 1}, ClearErr: errors.New("boom")}
+	h.mustFail("boot_from_iso", dev("NUC"), "The device refused the boot from ISO (AMT ReturnValue 1). OpenLAMT could not clear "+
+		"the boot options again (boom): the next restart of the device may still use them. After boot_from_iso, media_unmount clears")
+	if out := h.mustOK("media_status", dev("NUC")); out["boot_next"] != true {
+		t.Fatalf("status after a failed boot %v", out)
+	}
+	if _, c := f.ISOCalls(); c != 0 {
+		t.Fatalf("clears %d before the unmount", c)
+	}
+	if out := h.mustOK("media_unmount", dev("NUC")); out["unmounted"] != true || out["boot_option_cleared"] != true {
+		t.Fatalf("unmount %v", out)
+	}
+	if _, c := f.ISOCalls(); c != 1 {
+		t.Fatalf("clears %d, want 1", c)
+	}
+	waitClosed(t, p)
 }
 
 // TestMediaMountEnablesIDEROnlyAsASettingsChange (#115): without the tool group settings
@@ -854,6 +887,8 @@ func TestExplainMediaErrors(t *testing.T) {
 		{mkiso.ErrFileChanged, "changed"},
 		{&mkiso.PathError{Path: "big/file.bin", Err: mkiso.ErrFileTooLarge}, "big/file.bin: A file in the folder is 4 GiB or larger"},
 		{&amt.PowerError{Action: amt.BootToISO, ReturnValue: 2}, "The device refused the boot from ISO (AMT ReturnValue 2)."},
+		{fmt.Errorf("boot to BIOS: %w", amt.ErrAsleep), "The device is asleep (S3)"},
+		{&amt.BootMayBeSetError{Err: fmt.Errorf("x: %w", amt.ErrIncompleteResponse), ClearErr: errors.New("y")}, "may still use them"},
 	} {
 		if got := explain(c.err); !strings.Contains(got, c.want) || strings.Contains(got, "mkiso:") {
 			t.Errorf("explain(%v) = %q, want %q", c.err, got, c.want)

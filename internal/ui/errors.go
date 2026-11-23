@@ -58,6 +58,8 @@ func describe(err error) string {
 	switch {
 	case errors.As(err, &plain):
 		return plain.msg
+	case errors.Is(err, amt.ErrBootMayBeSet), errors.Is(err, amt.ErrEraseMayBeSet): // first: the warning must not give way to the cause
+		return describeMayBeSet(err)
 	case errors.As(err, &ce) && ce.Step == "SendOptInCode":
 		return lang.L("The device did not accept the consent code. Check the six digits on the device screen and try again.")
 	case errors.As(err, &ce):

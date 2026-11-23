@@ -23,8 +23,8 @@ func TestAllSymbolsEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 52 || len(All) != 50 || len(Filled) != 2 {
-		t.Fatalf("%d files, %d stroked, %d filled; want 52, 50, 2", len(entries), len(All), len(Filled))
+	if len(entries) != 53 || len(All) != 51 || len(Filled) != 2 {
+		t.Fatalf("%d files, %d stroked, %d filled; want 53, 51, 2", len(entries), len(All), len(Filled))
 	}
 	for _, n := range Filled {
 		b, err := files.ReadFile("svg/" + string(n) + ".svg")
@@ -231,5 +231,25 @@ func TestCaptureSymbols(t *testing.T) {
 	}
 	if c := Render(Spec{Record, Danger, DefaultStroke}, 24, 24).RGBAAt(12, 12); c.A == 0 {
 		t.Fatal("record centre not filled")
+	}
+}
+
+// TestHelpSymbol: the question mark of the sidebar footer is a stroked symbol in All and renders
+// with the stroke of Scan and Settings.
+func TestHelpSymbol(t *testing.T) {
+	if !slices.Contains(All, Help) {
+		t.Fatal("help missing in All")
+	}
+	img := Render(Spec{Help, Muted, DefaultStroke}, 24, 24)
+	if img == nil {
+		t.Fatal("help does not render")
+	}
+	// The circle (r 9) is drawn: its left edge at x 3 is inked, the gap between circle and
+	// question mark at x 6 is not.
+	if c := img.RGBAAt(3, 12); c.A == 0 {
+		t.Errorf("circle edge not drawn: %v", c)
+	}
+	if c := img.RGBAAt(6, 12); c.A != 0 {
+		t.Errorf("gap inside the circle is inked: %v", c)
 	}
 }

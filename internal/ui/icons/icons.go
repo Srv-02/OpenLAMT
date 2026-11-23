@@ -1,5 +1,5 @@
 // Package icons holds OpenLAMT's UI symbols (24 px grid, 1.7 stroke, issue #44) as Fyne
-// resources: 50 stroked ones and the two filled ones (heart, star) of the About dialog.
+// resources: 51 stroked ones and the two filled ones (heart, star) of the About dialog.
 //
 // Fyne recolors only the fill of themed SVGs, not the stroke these symbols are drawn with, so
 // each symbol is served as a static resource with the stroke color already set: one per
@@ -105,6 +105,9 @@ const (
 // Stroked symbol of the WSMAN Browser page (#24).
 const Code Name = "code" // navigation WSMAN Browser
 
+// Stroked symbol of the sidebar footer: a question mark in a circle opens the user guide.
+const Help Name = "help"
+
 // Stroked symbols of the device management pages of the overall design.
 const (
 	WiFi     Name = "wifi"      // navigation Wi-Fi (#22)
@@ -127,7 +130,8 @@ var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, F
 	Camera, Record, Stop, Zoom, Close,
 	Radar, Upload, Download, Check, Code,
 	WiFi, ShieldOK, Boot,
-	Certificate, ChevronRight}
+	Certificate, ChevronRight,
+	Help}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}

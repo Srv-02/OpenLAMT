@@ -66,6 +66,7 @@ type StartWindow struct {
 	newConnBtn  *managerButton
 	settingsBtn *managerButton
 	scanBtn     *managerButton
+	helpBtn     *managerButton // opens the user guide (guide.go)
 
 	// "This computer" (local_me.go)
 	localME       localme.Detector // runs once at start; tests pass localme.Fake
@@ -247,6 +248,7 @@ func (s *StartWindow) buildSidebar() fyne.CanvasObject {
 	s.newConnBtn = newManagerTextButton(icons.Add, lang.L("Quick Connect"), s.newConnection)
 	s.settingsBtn = newManagerIconButton(icons.Settings, func() { s.showSettings() })
 	s.scanBtn = newManagerIconButton(icons.Radar, s.showScan)
+	s.helpBtn = newManagerIconButton(icons.Help, s.showHelp)
 
 	searchBox := container.New(layout.NewCustomPaddedLayout(12, 10, 12, 12), newSearchField(s.search))
 	heading := container.New(layout.NewCustomPaddedLayout(8, 6, 20, 20), sectionLabel(lang.L("Favorites")))
@@ -254,7 +256,7 @@ func (s *StartWindow) buildSidebar() fyne.CanvasObject {
 	listBox := container.NewVScroll(container.New(layout.NewCustomPaddedLayout(0, 10, 10, 10), s.list))
 	footer := container.NewBorder(hairline(style.ColorNameCardBorder), nil, nil, nil,
 		container.New(layout.NewCustomPaddedLayout(10, 10, 10, 10),
-			container.NewBorder(nil, nil, nil, container.NewHBox(container.NewCenter(s.scanBtn), container.NewCenter(s.settingsBtn)), s.newConnBtn)))
+			container.NewBorder(nil, nil, nil, container.NewHBox(container.NewCenter(s.scanBtn), container.NewCenter(s.helpBtn), container.NewCenter(s.settingsBtn)), s.newConnBtn)))
 	bg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSidebar, "")
 	pane := container.NewStack(bg, container.NewBorder(top, footer, nil, nil, listBox))
 	edge := hairline(style.ColorNameSeparatorDark)

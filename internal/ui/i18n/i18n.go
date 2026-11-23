@@ -40,6 +40,13 @@ func Valid(l string) bool {
 // naming), so feature work does not grow the main files. Every file is loaded together with the
 // main ones; a key lives in exactly one file (TestNoDuplicateKeysAcrossFiles).
 
+// active is the language Init ran with: the one the app's texts use until the next start.
+var active = System
+
+// Active returns the language setting Init ran with (System until Init runs). A changed setting
+// takes effect at the next start, so this, not the stored setting, names the language of the texts.
+func Active() string { return active }
+
 // Init registers every translation file with Fyne; with System the closest system locale wins,
 // fallback English. A forced language is loaded over every shipped language: Fyne has no public
 // way to pick its localizer's language (it always matches the OS locales), so whichever of them
@@ -68,6 +75,7 @@ func Init(language string) error {
 			}
 		}
 	}
+	active = language
 	return nil
 }
 

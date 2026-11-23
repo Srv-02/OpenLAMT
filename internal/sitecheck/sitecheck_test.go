@@ -576,3 +576,18 @@ func TestPagerFollowsReadingPath(t *testing.T) {
 		}
 	}
 }
+
+// TestAppOpensThisGuide: the Help button of the app's main window opens the guide at siteURL
+// (internal/ui/guide.go), so a moved guide breaks this test rather than the button.
+func TestAppOpensThisGuide(t *testing.T) {
+	b, err := os.ReadFile("../ui/guide.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), `"`+siteURL+`"`) {
+		t.Errorf("internal/ui/guide.go does not open %s", siteURL)
+	}
+	if _, ok := site(t)["de/index.html"]; !ok {
+		t.Error("the app opens de/ for German, but the guide has no de/index.html")
+	}
+}

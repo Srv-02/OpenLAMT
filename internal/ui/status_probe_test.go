@@ -352,3 +352,89 @@ func TestProberReportsUnreadableAtOnce(t *testing.T) {
 	}
 	close(gate)
 }
+
+// lockedStore is a keychain that fails every lookup like a locked keyring and counts them.
+type lockedStore struct {
+	*keychain.Memory
+	mu     sync.Mutex
+	locked bool
+	calls  int
+}
+
+func (l *lockedStore) Get(host, user string) (string, error) {
+	l.mu.Lock()
+	l.calls++
+	locked := l.locked
+	l.mu.Unlock()
+	if locked {
+		return "", errors.New("failed to unlock correct collection")
+	}
+	return l.Memory.Get(host, user)
+}
+
+func (l *lockedStore) unlock() { l.mu.Lock(); l.locked = false; l.mu.Unlock() }
+func (l *lockedStore) count() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.calls
+}
+
+// A locked keychain yields one lookup in total, not one per favorite and round (issue #159);
+// after a user action the keychain answered, probing resumes.
+func TestProberAsksLockedKeychainOnce(t *testing.T) {
+	ks := &lockedStore{Memory: keychain.NewMemory(), locked: true}
+	dev := &session.Fake{FP: fp, St: amt.Status{PowerState: models.PowerStateOn, AMTVersion: "16.1.25", ControlMode: amt.ControlModeAdmin}}
+	results := make(chan map[string]probeResult, 16)
+	var mu sync.Mutex
+	round := map[string]probeResult{}
+	p := newStatusProber(ks, session.ConnectFake(dev), func() time.Duration { return time.Hour }, func(key string, r probeResult) {
+		mu.Lock()
+		defer mu.Unlock()
+		round[key] = r
+		if len(round) == 3 {
+			results <- round
+			round = map[string]probeResult{}
+		}
+	})
+	t.Cleanup(func() { p.Stop(); <-p.Done() })
+	var favs []favorites.Favorite
+	for _, h := range []string{"a.example.com", "b.example.com", "c.example.com"} {
+		ks.Memory.Set(h, "admin", "secret")
+		ks.Memory.SetFingerprint(h, "admin", fp)
+		favs = append(favs, favorites.Favorite{Host: h, Username: "admin", UseTLS: true})
+	}
+	next := func() map[string]probeResult {
+		select {
+		case r := <-results:
+			return r
+		case <-time.After(3 * time.Second):
+			t.Fatal("no probe round")
+		}
+		return nil
+	}
+	p.SetFavorites(favs)
+	p.Start()
+	for i := 0; i < 4; i++ {
+		for k, r := range next() {
+			if r.known() {
+				t.Fatalf("%s read while locked", k)
+			}
+		}
+		if i < 3 {
+			p.Wake()
+		}
+	}
+	if n := ks.count(); n != 1 {
+		t.Fatalf("%d keychain lookups in 4 rounds, want 1", n)
+	}
+	// A user action (connect) gets an answer from the unlocked keychain: probing resumes.
+	ks.unlock()
+	user := answerStore{Store: ks, answered: p.keychainAnswered}
+	if _, err := user.Get("a.example.com", "admin"); err != nil {
+		t.Fatal(err)
+	}
+	r := next()
+	if !r[deviceKey("a.example.com", "admin")].known() {
+		t.Fatalf("probing did not resume: %+v", r)
+	}
+}

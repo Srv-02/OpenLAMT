@@ -129,6 +129,14 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 	s := &StartWindow{later: fyne.Do, exitWork: &pendingWork{}, app: a, win: a.NewWindow("OpenLAMT"), mgr: mgr, keys: keys, settings: NewSettings(a.Preferences()),
 		open: map[string]*DeviceWindow{}, busy: map[string]string{}, probes: map[string]probeResult{}, saved: map[string]bool{}, savedGen: map[string]int{},
 		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}}
+	// User actions go through answerStore: a keychain answer there unblocks the status prober.
+	probeKeys := keys
+	keys = answerStore{Store: keys, answered: func() {
+		if s.prober != nil {
+			s.prober.keychainAnswered()
+		}
+	}}
+	s.keys = keys
 	s.onError = func(err error) { showError(s.win, err) }
 	s.openDevice = s.showDevice
 	s.showSettings = func() {
@@ -148,7 +156,7 @@ func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 	}
 	s.conn.onError = func(err error) { s.onError(err) }
 	s.conn.onDone = func(host, user string) { s.end(host, user) }
-	s.prober = newStatusProber(keys, connect, s.settings.PollInterval, func(key string, r probeResult) {
+	s.prober = newStatusProber(probeKeys, connect, s.settings.PollInterval, func(key string, r probeResult) {
 		fyne.Do(func() { s.applyProbe(key, r) })
 	})
 

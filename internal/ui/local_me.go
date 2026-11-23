@@ -57,10 +57,14 @@ func (s *StartWindow) selectLocal() {
 	s.setMode(modeLocal)
 }
 
+// hostname returns the name of this computer for the "This computer" detail and the setup
+// confirmations. Tests and screenshots replace it, so no real host name ends up in them.
+var hostname = os.Hostname
+
 // localMeta is the metadata line of the "This computer" detail: "<hostname> · Intel ME found".
 func localMeta() string {
 	found := lang.L("Intel ME found")
-	if h, err := os.Hostname(); err == nil && h != "" {
+	if h, err := hostname(); err == nil && h != "" {
 		return h + " · " + found
 	}
 	return found

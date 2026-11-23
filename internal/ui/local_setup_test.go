@@ -50,15 +50,8 @@ func onState(mode string) localme.Result {
 	return localme.Result{Found: true, Version: "16.1.25", ControlMode: mode, Wired: wiredDHCP()}
 }
 
-// riskFor is the checkbox text of the setup confirmations on this computer.
-func riskFor(t *testing.T) string {
-	t.Helper()
-	h, err := os.Hostname()
-	if err != nil || strings.TrimSpace(h) == "" {
-		return "I understand the risk for this computer"
-	}
-	return "I understand the risk for this computer (" + strings.TrimSpace(h) + ")"
-}
+// fakeRisk is the checkbox text of the setup confirmations on this computer.
+const fakeRisk = "I understand the risk for this computer (" + fakeHost + ")"
 
 // TestLocalSetupOffersOneAction (design "Ablauf"): each state shows the Setup card with exactly
 // one button or the hint to MEBx, next to the "Beta" pill.
@@ -119,7 +112,7 @@ func TestLocalTurnOn(t *testing.T) {
 	if !hasRichText(t, top, "Intel AMT starts answering on the network (ports 16992 and 16993). Anyone with an AMT password can then control this computer, also while it is switched off.", false) {
 		t.Error("warning missing")
 	}
-	if d.action.Text != "Turn On AMT" || !d.action.Disabled() || d.check.Text != riskFor(t) {
+	if d.action.Text != "Turn On AMT" || !d.action.Disabled() || d.check.Text != fakeRisk {
 		t.Fatalf("button %q disabled %v, box %q", d.action.Text, d.action.Disabled(), d.check.Text)
 	}
 	if !same(d.warnBox.FillColor, style.Color(style.ColorNameWarningSurface)) {
@@ -209,7 +202,7 @@ func TestLocalDeactivate(t *testing.T) {
 	if !hasRichText(t, top, "This deletes all Intel AMT settings. ", true) || !same(d.warnBox.FillColor, style.Color(style.ColorNameDangerSurface)) {
 		t.Error("the Deactivate confirmation is not red")
 	}
-	if d.action.Text != "Deactivate" || !d.action.Disabled() || d.check.Text != riskFor(t) || !hasText(top, "Beta") {
+	if d.action.Text != "Deactivate" || !d.action.Disabled() || d.check.Text != fakeRisk || !hasText(top, "Beta") {
 		t.Fatalf("button %q, box %q", d.action.Text, d.check.Text)
 	}
 	test.Tap(d.check)

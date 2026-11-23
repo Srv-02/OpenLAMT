@@ -342,8 +342,7 @@ func (m *Manager) ChangeLogin(host, oldUser, newUser, newPassword string) error 
 // for host/user or for a favorite of host is replaced by newFP. Other pins (another certificate)
 // and logins without a stored pin stay as they are (the next connection asks again).
 func (m *Manager) ChangeFingerprint(host, user, oldFP, newFP string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.lockRead()()
 	list, err := m.store.Load()
 	if err != nil {
 		return err

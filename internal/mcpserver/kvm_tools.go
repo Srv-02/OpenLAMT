@@ -535,7 +535,9 @@ func typePrompt(plan typing.Plan, secret bool) string {
 		return fmt.Sprintf("type %d characters (layout %s). The AI agent chose to hide this text (marked as secret); "+
 			"it is one line without Enter presses or other control characters", plan.Chars, plan.Layout)
 	}
-	r := []rune(strings.NewReplacer("\n", "⏎", "\t", "⇥").Replace(plan.Text))
+	// visible, so a bidi override or a zero-width character cannot reorder or hide what the
+	// person reads.
+	r := []rune(visible(plan.Text))
 	preview := string(r[:min(len(r), maxPreview)])
 	if len(r) > maxPreview {
 		preview += fmt.Sprintf("… (%d more characters)", len(r)-maxPreview)
@@ -569,7 +571,7 @@ func typeLayout(param string, fav favorites.Favorite) (typing.Layout, error) {
 	if strings.TrimSpace(param) != "" {
 		l, ok := typing.ParseLayout(param)
 		if !ok {
-			return "", refuse("layout %q is unknown; use one of %s.", param, strings.Join(layoutNames(), ", "))
+			return "", refuse("layout %s is unknown; use one of %s.", quoteShort(param), strings.Join(layoutNames(), ", "))
 		}
 		return l, nil
 	}

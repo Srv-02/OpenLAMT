@@ -44,6 +44,7 @@ type harness struct {
 	keys    *keychain.Memory
 	devices map[string]*session.Fake
 	elicit  func(*mcp.ElicitRequest) (*mcp.ElicitResult, error) // nil: the client has no elicitation
+	logins  *fakeLogins                                         // the LoginStore the server gets
 
 	mu       sync.Mutex
 	connects []amt.Config
@@ -55,18 +56,24 @@ type harness struct {
 func newHarness(t *testing.T) *harness {
 	dir := t.TempDir()
 	h := &harness{t: t, cfg: Defaults(dir), keys: keychain.NewMemory(), devices: map[string]*session.Fake{}}
+	h.logins = &fakeLogins{keys: h.keys}
 	h.cfg.ActionLogPath = filepath.Join(dir, ActionLogFileName)
 	return h
 }
 
 // addDevice saves a favorite with password (and pin for TLS) and returns its fake device.
 func (h *harness) addDevice(name, host string, tls bool) *session.Fake {
-	h.favs = append(h.favs, favorites.Favorite{Name: name, Host: host, Username: "admin", UseTLS: tls})
-	if err := h.keys.Set(host, "admin", testPassword); err != nil {
+	return h.addDeviceAs(name, host, "admin", tls)
+}
+
+// addDeviceAs is addDevice for a favorite that signs in as user.
+func (h *harness) addDeviceAs(name, host, user string, tls bool) *session.Fake {
+	h.favs = append(h.favs, favorites.Favorite{Name: name, Host: host, Username: user, UseTLS: tls})
+	if err := h.keys.Set(host, user, testPassword); err != nil {
 		h.t.Fatal(err)
 	}
 	if tls {
-		if err := h.keys.SetFingerprint(host, "admin", testFP); err != nil {
+		if err := h.keys.SetFingerprint(host, user, testFP); err != nil {
 			h.t.Fatal(err)
 		}
 	}
@@ -106,7 +113,7 @@ func (h *harness) start() {
 		}
 		h.logPath = h.cfg.ActionLogPath
 	}
-	srv := New(Options{Config: h.cfg, Favorites: h.favs, Keys: h.keys, Connect: h.connect, Log: log, Version: "test"})
+	srv := New(Options{Config: h.cfg, Favorites: h.favs, Keys: h.keys, Connect: h.connect, Logins: h.logins, Log: log, Version: "test"})
 	h.srv = srv
 	t.Cleanup(srv.Close)
 	ct, st := mcp.NewInMemoryTransports()
@@ -204,6 +211,43 @@ func (h *harness) logEntries() []map[string]any {
 	return out
 }
 
+// fakeLogins is the LoginStore of the tests: it records the calls and follows them in the
+// memory keychain, as *favorites.Manager does. err, if set, fails every call.
+type fakeLogins struct {
+	mu    sync.Mutex
+	keys  *keychain.Memory
+	calls []string // "login host old new" or "pin host user old new"; never the password
+	pws   []string // the passwords of the login calls
+	err   error
+}
+
+func (l *fakeLogins) ChangeLogin(host, oldUser, newUser, newPassword string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.calls = append(l.calls, "login "+host+" "+oldUser+" "+newUser)
+	l.pws = append(l.pws, newPassword)
+	if l.err != nil {
+		return l.err
+	}
+	return l.keys.Set(host, newUser, newPassword)
+}
+
+func (l *fakeLogins) ChangeFingerprint(host, user, oldFP, newFP string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.calls = append(l.calls, "pin "+host+" "+user+" "+oldFP+" "+newFP)
+	if l.err != nil {
+		return l.err
+	}
+	return l.keys.SetFingerprint(host, user, newFP)
+}
+
+func (l *fakeLogins) recorded() ([]string, []string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.calls), slices.Clone(l.pws)
+}
+
 func dev(name string, extra ...any) map[string]any {
 	m := map[string]any{"device": name}
 	for i := 0; i+1 < len(extra); i += 2 {
@@ -212,41 +256,52 @@ func dev(name string, extra ...any) map[string]any {
 	return m
 }
 
-// TestToolsFollowGroups: disabled groups are not offered; list_devices always is.
+// TestToolsFollowGroups: disabled groups are not offered; list_devices always is. Reading
+// settings and users stays in read_only; red changes need their group and destructive.
 func TestToolsFollowGroups(t *testing.T) {
-	all := []string{"audit_log", "boot_from_iso", "boot_to_bios", "device_status", "event_log", "hardware_info", "kvm_connect", "kvm_disconnect",
-		"kvm_mouse", "kvm_screenshot", "kvm_send_keys", "kvm_type_text", "list_devices", "media_boot_next", "media_mount", "media_status",
-		"media_unmount", "power_action", "sol_connect", "sol_disconnect", "sol_read", "sol_send_keys", "sol_type_text"}
-	h := newHarness(t)
-	h.start()
-	if got := h.toolNames(); !reflect.DeepEqual(got, all) {
-		t.Fatalf("defaults: %v", got)
+	settingsWrites := []string{"set_general", "set_remote_features", "set_tls_certificate", "sync_clock"}
+	settingsRed := []string{"disable_amt_network", "set_environment_detection", "set_network"}
+	usersWrites := []string{"add_user", "delete_user", "set_user_enabled", "update_user"}
+	usersRed := []string{"set_admin_account"}
+	tools := func(groups ...[]string) []string {
+		var out []string
+		for _, g := range groups {
+			out = append(out, g...)
+		}
+		slices.Sort(out)
+		return out
 	}
-
-	h = newHarness(t)
-	h.cfg.ReadOnly = true
-	h.start()
-	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"audit_log", "device_status", "event_log", "hardware_info",
-		"kvm_connect", "kvm_disconnect", "kvm_screenshot", "list_devices", "sol_connect", "sol_disconnect", "sol_read"}) {
-		t.Fatalf("read only: %v", got)
-	}
-
-	h = newHarness(t)
-	h.cfg.Groups[GroupRead] = false
-	h.start()
-	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"boot_from_iso", "boot_to_bios", "kvm_connect", "kvm_disconnect", "kvm_mouse",
-		"kvm_send_keys", "kvm_type_text", "list_devices", "media_boot_next", "media_mount", "media_status", "media_unmount", "power_action",
-		"sol_connect", "sol_disconnect", "sol_send_keys", "sol_type_text"}) {
-		t.Fatalf("read off: %v", got)
-	}
-
-	h = newHarness(t)
-	h.cfg.Groups[GroupRead] = false
-	h.cfg.Groups[GroupKVMInput] = false
-	h.start()
-	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"boot_from_iso", "boot_to_bios", "list_devices", "media_boot_next",
-		"media_mount", "media_status", "media_unmount", "power_action"}) {
-		t.Fatalf("read and kvm_input off: %v", got)
+	readTools := []string{"audit_log", "device_status", "event_log", "get_settings", "hardware_info", "list_users"}
+	// Sessions open with read or kvm_input; the screen and the console output are read tools.
+	sessions := []string{"kvm_connect", "kvm_disconnect", "sol_connect", "sol_disconnect"}
+	kvmRead := append([]string{"kvm_screenshot", "sol_read"}, sessions...)
+	input := []string{"kvm_mouse", "kvm_send_keys", "kvm_type_text", "sol_send_keys", "sol_type_text"}
+	media := []string{"media_boot_next", "media_mount", "media_status", "media_unmount"}
+	power := []string{"boot_from_iso", "boot_to_bios", "power_action"}
+	always := []string{"list_devices"}
+	for _, c := range []struct {
+		name  string
+		setup func(*Config)
+		want  []string
+	}{
+		{"defaults", func(*Config) {},
+			tools(always, readTools, kvmRead, input, media, power, settingsWrites, settingsRed, usersWrites, usersRed)},
+		{"read only", func(c *Config) { c.ReadOnly = true }, tools(always, readTools, kvmRead)},
+		{"read off", func(c *Config) { c.Groups[GroupRead] = false },
+			tools(always, sessions, input, media, power, settingsWrites, settingsRed, usersWrites, usersRed)},
+		{"read and kvm_input off", func(c *Config) { c.Groups[GroupRead], c.Groups[GroupKVMInput] = false, false },
+			tools(always, media, power, settingsWrites, settingsRed, usersWrites, usersRed)},
+		{"destructive off", func(c *Config) { c.Groups[GroupDestructive] = false },
+			tools(always, readTools, kvmRead, input, media, power, settingsWrites, usersWrites)},
+		{"settings and users off", func(c *Config) { c.Groups[GroupSettings], c.Groups[GroupUsers] = false, false },
+			tools(always, []string{"audit_log", "device_status", "event_log", "hardware_info"}, kvmRead, input, media, power)},
+	} {
+		h := newHarness(t)
+		c.setup(&h.cfg)
+		h.start()
+		if got := h.toolNames(); !reflect.DeepEqual(got, c.want) {
+			t.Errorf("%s:\n got  %v\n want %v", c.name, got, c.want)
+		}
 	}
 }
 

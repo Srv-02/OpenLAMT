@@ -31,8 +31,15 @@ func main() {
 	}))
 }
 
-// version is the module version of the build, "dev" for a local build.
+// releaseVersion is the release tag, set by the release workflow with
+// -ldflags "-X main.releaseVersion=<tag>"; empty for other builds.
+var releaseVersion string
+
+// version is the release tag, else the module version of the build, "dev" for a local build.
 func version() string {
+	if releaseVersion != "" {
+		return releaseVersion
+	}
 	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
 		return bi.Main.Version
 	}
@@ -87,10 +94,12 @@ func run(args []string, stdout, stderr io.Writer, serve serveFunc) int {
 	}
 
 	keys := keychain.OS{}
+	favs := favorites.NewManager(favorites.NewStore(favPath), keys)
 	srv := mcpserver.New(mcpserver.Options{
 		Config:    cfg,
-		Favorites: favorites.NewManager(favorites.NewStore(favPath), keys),
+		Favorites: favs,
 		Keys:      keys,
+		Logins:    favs, // a changed login or certificate pin follows into keychain and favorites, as in the app
 		Connect:   session.AMTConnect,
 		Log:       actions,
 		Logger:    logger,

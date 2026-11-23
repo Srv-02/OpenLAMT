@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"log/slog"
 	"sync"
@@ -19,9 +20,12 @@ type Options struct {
 	Favorites FavoriteSource
 	Keys      keychain.Store
 	Connect   session.ConnectFunc // session.AMTConnect outside tests
-	Log       *ActionLog          // nil: no action log
-	Logger    *slog.Logger        // diagnostics, stderr; nil discards
-	Version   string
+	// Logins follows a changed login or certificate pin of a device into the keychain and the
+	// favorites, as in the app (*favorites.Manager); nil saves nothing.
+	Logins  session.LoginStore
+	Log     *ActionLog   // nil: no action log
+	Logger  *slog.Logger // diagnostics, stderr; nil discards
+	Version string
 }
 
 type server struct {
@@ -29,11 +33,14 @@ type server struct {
 	favs    FavoriteSource
 	keys    keychain.Store
 	connect session.ConnectFunc
+	logins  session.LoginStore
 	log     *ActionLog
 	logger  *slog.Logger
 	kvm     *kvmManager
 	sol     *solManager
 	media   *mediaManager
+	// stateKey keys the request state that binds a settings or account question to its call.
+	stateKey []byte
 }
 
 // Server is the MCP server with the device sessions it keeps across tool calls. Close it when
@@ -56,13 +63,14 @@ func (s *Server) Close() {
 
 const instructions = `openlamt-mcp controls Intel AMT devices saved as favorites in the OpenLAMT app.
 Call list_devices first; every other tool takes the favorite name as "device".
-Passwords are never needed: they come from the OS keychain.
+Device passwords are never needed: they come from the OS keychain.
 Power actions act on real hardware: check device_status before and after.
-boot_to_bios, kvm_connect and media_mount may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.
+boot_to_bios, kvm_connect, sol_connect and media_mount may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.
 For the screen: kvm_connect once, then kvm_screenshot, kvm_send_keys, kvm_mouse and kvm_type_text as often as needed; kvm_disconnect when done.
 kvm_mouse takes x and y in the pixels of the last kvm_screenshot. After input, take a new screenshot (wait_ms helps when the screen changes slowly).
 For the serial console: sol_connect once, then sol_read (it goes on where the last read ended; wait_ms waits for new output), sol_type_text and sol_send_keys; sol_disconnect when done.
-For media: media_mount an absolute path of an .iso file or a folder on this computer, then media_boot_next (boot from it at the next start) or boot_from_iso (restart from it now); media_status shows the mount; media_unmount when done.`
+For media: media_mount an absolute path of an .iso file or a folder on this computer, then media_boot_next (boot from it at the next start) or boot_from_iso (restart from it now); media_status shows the mount; media_unmount when done.
+For AMT settings and accounts: get_settings and list_users read them. Changes the OpenLAMT app guards with an orange or red warning always ask the person in the MCP client; red ones (they can lock OpenLAMT out of the device) also need confirm set to the device name. Passwords for new or changed accounts are tool arguments: never repeat them in your answers.`
 
 // New builds the MCP server with the tools the config allows.
 func New(o Options) *Server {
@@ -70,7 +78,9 @@ func New(o Options) *Server {
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	s := &server{cfg: o.Config, favs: o.Favorites, keys: o.Keys, connect: o.Connect, log: o.Log, logger: logger}
+	s := &server{cfg: o.Config, favs: o.Favorites, keys: o.Keys, connect: o.Connect, logins: o.Logins, log: o.Log, logger: logger,
+		stateKey: make([]byte, 32)}
+	_, _ = rand.Read(s.stateKey) // never fails (crypto/rand)
 	s.kvm = newKVMManager(o.Config.KVMIdleTimeout, s.openKVM)
 	s.sol = newSOLManager(o.Config.SOLIdleTimeout, s.openSOL)
 	s.media = newMediaManager(s.openIDER, s.clearISOBoot, logger)
@@ -158,4 +168,6 @@ func (s *server) register(srv *mcp.Server) {
 	s.registerKVM(srv)
 	s.registerSOL(srv)
 	s.registerMedia(srv)
+	s.registerSettings(srv)
+	s.registerUsers(srv)
 }

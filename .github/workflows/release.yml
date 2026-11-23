@@ -152,6 +152,50 @@ jobs:
           printf '%s\n' "${TAG#v}" > internal/ui/VERSION
           mkdir -p dist
 
+      - name: Build openlamt-mcp
+        # The MCP server is a plain binary without Fyne and without cgo. It ships as its own
+        # archive with LICENSE and NOTICE. The app's update check looks only for
+        # OpenLAMT-<tag>-<platform> assets, so it never picks these.
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          exe=openlamt-mcp
+          [[ "$GOOS" == windows ]] && exe=openlamt-mcp.exe
+          # Relative, so bash and PowerShell on Windows read the same path.
+          stage=mcp-stage
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          go build -trimpath -ldflags "-s -w -X main.releaseVersion=$TAG" -o "$stage/$exe" ./cmd/openlamt-mcp
+          cp LICENSE NOTICE "$stage/"
+          # The runner's own platform: the binary starts and carries the tag.
+          got=$("$stage/$exe" --version | tr -d '\r')
+          echo "$got"
+          if [[ "$got" != "openlamt-mcp $TAG" ]]; then
+            echo "openlamt-mcp --version printed \"$got\", expected \"openlamt-mcp $TAG\"" >&2
+            exit 1
+          fi
+
+      - name: Create openlamt-mcp archive (macOS, Linux)
+        if: runner.os != 'Windows'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          archive="dist/openlamt-mcp-${TAG}-${PLATFORM}.tar.gz"
+          tar -C mcp-stage -czf "$archive" openlamt-mcp LICENSE NOTICE
+          tar -tzvf "$archive"
+
+      - name: Create openlamt-mcp archive (Windows)
+        if: runner.os == 'Windows'
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        shell: pwsh
+        run: |
+          $archive = "dist/openlamt-mcp-$env:TAG-$env:PLATFORM.zip"
+          Compress-Archive -Path mcp-stage/openlamt-mcp.exe, mcp-stage/LICENSE, mcp-stage/NOTICE -DestinationPath $archive
+          Get-Item $archive
+
       - name: Install Fyne CLI
         if: runner.os != 'Linux'
         run: go install "fyne.io/tools/cmd/fyne@$FYNE_VERSION"

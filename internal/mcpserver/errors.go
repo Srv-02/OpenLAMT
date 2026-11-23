@@ -26,7 +26,24 @@ func refuse(format string, args ...any) error { return &refusal{msg: fmt.Sprintf
 func isRefusal(err error) bool {
 	var r *refusal
 	var off *amt.RedirectionOffError // read_only forbids the write: a policy refusal
-	return errors.As(err, &r) || errors.As(err, &off)
+	// An invalid value is checked before anything reaches the device.
+	return errors.As(err, &r) || errors.As(err, &off) || errors.Is(err, amt.ErrInvalidValue)
+}
+
+// paramNames are the tool parameters of the fields in amt.ValidationError.
+var paramNames = map[string]string{
+	"HostName": "host_name", "DomainName": "domain_name", "DynamicDNS": "dynamic_dns", "IPAddress": "ip_address",
+	"SubnetMask": "subnet_mask", "Gateway": "gateway", "PrimaryDNS": "primary_dns", "SecondaryDNS": "secondary_dns",
+	"Domains": "domains", "Name": "name", "Password": "password", "Access": "access", "Realms": "realms",
+	"Certificate": "certificate_id", "Policy": "user_consent",
+}
+
+// methodMeanings explain ReturnValues of the AMT account methods.
+var methodMeanings = map[int]string{
+	23:   "the device holds the maximum number of accounts",
+	2053: "the account does not exist (any more); call list_users",
+	2058: "an account with this name exists already",
+	2054: "the device refused the value",
 }
 
 // redirOpenError is an error of opening a SOL ("sol") or IDE-R ("ider") session, so explain
@@ -94,9 +111,42 @@ func explain(err error) string {
 		ie  *amt.IDERError
 		mpe *mkiso.PathError
 	)
+	var (
+		ve  *amt.ValidationError
+		me  *amt.MethodError
+		cu  *amt.CredentialsUncertainError
+		cer *amt.CertificateUncertainError
+	)
 	switch {
 	case errors.As(err, &roe):
 		return explainRedirOpen(roe)
+	case errors.As(err, &ve):
+		name := paramNames[ve.Field]
+		if name == "" {
+			name = ve.Field
+		}
+		return fmt.Sprintf("Invalid %s: %s. Nothing was sent to the device.", name, ve.Reason)
+	case errors.As(err, &cu):
+		return fmt.Sprintf("The device did not answer the change of the login %q, and a test login could not tell whether it took "+
+			"the new password. The saved login was not changed. Check with list_users or in the OpenLAMT app, and keep the new password: "+
+			"it may be the valid one now.", cu.Username)
+	case errors.As(err, &cer):
+		return fmt.Sprintf("The device did not answer the certificate change, and it is unknown whether it switched to the new certificate "+
+			"(fingerprint %s). The saved pin was not changed: if the next call fails with a changed certificate, accept it in the "+
+			"OpenLAMT app after comparing this fingerprint.", amt.FormatFingerprint(cer.Fingerprint))
+	case errors.Is(err, amt.ErrRiskyChange):
+		return "The device needs a confirmation for this change that was not given. Nothing was written."
+	case errors.Is(err, amt.ErrProtectedAccount):
+		return "This account cannot be changed, disabled or deleted here: it is a system account of the firmware or the account " +
+			"this favorite signs in with (that one can be changed with update_user, not disabled or deleted)."
+	case errors.Is(err, amt.ErrNotModifiable):
+		return "The device does not allow this change (the firmware lacks the setting, it is locked on the device, or the account is a " +
+			"Kerberos account)."
+	case errors.As(err, &me):
+		if m := methodMeanings[me.ReturnValue]; m != "" {
+			return fmt.Sprintf("The device refused the change (%s, AMT ReturnValue %d): %s.", me.Method, me.ReturnValue, m)
+		}
+		return fmt.Sprintf("The device refused the change (%s, AMT ReturnValue %d).", me.Method, me.ReturnValue)
 	case errors.As(err, &ref):
 		return ref.msg
 	case errors.As(err, &rof):

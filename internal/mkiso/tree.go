@@ -2,8 +2,10 @@ package mkiso
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -31,7 +33,7 @@ type treeData struct {
 type node struct {
 	name   string // sanitized name
 	rel    string // original relative path, slash separated
-	src    string // absolute source path
+	src    string // absolute source path; empty when read through an os.Root
 	dir    bool
 	size   int64
 	mtime  time.Time
@@ -58,6 +60,9 @@ type scanResult struct {
 	total    int64   // bytes of file data
 	allDirs  []*node // depth first pre-order, root first
 	allFiles []*node // depth first pre-order
+
+	readDir func(n *node) ([]fs.DirEntry, error) // the entries of a folder, sorted by name
+	open    func(n *node) (*os.File, error)      // a file to copy
 }
 
 // sanitizeName normalizes a file name to NFC and replaces characters that are
@@ -90,19 +95,42 @@ func utf16Len(s string) int {
 
 func toUTF16(s string) []uint16 { return utf16.Encode([]rune(s)) }
 
-func scan(ctx context.Context, dir string) (*scanResult, error) {
-	abs, err := filepath.Abs(dir)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := os.Stat(abs)
-	if err != nil {
-		return nil, err
+func scan(ctx context.Context, dir string, root *os.Root) (*scanResult, error) {
+	s := &scanResult{}
+	var fi fs.FileInfo
+	var src string
+	if root != nil {
+		var err error
+		if fi, err = root.Stat("."); err != nil {
+			return nil, err
+		}
+		s.readDir = func(n *node) ([]fs.DirEntry, error) {
+			f, err := root.Open(rootName(n.rel))
+			if err != nil {
+				return nil, err
+			}
+			defer f.Close()
+			ents, err := f.ReadDir(-1)
+			slices.SortFunc(ents, func(a, b fs.DirEntry) int { return strings.Compare(a.Name(), b.Name()) }) // as os.ReadDir
+			return ents, err
+		}
+		s.open = func(n *node) (*os.File, error) { return root.Open(rootName(n.rel)) }
+	} else {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			return nil, err
+		}
+		if fi, err = os.Stat(abs); err != nil {
+			return nil, err
+		}
+		src = abs
+		s.readDir = func(n *node) ([]fs.DirEntry, error) { return os.ReadDir(n.src) }
+		s.open = func(n *node) (*os.File, error) { return os.Open(n.src) }
 	}
 	if !fi.IsDir() {
 		return nil, &PathError{Path: ".", Err: os.ErrInvalid}
 	}
-	s := &scanResult{root: &node{dir: true, src: abs, mtime: fi.ModTime()}}
+	s.root = &node{dir: true, src: src, mtime: fi.ModTime()}
 	s.allDirs = append(s.allDirs, s.root)
 	if err := s.walk(ctx, s.root); err != nil {
 		return nil, err
@@ -114,11 +142,19 @@ func scan(ctx context.Context, dir string) (*scanResult, error) {
 	return s, nil
 }
 
+// rootName is the name of a node in an os.Root: "." for the folder itself.
+func rootName(rel string) string {
+	if rel == "" {
+		return "."
+	}
+	return filepath.FromSlash(rel)
+}
+
 func (s *scanResult) walk(ctx context.Context, n *node) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	ents, err := os.ReadDir(n.src)
+	ents, err := s.readDir(n)
 	if err != nil {
 		return &PathError{Path: relOrDot(n.rel), Err: err}
 	}

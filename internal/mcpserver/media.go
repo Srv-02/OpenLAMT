@@ -244,10 +244,17 @@ func (m *mediaManager) image(ctx context.Context, device string, src mediaSource
 		}
 		return &isoFile{File: f, size: fi.Size()}, nil, nil
 	}
-	if fi, err := os.Stat(src.path); err != nil || !fi.IsDir() || !os.SameFile(fi, src.checked) {
+	// The build reads the folder through an os.Root: no open leaves the checked folder, also when
+	// an entry becomes a link meanwhile. Links and special files are skipped (Info.Skipped).
+	root, err := os.OpenRoot(src.path)
+	if err != nil {
 		return nil, nil, changedSource(src)
 	}
-	t, info, err := buildImage(ctx, src.path, mkiso.Options{})
+	defer root.Close()
+	if fi, err := root.Stat("."); err != nil || !fi.IsDir() || !os.SameFile(fi, src.checked) {
+		return nil, nil, changedSource(src)
+	}
+	t, info, err := buildImage(ctx, src.path, mkiso.Options{Root: root})
 	if err != nil {
 		return nil, nil, err
 	}

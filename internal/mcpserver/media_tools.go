@@ -127,6 +127,9 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 	if err != nil {
 		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(resolved), err)
 	}
+	// On Windows a FileInfo from os.Stat reads the file ID only when it is first compared, by
+	// path, so a later comparison would see a swapped file: compare it once now to record it.
+	os.SameFile(fi, fi)
 	switch {
 	case fi.IsDir():
 		src = mediaSource{path: resolved, folder: true, checked: fi}
@@ -202,9 +205,15 @@ func (s *server) mediaMount(ctx context.Context, req *mcp.CallToolRequest, in me
 	if err != nil {
 		return nil, mediaMountOutput{}, err
 	}
+	if n := len(out.Skipped); n > 0 {
+		rec.action += fmt.Sprintf(", %d links or special files skipped", n)
+	}
 	text := fmt.Sprintf("Mounted «%s» on %q as a read-only CD drive. media_boot_next sets it for the next start, boot_from_iso restarts "+
 		"the device from it now. It stays mounted until media_unmount, until the device ends the session, or until this server stops.",
 		visible(out.Name), in.Device)
+	if n := len(out.Skipped); n > 0 {
+		text += fmt.Sprintf(" %d symbolic links or special files in the folder were left out (see skipped).", n)
+	}
 	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: text}}}, out, nil
 }
 

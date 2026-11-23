@@ -610,3 +610,60 @@ func TestTooManyEntries(t *testing.T) {
 		}
 	})
 }
+
+// TestBuildThroughRootStaysInside: with Options.Root a symbolic link to a file outside the
+// folder is skipped like without it, and a file that becomes such a link after the scan cannot
+// be read through the root (os.Root refuses the escape), while a plain path build would follow it.
+func TestBuildThroughRootStaysInside(t *testing.T) {
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	if err := os.WriteFile(outside, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("hello"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "link.txt")); err != nil {
+		t.Skipf("no symlinks: %v", err) // Windows without the privilege
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	out, err := os.Create(filepath.Join(t.TempDir(), "out.iso"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer out.Close()
+	info, err := Build(context.Background(), dir, out, Options{Root: root})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Files != 1 || len(info.Skipped) != 1 || info.Skipped[0] != "link.txt" {
+		t.Fatalf("info %+v", info)
+	}
+	img, err := os.ReadFile(out.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(img), "secret") || !strings.Contains(string(img), "hello") {
+		t.Fatal("the image holds the outside file or lacks the inside one")
+	}
+
+	s, err := scan(context.Background(), dir, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := s.allFiles[0]
+	if err := os.Remove(filepath.Join(dir, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	if f, err := s.open(a); err == nil {
+		f.Close()
+		t.Fatal("opened a file outside the root through a swapped link")
+	}
+}

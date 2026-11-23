@@ -987,3 +987,43 @@ func TestMediaConfirmationBindsTheMount(t *testing.T) {
 		t.Fatalf("NextBootFromISO calls %d", next)
 	}
 }
+
+// TestMediaMountFolderSkipsLinksOutside: a folder that holds a link to a file outside it (here
+// to a protected folder's file) is mounted without that file: the build reads through an
+// os.Root and skips links. The result and the action log count what was skipped.
+func TestMediaMountFolderSkipsLinksOutside(t *testing.T) {
+	files := newMediaFiles(t)
+	secret := mustMkdirFile(t, filepath.Join(t.TempDir(), ".ssh"), "id_ed25519")
+	if err := os.Symlink(secret, filepath.Join(files.folder, "key")); err != nil {
+		t.Skipf("no symlinks: %v", err) // Windows without the privilege
+	}
+	orig := buildImage
+	t.Cleanup(func() { buildImage = orig })
+	var built atomic.Int32
+	buildImage = func(ctx context.Context, dir string, opt mkiso.Options) (*mkiso.TempImage, mkiso.Info, error) {
+		if opt.Root != nil && opt.Root.Name() == files.folder {
+			built.Add(1)
+		}
+		return orig(ctx, dir, opt)
+	}
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	srv := addIDER(t, f)
+	h.start()
+	_, r := h.mount(srv, dev("NUC", "path", files.folder))
+	if r.out["files"] != float64(1) || !reflect.DeepEqual(r.out["skipped"], []any{"key"}) {
+		t.Fatalf("mount %v", r.out)
+	}
+	if built.Load() != 1 {
+		t.Fatalf("builds through the root of the folder: %d", built.Load())
+	}
+	var action string
+	for _, e := range h.logEntries() {
+		if e["tool"] == "media_mount" && e["outcome"] == "ok" {
+			action, _ = e["action"].(string)
+		}
+	}
+	if action != "folder "+files.folder+", 1 links or special files skipped" {
+		t.Fatalf("logged %q", action)
+	}
+}

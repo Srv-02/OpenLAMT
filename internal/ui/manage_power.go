@@ -465,5 +465,5 @@ func (m *manager) alarmErrorText(err error) string {
 			return lang.L("Enter a name of up to {{.Count}} characters.", map[string]any{"Count": amt.MaxAlarmName})
 		}
 	}
-	return describeManage(err)
+	return describe(err) // a write: the read wording of describeManage would be wrong
 }

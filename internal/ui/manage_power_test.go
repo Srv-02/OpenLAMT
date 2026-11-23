@@ -509,6 +509,25 @@ func TestAlarmErrorTexts(t *testing.T) {
 	}
 }
 
+// A refused write says "do this", not "read" (#107); the same holds for the settings page.
+func TestAlarmErrorTextAccessDeniedIsWrite(t *testing.T) {
+	englishUI(t)
+	m := &manager{name: "Lab"}
+	want := "This account is not allowed to do this on the device."
+	if got := m.alarmErrorText(amt.ErrAccessDenied); got != want {
+		t.Errorf("alarm: %q", got)
+	}
+	e := newManageError()
+	e.setWrite(amt.ErrAccessDenied)
+	if e.Text() != want {
+		t.Errorf("setWrite: %q", e.Text())
+	}
+	e.set(amt.ErrAccessDenied)
+	if e.Text() == want {
+		t.Error("a read error uses the write wording")
+	}
+}
+
 // Changing to a package that keeps the remote start needs no question.
 func TestChangePackageSafeWritesAtOnce(t *testing.T) {
 	h, p := powerHarness(t, nil)

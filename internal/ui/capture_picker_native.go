@@ -25,14 +25,13 @@ func nativeFilePickers() (filePickers, bool) {
 			}
 		})
 	}
-	save := func(_ fyne.Window, kind captureKind, name string, chosen func(path string), failed func(error)) {
+	save := func(win fyne.Window, kind captureKind, name string, chosen func(path string), failed func(error)) {
 		go func() {
 			path, err := zenity.SelectFileSave(zenity.Title(kind.title), zenity.Filename(name), zenity.ConfirmOverwrite(),
 				zenity.FileFilters{{Name: kind.filter, Patterns: []string{"*." + kind.ext}, CaseFold: true}})
-			if err == nil && path != "" {
-				path = withExt(path, kind.ext)
-			}
-			answer(path, err, chosen, failed)
+			// The panel of macOS asks about the typed name only: finishSave asks again if the
+			// app adds the extension and that file exists (Windows adds it itself).
+			answer(path, err, func(picked string) { finishSave(win, kind, picked, chosen) }, failed)
 		}()
 	}
 	folder := func(_ fyne.Window, chosen func(path string), failed func(error)) {

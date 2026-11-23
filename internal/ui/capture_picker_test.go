@@ -70,3 +70,23 @@ func TestFinishSaveWithoutConflict(t *testing.T) {
 		t.Error("the file with the extension was removed")
 	}
 }
+
+// The native panel of macOS creates no file for the typed name (#109): the question about the
+// file with the extension comes all the same, and nothing is removed.
+func TestFinishSaveAsksWhenThePanelCreatedNoFile(t *testing.T) {
+	w, _ := panelHarness(t)
+	dir := t.TempDir()
+	typed, final := filepath.Join(dir, "shot"), filepath.Join(dir, "shot.png")
+	if err := os.WriteFile(final, []byte("old"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	finishSave(w, screenshotKind(), typed, func(p string) { got = append(got, p) })
+	if len(got) != 0 || !open(w) {
+		t.Fatalf("no question: chosen %v, open %v", got, open(w))
+	}
+	overlayButton(t, w, "Replace").OnTapped()
+	if len(got) != 1 || got[0] != final {
+		t.Fatalf("chosen %v, want %s", got, final)
+	}
+}

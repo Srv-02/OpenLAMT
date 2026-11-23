@@ -4,6 +4,8 @@
 
 **A local desktop app for Intel AMT, native on macOS, Windows and Linux: switch your devices on and off, use their screen and serial console, boot them from an ISO and manage their AMT settings, without a browser or a server.**
 
+<p align="center"><a href="https://github.com/Srv-02/openlamt/releases/latest"><img src="screenshots/btn-download.svg" alt="Download" height="44"></a>&nbsp;&nbsp;<a href="https://srv-02.github.io/OpenLAMT/"><img src="screenshots/btn-guide.svg" alt="User guide" height="44"></a></p>
+
 <br>
 
 <p align="center"><a href="https://www.buymeacoffee.com/michaelmayer"><img src="screenshots/bmc-button.png" alt="Buy me a coffee" height="64"></a></p>
@@ -23,7 +25,7 @@ Linux (x64)             OpenLAMT-<version>-linux-x64.AppImage  (any distribution
 
 Start OpenLAMT and connect to your first device with **Quick Connect**. The builds are not code-signed, so macOS and Windows warn on the first launch: see [Manual install](#manual-install).
 
-The [user guide](https://srv-02.github.io/OpenLAMT/) explains every window, page and Intel AMT setting step by step.
+The [user guide](https://srv-02.github.io/OpenLAMT/) explains every window, page and Intel AMT setting step by step, in English and [German](https://srv-02.github.io/OpenLAMT/de/).
 
 ## Features
 
@@ -35,15 +37,37 @@ The same app runs on macOS, Windows and Linux. No browser and no server in betwe
 
 ### All your devices at a glance
 
-![Start window with five favorites, their power state and the details of Lab Server](screenshots/favorites.png)
+![Start window with This computer, five favorites, their power state and the details of Lab Server](screenshots/favorites.png)
 
 Favorites keep each device with its settings, and a colored dot shows its power state. Passwords stay in the system keychain, never in a file.
+
+### Find your devices
+
+![The network scan with four Intel AMT devices found and two of them ticked](screenshots/scan.png)
+
+**Scan Network** finds Intel AMT devices in an address range and adds the ones you tick as favorites. The scan only reads and needs no password.
+
+- **Export and import:** move your favorites and settings to another computer. Passwords stay in the keychain.
+- **This computer (beta):** on Linux and Windows, check whether the computer in front of you has Intel AMT and whether it is activated.
 
 ### Power and remote screen in one window
 
 ![Device window with a remote BIOS screen over KVM and the Power menu open](screenshots/power.png)
 
 Each device opens in its own window with remote keyboard, video and mouse (KVM). Power on, power off, reset, power cycle, reboot into the BIOS, boot from a mounted ISO or shut down from the same toolbar.
+
+### Let an AI agent run your devices
+
+![An MCP client asks openlamt-mcp for the screen of Lab Server and gets the BIOS setup back](screenshots/mcp.png)
+
+`openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can read status and logs, switch devices on and off, look at the screen and type, use the serial console and boot from an ISO. It runs on your computer and opens no network port.
+
+- Device passwords stay in the keychain and never reach the agent.
+- A config file limits the agent to some devices or actions, or to reading only.
+- Changes that can cut you off from a device always ask you first.
+- An action log records every tool call.
+
+Setup and every tool: [MCP server](#mcp-server-openlamt-mcp) below and the [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html).
 
 ### Boot from an ISO or a folder
 
@@ -63,7 +87,7 @@ Each device opens in its own window with remote keyboard, video and mouse (KVM).
 
 ![Device window with the remote screen and the device management sidebar on the Hardware page](screenshots/manage.png)
 
-**Manage** opens a sidebar next to the remote screen, or a window of its own, with five pages: hardware, event log, audit log, AMT settings and user accounts. The hardware page lists system, BIOS, processor, memory, drives and the AMT version.
+**Manage** opens a sidebar next to the remote screen, or a window of its own, with hardware, event log, audit log, AMT settings, user accounts and the pages listed under [And more](#and-more). The hardware page lists system, BIOS, processor, memory, drives and the AMT version.
 
 ### Event log and audit log
 
@@ -87,9 +111,25 @@ The first TLS connection shows the certificate fingerprint of the device. OpenLA
 
 ### Your language, your look
 
-![Settings with language, appearance, color blind mode, update check, KVM options and hidden messages](screenshots/settings.png)
+![Settings with language, appearance, color blind mode, update check, poll interval and KVM options](screenshots/settings.png)
 
 English or German, light, dark or system appearance, and status colors for red-green color blindness. Type the clipboard into the remote system in 16 keyboard layouts. **Reset Warnings** brings back every message you hid with "Don't show again".
+
+### And more
+
+![Device management in a window of its own on the System Defense page, with every page in the list on the left](screenshots/manage-more.png)
+
+- **Remote screen:** scale the picture, save a screenshot or record a video.
+- **Power:** Sleep and Hibernate, wake alarms that switch a device on at a set time, and the power policy.
+- **Boot options:** choose what the device starts from next, for example PXE or the BIOS setup, with options such as Secure Boot or locked buttons.
+- **One Click Recovery:** start a device once from a recovery image over HTTPS (Intel AMT 16 or later).
+- **Erase drives:** Remote Secure Erase and Remote Platform Erase, before you pass a device on.
+- **Certificates:** see, import and delete the certificates and trusted roots stored in AMT.
+- **Wi-Fi:** add, edit and delete the wireless profiles of a device.
+- **System Defense** (Intel AMT 11 and earlier): network filters and policies, and watchdogs for agents on the device.
+- **Event forwarding and audit settings:** send AMT events to a server, and choose what the audit log records.
+- **WSMAN Browser:** read the raw AMT, CIM and IPS classes of a device.
+- **Help on the spot:** the ⓘ next to an AMT setting explains what it does and, for risky settings, what can go wrong.
 
 ## Details
 
@@ -180,9 +220,7 @@ If a step does not work, the package stays in `~/Downloads` and OpenLAMT says ho
 
 ### MCP server (openlamt-mcp)
 
-`openlamt-mcp` lets an AI agent (Claude Desktop, Claude Code or any other MCP client) use your OpenLAMT favorites: read status, hardware, logs, settings and accounts, switch devices on and off, boot them into the BIOS or from an ISO file or a folder, look at the screen over KVM, type and use the mouse, read and write the serial console, and change AMT settings and accounts. The client starts it and talks to it over stdin and stdout. It opens no network port.
-
-**Install:** download the archive for your system from the [Releases page](https://github.com/Srv-02/openlamt/releases) and unpack it anywhere. It holds a single program without dependencies:
+`openlamt-mcp` is a separate program. Download the archive for your system from the [Releases page](https://github.com/Srv-02/openlamt/releases) and unpack it anywhere. It holds a single program without dependencies:
 
 ```text
 macOS (Apple Silicon)   openlamt-mcp-<version>-macos-arm64.tar.gz
@@ -190,68 +228,13 @@ Windows (x64)           openlamt-mcp-<version>-windows-x64.zip
 Linux (x64)             openlamt-mcp-<version>-linux-x64.tar.gz
 ```
 
-The program is not code-signed. On macOS, remove the quarantine attribute once (`xattr -d com.apple.quarantine openlamt-mcp`); on Windows, SmartScreen may warn on the first start. To build it yourself: `go build -o openlamt-mcp ./cmd/openlamt-mcp` (no C compiler needed). Then add it to your MCP client:
+Save the device passwords in the app first, then add the program to your MCP client:
 
 ```json
 {"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}
 ```
 
-**Tools**, by tool group of the config file (below):
-
-| Group | Tools |
-|---|---|
-| always | `list_devices` (contacts no device) |
-| `read` | `device_status`, `hardware_info`, `event_log`, `audit_log`, `kvm_screenshot`, `sol_read` |
-| `read` or `kvm_input` | `kvm_connect`, `kvm_disconnect`, `sol_connect`, `sol_disconnect` |
-| `read` and `settings` | `get_settings` |
-| `read` and `users` | `list_users` |
-| `power_boot` | `power_action` (on, off, reset, cycle, shutdown), `boot_to_bios` |
-| `media` | `media_mount`, `media_unmount`, `media_status`, `media_boot_next`; with `power_boot` also `boot_from_iso` |
-| `kvm_input` | `kvm_send_keys`, `kvm_mouse`, `kvm_type_text`, `sol_type_text`, `sol_send_keys` |
-| `settings` | `set_general` (host name, domain, ping, dynamic DNS), `set_remote_features` (KVM, IDE-R, SOL, user consent), `sync_clock`, `set_tls_certificate` |
-| `settings` and `destructive` | `set_network`, `set_environment_detection`, `disable_amt_network` |
-| `users` | `add_user`, `update_user`, `set_user_enabled`, `delete_user` |
-| `users` and `destructive` | `set_admin_account` |
-
-- **Devices and passwords** come from the OpenLAMT favorites and the system keychain. Save the password in the app first; the device passwords never pass through the MCP connection. A TLS device works only after you connected once with the app and its certificate is pinned; the MCP server never trusts a new certificate. Devices without TLS work, with a warning in each answer.
-- **User consent:** if a device asks for consent (Client Control Mode), the agent has to ask a person at the device for the six-digit code on its screen (`boot_to_bios`, `kvm_connect`, `sol_connect`, `media_mount`). In `read_only` mode a consent request may still show a code on the device screen; it changes no setting.
-- **Remote screen:** `kvm_connect` opens the KVM session of a device and keeps it for the following calls. `kvm_screenshot` returns the screen as an image sized for AI models: by default at most 1280 pixels on the longest side, as JPEG. `kvm_send_keys` presses keys and combinations such as `Ctrl+Alt+Delete`, `kvm_mouse` moves, clicks and scrolls at a point of the last screenshot, and `kvm_type_text` types text for the keyboard layout of the favorite. AMT allows one KVM session per device: while the agent holds it, the app cannot connect KVM to that device, and the other way round. The session closes with `kvm_disconnect`, after five minutes without a call, or when the MCP client stops the server. Power off, power cycle and shutdown close it first, because AMT refuses them while KVM is open. If KVM is off on the device, `kvm_connect` turns it on. That is a settings change, so it needs the tool group `settings` and, with `require_client_confirmation`, your answer to a question; without `settings` the call says what to turn on. The wake key that `kvm_connect` presses on a new session needs the tool group `kvm_input`.
-- **Media:** `media_mount` mounts an `.iso` file or a folder on a device as a read-only CD drive. The agent gives its absolute path on the computer that runs `openlamt-mcp`. A folder becomes a temporary ISO first, as in the app. A big folder takes a while, and the build runs within the tool call, so an MCP client with a short tool timeout may abort it. `media_boot_next` makes the device boot from the image at its next start, `boot_from_iso` restarts it from the image now. `media_status` shows what is mounted and how fast the device reads it. The image stays mounted until `media_unmount`, until the device ends the session, or until the MCP client stops the server; the boot option set with `media_boot_next` is cleared then. AMT allows one media session per device: while the agent holds it, the app's Media menu cannot mount on that device, and the other way round. If media redirection (IDE-R) is off on the device, `media_mount` turns it on, and it stays on: only with the tool group `settings`, and with `require_client_confirmation` the mount question says so. A mounted folder can be read on the device, so `media_mount` resolves links first, checks that the file it opens is the one it checked, builds a folder image so that nothing outside the folder can end up in it (links inside are left out), and never mounts your home folder itself, a folder above it, or the folders that hold credentials and settings: `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.config`, `~/.local/share`, `~/.local/state`, `~/.kube`, `~/.docker`, `~/.password-store`, `~/.mozilla`, `~/.thunderbird`, `~/.pki`, `~/.claude`, `~/.cargo`, `~/.m2`, `~/.gradle`, `~/.terraform.d`, `~/.var/app`, `~/snap`, all of `~/Library` on macOS, `%APPDATA%` and `%LOCALAPPDATA%` on Windows, and the OpenLAMT configuration folder (favorites, `openlamt-mcp.json`, the action log). These folders are recognized by file identity, so another spelling of the same folder (a link, a bind mount, a macOS firmlink, a Windows junction) is refused too, and a folder image stops when one of them turns up inside; on Windows, `\\?\` and `\\.\` paths and administrative shares such as `\\host\C$` are refused. The list is best effort and cannot cover every place with secrets: set `media.allowed_paths` to the folders with your images.
-- **Serial console:** `sol_connect` opens the serial console (Serial over LAN) of a device. Its output goes into a buffer of 1 MiB per device. `sol_read` returns it as plain text and goes on where the last read ended. `sol_type_text` writes printable ASCII text, with line breaks as Enter, and `sol_send_keys` presses keys such as `Ctrl+C`, `Up` or `F10` as xterm sequences. A BIOS setup over the serial console often expects other codes for function keys; KVM works there too. AMT allows one serial console session per device: while the agent holds it, the app's Console view cannot connect, and the other way round. The session closes with `sol_disconnect`, after five minutes without a call, or when the MCP client stops the server. If SOL is off on the device, `sol_connect` turns it on, as `kvm_connect` does for KVM: only with the tool group `settings`, and with `require_client_confirmation` after a question.
-- **AMT settings and accounts:** `get_settings` and `list_users` show what the app's Settings and Users pages show; a section the account may not read is listed in `not_permitted`, one the firmware lacks in `not_available`. The other tools change what those pages change, with the same safeguards:
-  - A change the app writes at once (ping, switching a feature on, user consent, the clock, adding, editing or disabling another account) asks you in the MCP client only with `require_client_confirmation`. Switching a feature on counts as such a change also when `kvm_connect`, `sol_connect` or `media_mount` do it.
-  - A change the app guards with an **orange** warning (host name, domain, dynamic DNS, switching KVM, IDE-R or SOL off, the TLS certificate, changing the account the favorite signs in with, deleting an account, lowering the user consent policy) **always** asks you in the MCP client, whatever `require_client_confirmation` says. A client that cannot ask gets a refusal; make the change in the app then.
-  - A change with a **red** warning (network settings, environment detection, turning AMT off on the network, the admin account) can lock OpenLAMT out of the device. It needs the tool groups `settings` or `users` and `destructive`, the agent has to repeat the device name in `confirm`, and you are always asked.
-  - The question shows what changes and the app's warning. Your answer counts only for exactly these arguments and this favorite (its name, host and user): if one of them changes, it is refused.
-  - When the account the favorite signs in with or its certificate changes, the keychain and the favorite follow, as in the app.
-  - **Passwords** of new or changed accounts are tool arguments: the agent chooses them, so they are part of your conversation with it and of the MCP client's records. `openlamt-mcp` never writes them to the action log, a log line, an answer or a question. Without TLS the device receives the password as a digest that works like the password itself. Like the app, `openlamt-mcp` then **always** asks you in the MCP client before it sends one (`add_user`, `update_user`, `set_admin_account`), whatever `require_client_confirmation` says; the question and the answer warn about it. The same holds for `kvm_type_text` and `sol_type_text` with `secret` on a device without TLS. A client that cannot ask gets a refusal that names the reason; use TLS, the app, or a client with elicitation.
-- **Settings:** `openlamt-mcp.json` next to `favorites.json`, or the file given with `--config <path>`:
-
-  ```json
-  {
-    "read_only": false,
-    "allowed_devices": [],
-    "tool_groups": {"read": true, "power_boot": true, "media": true, "kvm_input": true,
-                    "settings": true, "users": true, "destructive": true},
-    "require_client_confirmation": false,
-    "action_log": {"enabled": true, "path": ""},
-    "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
-            "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
-    "sol": {"idle_timeout_seconds": 300},
-    "media": {"allowed_paths": []}
-  }
-  ```
-
-  - `read_only` leaves only the read tools: status, logs, settings and accounts, the screenshot and reading the serial console. It never writes a setting, never turns KVM, SOL or media redirection on and sends no input to the host.
-  - `allowed_devices` takes favorite names, empty means all.
-  - `tool_groups` switches the groups of the table above on and off. `destructive` covers every power action except power on, `boot_from_iso` on a device that is not off, and the red settings and account changes.
-  - `require_client_confirmation` asks you in the MCP client before each power action, each key, mouse or typing call, each mount and `media_boot_next`, and each settings or account change; orange and red changes ask always. The question shows every key, the text to type and the full path to mount, after links are resolved, with each line break (an Enter press) shown as ⏎ and invisible or direction-changing characters as their code point, unless the agent marks a single line without line breaks as `secret`; the question then says that the agent chose to hide it. A client that cannot ask gets a refusal.
-  - `kvm` sets the idle timeout of a KVM session (`0` keeps it open until the server stops) and the default size, format (`jpeg` or `png`) and quality of screenshots; the agent may ask for another size or format per call. `sol` sets the idle timeout of a serial console session.
-  - `media.allowed_paths` limits `media_mount` to the folders you list (absolute paths), empty means anywhere but the protected folders.
-  - `action_log` writes one line per tool call to `openlamt-mcp-actions.log` next to the config file unless you give another `path`. It holds the keys and mouse actions, the mounted paths and the settings changed, but never text typed over KVM or the serial console, a consent code or a password.
-  - Each key you leave out keeps the value shown above, and an unknown key stops the server.
-
-**Without a config file, everything is allowed:** every favorite and every action; only the orange and red settings and account changes ask. The action log is written all the same. Before you hand your devices to an agent you do not fully trust, write a config file. A good start: `read_only` for looking only; otherwise list the devices in `allowed_devices`, switch off the groups you do not need (`destructive`, `settings` and `users` first), turn on `require_client_confirmation`, and set `media.allowed_paths`.
+**Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json`, user consent, KVM, media, the serial console and the action log.
 
 ### Removing
 

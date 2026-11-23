@@ -184,13 +184,27 @@
 
 <h2 id="without-app">Without the app</h2>
 <div class="prose">
-<p><code>openlamt-mcp</code> does not need the app. On a computer without it, for example a Linux server where Claude Code runs in a terminal, the agent finds devices with <code>scan_network</code> and saves them with <code>add_favorite</code>. Two steps stay with a person, because the agent must never see a password and must never trust a certificate on its own. The agent tells you which one to run:</p>
+<p><code>openlamt-mcp</code> does not need the app. On a computer without it, for example a Linux server where Claude Code runs in a terminal, the agent finds devices with <code>scan_network</code> and saves them with <code>add_favorite</code>. A Linux server usually has no system keychain: read <a href="#pin-file">Linux without a keychain</a> first. Two steps stay with a person, because the agent must never see a password and must never trust a certificate on its own. The agent tells you which one to run:</p>
 <pre><code>openlamt-mcp password "Lab Server"
 openlamt-mcp trust "Lab Server"</code></pre>
 <ul>
   <li><code>password</code> asks for the password twice without showing it and saves it in the system keychain. If <code>passwords.command</code> is set, it saves nothing and tells you to store the password in your password manager.</li>
   <li><code>trust</code> connects to the device, shows the SHA-256 fingerprint of its certificate and trusts it after <code>y</code>, the same trust on first use as in the app. If another certificate is trusted already, it warns and replaces it only after <code>y</code>.</li>
   <li>Both need a terminal: the answer cannot come from a pipe or a file. Both take <code>--config &lt;path&gt;</code> like the server.</li>
+</ul>
+<h3 id="pin-file">Linux without a keychain</h3>
+<p>On Linux, the system keychain is the Secret Service, which usually runs only in a desktop session. On a server or a VM without a desktop, <code>openlamt-mcp</code> can read and save nothing there. Two settings in the config file replace it:</p>
+<pre><code>{
+  "certificates": {"pin_file": true},
+  "passwords": {"command": ["/usr/bin/pass", "show", "openlamt/{host}"]}
+}</code></pre>
+<ul>
+  <li><code>certificates.pin_file</code> keeps the trusted certificates in <code>openlamt-pins.json</code> next to <code>favorites.json</code> instead of the keychain. <code>openlamt-mcp trust</code>, the question of <code>add_favorite</code>, <code>set_tls_certificate</code> and changes to favorites then read and write this file.</li>
+  <li>The file must be readable and writable by you only (mode 0600), or <code>openlamt-mcp</code> does not start. It holds no secret: a fingerprint is a hash of the public certificate. What matters is that nobody else can change it. The agent cannot write a fingerprint into it: every change follows a question you answered or a command you ran.</li>
+  <li>Nothing switches by itself. Without the setting, only the keychain counts. With it, only the file counts, even where a keychain works.</li>
+  <li>The app always uses the keychain and never reads the file. With this setting, a certificate you trusted in the app is not trusted for <code>openlamt-mcp</code>, and the other way round: run <code>openlamt-mcp trust</code> once per device, and again after you changed the host, user or certificate of a device in the app.</li>
+  <li>Passwords are not affected: they come from <code>passwords.command</code>, see <a href="#password-sources">Where passwords come from</a>.</li>
+  <li>macOS and Windows always have a system keychain, and it protects the fingerprints better. Leave the setting off there.</li>
 </ul>
 <h3 id="password-sources">Where passwords come from</h3>
 <p>For each device, <code>openlamt-mcp</code> takes the first password it finds:</p>
@@ -228,7 +242,8 @@ openlamt-mcp trust "Lab Server"</code></pre>
           "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
   "sol": {"idle_timeout_seconds": 300},
   "media": {"allowed_paths": []},
-  "passwords": {"command": [], "allow_plaintext_passwords": false}
+  "passwords": {"command": [], "allow_plaintext_passwords": false},
+  "certificates": {"pin_file": false}
 }</code></pre>
 <p>Each key you leave out keeps its default. An unknown key stops the server, so a typo cannot leave everything open.</p>
 </div>
@@ -243,6 +258,7 @@ openlamt-mcp trust "Lab Server"</code></pre>
   <dt><code>media.allowed_paths</code></dt><dd>Limits <code>media_mount</code> to the folders you list (absolute paths). Empty means anywhere except the protected folders.</dd>
   <dt><code>passwords.command</code></dt><dd>The program and arguments that print a device password, see <a href="#password-sources">Where passwords come from</a>. Empty means none.</dd>
   <dt><code>passwords.allow_plaintext_passwords</code></dt><dd>Also reads passwords from environment variables and <code>.env</code>, with a warning at every start and in every answer.</dd>
+  <dt><code>certificates.pin_file</code></dt><dd>Keeps trusted certificates in <code>openlamt-pins.json</code> next to <code>favorites.json</code> instead of the system keychain, for Linux without one. See <a href="#pin-file">Linux without a keychain</a>.</dd>
 </dl>
 <div class="prose">
 <h3 id="hardening">A safe start</h3>

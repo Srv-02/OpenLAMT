@@ -184,13 +184,27 @@
 
 <h2 id="without-app">Ohne die App</h2>
 <div class="prose">
-<p><code>openlamt-mcp</code> braucht die App nicht. Auf einem Computer ohne sie, zum Beispiel einem Linux-Server, auf dem Claude Code im Terminal läuft, findet der Agent Geräte mit <code>scan_network</code> und speichert sie mit <code>add_favorite</code>. Zwei Schritte bleiben bei einer Person, weil der Agent nie ein Passwort sehen und nie von sich aus einem Zertifikat vertrauen darf. Der Agent sagt dir, welchen du ausführen sollst:</p>
+<p><code>openlamt-mcp</code> braucht die App nicht. Auf einem Computer ohne sie, zum Beispiel einem Linux-Server, auf dem Claude Code im Terminal läuft, findet der Agent Geräte mit <code>scan_network</code> und speichert sie mit <code>add_favorite</code>. Ein Linux-Server hat meist keinen Schlüsselbund des Systems: Lies zuerst <a href="#pin-file">Linux ohne Schlüsselbund</a>. Zwei Schritte bleiben bei einer Person, weil der Agent nie ein Passwort sehen und nie von sich aus einem Zertifikat vertrauen darf. Der Agent sagt dir, welchen du ausführen sollst:</p>
 <pre><code>openlamt-mcp password "Lab Server"
 openlamt-mcp trust "Lab Server"</code></pre>
 <ul>
   <li><code>password</code> fragt das Passwort zweimal verdeckt ab und speichert es im Schlüsselbund des Systems. Ist <code>passwords.command</code> gesetzt, speichert es nichts und sagt dir, dass das Passwort in deinen Passwort-Manager gehört.</li>
   <li><code>trust</code> verbindet sich mit dem Gerät, zeigt den SHA-256-Fingerabdruck seines Zertifikats und vertraut ihm nach <code>y</code>, dasselbe Trust on First Use wie in der App. Wird schon einem anderen Zertifikat vertraut, warnt es und ersetzt es nur nach <code>y</code>.</li>
   <li>Beide brauchen ein Terminal: Die Antwort kann nicht aus einer Pipe oder Datei kommen. Beide nehmen <code>--config &lt;path&gt;</code> wie der Server.</li>
+</ul>
+<h3 id="pin-file">Linux ohne Schlüsselbund</h3>
+<p>Unter Linux ist der Schlüsselbund des Systems der Secret Service, und der läuft meist nur in einer Desktop-Sitzung. Auf einem Server oder in einer VM ohne Desktop kann <code>openlamt-mcp</code> dort nichts lesen und nichts speichern. Zwei Einstellungen in der Konfigurationsdatei ersetzen ihn:</p>
+<pre><code>{
+  "certificates": {"pin_file": true},
+  "passwords": {"command": ["/usr/bin/pass", "show", "openlamt/{host}"]}
+}</code></pre>
+<ul>
+  <li><code>certificates.pin_file</code> hält die vertrauten Zertifikate in <code>openlamt-pins.json</code> neben <code>favorites.json</code> statt im Schlüsselbund. <code>openlamt-mcp trust</code>, die Rückfrage von <code>add_favorite</code>, <code>set_tls_certificate</code> und Änderungen an Favoriten lesen und schreiben dann diese Datei.</li>
+  <li>Die Datei darf nur für dich les- und schreibbar sein (Modus 0600), sonst startet <code>openlamt-mcp</code> nicht. Sie enthält kein Geheimnis: Ein Fingerabdruck ist ein Hash des öffentlichen Zertifikats. Wichtig ist nur, dass niemand sonst sie ändern kann. Der Agent kann keinen Fingerabdruck hineinschreiben: Jede Änderung folgt auf eine Rückfrage, die du beantwortet hast, oder auf einen Befehl, den du ausgeführt hast.</li>
+  <li>Nichts schaltet von selbst um. Ohne die Einstellung zählt nur der Schlüsselbund. Mit ihr zählt nur die Datei, auch wenn ein Schlüsselbund funktioniert.</li>
+  <li>Die App nutzt immer den Schlüsselbund und liest die Datei nie. Mit dieser Einstellung gilt ein Zertifikat, dem du in der App vertraut hast, nicht für <code>openlamt-mcp</code> und umgekehrt: Führe <code>openlamt-mcp trust</code> einmal pro Gerät aus, und erneut, nachdem du in der App Host, Benutzer oder Zertifikat eines Geräts geändert hast.</li>
+  <li>Passwörter sind davon nicht betroffen: Sie kommen aus <code>passwords.command</code>, siehe <a href="#password-sources">Woher Passwörter kommen</a>.</li>
+  <li>macOS und Windows haben immer einen Schlüsselbund des Systems, und er schützt die Fingerabdrücke besser. Lass die Einstellung dort aus.</li>
 </ul>
 <h3 id="password-sources">Woher Passwörter kommen</h3>
 <p>Für jedes Gerät nimmt <code>openlamt-mcp</code> das erste Passwort, das es findet:</p>
@@ -228,7 +242,8 @@ openlamt-mcp trust "Lab Server"</code></pre>
           "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
   "sol": {"idle_timeout_seconds": 300},
   "media": {"allowed_paths": []},
-  "passwords": {"command": [], "allow_plaintext_passwords": false}
+  "passwords": {"command": [], "allow_plaintext_passwords": false},
+  "certificates": {"pin_file": false}
 }</code></pre>
 <p>Jeder Schlüssel, den du weglässt, behält seinen Standardwert. Ein unbekannter Schlüssel stoppt den Server, damit ein Tippfehler nicht alles offen lässt.</p>
 </div>
@@ -243,6 +258,7 @@ openlamt-mcp trust "Lab Server"</code></pre>
   <dt><code>media.allowed_paths</code></dt><dd>Begrenzt <code>media_mount</code> auf die Ordner, die du aufzählst (absolute Pfade). Leer heißt überall außer in den geschützten Ordnern.</dd>
   <dt><code>passwords.command</code></dt><dd>Programm und Argumente, die ein Gerätepasswort ausgeben, siehe <a href="#password-sources">Woher Passwörter kommen</a>. Leer heißt keines.</dd>
   <dt><code>passwords.allow_plaintext_passwords</code></dt><dd>Liest Passwörter auch aus Umgebungsvariablen und <code>.env</code>, mit einer Warnung bei jedem Start und in jeder Antwort.</dd>
+  <dt><code>certificates.pin_file</code></dt><dd>Hält vertraute Zertifikate in <code>openlamt-pins.json</code> neben <code>favorites.json</code> statt im Schlüsselbund des Systems, für Linux ohne Schlüsselbund. Siehe <a href="#pin-file">Linux ohne Schlüsselbund</a>.</dd>
 </dl>
 <div class="prose">
 <h3 id="hardening">Ein sicherer Start</h3>

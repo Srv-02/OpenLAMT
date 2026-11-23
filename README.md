@@ -204,7 +204,7 @@ Key combinations that the local operating system reserves, such as Ctrl+Alt+Del,
     - passwords and certificate fingerprints in the system keychain (services `openlamt` and `openlamt-fingerprint`)
     - temporary ISOs of mounted folders in `OpenLAMT/ider` in your cache folder (`~/Library/Caches`, `%LocalAppData%` or `~/.cache`), deleted on unmount
     - downloaded updates in `~/Downloads`, only when you ask for one
-    - `openlamt/openlamt-mcp.json` and `openlamt/openlamt-mcp-actions.log` in the same configuration folder, only if you use [openlamt-mcp](#mcp-server-openlamt-mcp); `openlamt/.env` only if you create it and allow plaintext passwords
+    - `openlamt/openlamt-mcp.json` and `openlamt/openlamt-mcp-actions.log` in the same configuration folder, only if you use [openlamt-mcp](#mcp-server-openlamt-mcp); `openlamt/.env` only if you create it and allow plaintext passwords; `openlamt/openlamt-pins.json` only if you turn on `certificates.pin_file` (trusted certificate fingerprints of openlamt-mcp on Linux without a keychain)
 - **Your devices:** OpenLAMT changes nothing you did not start, and risky changes need a confirmation.
 - **Network:** your AMT devices on ports `16992` to `16995`. One update check per start to `api.github.com`, which you can turn off in Settings.
 

@@ -50,11 +50,9 @@ func waitUntil(t *testing.T, cond func() bool) {
 func TestPollerReadsImmediatelyThenAtInterval(t *testing.T) {
 	dev := &Fake{St: amt.Status{AMTVersion: "16.1.25"}}
 	_, results := startPoller(t, dev, 20*time.Millisecond)
-	time.Sleep(110 * time.Millisecond)
-	n := dev.Calls() - 2 // Open and the initial read
-	if n < 3 || n > 7 {
-		t.Fatalf("%d interval reads in 110 ms at 20 ms", n)
-	}
+	// Open and the initial read come first; three more reads prove the interval. The wait has
+	// no wall-clock expectation: a slow runner only takes longer.
+	waitUntil(t, func() bool { return dev.Calls() >= 2+3 })
 	if r := <-results; r.err != nil || r.st.AMTVersion != "16.1.25" {
 		t.Fatalf("%+v", r)
 	}

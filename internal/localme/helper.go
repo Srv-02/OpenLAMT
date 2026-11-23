@@ -158,6 +158,9 @@ func runAction(c helperCall, stdin io.Reader) (ActionResult, int) {
 		res.ForeignPort = foreign.Port
 	case err != nil:
 		res.Refused = refusal(err, secret)
+		// Before 16.1 the firmware does not say whether AMT is off: an activation that fails
+		// there may have met an AMT turned off in the BIOS.
+		res.MaybeOff = c.action == ActionActivateCCM && res.State.Found && !res.State.TurnOnSupported
 	}
 	return res, helperOK
 }

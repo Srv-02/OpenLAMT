@@ -27,13 +27,12 @@
   "The Intel ME driver is missing or outdated.": "The Intel ME driver is missing or outdated.",
   "This computer is not a vPro platform.": "This computer is not a vPro platform.",
   "Administrator rights were not granted. Nothing was changed.": "Administrator rights were not granted. Nothing was changed.",
-  "Check needs pkexec to ask for administrator rights. Install polkit and try again.": "Check needs pkexec to ask for administrator rights. Install polkit and try again.",
+  "OpenLAMT needs pkexec to ask for administrator rights. Install polkit and try again.": "OpenLAMT needs pkexec to ask for administrator rights. Install polkit and try again.",
   "Setup": "Setup",
   "Turn on Intel AMT": "Turn on Intel AMT",
   "Intel AMT then answers on the network. Turning it on from here needs AMT 16.1 or newer.": "Intel AMT then answers on the network. Turning it on from here needs AMT 16.1 or newer.",
   "Turn On…": "Turn On…",
   "Turn on Intel AMT in the BIOS (MEBx).": "Turn on Intel AMT in the BIOS (MEBx).",
-  "Turn on Intel AMT in the BIOS (MEBx). This version cannot turn it on from the app.": "Turn on Intel AMT in the BIOS (MEBx). This version cannot turn it on from the app.",
   "Activate in Client Control Mode (CCM)": "Activate in Client Control Mode (CCM)",
   "Each KVM session and remote boot then asks for a code shown on this screen. For headless machines, set up Admin Control Mode (ACM) in the BIOS (MEBx).": "Each KVM session and remote boot then asks for a code shown on this screen. For headless machines, set up Admin Control Mode (ACM) in the BIOS (MEBx).",
   "Deactivate Intel AMT": "Deactivate Intel AMT",
@@ -56,5 +55,6 @@
   "Deactivate": "Deactivate",
   "Intel AMT refused the change: {{.Reason}}.": "Intel AMT refused the change: {{.Reason}}.",
   "The password does not meet the rules of Intel AMT.": "The password does not meet the rules of Intel AMT.",
-  "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.": "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed."
+  "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.": "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.",
+  "Intel AMT may be turned off in the BIOS (MEBx)": "Intel AMT may be turned off in the BIOS (MEBx)"
 }

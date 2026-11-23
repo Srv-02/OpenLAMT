@@ -72,8 +72,6 @@ func TestLocalSetupOffersOneAction(t *testing.T) {
 	}{
 		{"off", offState(true, true), "Turn on Intel AMT", "Turn On…", ""},
 		{"off, not allowed", offState(true, false), "Turn on Intel AMT", "", "Turn on Intel AMT in the BIOS (MEBx)."},
-		{"off, before 16.1", offState(false, false), "Turn on Intel AMT", "",
-			"Turn on Intel AMT in the BIOS (MEBx). This version cannot turn it on from the app."},
 		{"not activated", onState(localme.ModeNone), "Activate in Client Control Mode (CCM)", "Activate…", ""},
 		{"CCM", onState(localme.ModeCCM), "Deactivate Intel AMT", "Deactivate…", ""},
 		{"ACM", onState(localme.ModeACM), "Deactivate Intel AMT", "",
@@ -277,6 +275,20 @@ func passwordFields(s *StartWindow) []*widgets.PasswordField {
 		}
 	})
 	return fields
+}
+
+// TestLocalActivateMaybeOff: before 16.1 a failed activation tells that AMT may be off in the
+// BIOS; on 16.1 and later the reason of the firmware stays.
+func TestLocalActivateMaybeOff(t *testing.T) {
+	if got := describe(&localme.RefusedError{Reason: "ActivationFailed", MaybeOff: true}); got != "Intel AMT refused the change: Intel AMT may be turned off in the BIOS (MEBx)." {
+		t.Fatalf("before 16.1: %q", got)
+	}
+	if got := describe(&localme.RefusedError{Reason: "ActivationFailed"}); got != "Intel AMT refused the change: ActivationFailed." {
+		t.Fatalf("16.1: %q", got)
+	}
+	if got := describe(localme.ErrNoPkexec); got != "OpenLAMT needs pkexec to ask for administrator rights. Install polkit and try again." {
+		t.Fatalf("pkexec: %q", got)
+	}
 }
 
 // TestLocalActionDeclined: refused administrator rights show the information and keep the state.

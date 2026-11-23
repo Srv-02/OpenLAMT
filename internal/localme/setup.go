@@ -38,23 +38,22 @@ type changer interface {
 type Setup int
 
 const (
-	SetupNone         Setup = iota // no result, no Intel AMT, or an unknown control mode
-	SetupTurnOn                    // AMT is off; the firmware can and may turn it on: "Turn On…"
-	SetupTurnOnBIOS                // AMT is off; the firmware does not allow the change now: hint to MEBx
-	SetupTurnOnLegacy              // AMT is off and older than 16.1: hint to MEBx
-	SetupActivate                  // AMT is on and not activated: "Activate…"
-	SetupDeactivate                // Client Control Mode: "Deactivate…"
-	SetupACM                       // Admin Control Mode: hint to MEBx, no button
+	SetupNone       Setup = iota // no result, no Intel AMT, or an unknown control mode
+	SetupTurnOn                  // AMT is off; the firmware can and may turn it on: "Turn On…"
+	SetupTurnOnBIOS              // AMT is off; the firmware does not allow the change now: hint to MEBx
+	SetupActivate                // AMT is on and not activated: "Activate…"
+	SetupDeactivate              // Client Control Mode: "Deactivate…"
+	SetupACM                     // Admin Control Mode: hint to MEBx, no button
 )
 
 // Setup picks the one setup offer for r (design "Ablauf"): off → turn on, on and not activated →
-// activate, CCM → deactivate, ACM → the hint to MEBx.
+// activate, CCM → deactivate, ACM → the hint to MEBx. TurnedOff is only known with the 16.1
+// interface (read); before 16.1 an AMT that is off in the BIOS looks not activated, and a failed
+// activation says that it may be off (ActionResult.MaybeOff).
 func (r Result) Setup() Setup {
 	switch {
 	case !r.Found:
 		return SetupNone
-	case r.TurnedOff && !r.TurnOnSupported:
-		return SetupTurnOnLegacy
 	case r.TurnedOff && !r.TurnOnAllowed:
 		return SetupTurnOnBIOS
 	case r.TurnedOff:
@@ -79,12 +78,19 @@ type ActionResult struct {
 	Schema      int    `json:"schema"`
 	Refused     string `json:"refused,omitempty"`
 	ForeignPort int    `json:"foreignPort,omitempty"`
-	State       Result `json:"state"`
+	// MaybeOff: the activation was refused and the firmware does not report its operational
+	// state (before AMT 16.1): Intel AMT may be turned off in the BIOS.
+	MaybeOff bool   `json:"maybeOff,omitempty"`
+	State    Result `json:"state"`
 }
 
 // RefusedError is a setup action that Intel AMT did not carry out; Reason is the short
-// technical reason.
-type RefusedError struct{ Reason string }
+// technical reason. MaybeOff: Intel AMT may be turned off in the BIOS, which the user is told
+// instead of Reason.
+type RefusedError struct {
+	Reason   string
+	MaybeOff bool
+}
 
 func (e *RefusedError) Error() string { return "intel amt refused the change: " + e.Reason }
 
@@ -95,7 +101,7 @@ func (a ActionResult) Err() error {
 	case a.ForeignPort != 0:
 		return &ForeignLMSError{Port: a.ForeignPort}
 	case a.Refused != "":
-		return &RefusedError{Reason: a.Refused}
+		return &RefusedError{Reason: a.Refused, MaybeOff: a.MaybeOff}
 	}
 	return nil
 }

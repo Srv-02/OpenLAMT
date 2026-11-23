@@ -26,7 +26,6 @@ func TestSetupOffer(t *testing.T) {
 		{"not found", Result{Reason: ReasonNoAMT}, SetupNone},
 		{"off, 16.1, allowed", off(true, true), SetupTurnOn},
 		{"off, 16.1, not allowed", off(true, false), SetupTurnOnBIOS},
-		{"off, before 16.1", off(false, true), SetupTurnOnLegacy},
 		{"on, not activated", on(ModeNone), SetupActivate},
 		{"CCM", on(ModeCCM), SetupDeactivate},
 		{"ACM", on(ModeACM), SetupACM},
@@ -215,4 +214,34 @@ func readActionFile(t *testing.T, path string) (ActionResult, error) {
 		t.Fatalf("answer holds the password: %s", b)
 	}
 	return decodeAction(b)
+}
+
+// TestActivationMaybeOffBefore161: a failed activation on firmware that does not report its
+// operational state (before 16.1) says that AMT may be off in the BIOS; on 16.1 and later, and
+// for the other actions, the refusal stays as it is.
+func TestActivationMaybeOffBefore161(t *testing.T) {
+	cases := []struct {
+		name   string
+		me     *fakeME
+		action Action
+		want   bool
+	}{
+		{"15.0 activate", &fakeME{version: "15.0.10", opSupported: false, opOn: true}, ActionActivateCCM, true},
+		{"11.8 activate", &fakeME{version: "11.8.50"}, ActionActivateCCM, true},
+		{"16.1 activate", &fakeME{version: "16.1.25", opSupported: true, opOn: true}, ActionActivateCCM, false},
+		{"15.0 deactivate", &fakeME{version: "15.0.10", mode: 1}, ActionDeactivate, false},
+	}
+	for _, c := range cases {
+		useFakeME(t, c.me)
+		useFakeChanger(t, &fakeChanger{err: errors.New("Error 102: ActivationFailed")})
+		path := filepath.Join(t.TempDir(), resultFile)
+		if code := RunHelper([]string{string(c.action), "--out", path}, strings.NewReader("Secr3t!pw"), nil); code != helperOK {
+			t.Fatalf("%s: exit %d", c.name, code)
+		}
+		a, err := readActionFile(t, path)
+		var refused *RefusedError
+		if err != nil || a.MaybeOff != c.want || !errors.As(a.Err(), &refused) || refused.MaybeOff != c.want || refused.Reason == "" {
+			t.Errorf("%s: %+v %v", c.name, a, err)
+		}
+	}
 }

@@ -27,13 +27,12 @@
   "The Intel ME driver is missing or outdated.": "Der Intel-ME-Treiber fehlt oder ist veraltet.",
   "This computer is not a vPro platform.": "Dieser Computer ist keine vPro-Plattform.",
   "Administrator rights were not granted. Nothing was changed.": "Die Administratorrechte wurden nicht erteilt. Es wurde nichts geändert.",
-  "Check needs pkexec to ask for administrator rights. Install polkit and try again.": "„Prüfen“ braucht pkexec, um nach Administratorrechten zu fragen. Installiere polkit und versuche es erneut.",
+  "OpenLAMT needs pkexec to ask for administrator rights. Install polkit and try again.": "OpenLAMT braucht pkexec, um nach Administratorrechten zu fragen. Installiere polkit und versuche es erneut.",
   "Setup": "Einrichtung",
   "Turn on Intel AMT": "Intel AMT einschalten",
   "Intel AMT then answers on the network. Turning it on from here needs AMT 16.1 or newer.": "Intel AMT antwortet danach im Netzwerk. Das Einschalten von hier aus braucht AMT 16.1 oder neuer.",
   "Turn On…": "Einschalten…",
   "Turn on Intel AMT in the BIOS (MEBx).": "Schalte Intel AMT im BIOS (MEBx) ein.",
-  "Turn on Intel AMT in the BIOS (MEBx). This version cannot turn it on from the app.": "Schalte Intel AMT im BIOS (MEBx) ein. Diese Version lässt sich nicht aus der App einschalten.",
   "Activate in Client Control Mode (CCM)": "Im Client Control Mode (CCM) aktivieren",
   "Each KVM session and remote boot then asks for a code shown on this screen. For headless machines, set up Admin Control Mode (ACM) in the BIOS (MEBx).": "Jede KVM-Sitzung und jeder Fernstart fragt danach nach einem Code, der auf diesem Bildschirm erscheint. Für Rechner ohne Bildschirm richte den Admin Control Mode (ACM) im BIOS (MEBx) ein.",
   "Deactivate Intel AMT": "Intel AMT deaktivieren",
@@ -56,5 +55,6 @@
   "Deactivate": "Deaktivieren",
   "Intel AMT refused the change: {{.Reason}}.": "Intel AMT hat die Änderung abgelehnt: {{.Reason}}.",
   "The password does not meet the rules of Intel AMT.": "Das Passwort erfüllt die Regeln von Intel AMT nicht.",
-  "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.": "Ein anderes Programm belegt den Intel-AMT-Port {{.Port}} auf diesem Computer. Es wurde nichts geändert."
+  "Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.": "Ein anderes Programm belegt den Intel-AMT-Port {{.Port}} auf diesem Computer. Es wurde nichts geändert.",
+  "Intel AMT may be turned off in the BIOS (MEBx)": "Intel AMT ist vielleicht im BIOS (MEBx) ausgeschaltet"
 }

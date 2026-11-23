@@ -39,9 +39,6 @@ func (s *StartWindow) newLocalSetup(r localme.Result) fyne.CanvasObject {
 		button = settingsButton(lang.L("Turn On…"), s.confirmTurnOn)
 	case localme.SetupTurnOnBIOS:
 		title, text, hint = lang.L("Turn on Intel AMT"), turnOnText, lang.L("Turn on Intel AMT in the BIOS (MEBx).")
-	case localme.SetupTurnOnLegacy:
-		title, text = lang.L("Turn on Intel AMT"), turnOnText
-		hint = lang.L("Turn on Intel AMT in the BIOS (MEBx). This version cannot turn it on from the app.")
 	case localme.SetupActivate:
 		title = lang.L("Activate in Client Control Mode (CCM)")
 		text = lang.L("Each KVM session and remote boot then asks for a code shown on this screen. For headless machines, set up Admin Control Mode (ACM) in the BIOS (MEBx).")

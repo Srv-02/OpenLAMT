@@ -123,9 +123,11 @@ func describe(err error) string {
 	case errors.Is(err, localme.ErrDeclined):
 		return lang.L("Administrator rights were not granted. Nothing was changed.")
 	case errors.Is(err, localme.ErrNoPkexec):
-		return lang.L("Check needs pkexec to ask for administrator rights. Install polkit and try again.")
+		return lang.L("OpenLAMT needs pkexec to ask for administrator rights. Install polkit and try again.")
 	case errors.As(err, &foreignLMS):
 		return lang.L("Another program uses the Intel AMT port {{.Port}} on this computer. Nothing was changed.", map[string]any{"Port": foreignLMS.Port})
+	case errors.As(err, &refused) && refused.MaybeOff: // the technical reason says nothing more useful
+		return lang.L("Intel AMT refused the change: {{.Reason}}.", map[string]any{"Reason": lang.L("Intel AMT may be turned off in the BIOS (MEBx)")})
 	case errors.As(err, &refused):
 		return lang.L("Intel AMT refused the change: {{.Reason}}.", map[string]any{"Reason": refused.Reason})
 	case errors.Is(err, localme.ErrPassword):

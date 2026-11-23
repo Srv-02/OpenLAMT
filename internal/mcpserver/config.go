@@ -49,6 +49,7 @@ type Config struct {
 	ActionLogPath             string
 	KVMIdleTimeout            time.Duration // a KVM session without a tool call this long is closed; 0 = never
 	SOLIdleTimeout            time.Duration // the same for a serial console (SOL) session
+	MediaAllowedPaths         []string      // folders media_mount may mount from (cleaned, absolute); empty means anywhere
 	Screenshot                ScreenshotConfig
 	Source                    string // the file read; empty when the defaults apply
 }
@@ -149,6 +150,9 @@ type fileConfig struct {
 	SOL *struct {
 		IdleTimeoutSeconds *int `json:"idle_timeout_seconds"`
 	} `json:"sol"`
+	Media *struct {
+		AllowedPaths []string `json:"allowed_paths"`
+	} `json:"media"`
 }
 
 // Load reads the config file at path. A missing file yields Defaults of its folder, unless
@@ -234,6 +238,15 @@ func Load(path string, mustExist bool) (Config, error) {
 			return Config{}, fmt.Errorf("parse %s: sol.idle_timeout_seconds must be 0 (never) or more", path)
 		}
 		c.SOLIdleTimeout = time.Duration(*sl.IdleTimeoutSeconds) * time.Second
+	}
+	if md := f.Media; md != nil {
+		for _, p := range md.AllowedPaths {
+			p = strings.TrimSpace(p)
+			if p == "" || !filepath.IsAbs(p) {
+				return Config{}, fmt.Errorf("parse %s: media.allowed_paths takes absolute folder paths, not %q", path, p)
+			}
+			c.MediaAllowedPaths = append(c.MediaAllowedPaths, filepath.Clean(p))
+		}
 	}
 	c.Source = path
 	return c, nil

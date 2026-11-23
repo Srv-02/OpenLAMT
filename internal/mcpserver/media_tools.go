@@ -58,7 +58,9 @@ func (s *server) registerMedia(srv *mcp.Server) {
 			"cannot mount, and the other way round. IDE-R is turned on without a question when it is off on the device and stays on. " +
 			"Devices that require user consent show a six-digit code on their screen: call without consent_code first, ask a person at the device " +
 			"for the code, then call again with it (the image is kept for that call). The image stays mounted until media_unmount, until the device " +
-			"ends the session, or until this server stops. Then use media_boot_next or boot_from_iso to boot from it."},
+			"ends the session, or until this server stops. Then use media_boot_next or boot_from_iso to boot from it. " +
+			"Links in the path are resolved first. The home folder itself, folders above it, SSH, GnuPG, AWS and GitHub CLI credentials, " +
+			"the macOS keychains and the OpenLAMT configuration are never mounted, and the operator may limit mounts to media.allowed_paths."},
 		s.mediaMount)
 	addTool(s, srv, &mcp.Tool{Name: "media_unmount", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 		Description: "Unmount the image this server mounted on a device (a device installing or reading from it fails then) and clear the " +
@@ -100,25 +102,42 @@ type mediaMountOutput struct {
 	Warnings     []string `json:"warnings,omitempty"`
 }
 
-// mediaPath checks the path media_mount was given: an existing .iso file or folder.
-func mediaPath(p string) (mediaSource, int64, error) {
-	p = strings.TrimSpace(p)
+// mediaPath checks the path media_mount was given and resolves it: an existing .iso file or
+// folder, after symbolic links, outside the protected folders and inside media.allowed_paths when
+// the config sets them. Everything after this (the prompt, the log, the mount) uses the resolved
+// path, so a link cannot point elsewhere than what was checked and shown.
+func (s *server) mediaPath(given string) (src mediaSource, size int64, err error) {
+	p := strings.TrimSpace(given)
 	if p == "" || !filepath.IsAbs(p) {
 		return mediaSource{}, 0, refuse("path must be an absolute path of an .iso file or of a folder on the computer that runs openlamt-mcp.")
 	}
 	p = filepath.Clean(p)
-	fi, err := os.Stat(p) // follows a symbolic link
+	resolved, err := filepath.EvalSymlinks(p)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return mediaSource{}, 0, refuse("%s does not exist.", p)
+		return mediaSource{}, 0, refuse("%s does not exist.", visible(p))
 	case err != nil:
-		return mediaSource{}, 0, refuse("Cannot read %s: %v", p, err)
-	case fi.IsDir():
-		return mediaSource{path: p, folder: true}, 0, nil
-	case fi.Mode().IsRegular() && strings.EqualFold(filepath.Ext(p), ".iso"):
-		return mediaSource{path: p}, fi.Size(), nil
+		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(p), err)
 	}
-	return mediaSource{}, 0, refuse("path must be an .iso file or a folder.")
+	if resolved, err = filepath.Abs(resolved); err != nil {
+		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(p), err)
+	}
+	fi, err := os.Stat(resolved)
+	if err != nil {
+		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(resolved), err)
+	}
+	switch {
+	case fi.IsDir():
+		src = mediaSource{path: resolved, folder: true}
+	case fi.Mode().IsRegular() && strings.EqualFold(filepath.Ext(resolved), ".iso"):
+		src, size = mediaSource{path: resolved}, fi.Size()
+	default:
+		return mediaSource{}, 0, refuse("path must be an .iso file or a folder.")
+	}
+	if err := s.mediaAllowed(src); err != nil {
+		return mediaSource{}, 0, err
+	}
+	return src, size, nil
 }
 
 // sizeText is a file size for a prompt.
@@ -129,12 +148,13 @@ func sizeText(n int64) string {
 	return fmt.Sprintf("%.1f MB", float64(n)/1e6)
 }
 
-// mountPrompt is what the person confirming sees before media_mount runs: the full path (and
-// where a link points), so the agent cannot mount another file than the one shown.
-func mountPrompt(src mediaSource, size int64) string {
+// mountPrompt is what the person confirming sees before media_mount runs: whether a file or a
+// folder is mounted and its full resolved path (and the path as given when a link led there),
+// so the agent cannot mount another file than the one shown.
+func mountPrompt(src mediaSource, given string, size int64) string {
 	shown := "«" + visible(src.path) + "»"
-	if t, err := filepath.EvalSymlinks(src.path); err == nil && t != src.path {
-		shown += " (a link to «" + visible(t) + "»)"
+	if g := filepath.Clean(strings.TrimSpace(given)); g != src.path {
+		shown += " (given as «" + visible(g) + "»)"
 	}
 	what := fmt.Sprintf("mount the ISO file %s (%s) as a read-only CD drive", shown, sizeText(size))
 	if src.folder {
@@ -149,12 +169,12 @@ func (s *server) mediaMount(ctx context.Context, req *mcp.CallToolRequest, in me
 	if err != nil {
 		return nil, mediaMountOutput{}, err
 	}
-	src, size, err := mediaPath(in.Path)
+	src, size, err := s.mediaPath(in.Path)
 	if err != nil {
 		return nil, mediaMountOutput{}, err
 	}
-	// The operator's own local path; the action log is readable by the operator only.
-	rec.action = "iso " + src.path
+	// The resolved path, the operator's own; the action log is readable by the operator only.
+	rec.action = "iso file " + src.path
 	if src.folder {
 		rec.action = "folder " + src.path
 	}
@@ -168,7 +188,7 @@ func (s *server) mediaMount(ctx context.Context, req *mcp.CallToolRequest, in me
 	if err := s.media.free(in.Device); err != nil {
 		return nil, mediaMountOutput{}, err
 	}
-	if res, err := s.confirm(req, confirmMessage(mountPrompt(src, size), fav)); res != nil || err != nil {
+	if res, err := s.confirm(req, confirmMessage(mountPrompt(src, in.Path, size), fav)); res != nil || err != nil {
 		return res, mediaMountOutput{}, err
 	}
 	var out mediaMountOutput

@@ -21,6 +21,7 @@ import (
 	models "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/ider/idertest"
 	"github.com/Srv-02/openlamt/internal/mkiso"
@@ -272,7 +273,7 @@ func TestMediaMountISOAndStatus(t *testing.T) {
 			actions = append(actions, e["action"].(string))
 		}
 	}
-	if !reflect.DeepEqual(actions, []string{"iso " + files.iso}) {
+	if !reflect.DeepEqual(actions, []string{"iso file " + files.iso}) {
 		t.Fatalf("log %q", actions)
 	}
 }
@@ -599,7 +600,7 @@ func TestMediaConfirmationShowsPath(t *testing.T) {
 			t.Errorf("ISO prompt %q lacks %q", asked[0], want)
 		}
 	}
-	if strings.Contains(asked[0], "a link to") {
+	if strings.Contains(asked[0], "given as") {
 		t.Errorf("ISO prompt %q", asked[0])
 	}
 	for _, want := range []string{"mount the folder «" + files.folder + "» as a read-only CD drive (OpenLAMT builds an ISO image of it first)",
@@ -631,7 +632,8 @@ func TestMediaConfirmationShowsPath(t *testing.T) {
 	} else {
 		asked = nil
 		h.mustFail("media_mount", dev("NUC", "path", link), "not confirmed")
-		if len(asked) != 1 || !strings.Contains(asked[0], "«"+link+"» (a link to «"+files.iso+"»)") {
+		// The resolved path is checked, mounted and shown, the link only as what was given.
+		if len(asked) != 1 || !strings.Contains(asked[0], "mount the ISO file «"+files.iso+"» (given as «"+link+"»)") {
 			t.Errorf("link prompt %q", asked)
 		}
 	}
@@ -773,5 +775,121 @@ func TestExplainMediaErrors(t *testing.T) {
 		if got := explain(c.err); !strings.Contains(got, c.want) || strings.Contains(got, "mkiso:") {
 			t.Errorf("explain(%v) = %q, want %q", c.err, got, c.want)
 		}
+	}
+}
+
+// mustMkdirFile creates dir and an empty file name in it, and returns the file's path.
+func mustMkdirFile(t *testing.T, dir, name string) string {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(dir, name)
+	if err := os.WriteFile(p, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// TestMediaMountRefusesProtectedPaths: whatever the config says, media_mount never mounts the
+// home folder itself, a folder above it, credentials (SSH, GnuPG, AWS, GitHub CLI) or the
+// OpenLAMT configuration, also when a link leads there; other folders in the home folder may be
+// mounted. Nothing reaches the device.
+func TestMediaMountRefusesProtectedPaths(t *testing.T) {
+	files := newMediaFiles(t)
+	home, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, ".config"))
+	t.Setenv("AppData", filepath.Join(home, ".config"))
+	favPath, err := favorites.DefaultPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sshISO := mustMkdirFile(t, filepath.Join(home, ".ssh"), "keys.iso")
+	mustMkdirFile(t, filepath.Join(home, ".gnupg"), "pubring.kbx")
+	mustMkdirFile(t, filepath.Join(home, ".aws"), "credentials")
+	mustMkdirFile(t, filepath.Join(home, ".config", "gh"), "hosts.yml")
+	cfgISO := mustMkdirFile(t, filepath.Dir(favPath), "backup.iso")
+	downloads := mustMkdirFile(t, filepath.Join(home, "Downloads"), "installer.iso")
+
+	var asked []string
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	addIDER(t, f)
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return &mcp.ElicitResult{Action: "decline"}, nil
+	}
+	h.start()
+	refused := []string{home, filepath.Dir(home), filepath.Join(home, ".ssh"), sshISO, filepath.Join(home, ".gnupg"),
+		filepath.Join(home, ".aws"), filepath.Join(home, ".config"), filepath.Join(home, ".config", "gh"),
+		filepath.Dir(favPath), cfgISO, filepath.Dir(h.cfg.ActionLogPath)}
+	if link := filepath.Join(files.dir, "innocent"); os.Symlink(filepath.Join(home, ".ssh"), link) == nil {
+		refused = append(refused, link)
+	} else {
+		t.Log("no symlink") // Windows without the privilege
+	}
+	for _, p := range refused {
+		h.mustFail("media_mount", dev("NUC", "path", p), "protected folder")
+	}
+	if len(asked) != 0 {
+		t.Fatalf("asked %q", asked)
+	}
+	// Other folders and files in the home folder pass the check (and are then declined here).
+	h.mustFail("media_mount", dev("NUC", "path", downloads), "not confirmed")
+	h.mustFail("media_mount", dev("NUC", "path", filepath.Dir(downloads)), "not confirmed")
+	if len(asked) != 2 || !strings.Contains(asked[0], "mount the ISO file «"+downloads+"»") {
+		t.Fatalf("asked %q", asked)
+	}
+	if n := len(h.connectCalls()); n != 0 || len(f.IDERStarts()) != 0 {
+		t.Fatalf("%d device connections", n)
+	}
+}
+
+// TestMediaMountAllowedPaths: with media.allowed_paths only paths inside them are mounted, judged
+// after links are resolved; the prompt and the action log show the resolved path and its kind.
+func TestMediaMountAllowedPaths(t *testing.T) {
+	files := newMediaFiles(t)
+	inner := mustMkdirFile(t, files.folder, "inner.iso")
+	var asked []string
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	addIDER(t, f)
+	h.cfg.MediaAllowedPaths = []string{files.folder}
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return &mcp.ElicitResult{Action: "decline"}, nil
+	}
+	h.start()
+	h.mustFail("media_mount", dev("NUC", "path", files.iso), "outside media.allowed_paths")
+	h.mustFail("media_mount", dev("NUC", "path", files.dir), "outside media.allowed_paths")
+	if link := filepath.Join(files.folder, "out.iso"); os.Symlink(files.iso, link) == nil {
+		h.mustFail("media_mount", dev("NUC", "path", link), "outside media.allowed_paths")
+	}
+	if len(asked) != 0 {
+		t.Fatalf("asked %q", asked)
+	}
+	h.mustFail("media_mount", dev("NUC", "path", inner), "not confirmed")
+	h.mustFail("media_mount", dev("NUC", "path", files.folder), "not confirmed")
+	if len(asked) != 2 || !strings.Contains(asked[0], "the ISO file «"+inner+"»") || !strings.Contains(asked[1], "the folder «"+files.folder+"»") {
+		t.Fatalf("asked %q", asked)
+	}
+	var actions []string
+	for _, e := range h.logEntries() {
+		if e["outcome"] == "confirmation_requested" {
+			actions = append(actions, e["action"].(string))
+		}
+	}
+	if len(actions) != 2 || actions[0] != "iso file "+inner || actions[1] != "folder "+files.folder {
+		t.Fatalf("logged %q", actions)
+	}
+	if n := len(h.connectCalls()); n != 0 {
+		t.Fatalf("%d device connections", n)
 	}
 }

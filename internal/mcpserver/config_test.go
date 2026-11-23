@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -164,5 +165,25 @@ func TestLoadSOLSettings(t *testing.T) {
 	c, err = Load(writeConfig(t, `{"sol": {}}`), true)
 	if err != nil || c.SOLIdleTimeout != DefaultSOLIdleTimeout {
 		t.Fatalf("%v %v", err, c.SOLIdleTimeout)
+	}
+}
+
+// TestLoadMediaAllowedPaths: media.allowed_paths takes absolute folders; missing or empty means
+// no restriction (everything allowed without a config, Michael's default).
+func TestLoadMediaAllowedPaths(t *testing.T) {
+	c, err := Load(writeConfig(t, `{}`), true)
+	if err != nil || c.MediaAllowedPaths != nil {
+		t.Fatalf("%v %v", err, c.MediaAllowedPaths)
+	}
+	abs := filepath.Join(t.TempDir(), "isos")
+	body := `{"media": {"allowed_paths": [` + strconv.Quote(abs+string(filepath.Separator)) + `]}}`
+	c, err = Load(writeConfig(t, body), true)
+	if err != nil || len(c.MediaAllowedPaths) != 1 || c.MediaAllowedPaths[0] != abs {
+		t.Fatalf("%v %v", err, c.MediaAllowedPaths)
+	}
+	for _, bad := range []string{`{"media": {"allowed_paths": ["isos"]}}`, `{"media": {"allowed_paths": [" "]}}`, `{"media": {"paths": []}}`} {
+		if _, err := Load(writeConfig(t, bad), true); err == nil {
+			t.Errorf("%s: no error", bad)
+		}
 	}
 }

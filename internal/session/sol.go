@@ -13,6 +13,10 @@ import (
 func (s *Session) OpenSOL(ctx context.Context, prompt amt.ConsentPrompt) (*sol.Client, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// A cancel that came while waiting for the lock must not reach the device (EnableKVM, StartOptIn).
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	c, err := s.dev.OpenSOL(ctx, prompt)
 	if err != nil {
 		return nil, classify(err)

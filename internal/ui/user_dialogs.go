@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 
 	"fyne.io/fyne/v2"
@@ -314,15 +315,44 @@ func (m *manager) confirmDeleteUser(v *usersPane, d *userDialog) {
 	})
 }
 
-// accessValue is the selected access permission.
-func (d *userDialog) accessValue() amt.AccessPermission { return accessOrder[d.access.Selected()] }
+// accessChosen reports whether a segment is selected: the device may report a value outside the
+// known permissions, and then no segment shows until the user picks one.
+func (d *userDialog) accessChosen() bool {
+	i := d.access.Selected()
+	return i >= 0 && i < len(accessOrder)
+}
+
+// accessValue is the selected access permission; without a selection it is the permission the
+// device reported (ready refuses to save then).
+func (d *userDialog) accessValue() amt.AccessPermission {
+	if !d.accessChosen() {
+		if d.edit != nil {
+			return d.edit.Access
+		}
+		return accessOrder[0]
+	}
+	return accessOrder[d.access.Selected()]
+}
+
+// assignableRealms is rs without the realms the device reports but cannot be assigned again
+// (amt.UserSpec.Validate refuses them; the MCP server filters them the same way), and the dropped ones.
+func assignableRealms(rs []amt.Realm) (kept, dropped []amt.Realm) {
+	for _, r := range rs {
+		if slices.Contains(amt.AssignableRealms, r) {
+			kept = append(kept, r)
+		} else {
+			dropped = append(dropped, r)
+		}
+	}
+	return kept, dropped
+}
 
 // realms are the realms the account gets: a permission the user did not change keeps the realms
 // it has (also a partial group), realms outside the permissions stay as they are.
 func (d *userDialog) realms() []amt.Realm {
 	var out []amt.Realm
 	if d.edit != nil {
-		out = slices.Clone(d.edit.Realms)
+		out, _ = assignableRealms(d.edit.Realms)
 	}
 	for i, g := range permGroups() {
 		on := d.checks[i].Checked
@@ -349,7 +379,7 @@ func (d *userDialog) needsUpdate() bool {
 	if u == nil {
 		return true
 	}
-	old := slices.Clone(u.Realms)
+	old, _ := assignableRealms(u.Realms)
 	slices.Sort(old)
 	return d.name.Text != u.Name || d.pw.Text() != "" || d.repeat.Text() != "" ||
 		d.accessValue() != u.Access || !slices.Equal(d.realms(), slices.Compact(old))
@@ -363,6 +393,9 @@ func (d *userDialog) enabledChanged() bool {
 // ready reports whether the main button may run: a change, and for a written account a valid
 // name, a valid password typed twice and at least one realm.
 func (d *userDialog) ready() bool {
+	if !d.accessChosen() {
+		return false
+	}
 	if !d.needsUpdate() {
 		return d.enabledChanged()
 	}
@@ -445,7 +478,11 @@ func (d *userDialog) write(m *manager, v *usersPane) {
 
 // accessName is the access permission as the Access segments name it.
 func accessName(a amt.AccessPermission) string {
-	return []string{lang.L("Network"), lang.L("Local"), lang.L("Both")}[slices.Index(accessOrder, a)]
+	i := slices.Index(accessOrder, a)
+	if i < 0 {
+		return ""
+	}
+	return []string{lang.L("Network"), lang.L("Local"), lang.L("Both")}[i]
 }
 
 // changeLines lists what Save changes on the edited account, one line per kind, for the orange
@@ -477,6 +514,13 @@ func (d *userDialog) changeLines() []string {
 	}
 	if len(perms) > 0 {
 		lines = append(lines, lang.L("Permissions")+": "+strings.Join(perms, ", "))
+	}
+	if _, dropped := assignableRealms(u.Realms); len(dropped) > 0 {
+		ids := make([]string, len(dropped))
+		for i, r := range dropped {
+			ids[i] = strconv.Itoa(int(r))
+		}
+		lines = append(lines, lang.L("Realms dropped (cannot be assigned): {{.Realms}}", map[string]any{"Realms": strings.Join(ids, ", ")}))
 	}
 	return lines
 }

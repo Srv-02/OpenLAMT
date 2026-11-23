@@ -189,6 +189,10 @@ func (s *Session) PowerStates() ([]power.PowerState, error) {
 func (s *Session) OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.ConsentPrompt) (*kvm.Client, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// A cancel that came while waiting for the lock must not reach the device (EnableKVM, StartOptIn).
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	c, err := s.dev.OpenKVM(ctx, quality, prompt)
 	if err != nil {
 		return nil, classify(err)
@@ -203,6 +207,10 @@ func (s *Session) OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.C
 func (s *Session) OpenIDER(ctx context.Context, img ider.Image, start ider.StartMode, prompt amt.ConsentPrompt) (*ider.Client, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// A cancel that came while waiting for the lock must not reach the device (EnableKVM, StartOptIn).
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	c, err := s.dev.OpenIDER(ctx, img, start, prompt)
 	if err != nil {
 		return nil, classify(err)

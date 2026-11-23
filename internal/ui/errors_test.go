@@ -168,3 +168,18 @@ func TestErrorDialogCopyDetails(t *testing.T) {
 		}
 	})
 }
+
+// A TLS change whose pin could not be saved wraps a keychain error; the message must still show
+// the new fingerprint (and not the plain keychain error).
+func TestDescribeTLSPinNotSavedShowsFingerprint(t *testing.T) {
+	kc := &favorites.KeychainError{Err: errors.New("locked")}
+	err := fmt.Errorf("set tls: %w", &session.NotSavedError{Username: "admin", Fingerprint: "AB:CD:EF", Err: kc})
+	got := describe(err)
+	if !strings.Contains(got, "AB:CD:EF") || strings.Contains(got, "keychain could not be used") {
+		t.Errorf("describe = %q", got)
+	}
+	plain := describe(&session.NotSavedError{Username: "admin", Password: "pw", Err: kc})
+	if !strings.Contains(plain, "could not save it") {
+		t.Errorf("password case: %q", plain)
+	}
+}

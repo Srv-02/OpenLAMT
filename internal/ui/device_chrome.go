@@ -367,6 +367,10 @@ func powerMenuLabel(a amt.PowerAction) string {
 		return lang.L("Power Cycle…")
 	case amt.PowerShutdown:
 		return lang.L("Shutdown…")
+	case amt.PowerSleep:
+		return lang.L("Sleep…")
+	case amt.PowerHibernate:
+		return lang.L("Hibernate…")
 	case amt.PowerOff:
 		return lang.L("Power Off…")
 	case amt.BootToBIOS:
@@ -378,7 +382,7 @@ func powerMenuLabel(a amt.PowerAction) string {
 }
 
 // buildPowerMenu creates the items of the Power menu: Power On, Power Off | Reset, Power Cycle,
-// Reboot to BIOS, Boot from ISO | Shutdown.
+// Reboot to BIOS, Boot from ISO | Shutdown, Sleep, Hibernate.
 func (d *DeviceWindow) buildPowerMenu() {
 	d.powerItems = map[amt.PowerAction]*fyne.MenuItem{}
 	var items []*fyne.MenuItem

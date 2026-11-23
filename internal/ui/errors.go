@@ -133,6 +133,12 @@ func describeDevice(err error) (string, bool) {
 		return lang.L("Some of the values you entered are not valid. Check them and try again. Nothing was changed."), true
 	case errors.As(err, &me):
 		return describeMethod(me), true
+	case errors.Is(err, amt.ErrAlarmPast):
+		return lang.L("Choose a time in the future."), true
+	case errors.Is(err, amt.ErrAlarmExists):
+		return lang.L("A wake alarm with this name exists."), true
+	case errors.Is(err, amt.ErrAlarmsFull):
+		return lang.L("The device stores no more wake alarms. Delete one first."), true
 	case errors.Is(err, amt.ErrNotModifiable):
 		return lang.L("The device does not allow changing this setting."), true
 	case errors.Is(err, amt.ErrAccessDenied):
@@ -187,6 +193,9 @@ func describeMethod(e *amt.MethodError) string {
 		case 23:
 			return lang.L("The device cannot store more accounts. Remove an account you do not need and try again.")
 		}
+	}
+	if e.Method == "SetPowerScheme" && e.ReturnValue == 38 {
+		return lang.L("The device cannot change the power package now: its flash write limit is reached. Try again later.")
 	}
 	return lang.L("The device refused the request {{.Method}} (return value {{.Code}}).", map[string]any{"Method": e.Method, "Code": e.ReturnValue})
 }

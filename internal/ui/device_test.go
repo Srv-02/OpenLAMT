@@ -264,7 +264,7 @@ func TestStatusErrorShownInHeader(t *testing.T) {
 		t.Fatal("failed read: banner hidden or dot not unknown")
 	}
 	for _, act := range powerOrder {
-		if act == amt.PowerShutdown || act == amt.BootToISO {
+		if act == amt.PowerShutdown || act == amt.PowerSleep || act == amt.PowerHibernate || act == amt.BootToISO {
 			continue // need the device's power states, which are read only after a good status, or a mounted ISO
 		}
 		if h.d.powerBtn.Disabled() || h.d.powerItems[act].Disabled {

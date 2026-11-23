@@ -55,7 +55,8 @@ func TestPowerMenuFollowsPowerState(t *testing.T) {
 	for _, states := range [][]power.PowerState{{5, 8, 2, 10, 11}, {2, 5, 8, 10, 11, 12}} {
 		graceful := slices.Contains(states, power.PowerOffSoftGraceful)
 		all := slices.DeleteFunc(slices.Clone(powerOrder), func(a amt.PowerAction) bool {
-			return a == amt.BootToISO || a == amt.PowerShutdown && !graceful
+			return a == amt.BootToISO || a == amt.PowerShutdown && !graceful ||
+				a == amt.PowerSleep && !slices.Contains(states, power.SleepDeep) || a == amt.PowerHibernate && !slices.Contains(states, power.Hibernate)
 		})
 		on := []amt.PowerAction{amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS}
 		if graceful {

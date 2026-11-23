@@ -21,6 +21,7 @@ const DefaultInterval = 10 * time.Second
 type job struct {
 	action amt.PowerAction
 	prompt amt.ConsentPrompt // BootToBIOS only: the user consent asked before the boot options are set
+	fn     func() error      // Do: runs instead of the action
 	done   func(error)
 }
 
@@ -128,6 +129,14 @@ func (p *Poller) BootToBIOS(prompt amt.ConsentPrompt, done func(error)) {
 	p.queue(job{action: amt.BootToBIOS, prompt: prompt, done: done})
 }
 
+// Do queues fn like Power queues an action: it runs as one job on the poller goroutine (no
+// status read in between, a read after it) and done gets its error. The boot options of the Boot
+// Options dialog (Session.Boot, Session.BootFromFile) run through it with their consent prompt;
+// as with BootToBIOS, a prompt that blocks must end when the caller stops the poller.
+func (p *Poller) Do(fn func() error, done func(error)) {
+	p.queue(job{fn: fn, done: done})
+}
+
 func (p *Poller) queue(j job) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -140,6 +149,9 @@ func (p *Poller) queue(j job) {
 
 // run performs j on the poller goroutine.
 func (p *Poller) run(j job) error {
+	if j.fn != nil {
+		return j.fn()
+	}
 	if j.action == amt.BootToBIOS {
 		return p.s.BootToBIOS(j.prompt)
 	}

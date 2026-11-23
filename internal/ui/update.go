@@ -54,11 +54,11 @@ var (
 	updateProgressEvery = 100 * time.Millisecond
 )
 
-// updateInstall hands the downloaded package to the platform; it may block (opener, UAC).
-func updateInstall(path string) (restart string, err error) {
+// updateInstall hands the verified package to the platform; it may block (opener, UAC).
+func updateInstall(pkg update.Package) (restart string, err error) {
 	in := updateInstaller
 	in.GOOS = updateGOOS
-	return in.Install(path)
+	return in.Install(pkg)
 }
 
 // updateRestart starts the new version right before OpenLAMT quits (Windows).
@@ -363,11 +363,18 @@ func (s *StartWindow) showUpdateAvailable(n *updateNotice, rel update.Release) *
 		ctx, dl = context.WithCancel(n.ctx)
 		report := updateProgressFunc(ctx, bar, hint)
 		n.async(func() {
-			path, err := s.downloadUpdate(ctx, asset, report)
-			var restart string
+			// The verified bytes stay in memory: the handover writes them to a private folder,
+			// and only "install it yourself" (AppImage, fallback) saves them to Downloads.
+			pkg, err := s.fetchUpdate(ctx, asset, report)
+			var path, restart string
 			var handover error
-			if err == nil && mode != updateSaveOnly && ctx.Err() == nil {
-				restart, handover = updateInstall(path)
+			if err == nil && ctx.Err() == nil {
+				if mode != updateSaveOnly {
+					restart, handover = updateInstall(pkg)
+				}
+				if mode == updateSaveOnly || handover != nil {
+					path, err = saveUpdate(pkg)
+				}
 			}
 			fyne.Do(func() {
 				if errors.Is(ctx.Err(), context.Canceled) || !p.close() {
@@ -450,15 +457,20 @@ func setUpdateProgress(bar *widgets.ProgressBar, hint *canvas.Text, done, total 
 	hint.Refresh()
 }
 
-// downloadUpdate saves the package in the Downloads folder.
-func (s *StartWindow) downloadUpdate(ctx context.Context, a update.Asset, progress func(done, total int64)) (string, error) {
+// fetchUpdate downloads the package into memory and checks its checksum.
+func (s *StartWindow) fetchUpdate(ctx context.Context, a update.Asset, progress func(done, total int64)) (update.Package, error) {
+	c := s.updateChecker()
+	c.Progress = progress
+	return c.Fetch(ctx, a)
+}
+
+// saveUpdate saves the verified package in the Downloads folder.
+func saveUpdate(pkg update.Package) (string, error) {
 	dir, err := downloadsDir()
 	if err != nil {
 		return "", err
 	}
-	c := s.updateChecker()
-	c.Progress = progress
-	return c.Download(ctx, a, dir)
+	return update.Save(dir, pkg)
 }
 
 // showUpdateFailed is the dialog "Update failed" after a download that did not work: the

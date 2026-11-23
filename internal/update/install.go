@@ -2,6 +2,7 @@ package update
 
 import (
 	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -10,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,6 +26,12 @@ import (
 // the new one takes its place, and the caller starts it after OpenLAMT quit. In a folder the
 // user cannot write to (Program Files), only that replacement runs elevated, after a UAC prompt.
 // Every failure is an error, so the caller can fall back to "install it yourself".
+//
+// Check and use: Install works on the verified bytes in memory (Package), never on a file it
+// reads back by path. The DMG and the .deb are written to a new private folder (0700, not
+// Downloads) and opened from there; the zip is never written at all. The exe hash the elevated
+// step checks comes from the verified bytes, and that step re-hashes the bytes it writes, so a
+// file swapped on disk meanwhile is refused instead of being installed as administrator.
 
 // Errors of Install; the caller words its fallback after them.
 var (
@@ -59,12 +67,12 @@ type Installer struct {
 	Executable func() (string, error)
 	// Writable reports whether files can be created in dir (Windows).
 	Writable func(dir string) bool
-	// TempDir is a fresh folder for the new exe when the program's folder is not writable.
-	TempDir func() (string, error)
-	Rename  func(oldpath, newpath string) error
-	Remove  func(path string) error
+	// PrivateDir makes a new folder only this user can use (0700 in the temp folder).
+	PrivateDir func() (string, error)
+	Rename     func(oldpath, newpath string) error
+	Remove     func(path string) error
 	// Elevate replaces exe with newExe as administrator (UAC prompt); sum is the SHA-256 (hex)
-	// newExe must have. A declined prompt is ErrDeclined.
+	// newExe must have, from the verified package. A declined prompt is ErrDeclined.
 	Elevate func(newExe, exe, sum string) error
 	// Start runs a program without waiting for it.
 	Start func(path string) error
@@ -77,7 +85,7 @@ func NewInstaller() Installer {
 		Open:       openFile,
 		Executable: executable,
 		Writable:   writable,
-		TempDir:    func() (string, error) { return os.MkdirTemp("", "openlamt-update-") },
+		PrivateDir: func() (string, error) { return os.MkdirTemp("", "openlamt-update-") },
 		Rename:     os.Rename,
 		Remove:     os.Remove,
 		Elevate:    elevateReplace,
@@ -85,15 +93,13 @@ func NewInstaller() Installer {
 	}
 }
 
-// Install hands pkg to the platform. It returns the program to start once OpenLAMT quit
-// ("" for none: macOS and Linux leave the installing to the Finder or the installer).
-func (in Installer) Install(pkg string) (restart string, err error) {
+// Install hands the verified package to the platform. It returns the program to start once
+// OpenLAMT quit ("" for none: macOS and Linux leave the installing to the Finder or the
+// installer).
+func (in Installer) Install(pkg Package) (restart string, err error) {
 	switch in.GOOS {
 	case "darwin", "linux":
-		if err := in.Open(pkg); err != nil {
-			return "", fmt.Errorf("%w: %w", ErrOpen, err)
-		}
-		return "", nil
+		return "", in.openPackage(pkg)
 	case "windows":
 		return in.replaceExe(pkg)
 	}
@@ -103,26 +109,45 @@ func (in Installer) Install(pkg string) (restart string, err error) {
 // Restart starts the replaced program; the caller quits right after.
 func (in Installer) Restart(path string) error { return in.Start(path) }
 
+// openPackage writes the package to a new private folder and opens it from there. The folder
+// stays: the installer reads the file after OpenLAMT quit.
+func (in Installer) openPackage(pkg Package) error {
+	dir, err := in.PrivateDir()
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrOpen, err)
+	}
+	path, err := Save(dir, pkg)
+	if err == nil {
+		err = in.Open(path)
+	}
+	if err != nil {
+		os.RemoveAll(dir)
+		return fmt.Errorf("%w: %w", ErrOpen, err)
+	}
+	return nil
+}
+
 // replaceExe puts the OpenLAMT.exe of the zip in place of the running exe.
-func (in Installer) replaceExe(zipPath string) (string, error) {
+func (in Installer) replaceExe(pkg Package) (string, error) {
+	data, sum, err := exeFromZip(pkg.Data)
+	if err != nil {
+		return "", err
+	}
 	exe, err := in.Executable()
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrReplace, err)
 	}
 	dir := filepath.Dir(exe)
-	direct := in.Writable(dir)
-	tmpDir := dir
-	if !direct {
-		if tmpDir, err = in.TempDir(); err != nil {
+	if !in.Writable(dir) {
+		private, err := in.PrivateDir()
+		if err != nil {
 			return "", fmt.Errorf("%w: %w", ErrReplace, err)
 		}
-		defer os.RemoveAll(tmpDir)
-	}
-	newExe, sum, err := extractExe(zipPath, tmpDir)
-	if err != nil {
-		return "", err
-	}
-	if !direct {
+		defer os.RemoveAll(private)
+		newExe, err := writeExe(private, data)
+		if err != nil {
+			return "", err
+		}
 		if err := in.Elevate(newExe, exe, sum); err != nil {
 			if errors.Is(err, ErrDeclined) {
 				return "", err
@@ -130,6 +155,10 @@ func (in Installer) replaceExe(zipPath string) (string, error) {
 			return "", fmt.Errorf("%w: %w", ErrReplace, err)
 		}
 		return exe, nil
+	}
+	newExe, err := writeExe(dir, data)
+	if err != nil {
+		return "", err
 	}
 	old := exe + oldSuffix
 	_ = in.Remove(old) // a leftover of an earlier update; a still locked one makes Rename fail
@@ -145,46 +174,53 @@ func (in Installer) replaceExe(zipPath string) (string, error) {
 	return exe, nil
 }
 
-// extractExe writes the OpenLAMT.exe of the zip to a new file in dir and returns its path and
-// SHA-256 (hex). The zip was checked against its digest already.
-func extractExe(zipPath, dir string) (path, sum string, err error) {
-	zr, err := zip.OpenReader(zipPath)
+// exeFromZip returns the OpenLAMT.exe of the verified zip bytes and its SHA-256 (hex).
+func exeFromZip(zipData []byte) (data []byte, sum string, err error) {
+	zr, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", ErrNoExe, err)
+		return nil, "", fmt.Errorf("%w: %w", ErrNoExe, err)
 	}
-	defer zr.Close()
 	var entry *zip.File
 	for _, f := range zr.File {
-		if strings.EqualFold(filepath.Base(filepath.FromSlash(f.Name)), exeName) && !f.FileInfo().IsDir() {
+		if strings.EqualFold(path.Base(strings.ReplaceAll(f.Name, `\`, "/")), exeName) && !f.FileInfo().IsDir() {
 			entry = f
 			break
 		}
 	}
 	if entry == nil {
-		return "", "", ErrNoExe
+		return nil, "", ErrNoExe
 	}
 	src, err := entry.Open()
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", ErrNoExe, err)
+		return nil, "", fmt.Errorf("%w: %w", ErrNoExe, err)
 	}
 	defer src.Close()
-	dst, err := os.CreateTemp(dir, "OpenLAMT-update-*.exe")
-	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", ErrReplace, err)
-	}
-	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(dst, h), io.LimitReader(src, maxAssetSize+1))
-	if cerr := dst.Close(); err == nil {
-		err = cerr
-	}
-	if err == nil && n > maxAssetSize {
+	data, err = io.ReadAll(io.LimitReader(src, maxAssetSize+1))
+	if err == nil && len(data) > maxAssetSize {
 		err = fmt.Errorf("update: %s larger than %d bytes", exeName, maxAssetSize)
 	}
 	if err != nil {
-		os.Remove(dst.Name())
-		return "", "", fmt.Errorf("%w: %w", ErrReplace, err)
+		return nil, "", fmt.Errorf("%w: %w", ErrNoExe, err)
 	}
-	return dst.Name(), hex.EncodeToString(h.Sum(nil)), nil
+	h := sha256.Sum256(data)
+	return data, hex.EncodeToString(h[:]), nil
+}
+
+// writeExe writes the new exe to a new file in dir.
+func writeExe(dir string, data []byte) (string, error) {
+	f, err := os.CreateTemp(dir, "OpenLAMT-update-*.exe")
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrReplace, err)
+	}
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(f.Name())
+		return "", fmt.Errorf("%w: %w", ErrReplace, err)
+	}
+	return f.Name(), nil
 }
 
 func executable() (string, error) {

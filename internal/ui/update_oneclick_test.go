@@ -31,7 +31,9 @@ type oneClick struct {
 	openErr  error
 	elevErr  error
 	writable bool
-	app, exe string // the "running" Windows exe
+	app, exe string   // the "running" Windows exe
+	private  []string // private folders the installer made
+	opened   []string // full paths handed to the opener
 }
 
 // before runs ahead of the check (a different package).
@@ -60,13 +62,18 @@ func newOneClick(t *testing.T, goos string, before ...func(o *oneClick)) *oneCli
 	updateInstaller = update.Installer{
 		Open: func(p string) error {
 			o.events = append(o.events, "open "+filepath.Base(p))
+			o.opened = append(o.opened, p)
 			return o.openErr
 		},
 		Executable: func() (string, error) { return o.exe, nil },
 		Writable:   func(string) bool { return o.writable },
-		TempDir:    func() (string, error) { return os.MkdirTemp(t.TempDir(), "upd-") },
-		Rename:     os.Rename,
-		Remove:     os.Remove,
+		PrivateDir: func() (string, error) {
+			d, err := os.MkdirTemp(t.TempDir(), "openlamt-update-")
+			o.private = append(o.private, d)
+			return d, err
+		},
+		Rename: os.Rename,
+		Remove: os.Remove,
 		Elevate: func(newExe, exe, _ string) error {
 			o.events = append(o.events, "elevate")
 			if o.elevErr != nil {
@@ -254,8 +261,21 @@ func TestUpdateMacOpensTheDMGAndQuits(t *testing.T) {
 	if got := o.events2(); got != "open OpenLAMT-v0.2.0-macos-arm64.dmg, quit" {
 		t.Fatalf("events %s", got)
 	}
-	if b, err := os.ReadFile(filepath.Join(o.dir, "OpenLAMT-v0.2.0-macos-arm64.dmg")); err != nil || string(b) != "dmg" {
-		t.Fatalf("saved %q %v", b, err)
+	o.handedOverPrivately(t, "dmg")
+}
+
+// handedOverPrivately checks that the opener got the verified bytes from the installer's
+// private folder and that nothing landed in Downloads.
+func (o *oneClick) handedOverPrivately(t *testing.T, content string) {
+	t.Helper()
+	if len(o.opened) != 1 || len(o.private) != 1 || filepath.Dir(o.opened[0]) != o.private[0] {
+		t.Fatalf("opened %v, private folders %v", o.opened, o.private)
+	}
+	if b, err := os.ReadFile(o.opened[0]); err != nil || string(b) != content {
+		t.Fatalf("handed over %q %v", b, err)
+	}
+	if es, _ := os.ReadDir(o.dir); len(es) != 0 {
+		t.Fatalf("Downloads holds %v; only the fallback saves there", es)
 	}
 }
 
@@ -265,6 +285,7 @@ func TestUpdateLinuxOpensTheDebAndQuits(t *testing.T) {
 	if got := o.events2(); got != "open OpenLAMT-v0.2.0-linux-x64.deb, quit" {
 		t.Fatalf("events %s", got)
 	}
+	o.handedOverPrivately(t, "deb")
 }
 
 func TestUpdateHandoverFailureShowsTheFallback(t *testing.T) {
@@ -330,6 +351,9 @@ func TestUpdateWindowsReplacesTheExeAndRestarts(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(o.exe + ".old"); string(b) != "old exe" {
 		t.Fatalf(".old holds %q", b)
+	}
+	if es, _ := os.ReadDir(o.dir); len(es) != 0 {
+		t.Fatalf("Downloads holds %v; the zip is never written", es)
 	}
 }
 

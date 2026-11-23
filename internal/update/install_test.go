@@ -19,8 +19,8 @@ import (
 	"unicode/utf16"
 )
 
-// winZip writes a release zip holding name with content to dir and returns its path.
-func winZip(t *testing.T, dir, name string, content []byte) string {
+// winZip is a release zip holding name with content.
+func winZip(t *testing.T, name string, content []byte) Package {
 	t.Helper()
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -34,11 +34,19 @@ func winZip(t *testing.T, dir, name string, content []byte) string {
 	if err := zw.Close(); err != nil {
 		t.Fatal(err)
 	}
-	p := filepath.Join(dir, "OpenLAMT-v0.2.0-windows-x64.zip")
-	if err := os.WriteFile(p, buf.Bytes(), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	return p
+	return Package{Name: "OpenLAMT-v0.2.0-windows-x64.zip", Data: buf.Bytes()}
+}
+
+// privateDirs makes private folders under the test's temp folder and remembers them.
+type privateDirs struct {
+	t    *testing.T
+	made []string
+}
+
+func (p *privateDirs) make() (string, error) {
+	d, err := os.MkdirTemp(p.t.TempDir(), "openlamt-update-")
+	p.made = append(p.made, d)
+	return d, err
 }
 
 // winInstaller is a Windows installer over a fake program folder: the "running" exe is
@@ -46,14 +54,16 @@ func winZip(t *testing.T, dir, name string, content []byte) string {
 type winInstaller struct {
 	Installer
 	app, exe  string
+	private   privateDirs
 	elevated  []string // newExe, exe, sum of the elevated call
 	elevateTo error    // what the fake elevation returns
+	swap      []byte   // written over newExe before the fake elevation checks it
 	started   []string
 }
 
 func newWinInstaller(t *testing.T, writable bool) *winInstaller {
 	t.Helper()
-	w := &winInstaller{app: t.TempDir()}
+	w := &winInstaller{app: t.TempDir(), private: privateDirs{t: t}}
 	w.exe = filepath.Join(w.app, "OpenLAMT.exe")
 	if err := os.WriteFile(w.exe, []byte("old"), 0o600); err != nil {
 		t.Fatal(err)
@@ -62,7 +72,7 @@ func newWinInstaller(t *testing.T, writable bool) *winInstaller {
 		GOOS:       "windows",
 		Executable: func() (string, error) { return w.exe, nil },
 		Writable:   func(string) bool { return writable },
-		TempDir:    func() (string, error) { return os.MkdirTemp(t.TempDir(), "upd-") },
+		PrivateDir: w.private.make,
 		Rename:     os.Rename,
 		Remove:     os.Remove,
 		Elevate: func(newExe, exe, sum string) error {
@@ -70,9 +80,18 @@ func newWinInstaller(t *testing.T, writable bool) *winInstaller {
 			if w.elevateTo != nil {
 				return w.elevateTo
 			}
+			if w.swap != nil { // another process of the user replaces the file
+				if err := os.WriteFile(newExe, w.swap, 0o600); err != nil {
+					return err
+				}
+			}
+			// like replaceScript: read once, check the hash, then replace
 			b, err := os.ReadFile(newExe)
 			if err != nil {
 				return err
+			}
+			if h := sha256.Sum256(b); hex.EncodeToString(h[:]) != sum {
+				return errors.New("exit status 3")
 			}
 			if err := os.Rename(exe, exe+".old"); err != nil {
 				return err
@@ -107,45 +126,70 @@ func names(t *testing.T, dir string) []string {
 	return out
 }
 
-func TestInstallMacOpensTheDMG(t *testing.T) {
-	var opened []string
-	in := Installer{GOOS: "darwin", Open: func(p string) error { opened = append(opened, p); return nil }}
-	restart, err := in.Install("/home/user/Downloads/OpenLAMT-v0.2.0-macos-arm64.dmg")
-	if err != nil || restart != "" || len(opened) != 1 || opened[0] != "/home/user/Downloads/OpenLAMT-v0.2.0-macos-arm64.dmg" {
-		t.Fatalf("restart %q, err %v, opened %v", restart, err, opened)
-	}
-	in.Open = func(string) error { return errors.New("exit status 1") }
-	if _, err := in.Install("x.dmg"); !errors.Is(err, ErrOpen) {
-		t.Fatalf("a failed open must be ErrOpen: %v", err)
+func gone(t *testing.T, dir string) {
+	t.Helper()
+	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("%s must be removed: %v", dir, err)
 	}
 }
 
-func TestInstallLinuxOpensTheDeb(t *testing.T) {
-	var opened []string
-	in := Installer{GOOS: "linux", Open: func(p string) error { opened = append(opened, p); return nil }}
-	restart, err := in.Install("/home/user/Downloads/OpenLAMT-v0.2.0-linux-x64.deb")
-	if err != nil || restart != "" || len(opened) != 1 {
-		t.Fatalf("restart %q, err %v, opened %v", restart, err, opened)
+// TestInstallOpensFromAPrivateFolder: the DMG and the .deb are written from the verified bytes
+// into a new private folder and opened there, not in Downloads.
+func TestInstallOpensFromAPrivateFolder(t *testing.T) {
+	for goos, name := range map[string]string{"darwin": "OpenLAMT-v0.2.0-macos-arm64.dmg", "linux": "OpenLAMT-v0.2.0-linux-x64.deb"} {
+		t.Run(goos, func(t *testing.T) {
+			private := privateDirs{t: t}
+			var opened []string
+			in := Installer{GOOS: goos, PrivateDir: private.make, Open: func(p string) error {
+				opened = append(opened, p)
+				if got := readFile(t, p); got != "verified" {
+					t.Errorf("opened file holds %q", got)
+				}
+				return nil
+			}}
+			restart, err := in.Install(Package{Name: name, Data: []byte("verified")})
+			if err != nil || restart != "" || len(opened) != 1 || len(private.made) != 1 || opened[0] != filepath.Join(private.made[0], name) {
+				t.Fatalf("restart %q, err %v, opened %v in %v", restart, err, opened, private.made)
+			}
+			// The folder stays: the installer reads the file after OpenLAMT quit.
+			if _, err := os.Stat(opened[0]); err != nil {
+				t.Fatal(err)
+			}
+			in.Open = func(string) error { return &exec.ExitError{} } // xdg-open: no handler
+			if _, err := in.Install(Package{Name: name, Data: []byte("verified")}); !errors.Is(err, ErrOpen) {
+				t.Fatalf("a failed open must be ErrOpen: %v", err)
+			}
+			gone(t, private.made[1])
+		})
 	}
-	in.Open = func(string) error { return &exec.ExitError{} }
-	if _, err := in.Install("x.deb"); !errors.Is(err, ErrOpen) {
-		t.Fatalf("no handler must be ErrOpen: %v", err)
+}
+
+func TestDefaultPrivateDirIsPrivate(t *testing.T) {
+	d, err := NewInstaller().PrivateDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(d)
+	if runtime.GOOS == "windows" {
+		return // the ACL of the user's temp folder applies
+	}
+	if fi, err := os.Stat(d); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("mode %v, %v", fi.Mode().Perm(), err)
 	}
 }
 
 func TestInstallUnknownPlatformFails(t *testing.T) {
-	if _, err := (Installer{GOOS: "plan9"}).Install("x"); err == nil {
+	if _, err := (Installer{GOOS: "plan9"}).Install(Package{Name: "x"}); err == nil {
 		t.Fatal("no installer on plan9")
 	}
 }
 
 func TestInstallWindowsReplacesInAWritableFolder(t *testing.T) {
 	w := newWinInstaller(t, true)
-	zipPath := winZip(t, t.TempDir(), "OpenLAMT.exe", []byte("new"))
 	if err := os.WriteFile(w.exe+".old", []byte("leftover"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	restart, err := w.Install(zipPath)
+	restart, err := w.Install(winZip(t, "OpenLAMT.exe", []byte("new")))
 	if err != nil || restart != w.exe {
 		t.Fatalf("restart %q, err %v", restart, err)
 	}
@@ -169,9 +213,8 @@ func TestInstallWindowsReplacesInAWritableFolder(t *testing.T) {
 func TestInstallWindowsRenameFailureRestores(t *testing.T) {
 	t.Run("running exe not renamed", func(t *testing.T) {
 		w := newWinInstaller(t, true)
-		zipPath := winZip(t, t.TempDir(), "OpenLAMT.exe", []byte("new"))
 		w.Rename = func(string, string) error { return os.ErrPermission }
-		if _, err := w.Install(zipPath); !errors.Is(err, ErrReplace) {
+		if _, err := w.Install(winZip(t, "OpenLAMT.exe", []byte("new"))); !errors.Is(err, ErrReplace) {
 			t.Fatalf("err %v, want ErrReplace", err)
 		}
 		if got := names(t, w.app); len(got) != 1 || readFile(t, w.exe) != "old" {
@@ -180,7 +223,6 @@ func TestInstallWindowsRenameFailureRestores(t *testing.T) {
 	})
 	t.Run("new exe not moved in", func(t *testing.T) {
 		w := newWinInstaller(t, true)
-		zipPath := winZip(t, t.TempDir(), "OpenLAMT.exe", []byte("new"))
 		calls := 0
 		w.Rename = func(a, b string) error {
 			calls++
@@ -189,7 +231,7 @@ func TestInstallWindowsRenameFailureRestores(t *testing.T) {
 			}
 			return os.Rename(a, b)
 		}
-		if _, err := w.Install(zipPath); !errors.Is(err, ErrReplace) {
+		if _, err := w.Install(winZip(t, "OpenLAMT.exe", []byte("new"))); !errors.Is(err, ErrReplace) {
 			t.Fatalf("err %v, want ErrReplace", err)
 		}
 		if got := names(t, w.app); len(got) != 1 || readFile(t, w.exe) != "old" {
@@ -200,8 +242,7 @@ func TestInstallWindowsRenameFailureRestores(t *testing.T) {
 
 func TestInstallWindowsElevatesInAProtectedFolder(t *testing.T) {
 	w := newWinInstaller(t, false)
-	zipPath := winZip(t, t.TempDir(), "OpenLAMT.exe", []byte("new"))
-	restart, err := w.Install(zipPath)
+	restart, err := w.Install(winZip(t, `OpenLAMT\OpenLAMT.exe`, []byte("new")))
 	if err != nil || restart != w.exe {
 		t.Fatalf("restart %q, err %v", restart, err)
 	}
@@ -209,14 +250,25 @@ func TestInstallWindowsElevatesInAProtectedFolder(t *testing.T) {
 	if len(w.elevated) != 3 || w.elevated[1] != w.exe || w.elevated[2] != hex.EncodeToString(sum[:]) {
 		t.Fatalf("elevated with %v", w.elevated)
 	}
-	if filepath.Dir(w.elevated[0]) == w.app {
-		t.Error("the new exe must not be written into the protected folder")
+	if len(w.private.made) != 1 || filepath.Dir(w.elevated[0]) != w.private.made[0] {
+		t.Errorf("the new exe must wait in a private folder: %v, %v", w.elevated[0], w.private.made)
 	}
-	if _, err := os.Stat(filepath.Dir(w.elevated[0])); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("the temporary folder must be removed: %v", err)
-	}
+	gone(t, w.private.made[0])
 	if got := readFile(t, w.exe); got != "new" {
 		t.Errorf("exe holds %q", got)
+	}
+}
+
+// TestInstallWindowsElevationRefusesASwappedExe: the hash the elevated step checks comes from
+// the verified package, so an exe swapped on disk before the UAC prompt is refused.
+func TestInstallWindowsElevationRefusesASwappedExe(t *testing.T) {
+	w := newWinInstaller(t, false)
+	w.swap = []byte("attacker")
+	if _, err := w.Install(winZip(t, "OpenLAMT.exe", []byte("new"))); !errors.Is(err, ErrReplace) {
+		t.Fatalf("err %v, want ErrReplace", err)
+	}
+	if got := readFile(t, w.exe); got != "old" {
+		t.Fatalf("exe holds %q", got)
 	}
 }
 
@@ -231,30 +283,24 @@ func TestInstallWindowsElevationDeclinedOrFailed(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			w := newWinInstaller(t, false)
 			w.elevateTo = c.err
-			zipPath := winZip(t, t.TempDir(), "OpenLAMT.exe", []byte("new"))
-			restart, err := w.Install(zipPath)
+			restart, err := w.Install(winZip(t, "OpenLAMT.exe", []byte("new")))
 			if !errors.Is(err, c.want) || restart != "" {
 				t.Fatalf("restart %q, err %v, want %v", restart, err, c.want)
 			}
 			if got := readFile(t, w.exe); got != "old" {
 				t.Errorf("exe holds %q", got)
 			}
+			gone(t, w.private.made[0])
 		})
 	}
 }
 
 func TestInstallWindowsBadArchive(t *testing.T) {
 	w := newWinInstaller(t, true)
-	dir := t.TempDir()
-	noExe := winZip(t, dir, "README.txt", []byte("x"))
-	if _, err := w.Install(noExe); !errors.Is(err, ErrNoExe) {
+	if _, err := w.Install(winZip(t, "README.txt", []byte("x"))); !errors.Is(err, ErrNoExe) {
 		t.Fatalf("zip without exe: %v", err)
 	}
-	broken := filepath.Join(dir, "broken.zip")
-	if err := os.WriteFile(broken, []byte("no zip"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := w.Install(broken); !errors.Is(err, ErrNoExe) {
+	if _, err := w.Install(Package{Name: "OpenLAMT-v0.2.0-windows-x64.zip", Data: []byte("no zip")}); !errors.Is(err, ErrNoExe) {
 		t.Fatalf("broken zip: %v", err)
 	}
 	if got := names(t, w.app); len(got) != 1 || readFile(t, w.exe) != "old" {
@@ -403,11 +449,33 @@ func TestDownloadReportsProgress(t *testing.T) {
 
 func TestNewInstallerIsTheRunningSystem(t *testing.T) {
 	in := NewInstaller()
-	if in.GOOS != runtime.GOOS || in.Open == nil || in.Executable == nil || in.Writable == nil || in.TempDir == nil ||
+	if in.GOOS != runtime.GOOS || in.Open == nil || in.Executable == nil || in.Writable == nil || in.PrivateDir == nil ||
 		in.Rename == nil || in.Remove == nil || in.Elevate == nil || in.Start == nil {
 		t.Fatalf("installer %+v", in)
 	}
 	if !writable(t.TempDir()) || writable(filepath.Join(t.TempDir(), "missing")) {
 		t.Fatal("writable")
+	}
+}
+
+func TestFetchVerifiesInMemoryAndSaveWrites(t *testing.T) {
+	content := []byte("package")
+	srv := assetServer(t, content)
+	a := Asset{Name: "OpenLAMT-v0.2.0-linux-x64.deb", URL: srv.URL + "/pkg", Digest: digestOf(content)}
+	pkg, err := Checker{}.Fetch(context.Background(), a)
+	if err != nil || pkg.Name != a.Name || string(pkg.Data) != "package" {
+		t.Fatalf("pkg %+v, %v", pkg, err)
+	}
+	a.Digest = digestOf([]byte("other"))
+	if _, err := (Checker{}).Fetch(context.Background(), a); !errors.Is(err, ErrDigest) {
+		t.Fatalf("mismatch: %v", err)
+	}
+	dir := t.TempDir()
+	p, err := Save(dir, pkg)
+	if err != nil || p != filepath.Join(dir, a.Name) || readFile(t, p) != "package" {
+		t.Fatalf("saved %q, %v", p, err)
+	}
+	if _, err := Save(dir, Package{Name: "../x.deb"}); err == nil {
+		t.Fatal("a path is no name")
 	}
 }

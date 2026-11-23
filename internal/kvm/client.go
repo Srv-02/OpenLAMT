@@ -54,6 +54,8 @@ type Client struct {
 	err     error
 	closed  bool
 
+	beforeWait func() // test seam: runs in WaitFrame between reading frameCh and blocking
+
 	inMu    sync.Mutex     // input.go: makes pressed-state change and write one step; taken before mu and wmu
 	pressed map[Key]uint32 // used by input.go, guarded by inMu
 }
@@ -195,11 +197,22 @@ func (c *Client) WaitFrame(ctx context.Context, after uint64) (uint64, error) {
 		}
 		ch := c.frameCh
 		c.mu.Unlock()
+		if c.beforeWait != nil {
+			c.beforeWait()
+		}
+		// select picks at random when several cases are ready: a frame that arrived together
+		// with the end of the session or the ctx must still win.
 		select {
 		case <-ch:
 		case <-ctx.Done():
+			if n := c.Frame(); n > after {
+				return n, nil
+			}
 			return c.Frame(), ctx.Err()
 		case <-c.done:
+			if n := c.Frame(); n > after {
+				return n, nil
+			}
 			return c.Frame(), c.Err()
 		}
 	}

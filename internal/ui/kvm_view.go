@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"image"
+	"sync"
 	"sync/atomic"
 
 	"fyne.io/fyne/v2"
@@ -35,9 +36,10 @@ type kvmView struct {
 	buttons     kvm.Button
 	lastX       int
 	lastY       int
-	wheel       float32 // accumulated scroll delta, one wheel click per wheelStep
-	onFrame     func()  // test hook, called after a frame was shown
-	onInput     func()  // called for every key, button, pointer and wheel event sent
+	wheel       float32        // accumulated scroll delta, one wheel click per wheelStep
+	onFrame     func()         // test hook, called after a frame was shown
+	loops       sync.WaitGroup // running frame loops; tests wait for them (loop ends on its own goroutine)
+	onInput     func()         // called for every key, button, pointer and wheel event sent
 	// scale is the zoom of the Scale menu: 0 fits the image into the view, otherwise one
 	// framebuffer pixel is scale device pixels (Actual Size is 1).
 	scale        float32
@@ -112,7 +114,13 @@ func (v *kvmView) bind(c *kvm.Client, show bool) {
 }
 
 // run starts the frame loop of c; ended runs on the Fyne thread once the session is over.
-func (v *kvmView) run(c *kvm.Client, ended func(error)) { go v.loop(c, ended) }
+func (v *kvmView) run(c *kvm.Client, ended func(error)) {
+	v.loops.Add(1)
+	go func() {
+		defer v.loops.Done()
+		v.loop(c, ended)
+	}()
+}
 
 // suspend drops the ended client but keeps its last image on screen while a reconnect runs.
 func (v *kvmView) suspend() {

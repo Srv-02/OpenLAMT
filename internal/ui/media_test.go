@@ -75,6 +75,25 @@ func (h *mediaHarness) wait(t *testing.T, want string) {
 	}
 }
 
+// waitAll reads events until every one of want arrived, in any order. Use it where the order of
+// two events is not fixed (wait drops the ones it skips).
+func (h *mediaHarness) waitAll(t *testing.T, want ...string) {
+	t.Helper()
+	missing := map[string]bool{}
+	for _, w := range want {
+		missing[w] = true
+	}
+	timeout := time.After(5 * time.Second)
+	for len(missing) > 0 {
+		select {
+		case e := <-h.events:
+			delete(missing, e)
+		case <-timeout:
+			t.Fatalf("missing events %v (phase %d, errors %d)", missing, h.m.phase, len(h.errs))
+		}
+	}
+}
+
 // serve lets the fake device accept the next IDE-R session.
 func (h *mediaHarness) serve(t *testing.T) {
 	go func() { h.peers <- h.srv.AcceptSession(t) }()
@@ -530,14 +549,14 @@ func TestMediaSessionEndedByDevice(t *testing.T) {
 	h.tapBoot(t)
 	h.openMenu(t)
 	p.Close(t) // CLOSE 0x43
-	h.wait(t, "ended")
+	// "cleared" comes from the clearBoot goroutine and can arrive before the deferred "ended".
+	h.waitAll(t, "ended", "cleared")
 	if h.m.phase != mediaIdle || h.d.mediaLine.Visible() || h.m.menu == nil || h.labels() != "Mount ISO… Mount Folder…" {
 		t.Fatalf("phase %d status %q", h.m.phase, h.d.mediaLine.Text)
 	}
 	if err := <-h.errs; !errors.Is(err, ider.ErrClosedByDevice) {
 		t.Fatalf("reported %v", err)
 	}
-	h.wait(t, "cleared")
 	if _, cl := dev.ISOCalls(); cl != 1 {
 		t.Fatalf("ClearISOBoot %d", cl)
 	}

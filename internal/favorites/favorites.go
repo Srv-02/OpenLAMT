@@ -147,3 +147,21 @@ func (s *Store) Save(list []Favorite) error {
 	}
 	return nil
 }
+
+// Lock takes the cross-process lock of the favorites file (an advisory lock on
+// "<path>.lock") and returns the function that releases it. Hold it around every
+// load-modify-save, so the app and openlamt-mcp never overwrite each other's change.
+func (s *Store) Lock() (unlock func(), err error) {
+	if err := os.MkdirAll(filepath.Dir(s.path), 0o700); err != nil {
+		return nil, fmt.Errorf("create %s: %w", filepath.Dir(s.path), err)
+	}
+	f, err := os.OpenFile(s.path+".lock", os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, fmt.Errorf("lock %s: %w", s.path, err)
+	}
+	if err := lockFile(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("lock %s: %w", s.path, err)
+	}
+	return func() { unlockFile(f); f.Close() }, nil
+}

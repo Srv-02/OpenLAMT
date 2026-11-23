@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Srv-02/openlamt/internal/keychain"
 )
@@ -75,4 +76,39 @@ func TestChangeLoginVersusSetQuality(t *testing.T) {
 			t.Fatalf("round %d: rename lost: %+v", round, list)
 		}
 	}
+}
+
+// TestReadsWaitForTheFileLock: List and Find do not read while another process holds the
+// lock around a save. On Windows an open reader makes that save's rename fail (#127).
+func TestReadsWaitForTheFileLock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "favorites.json")
+	m := NewManager(NewStore(path), keychain.NewMemory())
+	other := NewStore(path) // the other process
+	unlock, err := other.Lock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads := map[string]func(){
+		"List": func() { m.List() },
+		"Find": func() { m.Find("device.example.com", "admin") },
+	}
+	for name, read := range reads {
+		done := make(chan struct{})
+		go func() { read(); close(done) }()
+		select {
+		case <-done:
+			t.Fatalf("%s read while the file lock was held", name)
+		case <-time.After(200 * time.Millisecond):
+		}
+		unlock()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("%s still blocked after the lock was released", name)
+		}
+		if unlock, err = other.Lock(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unlock()
 }

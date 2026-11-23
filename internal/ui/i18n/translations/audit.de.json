@@ -34,5 +34,6 @@
   "Decides what Intel AMT does when the audit log has no free space.": "Legt fest, was Intel AMT tut, wenn im Audit-Protokoll kein Platz mehr ist.",
   "Overwrite oldest entries keeps recording. Stop recording keeps every entry until you clear the log.": "„Älteste Einträge überschreiben“ zeichnet weiter auf. „Aufzeichnung anhalten“ behält jeden Eintrag, bis du das Protokoll leerst.",
   "With Stop recording, Intel AMT blocks critical actions while the log is full.": "Mit „Aufzeichnung anhalten“ blockiert Intel AMT kritische Aktionen, solange das Protokoll voll ist.",
-  "Clear the log or choose an option that overwrites entries.": "Leere das Protokoll oder wähle eine Option, die Einträge überschreibt."
+  "Clear the log or choose an option that overwrites entries.": "Leere das Protokoll oder wähle eine Option, die Einträge überschreibt.",
+  "The device does not let {{.User}} read the audit log settings. Sign in with an account that has the Audit log permission.": "Das Gerät lässt {{.User}} die Audit-Einstellungen nicht lesen. Melde dich mit einem Konto an, das die Berechtigung „Audit-Protokoll“ hat."
 }

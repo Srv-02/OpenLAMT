@@ -93,7 +93,7 @@ func (m *manager) openAuditSettings(w fyne.Window, b *widgets.PrimaryButton) {
 	}, func(r result) {
 		b.Enable()
 		if r.err != nil {
-			m.auditFailed(w, r.err)
+			m.auditFailed(w, r.err, false)
 			return
 		}
 		m.logDlg.audit = m.showAuditSettings(w, r.s)
@@ -101,21 +101,26 @@ func (m *manager) openAuditSettings(w fyne.Window, b *widgets.PrimaryButton) {
 }
 
 // auditFailed shows a missing permission as "No permission for audit settings", any other error
-// in the error dialog.
-func (m *manager) auditFailed(w fyne.Window, err error) {
+// in the error dialog. write tells a refused change from a refused read of the settings.
+func (m *manager) auditFailed(w fyne.Window, err error, write bool) {
 	if errors.Is(err, amt.ErrAccessDenied) {
-		m.logDlg.denied = showAuditDenied(w, m.sess.Config().Username)
+		m.logDlg.denied = showAuditDenied(w, m.sess.Config().Username, write)
 		return
 	}
 	showError(w, err)
 }
 
-// showAuditDenied is the error dialog of an account without the audit log permission.
-func showAuditDenied(w fyne.Window, user string) *panel {
+// showAuditDenied is the error dialog of an account without the audit log permission. A refused
+// write says the account may read the log; a refused read of the settings knows no more than
+// the refusal.
+func showAuditDenied(w fyne.Window, user string, write bool) *panel {
 	return showPanel(w, panelSpec{icon: icons.Lock, tone: toneDanger, title: lang.L("No permission for audit settings"), action: lang.L("OK")},
 		func(p *panel) []fyne.CanvasObject {
-			msg := widget.NewLabel(lang.L("The account {{.User}} may read the audit log but not change its settings. Sign in with an account that has the Audit log permission.",
-				map[string]any{"User": user}))
+			text := lang.L("The device does not let {{.User}} read the audit log settings. Sign in with an account that has the Audit log permission.", map[string]any{"User": user})
+			if write {
+				text = lang.L("The account {{.User}} may read the audit log but not change its settings. Sign in with an account that has the Audit log permission.", map[string]any{"User": user})
+			}
+			msg := widget.NewLabel(text)
 			msg.Wrapping = fyne.TextWrapWord
 			return []fyne.CanvasObject{msg}
 		})
@@ -330,7 +335,7 @@ func (m *manager) confirmAuditClear(w fyne.Window, d *auditSettingsDialog) {
 func (m *manager) auditWrite(w fyne.Window, write func() error) {
 	manageWrite(m, m.audit, write, func(err error) {
 		if err != nil {
-			m.auditFailed(w, err)
+			m.auditFailed(w, err, true)
 		}
 	}, nil)
 }

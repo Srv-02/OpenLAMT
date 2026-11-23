@@ -183,7 +183,7 @@ var errorExceptions = map[string]string{
 	"typing.ErrUnknownLayout":   "unreachable: resolveLayout only returns known layouts",
 	"amt.RedirectionOffError":   "only openlamt-mcp sets Config.NeverEnable (read_only); the app never gets it",
 	"session.ErrUnsupported":    "a capability that only a test double lacks; *amt.Device implements every one (compile-time checks)",
-	"session.ErrRootNotRemoved": "only joined with the boot error of BootFromFile: the cause is described, describeBoot drops \"Nothing was changed\" for it",
+	"session.ErrRootNotRemoved": "only joined with the boot error of BootFromFile: describe words the cause and the leftover root (describeRootLeft, describeBoot for a sleeping device) and never says \"Nothing was changed\"",
 	"bootserve.ErrClosed":       "the window closed the boot server; device_boot.go shows nothing",
 	"amt.ClassUnsupportedError": "shown as the message card of the WSMAN Browser page (manage_wsman.go errorText), not in the error dialog",
 	"capture.ErrNoFolder":       "control flow; device_capture.go opens the save dialog",

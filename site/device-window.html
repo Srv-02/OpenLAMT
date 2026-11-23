@@ -107,7 +107,7 @@
 
 <h2 id="power">Power menu</h2>
 <div class="prose">
-<p>OpenLAMT reads the power state when you open the menu. Entries that do not fit the state are grey: a running device cannot be powered on, a device that is off only offers <span class="ui">Power On</span>, <span class="ui">Reboot to BIOS…</span>, <span class="ui">Boot from ISO…</span> and <span class="ui">Boot Options…</span>. While the device sleeps, or its state is unknown, every entry is open. Entries with “…” ask first.</p>
+<p>OpenLAMT reads the power state when you open the menu. Entries that do not fit the state are grey: a running device cannot be powered on, a device that is off only offers <span class="ui">Power On</span>, <span class="ui">Reboot to BIOS…</span>, <span class="ui">Boot from ISO…</span> and <span class="ui">Boot Options…</span>. While the device sleeps (S3), <span class="ui">Reboot to BIOS…</span>, <span class="ui">Boot from ISO…</span> and <span class="ui">Boot Options…</span> are grey: waking it does not restart it. In hibernation, or when the state is unknown, every entry is open. Entries with “…” ask first.</p>
 </div>
 <div class="tbl"><table class="ref">
   <thead><tr><th>Entry</th><th>What happens</th><th>Asks</th></tr></thead>

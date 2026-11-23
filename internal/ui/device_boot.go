@@ -713,6 +713,23 @@ func describeBoot(err error) (string, bool) {
 	return "", false
 }
 
+// describeRootLeft is the main text of a failed boot from a file whose temporary root could not
+// be removed (issue #149): the cause, then what to delete. It never says that nothing was changed.
+func describeRootLeft(err error) string {
+	cause := err // session joins the boot error first, then the root failure
+	if j, ok := err.(interface{ Unwrap() []error }); ok && len(j.Unwrap()) > 0 {
+		cause = j.Unwrap()[0]
+	}
+	text := ""
+	if errors.Is(cause, amt.ErrInvalidValue) {
+		text = lang.L("Some of the values you entered are not valid. Check them and try again.")
+	} else {
+		text = describe(cause)
+	}
+	return text + " " + lang.L("OpenLAMT could not remove the temporary root certificate. Delete “{{.Cert}}” under Device management › Certificates.",
+		map[string]any{"Cert": bootserve.RootName})
+}
+
 // describeMayBeSet is the main text of an *amt.BootMayBeSetError (issue #123): the cause, then
 // that the boot options or the erase may still apply at the next restart, and what to do.
 func describeMayBeSet(err error) string {

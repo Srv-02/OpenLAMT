@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -98,5 +99,25 @@ func TestDescribeAsleepWithRootLeftBehind(t *testing.T) {
 	left := errors.Join(asleep, fmt.Errorf("%w: %w", session.ErrRootNotRemoved, errors.New("connection reset")))
 	if got := describe(left); strings.Contains(got, "Nothing was changed") || !strings.Contains(got, "OpenLAMT recovery (temporary)") {
 		t.Fatalf("root left: %q", got)
+	}
+}
+
+// Every cause of a failed boot from a file names the leftover temporary root and never claims that
+// nothing was changed (issue #149).
+func TestDescribeRootLeftBehindForEveryCause(t *testing.T) {
+	englishUI(t)
+	left := fmt.Errorf("%w: %w", session.ErrRootNotRemoved, errors.New("connection reset"))
+	for name, cause := range map[string]error{
+		"invalid value":   fmt.Errorf("boot from file: %w", amt.ErrInvalidValue),
+		"connection lost": context.DeadlineExceeded,
+		"may be set":      &amt.BootMayBeSetError{Err: context.DeadlineExceeded},
+	} {
+		got := describe(errors.Join(cause, left))
+		if strings.Contains(got, "Nothing was changed") || !strings.Contains(got, "Delete “OpenLAMT recovery (temporary)” under Device management › Certificates.") {
+			t.Errorf("%s: %q", name, got)
+		}
+	}
+	if got := describe(errors.Join(fmt.Errorf("boot from file: %w", amt.ErrInvalidValue), left)); !strings.HasPrefix(got, "Some of the values you entered are not valid.") {
+		t.Errorf("cause missing: %q", got)
 	}
 }

@@ -127,6 +127,9 @@ func describeDevice(err error) (string, bool) {
 	var id *amt.IDERError
 	var rfb *kvm.RFBError
 	var mp *mkiso.PathError
+	if text, ok := describeDefense(err); ok {
+		return text, true
+	}
 	switch {
 	case errors.Is(err, amt.ErrInvalidValue):
 		// The technical reason (ValidationError.Reason) stays in the details.
@@ -193,6 +196,9 @@ func describeMethod(e *amt.MethodError) string {
 		case 23:
 			return lang.L("The device cannot store more accounts. Remove an account you do not need and try again.")
 		}
+	}
+	if e.Method == "AddAction" && e.ReturnValue == 23 {
+		return lang.L("The device stores no more watchdog actions. Delete a watchdog you do not need first.")
 	}
 	if e.Method == "SetPowerScheme" && e.ReturnValue == 38 {
 		return lang.L("The device cannot change the power package now: its flash write limit is reached. Try again later.")

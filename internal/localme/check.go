@@ -15,8 +15,9 @@ import (
 // The reading uses the rpc-go library of Intel (a v3 beta, see mei.go) and never starts LMS or
 // any network service.
 
-// Schema is the version of the JSON contract between the elevated helper and the app.
-const Schema = 1
+// Schema is the version of the JSON contract between the elevated helper and the app. Schema 2
+// added TurnOnSupported and TurnOnAllowed; a stored schema 1 result is still read (Decode).
+const Schema = 2
 
 // maxResultSize bounds the helper's answer; a Result is well below 2 KiB.
 const maxResultSize = 64 << 10
@@ -53,8 +54,14 @@ type Result struct {
 	Reason string `json:"reason,omitempty"` // when not found: ReasonNoDriver or ReasonNoAMT
 	Detail string `json:"detail,omitempty"` // when not found: the technical error, if any
 
-	Version      string `json:"version,omitempty"`      // "16.1.25"
-	TurnedOff    bool   `json:"turnedOff,omitempty"`    // AMT is found but its operational state is off
+	Version   string `json:"version,omitempty"`   // "16.1.25"
+	TurnedOff bool   `json:"turnedOff,omitempty"` // AMT is found but its operational state is off
+	// TurnOnSupported: the firmware can switch the operational state from the operating system
+	// (AMT 16.1 and later, bit 7 of IsChangeToAMTEnabled). TurnOnAllowed: it allows the change
+	// now (bit 0). Both are read only together with the operational state.
+	TurnOnSupported bool `json:"turnOnSupported,omitempty"`
+	TurnOnAllowed   bool `json:"turnOnAllowed,omitempty"`
+
 	ControlMode  string `json:"controlMode,omitempty"`  // ModeNone, ModeCCM, ModeACM; "" unknown
 	Provisioning string `json:"provisioning,omitempty"` // "pre", "in", "post"; "" unknown
 	UUID         string `json:"uuid,omitempty"`
@@ -80,7 +87,10 @@ func Encode(r Result) ([]byte, error) {
 	return json.Marshal(r)
 }
 
-// Decode reads the helper's answer (and the stored last result).
+// Decode reads the helper's answer (and the stored last result). A result of schema 1, stored
+// before the setup actions, is read as well: it set TurnedOff only when the firmware reported
+// the 16.1 interface, so TurnOnSupported follows from it; TurnOnAllowed stays unknown (false)
+// until the next check.
 func Decode(b []byte) (Result, error) {
 	var r Result
 	if len(b) > maxResultSize {
@@ -89,7 +99,11 @@ func Decode(b []byte) (Result, error) {
 	if err := json.Unmarshal(b, &r); err != nil {
 		return Result{}, fmt.Errorf("check answer: %w", err)
 	}
-	if r.Schema != Schema {
+	switch r.Schema {
+	case Schema:
+	case 1:
+		r.Schema, r.TurnOnSupported, r.TurnOnAllowed = Schema, r.TurnedOff, false
+	default:
 		return Result{}, fmt.Errorf("check answer has schema %d, want %d", r.Schema, Schema)
 	}
 	return r, nil
@@ -98,11 +112,11 @@ func Decode(b []byte) (Result, error) {
 // reader is what a check asks the Intel ME. It has read methods only: the helper cannot change
 // Intel AMT, because nothing it calls can.
 type reader interface {
-	Open() error                                       // the AMT host interface of the Intel ME is reachable
-	Version() (string, error)                          // AMT code version, "16.1.25"
-	OperationalState() (supported, on bool, err error) // AMT 12 and later with the new interface
-	ControlMode() (int, error)                         // 0 not activated, 1 CCM, 2 ACM
-	ProvisioningState() (int, error)                   // 0 pre, 1 in, 2 post
+	Open() error                                                // the AMT host interface of the Intel ME is reachable
+	Version() (string, error)                                   // AMT code version, "16.1.25"
+	OperationalState() (supported, on, allowed bool, err error) // AMT 12 and later; supported: the 16.1 interface
+	ControlMode() (int, error)                                  // 0 not activated, 1 CCM, 2 ACM
+	ProvisioningState() (int, error)                            // 0 pre, 1 in, 2 post
 	UUID() (string, error)
 	DNSSuffix() (string, error)
 	LAN(wireless bool) (Link, error)
@@ -130,8 +144,8 @@ func read(r reader) Result {
 	res.Found, res.Version = true, strings.TrimSpace(v)
 	// The operational state exists from AMT 12 on; rpc-go's amtinfo reads it the same way.
 	if major, err := strconv.Atoi(strings.SplitN(res.Version, ".", 2)[0]); err == nil && major > 11 {
-		if supported, on, err := r.OperationalState(); err == nil && supported {
-			res.TurnedOff = !on
+		if supported, on, allowed, err := r.OperationalState(); err == nil && supported {
+			res.TurnedOff, res.TurnOnSupported, res.TurnOnAllowed = !on, true, allowed
 		}
 	}
 	if m, err := r.ControlMode(); err == nil {

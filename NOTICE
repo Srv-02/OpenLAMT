@@ -42,12 +42,26 @@ Linux x64; the union of all three; go-wsman-messages, rpc-go, Fyne, go-keyring a
   https://github.com/fyne-io/systray
 - github.com/ActiveState/termtest/conpty (Windows builds only), Copyright (c) 2020, ActiveState Software, BSD 3-Clause License
   https://github.com/ActiveState/termtest
+- github.com/alecthomas/kong (Linux and Windows builds, used by rpc-go), Copyright (C) 2018 Alec Thomas, MIT License
+  https://github.com/alecthomas/kong
 - github.com/anthonynsimon/bild, Copyright (c) 2021 Anthony Najjar Simon, MIT License
   https://github.com/anthonynsimon/bild
+- github.com/aymanbagabas/go-osc52/v2 (Linux and Windows builds, used by rpc-go), Copyright (c) 2022 Ayman Bagabas, MIT License
+  https://github.com/aymanbagabas/go-osc52
 - github.com/Azure/go-ansiterm (Windows builds only), Copyright (c) 2015 Microsoft Corporation, MIT License
   https://github.com/Azure/go-ansiterm
 - github.com/BurntSushi/toml, Copyright (c) 2013 TOML authors, MIT License
   https://github.com/BurntSushi/toml
+- github.com/charmbracelet/colorprofile (Linux and Windows builds, used by rpc-go), Copyright (c) 2020-2024 Charmbracelet, Inc, MIT License
+  https://github.com/charmbracelet/colorprofile
+- github.com/charmbracelet/lipgloss (Linux and Windows builds, used by rpc-go), Copyright (c) 2021-2023 Charmbracelet, Inc, MIT License
+  https://github.com/charmbracelet/lipgloss
+- github.com/charmbracelet/x/ansi (Linux and Windows builds, used by rpc-go), Copyright (c) 2023 Charmbracelet, Inc., MIT License
+  https://github.com/charmbracelet/x
+- github.com/charmbracelet/x/cellbuf (Linux and Windows builds, used by rpc-go), Copyright (c) 2023 Charmbracelet, Inc., MIT License
+  https://github.com/charmbracelet/x
+- github.com/charmbracelet/x/term (Linux and Windows builds, used by rpc-go), Copyright (c) 2023 Charmbracelet, Inc., MIT License
+  https://github.com/charmbracelet/x
 - github.com/clipperhouse/uax29/v2, Copyright (c) 2020 Matt Sherman, MIT License
   https://github.com/clipperhouse/uax29
 - github.com/creack/pty (macOS and Linux builds only), Copyright (c) 2011 Keith Rarick, MIT License
@@ -84,12 +98,20 @@ Linux x64; the union of all three; go-wsman-messages, rpc-go, Fyne, go-keyring a
   https://github.com/jeandeaual/go-locale
 - github.com/jsummers/gobmp, Copyright (c) 2012-2015 Jason Summers, MIT License
   https://github.com/jsummers/gobmp
+- github.com/lucasb-eyer/go-colorful (Linux and Windows builds, used by rpc-go), Copyright (c) 2013 Lucas Beyer, MIT License
+  https://github.com/lucasb-eyer/go-colorful
+- github.com/mattn/go-isatty (Linux and Windows builds, used by rpc-go), Copyright (c) Yasuhiro MATSUMOTO, MIT License
+  https://github.com/mattn/go-isatty
 - github.com/mattn/go-runewidth, Copyright (c) 2016 Yasuhiro Matsumoto, MIT License
   https://github.com/mattn/go-runewidth
+- github.com/muesli/termenv (Linux and Windows builds, used by rpc-go), Copyright (c) 2019 Christian Muehlhaeuser, MIT License
+  https://github.com/muesli/termenv
 - github.com/nfnt/resize, Copyright (c) 2012, Jan Schlicht, ISC License
   https://github.com/nfnt/resize
 - github.com/nicksnyder/go-i18n/v2, Copyright (c) 2014 Nick Snyder, MIT License
   https://github.com/nicksnyder/go-i18n
+- github.com/rivo/uniseg (Linux and Windows builds, used by rpc-go), Copyright (c) 2019 Oliver Kuederle, MIT License
+  https://github.com/rivo/uniseg
 - github.com/rymdport/portal, Copyright the portal authors (no copyright line in LICENSE), Apache License 2.0
   https://github.com/rymdport/portal
 - github.com/shirou/gopsutil/v4 (Linux and Windows builds, used by rpc-go), Copyright (c) 2014, WAKAYAMA Shirou, BSD 3-Clause License
@@ -104,6 +126,8 @@ Linux x64; the union of all three; go-wsman-messages, rpc-go, Fyne, go-keyring a
   https://github.com/tklauser/go-sysconf
 - github.com/tklauser/numcpus (Linux builds only, used by rpc-go), Copyright 2018 Tobias Klauser, Apache License 2.0
   https://github.com/tklauser/numcpus
+- github.com/xo/terminfo (Linux and Windows builds, used by rpc-go), Copyright (c) 2016 Anmol Sethi, MIT License
+  https://github.com/xo/terminfo
 - github.com/yuin/goldmark, Copyright (c) 2019 Yusuke Inuzuka, MIT License
   https://github.com/yuin/goldmark
 - github.com/yusufpapurcu/wmi (Windows builds only, used by rpc-go), Copyright (c) 2013 Stack Exchange, MIT License

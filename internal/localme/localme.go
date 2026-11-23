@@ -1,7 +1,8 @@
 // Package localme is "This computer" (#11). Present detects, without administrator rights,
 // whether this computer has an Intel ME device: it only looks for the device, never opens it and
 // never sends anything to it. Check reads Intel AMT through the device in a short elevated
-// helper process (check.go).
+// helper process (check.go); the setup actions turn Intel AMT on, activate it in Client Control
+// Mode or deactivate it the same way (setup.go).
 package localme
 
 import (

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -438,4 +439,102 @@ func TestAbortClosesIdleConnections(t *testing.T) {
 	h.d.apply(amt.Status{}, mm)
 	<-h.errs
 	waitFor(t, func() bool { return h.dev.IdleClosed() == 1 })
+}
+
+// biosHarness opens a window on a device that is off, so Reboot to BIOS needs no confirmation,
+// and records the consent dialogs.
+func biosHarness(t *testing.T, consent bool) (*deviceHarness, chan func(string, bool), *atomic.Bool) {
+	t.Helper()
+	englishUI(t)
+	dev := &session.Fake{FP: fp, St: amt.Status{PowerState: models.PowerStateOffSoft}, Consent: consent, ConsentCode: "123456"}
+	h := newDevice(t, test.NewTempApp(t), dev, true)
+	asked := make(chan func(string, bool), 4)
+	hidden := new(atomic.Bool)
+	h.d.askConsent = func(answer func(string, bool)) func() { asked <- answer; return func() { hidden.Store(true) } }
+	h.show(t)
+	return h, asked, hidden
+}
+
+func recvAnswer(t *testing.T, asked chan func(string, bool)) func(string, bool) {
+	t.Helper()
+	select {
+	case a := <-asked:
+		return a
+	case <-time.After(2 * time.Second):
+		t.Fatal("no consent dialog")
+		return nil
+	}
+}
+
+// Reboot to BIOS on a device that requires user consent (CCM) shows the KVM consent dialog
+// before anything is sent, and boots with the code (issue #90).
+func TestRebootToBIOSAsksConsent(t *testing.T) {
+	h, asked, _ := biosHarness(t, true)
+	h.tapPower(t, amt.BootToBIOS)
+	answer := recvAnswer(t, asked)
+	if len(h.dev.Powered()) != 0 || !h.d.powerBtn.Disabled() {
+		t.Fatalf("before the code: powered %v, power button disabled %v", h.dev.Powered(), h.d.powerBtn.Disabled())
+	}
+	answer("123456", true)
+	recv(t, h.actionDone)
+	if got := h.dev.Powered(); len(got) != 1 || got[0] != amt.BootToBIOS || h.dev.BootConsents() != 1 {
+		t.Fatalf("powered %v consents %d", got, h.dev.BootConsents())
+	}
+	if len(h.errs) != 0 || h.d.powerBtn.Disabled() || h.d.biosCancel != nil {
+		t.Fatalf("errs %d, power button disabled %v", len(h.errs), h.d.powerBtn.Disabled())
+	}
+}
+
+// A cancelled consent dialog sends no boot settings and no power command and shows no error.
+func TestRebootToBIOSConsentCancelledSendsNothing(t *testing.T) {
+	h, asked, _ := biosHarness(t, true)
+	h.tapPower(t, amt.BootToBIOS)
+	recvAnswer(t, asked)("", false)
+	recv(t, h.actionDone)
+	if len(h.dev.Powered()) != 0 || len(h.errs) != 0 || h.d.powerBtn.Disabled() {
+		t.Fatalf("powered %v errs %d, power button disabled %v", h.dev.Powered(), len(h.errs), h.d.powerBtn.Disabled())
+	}
+}
+
+// A wrong code is reported and sends nothing.
+func TestRebootToBIOSWrongConsentReported(t *testing.T) {
+	h, asked, _ := biosHarness(t, true)
+	h.tapPower(t, amt.BootToBIOS)
+	recvAnswer(t, asked)("654321", true)
+	recv(t, h.actionDone)
+	var ce *amt.ConsentError
+	if err := <-h.errs; !errors.As(err, &ce) || len(h.dev.Powered()) != 0 {
+		t.Fatalf("err %v powered %v", err, h.dev.Powered())
+	}
+}
+
+// Without required consent (ACM, or policy None) Reboot to BIOS runs at once, as before.
+func TestRebootToBIOSWithoutConsentAsksNothing(t *testing.T) {
+	h, _, _ := biosHarness(t, false)
+	h.d.askConsent = func(func(string, bool)) func() { t.Error("consent dialog without required consent"); return func() {} }
+	h.tapPower(t, amt.BootToBIOS)
+	recv(t, h.actionDone)
+	if got := h.dev.Powered(); len(got) != 1 || got[0] != amt.BootToBIOS || len(h.errs) != 0 {
+		t.Fatalf("powered %v errs %d", got, len(h.errs))
+	}
+}
+
+// Closing the window while the consent dialog is open hides it and stops the poller without a
+// power command.
+func TestRebootToBIOSConsentEndsWithWindow(t *testing.T) {
+	h, asked, hidden := biosHarness(t, true)
+	h.tapPower(t, amt.BootToBIOS)
+	recvAnswer(t, asked)
+	h.d.win.Close()
+	recv(t, h.closed)
+	stopped := make(chan struct{})
+	go func() { h.d.poller.Stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("poller held by the consent dialog after close")
+	}
+	if !hidden.Load() || len(h.dev.Powered()) != 0 || len(h.errs) != 0 {
+		t.Fatalf("hidden %v powered %v errs %d", hidden.Load(), h.dev.Powered(), len(h.errs))
+	}
 }

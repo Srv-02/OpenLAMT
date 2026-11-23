@@ -20,6 +20,7 @@ const DefaultInterval = 10 * time.Second
 
 type job struct {
 	action amt.PowerAction
+	prompt amt.ConsentPrompt // BootToBIOS only: the user consent asked before the boot options are set
 	done   func(error)
 }
 
@@ -112,14 +113,37 @@ func (p *Poller) RefreshPowerStates() {
 // ErrStopped (on the caller's goroutine or during Stop) if the poller is stopped.
 // done must not call back into the Poller synchronously (Power, Stop): it runs on the poller
 // goroutine. Power itself can block while 8 actions are already waiting.
+//
+// BootToBIOS runs through Session.BootToBIOS without a prompt: where the device requires user
+// consent it fails with amt.ErrConsentRequired before anything is changed. Use BootToBIOS to ask.
 func (p *Poller) Power(action amt.PowerAction, done func(error)) {
+	p.queue(job{action: action, done: done})
+}
+
+// BootToBIOS queues Session.BootToBIOS like Power queues an action: the user consent (prompt may
+// block on a dialog) and the boot-to-BIOS sequence run as one job on the poller goroutine, so no
+// status read runs in between. Stop waits for a running job: a prompt that blocks must end when
+// the caller stops the poller (cancel its context first).
+func (p *Poller) BootToBIOS(prompt amt.ConsentPrompt, done func(error)) {
+	p.queue(job{action: amt.BootToBIOS, prompt: prompt, done: done})
+}
+
+func (p *Poller) queue(j job) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.stopped {
-		done(ErrStopped)
+		j.done(ErrStopped)
 		return
 	}
-	p.jobs <- job{action: action, done: done}
+	p.jobs <- j
+}
+
+// run performs j on the poller goroutine.
+func (p *Poller) run(j job) error {
+	if j.action == amt.BootToBIOS {
+		return p.s.BootToBIOS(j.prompt)
+	}
+	return p.s.Power(j.action)
 }
 
 func (p *Poller) loop() {
@@ -141,7 +165,7 @@ func (p *Poller) loop() {
 				j.done(ErrStopped)
 				return
 			}
-			j.done(p.s.Power(j.action))
+			j.done(p.run(j))
 			p.read()
 		}
 		timer.Reset(p.Interval())

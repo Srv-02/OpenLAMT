@@ -506,11 +506,24 @@ func (s *server) powerAction(ctx context.Context, req *mcp.CallToolRequest, in p
 				"Intel Local Manageability Service runs in the operating system. Use off for a hard power off.")
 		}
 	}
+	// AMT refuses off, cycle and shutdown while KVM is open (ReturnValue 2), like the app's
+	// endsKVM: close the session first. Its entry stays, so the next KVM call opens it again.
+	kvmClosed := endsKVM(action) && s.kvm.closeForPower(in.Device)
 	if err := sess.Power(action); err != nil {
 		return nil, powerOutput{}, err
 	}
+	result := "The device accepted the request (AMT ReturnValue 0). Check device_status for the new state."
+	if kvmClosed {
+		result += " The KVM session was closed first, because AMT refuses this action while KVM is open; the next KVM tool call opens it again."
+	}
 	return nil, powerOutput{Device: in.Device, Action: in.Action, PowerStateBefore: powerStateName(st),
-		Result: "The device accepted the request (AMT ReturnValue 0). Check device_status for the new state.", Warnings: warnings}, nil
+		Result: result, Warnings: warnings}, nil
+}
+
+// endsKVM reports whether AMT refuses action while a KVM session is open: measured for off and
+// cycle, shutdown as a precaution (see ui.endsKVM). Reset and boot to BIOS keep the session.
+func endsKVM(action amt.PowerAction) bool {
+	return action == amt.PowerOff || action == amt.PowerCycle || action == amt.PowerShutdown
 }
 
 type bootInput struct {

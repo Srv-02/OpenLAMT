@@ -49,6 +49,7 @@ type harness struct {
 	connects []amt.Config
 	logPath  string
 	cs       *mcp.ClientSession
+	srv      *Server
 }
 
 func newHarness(t *testing.T) *harness {
@@ -106,6 +107,8 @@ func (h *harness) start() {
 		h.logPath = h.cfg.ActionLogPath
 	}
 	srv := New(Options{Config: h.cfg, Favorites: h.favs, Keys: h.keys, Connect: h.connect, Log: log, Version: "test"})
+	h.srv = srv
+	t.Cleanup(srv.Close)
 	ct, st := mcp.NewInMemoryTransports()
 	ctx := context.Background()
 	ss, err := srv.Connect(ctx, st, nil)
@@ -211,7 +214,8 @@ func dev(name string, extra ...any) map[string]any {
 
 // TestToolsFollowGroups: disabled groups are not offered; list_devices always is.
 func TestToolsFollowGroups(t *testing.T) {
-	all := []string{"audit_log", "boot_to_bios", "device_status", "event_log", "hardware_info", "list_devices", "power_action"}
+	all := []string{"audit_log", "boot_to_bios", "device_status", "event_log", "hardware_info", "kvm_connect", "kvm_disconnect",
+		"kvm_mouse", "kvm_screenshot", "kvm_send_keys", "kvm_type_text", "list_devices", "power_action"}
 	h := newHarness(t)
 	h.start()
 	if got := h.toolNames(); !reflect.DeepEqual(got, all) {
@@ -221,15 +225,25 @@ func TestToolsFollowGroups(t *testing.T) {
 	h = newHarness(t)
 	h.cfg.ReadOnly = true
 	h.start()
-	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"audit_log", "device_status", "event_log", "hardware_info", "list_devices"}) {
+	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"audit_log", "device_status", "event_log", "hardware_info",
+		"kvm_connect", "kvm_disconnect", "kvm_screenshot", "list_devices"}) {
 		t.Fatalf("read only: %v", got)
 	}
 
 	h = newHarness(t)
 	h.cfg.Groups[GroupRead] = false
 	h.start()
-	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"boot_to_bios", "list_devices", "power_action"}) {
+	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"boot_to_bios", "kvm_connect", "kvm_disconnect", "kvm_mouse",
+		"kvm_send_keys", "kvm_type_text", "list_devices", "power_action"}) {
 		t.Fatalf("read off: %v", got)
+	}
+
+	h = newHarness(t)
+	h.cfg.Groups[GroupRead] = false
+	h.cfg.Groups[GroupKVMInput] = false
+	h.start()
+	if got := h.toolNames(); !reflect.DeepEqual(got, []string{"boot_to_bios", "list_devices", "power_action"}) {
+		t.Fatalf("read and kvm_input off: %v", got)
 	}
 }
 

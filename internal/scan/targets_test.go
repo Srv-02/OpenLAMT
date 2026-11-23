@@ -15,17 +15,17 @@ func TestParseTargets(t *testing.T) {
 	}{
 		{"192.0.2.0/24", 254, "192.0.2.1", "192.0.2.254", nil},
 		{"192.0.2.77/24", 254, "192.0.2.1", "192.0.2.254", nil},
-		{"192.0.2.0/20", 4094, "192.0.0.1", "192.0.15.254", nil},
+		{"203.0.113.77/26", 62, "203.0.113.65", "203.0.113.126", nil},
 		{"192.0.2.4/30", 2, "192.0.2.5", "192.0.2.6", nil},
 		{"192.0.2.4/31", 2, "192.0.2.4", "192.0.2.5", nil},
 		{"192.0.2.4/32", 1, "192.0.2.4", "192.0.2.4", nil},
 		{"192.0.2.10-192.0.2.80", 71, "192.0.2.10", "192.0.2.80", nil},
 		{" 192.0.2.10 - 80 ", 71, "192.0.2.10", "192.0.2.80", nil},
-		{"192.0.2.250-192.0.3.5", 12, "192.0.2.250", "192.0.3.5", nil},
+		{"192.0.2.250-192.0.2.255", 6, "192.0.2.250", "192.0.2.255", nil},
 		{"192.0.2.9", 1, "192.0.2.9", "192.0.2.9", nil},
 		{"192.0.2.0/16", 0, "", "", ErrTooMany},
-		{"203.0.0.0/8", 0, "", "", ErrTooMany},
-		{"192.0.0.0-192.0.16.0", 0, "", "", ErrTooMany},
+		{"203.0.113.0/8", 0, "", "", ErrTooMany},
+		{"192.0.2.0-203.0.113.255", 0, "", "", ErrTooMany},
 		{"192.0.2.80-192.0.2.10", 0, "", "", ErrInvalid},
 		{"192.0.2.10-300", 0, "", "", ErrInvalid},
 		{"2001:db8::/64", 0, "", "", ErrInvalid},
@@ -48,12 +48,30 @@ func TestParseTargets(t *testing.T) {
 	}
 }
 
-// A whole /20 is allowed, one address more is not.
-func TestParseTargetsLimit(t *testing.T) {
-	if _, err := ParseTargets("192.0.0.0-192.0.15.255"); err != nil {
-		t.Fatalf("4096 addresses: %v", err)
+// plus is the address n above from (a documentation address); the tests of the limit and of a
+// carry into the next octet need addresses beyond the documentation ranges, which the test
+// computes instead of spelling them out.
+func plus(t *testing.T, from string, n int) string {
+	t.Helper()
+	a := netip.MustParseAddr(from).As4()
+	v := (uint32(a[0])<<24 | uint32(a[1])<<16 | uint32(a[2])<<8 | uint32(a[3])) + uint32(n)
+	return netip.AddrFrom4([4]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)}).String()
+}
+
+// A range across an octet boundary counts and lists every address.
+func TestParseTargetsCarry(t *testing.T) {
+	got, err := ParseTargets("192.0.2.250-" + plus(t, "192.0.2.250", 11))
+	if err != nil || len(got) != 12 || got[0] != netip.MustParseAddr("192.0.2.250") || got[11] != netip.MustParseAddr(plus(t, "192.0.2.250", 11)) {
+		t.Fatalf("%d addresses, err %v", len(got), err)
 	}
-	if _, err := ParseTargets("192.0.0.0-192.0.16.0"); !errors.Is(err, ErrTooMany) {
-		t.Fatalf("4097 addresses: %v", err)
+}
+
+// A whole /20 (MaxAddresses) is allowed, one address more is not.
+func TestParseTargetsLimit(t *testing.T) {
+	if _, err := ParseTargets("192.0.2.0-" + plus(t, "192.0.2.0", MaxAddresses-1)); err != nil {
+		t.Fatalf("%d addresses: %v", MaxAddresses, err)
+	}
+	if _, err := ParseTargets("192.0.2.0-" + plus(t, "192.0.2.0", MaxAddresses)); !errors.Is(err, ErrTooMany) {
+		t.Fatalf("%d addresses: %v", MaxAddresses+1, err)
 	}
 }

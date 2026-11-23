@@ -232,15 +232,15 @@ func TestIsPong(t *testing.T) {
 
 func TestNetworkOf(t *testing.T) {
 	_, small, _ := net.ParseCIDR("192.0.2.0/24")
-	_, mid, _ := net.ParseCIDR("198.51.100.0/22")
-	_, big, _ := net.ParseCIDR("203.0.0.0/8")
+	_, mid, _ := net.ParseCIDR("198.51.100.0/25")
+	_, big, _ := net.ParseCIDR("203.0.113.0/26")
 	nets := []*net.IPNet{small, mid, big}
-	for in, want := range map[string]string{"192.0.2.77": "192.0.2.0/24", "198.51.101.9": "198.51.100.0/22", "203.0.113.7": "203.0.113.0/24"} {
+	for in, want := range map[string]string{"192.0.2.77": "192.0.2.0/24", "198.51.100.9": "198.51.100.0/25", "203.0.113.7": "203.0.113.0/26"} {
 		if got, ok := networkOf(netip.MustParseAddr(in), nets); !ok || got != want {
 			t.Errorf("%s: %q %v, want %q", in, got, ok, want)
 		}
 	}
-	if _, ok := networkOf(netip.MustParseAddr("198.51.99.1"), nets); ok {
+	if _, ok := networkOf(netip.MustParseAddr("198.51.100.200"), nets); ok {
 		t.Error("an address outside every network found one")
 	}
 }

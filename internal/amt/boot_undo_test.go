@@ -182,6 +182,20 @@ func TestArmedBootRefusesSleepingDevice(t *testing.T) {
 	}
 }
 
+// TestRefuseAsleepReadsOnlyThePowerState (issue #142): the check the session runs before the
+// consent refuses S3 (3 and 4) and nothing else, and it only reads.
+func TestRefuseAsleepReadsOnlyThePowerState(t *testing.T) {
+	for state, asleep := range map[string]bool{"2": false, "3": true, "4": true, "7": false, "8": false} {
+		seq := biosSeq("boot_settingdata_get.xml")
+		seq["Pull|CIM_ServiceAvailableToElement"] = []cfgResp{{body: withProp(t, "power_state_pull.xml", "PowerState", state)}}
+		d, f := bootDevice(seq)
+		err := d.RefuseAsleep("boot")
+		if errors.Is(err, ErrAsleep) != asleep || (!asleep && err != nil) || len(writes(f)) != 0 || len(f.requests) != 2 {
+			t.Fatalf("state %s: err %v, requests %d, writes %v", state, err, len(f.requests), writes(f))
+		}
+	}
+}
+
 func TestNextBootFromISOFailedStepIsTakenBack(t *testing.T) {
 	seq := biosSeq("boot_settingdata_get.xml")
 	seq["SetBootConfigRole|CIM_BootService"] = []cfgResp{{file: "setbootconfigrole_fail.xml"}}

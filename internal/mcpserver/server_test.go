@@ -556,6 +556,20 @@ func TestBootToBIOSConsentFlow(t *testing.T) {
 	}
 }
 
+// TestBootToBIOSRefusesSleepingDeviceFirst (issue #142): a device in S3 is refused before the
+// consent starts, so the agent is not asked for a code that the dark screen never shows.
+func TestBootToBIOSRefusesSleepingDeviceFirst(t *testing.T) {
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.Consent, f.ConsentCode = true, "123456"
+	f.St = amt.Status{PowerState: models.PowerStateSleepDeep, ControlMode: amt.ControlModeClient}
+	h.start()
+	h.mustFail("boot_to_bios", dev("NUC"), "The device is asleep (S3)")
+	if f.BootConsents() != 0 || len(f.Powered()) != 0 {
+		t.Fatalf("consents %d powered %v", f.BootConsents(), f.Powered())
+	}
+}
+
 // TestBootToBIOSOnOffDeviceIsNotDestructive: like in the app it only powers the device on.
 func TestBootToBIOSOnOffDeviceIsNotDestructive(t *testing.T) {
 	h := newHarness(t)

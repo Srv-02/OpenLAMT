@@ -40,6 +40,7 @@
   "Show boot in the console (SOL)": "Start in der Konsole zeigen (SOL)",
   "System default": "Systemstandard",
   "The device did not download the image. Check the firewall on this computer.": "Das Gerät hat das Image nicht geladen. Prüfe die Firewall auf diesem Computer.",
+  "The device is asleep. Waking it does not restart it, so the boot options would not apply. OpenLAMT could not remove the temporary root certificate. Delete “{{.Cert}}” under Device management › Certificates.": "Das Gerät schläft. Aufwecken startet es nicht neu, deshalb würden die Boot-Optionen nicht greifen. OpenLAMT konnte das temporäre Root-Zertifikat nicht entfernen. Lösche „{{.Cert}}“ unter Geräteverwaltung › Zertifikate.",
   "The device is asleep. Waking it does not restart it, so the boot options would not apply. Wake it with Power On, wait until it runs, then try again. Nothing was changed.": "Das Gerät schläft. Aufwecken startet es nicht neu, deshalb würden die Boot-Optionen nicht greifen. Wecke es mit „Einschalten“, warte, bis es läuft, und versuche es dann erneut. Es wurde nichts geändert.",
   "The server’s certificate must chain to a trusted root on {{.Name}} (Device management › Certificates).": "Das Zertifikat des Servers muss auf ein vertrauenswürdiges Root-Zertifikat von {{.Name}} zurückgehen (Geräteverwaltung › Zertifikate).",
   "Turn it off again here.": "Schalte es hier wieder aus.",

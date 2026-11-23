@@ -105,17 +105,18 @@ func (p *settingsPane) showErase() {
 	p.eraseText.Refresh()
 }
 
-// eraseAllowed reports whether "Erase…" can be tapped (lock: not while a write runs).
+// eraseAllowed reports whether "Erase…" can be tapped (lock: not while a write runs): not while
+// the device is read in S3, which waking does not restart (issue #142).
 func (p *settingsPane) eraseAllowed() bool {
 	info, ok := p.d.boot.get()
-	return ok && info.EraseSupported()
+	return ok && info.EraseSupported() && !p.m.readS3()
 }
 
 // openErase is "Erase…": the hint while Remote Platform Erase is off, the TLS error without TLS,
 // else the red dialog.
 func (p *settingsPane) openErase() {
 	info, ok := p.d.boot.get()
-	if !ok || !info.EraseSupported() || p.d.locked() {
+	if !ok || !p.eraseAllowed() || p.d.locked() {
 		return
 	}
 	platform := info.PlatformEraseSupported()

@@ -40,6 +40,7 @@
   "Show boot in the console (SOL)": "Show boot in the console (SOL)",
   "System default": "System default",
   "The device did not download the image. Check the firewall on this computer.": "The device did not download the image. Check the firewall on this computer.",
+  "The device is asleep. Waking it does not restart it, so the boot options would not apply. OpenLAMT could not remove the temporary root certificate. Delete “{{.Cert}}” under Device management › Certificates.": "The device is asleep. Waking it does not restart it, so the boot options would not apply. OpenLAMT could not remove the temporary root certificate. Delete “{{.Cert}}” under Device management › Certificates.",
   "The device is asleep. Waking it does not restart it, so the boot options would not apply. Wake it with Power On, wait until it runs, then try again. Nothing was changed.": "The device is asleep. Waking it does not restart it, so the boot options would not apply. Wake it with Power On, wait until it runs, then try again. Nothing was changed.",
   "The server’s certificate must chain to a trusted root on {{.Name}} (Device management › Certificates).": "The server’s certificate must chain to a trusted root on {{.Name}} (Device management › Certificates).",
   "Turn it off again here.": "Turn it off again here.",

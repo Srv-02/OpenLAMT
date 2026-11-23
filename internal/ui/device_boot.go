@@ -73,9 +73,10 @@ func (d *DeviceWindow) bootMenuItem() *fyne.MenuItem {
 }
 
 // bootOptionsAllowed reports whether "Boot Options…" can be chosen: not while a power action or
-// a One Click Recovery runs, and only once at a time.
+// a One Click Recovery runs, not while the device sleeps (S3, issue #142), and only once at a
+// time.
 func (d *DeviceWindow) bootOptionsAllowed() bool {
-	return !d.aborted && !d.powerBusy && d.boot.ocr == nil && !d.boot.opening && d.boot.dlg == nil
+	return !d.aborted && !d.powerBusy && !d.readS3() && d.boot.ocr == nil && !d.boot.opening && d.boot.dlg == nil
 }
 
 // updateBootItem follows bootOptionsAllowed; updatePowerItems calls it.
@@ -700,6 +701,9 @@ func describeBoot(err error) (string, bool) {
 		return lang.L("The device did not download the image. Check the firewall on this computer."), true
 	case errors.Is(err, amt.ErrOCROffInBIOS):
 		return lang.L("Turn it on in the BIOS first."), true
+	case errors.Is(err, amt.ErrAsleep) && errors.Is(err, session.ErrRootNotRemoved): // something was changed
+		return lang.L("The device is asleep. Waking it does not restart it, so the boot options would not apply. OpenLAMT could not remove the temporary root certificate. Delete “{{.Cert}}” under Device management › Certificates.",
+			map[string]any{"Cert": bootserve.RootName}), true
 	case errors.Is(err, amt.ErrAsleep):
 		return lang.L("The device is asleep. Waking it does not restart it, so the boot options would not apply. Wake it with Power On, wait until it runs, then try again. Nothing was changed."), true
 	}

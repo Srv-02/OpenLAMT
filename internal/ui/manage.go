@@ -183,6 +183,7 @@ type manager struct {
 	defense  *defenseData                        // created by the first System Defense pane
 	certs    *manageSource[amt.CertificateStore] // created by the first Certificates pane
 	closed   bool
+	s3       bool   // the last status read showed the device in S3 (statusChanged)
 	tlsAsk   *panel // the last "without TLS" question (tests)
 
 	now       func() time.Time
@@ -216,6 +217,24 @@ func (m *manager) status() (amt.Status, bool) {
 		return amt.Status{}, false
 	}
 	return m.deps.status()
+}
+
+// readS3 reports whether the device window read the device in Sleep - Light or Deep (S3).
+func (m *manager) readS3() bool {
+	st, ok := m.status()
+	return ok && st.Allowed(amt.StatusPower) && isS3(st.PowerState)
+}
+
+// statusChanged runs after every status read of the device window. The Settings page follows a
+// change of the sleep state: Erase drives is greyed in S3 (issue #142).
+func (m *manager) statusChanged() {
+	if m.closed {
+		return
+	}
+	if s3 := m.readS3(); s3 != m.s3 {
+		m.s3 = s3
+		m.settings.src.notify()
+	}
 }
 
 // controlMode is ACM or CCM, "" while unknown.

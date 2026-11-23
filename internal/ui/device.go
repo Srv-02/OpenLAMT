@@ -226,6 +226,16 @@ func isAsleep(ps models.PowerState) bool {
 	return ps == models.PowerStateSleepLight || ps == models.PowerStateSleepDeep || ps == models.PowerStateHibernate
 }
 
+// isS3 reports Sleep - Light or Deep (S3), without Hibernate: Power On only resumes such a
+// device without a start of the BIOS, so boot options and an erase would not apply (issue #142).
+func isS3(ps models.PowerState) bool {
+	return ps == models.PowerStateSleepLight || ps == models.PowerStateSleepDeep
+}
+
+// readS3 reports whether the device was read in S3: Reboot to BIOS, Boot from ISO, Boot Options
+// and Erase drives are greyed then (issue #142).
+func (d *DeviceWindow) readS3() bool { return d.powerKnown && isS3(d.powerState) }
+
 // NewDeviceWindow builds the window; onClosed runs once when the user closes it or the session
 // is aborted after a certificate mismatch (the poller is stopped on a goroutine before that).
 func NewDeviceWindow(a fyne.App, sess *session.Session, name string, st amt.Status, settings Settings, onClosed func()) *DeviceWindow {
@@ -340,6 +350,9 @@ func (d *DeviceWindow) apply(st amt.Status, err error) {
 		d.setMessage("")
 	}
 	d.lastStatus, d.statusKnown = st, !d.aborted && err == nil
+	if d.manager != nil {
+		d.manager.statusChanged() // Erase drives follows the sleep state
+	}
 	d.autoConnect()
 	d.resumeCheck()
 	if d.onStatus != nil {
@@ -509,7 +522,8 @@ func (d *DeviceWindow) setPowerBusy(busy bool) {
 // powerAllowed reports whether the Power menu offers action in the current state. Unknown
 // state (failed read) offers everything, as before the redesign. Shutdown also needs the device
 // to list Off - Soft Graceful (12), which AMT does only while LMS runs; unknown power states
-// (not read yet or failed) lock it. Boot from ISO needs a mounted image.
+// (not read yet or failed) lock it. Boot from ISO needs a mounted image. A sleeping device (S3)
+// offers no boot: waking it does not restart it (issue #142).
 func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 	if d.aborted || d.powerBusy {
 		return false
@@ -531,8 +545,10 @@ func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 		return action != amt.PowerOn
 	case isOff(d.powerState):
 		return action == amt.PowerOn || action == amt.BootToBIOS || action == amt.BootToISO // both power on a machine that is off
+	case isS3(d.powerState):
+		return action != amt.BootToBIOS && action != amt.BootToISO // AMT refuses both (amt.ErrAsleep)
 	}
-	return true // sleeping, hibernating or a state without a name: every action applies
+	return true // hibernating (starts through the BIOS) or a state without a name: every action applies
 }
 
 // releaseKeys frees every held key and button on the remote before a dialog opens: Fyne creates

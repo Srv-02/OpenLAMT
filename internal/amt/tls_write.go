@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/amterror"
-	client "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/client"
 )
 
 // Certificate is one entry of the AMT certificate store (AMT_PublicKeyCertificate).
@@ -29,6 +28,7 @@ type Certificate struct {
 	ReadOnly      bool   // AMT does not allow deleting it
 	HasPrivateKey bool   // AMT holds the matching key pair: usable as TLS server certificate
 	TLS           bool   // the certificate AMT presents now
+	DER           []byte // the X.509 certificate; nil if AMT sent none that decodes
 }
 
 // Usable reports whether SetTLS accepts the certificate as server certificate.
@@ -132,56 +132,8 @@ func (d *Device) tlsBinding() (string, bool, error) {
 // TLSCertificates reads the AMT certificate store, marks the certificates whose key pair AMT
 // holds and the one it presents for TLS. Nothing is written.
 func (d *Device) TLSCertificates() ([]Certificate, error) {
-	const op = "read certificates"
-	certs, err := pullObjects(classPublicKeyCert, false, func() (*client.Message, string, error) {
-		r, err := d.msgs.AMT.PublicKeyCertificate.Enumerate()
-		return r.Message, r.Body.EnumerateResponse.EnumerationContext, err
-	}, func(ctx string) (*client.Message, error) {
-		r, err := d.msgs.AMT.PublicKeyCertificate.Pull(ctx)
-		return r.Message, err
-	})
-	if err != nil {
-		return nil, writeError(op, err)
-	}
-	keys, err := pullObjects(classKeyPair, false, func() (*client.Message, string, error) {
-		r, err := d.msgs.AMT.PublicPrivateKeyPair.Enumerate()
-		return r.Message, r.Body.EnumerateResponse.EnumerationContext, err
-	}, func(ctx string) (*client.Message, error) {
-		r, err := d.msgs.AMT.PublicPrivateKeyPair.Pull(ctx)
-		return r.Message, err
-	})
-	if err != nil {
-		return nil, writeError(op, err)
-	}
-	bound, _, err := d.tlsBinding()
-	if err != nil {
-		return nil, writeError(op, err)
-	}
-	out := make([]Certificate, 0, len(certs))
-	for _, o := range certs {
-		c := Certificate{
-			ID:          o.str("InstanceID"),
-			Subject:     o.str("Subject"),
-			Issuer:      o.str("Issuer"),
-			TrustedRoot: o.boolean("TrustedRootCertficate"), // sic, the AMT property name
-			ReadOnly:    o.boolean("ReadOnlyCertificate"),
-		}
-		c.TLS = c.ID != "" && c.ID == bound
-		if der, err := base64.StdEncoding.DecodeString(o.str("X509Certificate")); err == nil && len(der) > 0 {
-			c.Fingerprint = fingerprintOf(der)
-			if x, err := x509.ParseCertificate(der); err == nil {
-				c.NotBefore, c.NotAfter = x.NotBefore.UTC(), x.NotAfter.UTC()
-				for _, k := range keys {
-					if keyMatches(x, k.str("DERKey")) {
-						c.HasPrivateKey = true
-						break
-					}
-				}
-			}
-		}
-		out = append(out, c)
-	}
-	return out, nil
+	s, err := d.CertificateStore()
+	return s.Certificates, err
 }
 
 // Risk names of TLS changes in RiskyChangeError.Fields.

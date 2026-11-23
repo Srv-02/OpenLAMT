@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
@@ -40,13 +41,33 @@ type listRow struct {
 	cells  [][]widget.RichTextSegment
 	action *widgets.PrimaryButton
 	lead   *widgets.PrimaryButton
+	// objects replaces the text of a cell with an object at its minimum size (a pill); index as
+	// cells, nil entries keep the text. May be nil.
+	objects []fyne.CanvasObject
+	// trail sits in the action column when there is no action (the chevron of a row that opens
+	// details); nil = none.
+	trail fyne.CanvasObject
+	// onTap runs when the row is tapped outside its buttons; nil = the row does not react.
+	onTap func()
 }
 
 // listLine is a laid-out row.
 type listLine struct {
-	cells  []*widget.RichText
-	action *widgets.PrimaryButton
-	lead   *widgets.PrimaryButton
+	cells   []*widget.RichText
+	action  *widgets.PrimaryButton
+	lead    *widgets.PrimaryButton
+	objects []fyne.CanvasObject // index as cells; nil = the text
+	trail   fyne.CanvasObject
+	onTap   func()
+	y, h    float32 // place of the last layout
+}
+
+// object returns the object that replaces cell i, nil for the text.
+func (l *listLine) object(i int) fyne.CanvasObject {
+	if i < len(l.objects) {
+		return l.objects[i]
+	}
+	return nil
 }
 
 // listLeadGap is the space between the lead button and the action button of a row.
@@ -100,13 +121,15 @@ func (t *listTable) setRows(rows []listRow) {
 	}
 	for _, r := range rows {
 		for i := range t.cols {
-			if i < len(r.cells) {
+			if i < len(r.objects) && r.objects[i] != nil {
+				t.words[i] = max(t.words[i], r.objects[i].MinSize().Width) // a pill does not wrap
+			} else if i < len(r.cells) {
 				t.words[i] = max(t.words[i], longestWord(ts, false, plainText(r.cells[i])))
 			}
 		}
 	}
 	for _, r := range rows {
-		l := &listLine{action: r.action, lead: r.lead}
+		l := &listLine{action: r.action, lead: r.lead, objects: r.objects, trail: r.trail, onTap: r.onTap}
 		for i := range t.cols {
 			var segs []widget.RichTextSegment
 			if i < len(r.cells) {
@@ -223,7 +246,14 @@ func (t *listTable) rowHeight(l *listLine, cols []float32) float32 {
 	if l.lead != nil {
 		h = max(h, l.lead.MinSize().Height)
 	}
+	if l.trail != nil {
+		h = max(h, l.trail.MinSize().Height)
+	}
 	for i, c := range l.cells {
+		if o := l.object(i); o != nil {
+			h = max(h, o.MinSize().Height)
+			continue
+		}
 		ip := c.Theme().Size(theme.SizeNameInnerPadding)
 		w := max(0, cols[i]-2*padH) + 2*ip
 		for range 2 {
@@ -253,6 +283,26 @@ func (t *listTable) defaultWidth() float32 {
 		return manageSidebarWidth - 2*16
 	}
 	return 800
+}
+
+// Tapped runs onTap of the row under the pointer.
+func (t *listTable) Tapped(e *fyne.PointEvent) {
+	for _, l := range t.lines {
+		if l.onTap != nil && l.h > 0 && e.Position.Y >= l.y && e.Position.Y < l.y+l.h {
+			l.onTap()
+			return
+		}
+	}
+}
+
+// Cursor is the pointer when a row reacts to a tap.
+func (t *listTable) Cursor() desktop.Cursor {
+	for _, l := range t.lines {
+		if l.onTap != nil {
+			return desktop.PointerCursor
+		}
+	}
+	return desktop.DefaultCursor
 }
 
 func (t *listTable) CreateRenderer() fyne.WidgetRenderer {
@@ -320,8 +370,16 @@ func (r *listTableRenderer) Layout(size fyne.Size) {
 			y++
 		}
 		rh := t.rowHeight(l, cols)
+		l.y, l.h = y, rh
 		x := float32(1)
 		for c, cell := range l.cells {
+			if o := l.object(c); o != nil {
+				ms := o.MinSize()
+				o.Move(fyne.NewPos(x+padH, y+(rh-ms.Height)/2))
+				o.Resize(fyne.NewSize(min(ms.Width, max(0, cols[c]-2*padH)), ms.Height))
+				x += cols[c]
+				continue
+			}
 			ip := cell.Theme().Size(theme.SizeNameInnerPadding)
 			ms := cell.MinSize()
 			cell.Move(fyne.NewPos(x+padH-ip, y+(rh-ms.Height)/2))
@@ -338,6 +396,10 @@ func (r *listTableRenderer) Layout(size fyne.Size) {
 				l.lead.Move(fyne.NewPos(right-listLeadGap-ls.Width, y+(rh-ls.Height)/2))
 				l.lead.Resize(ls)
 			}
+		} else if l.trail != nil {
+			ts := l.trail.MinSize()
+			l.trail.Move(fyne.NewPos(x+cols[len(t.cols)]-padH-ts.Width, y+(rh-ts.Height)/2))
+			l.trail.Resize(ts)
 		}
 		y += rh
 	}
@@ -365,7 +427,11 @@ func (r *listTableRenderer) Refresh() {
 		if i > 0 {
 			r.objects = append(r.objects, r.seps[i-1])
 		}
-		for _, c := range l.cells {
+		for i, c := range l.cells {
+			if o := l.object(i); o != nil {
+				r.objects = append(r.objects, o)
+				continue
+			}
 			r.objects = append(r.objects, c)
 		}
 		if l.lead != nil {
@@ -373,6 +439,8 @@ func (r *listTableRenderer) Refresh() {
 		}
 		if l.action != nil {
 			r.objects = append(r.objects, l.action)
+		} else if l.trail != nil {
+			r.objects = append(r.objects, l.trail)
 		}
 	}
 	r.objects = append(r.objects, r.outline)

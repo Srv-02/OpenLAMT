@@ -54,6 +54,9 @@ type PrimaryButton struct {
 	OnEscape func()
 	// Metrics changes the measures; nil keeps the 36 px button of the manager and the toolbar.
 	Metrics *ButtonMetrics
+	// OnHover, if set, runs when the pointer enters (true) or leaves (false) the button, also
+	// while it is disabled (a tooltip that explains why).
+	OnHover func(in bool)
 
 	icon    fyne.Resource
 	hovered bool
@@ -115,10 +118,22 @@ func (b *PrimaryButton) Tapped(*fyne.PointEvent) {
 	b.OnTapped()
 }
 
-func (b *PrimaryButton) MouseIn(*desktop.MouseEvent)    { b.hovered = true; b.Refresh() }
+func (b *PrimaryButton) MouseIn(*desktop.MouseEvent) {
+	b.hovered = true
+	b.Refresh()
+	if b.OnHover != nil {
+		b.OnHover(true)
+	}
+}
 func (b *PrimaryButton) MouseMoved(*desktop.MouseEvent) {}
-func (b *PrimaryButton) MouseOut()                      { b.hovered = false; b.Refresh() }
-func (b *PrimaryButton) Cursor() desktop.Cursor         { return desktop.PointerCursor }
+func (b *PrimaryButton) MouseOut() {
+	b.hovered = false
+	b.Refresh()
+	if b.OnHover != nil {
+		b.OnHover(false)
+	}
+}
+func (b *PrimaryButton) Cursor() desktop.Cursor { return desktop.PointerCursor }
 
 func (b *PrimaryButton) FocusGained() { b.focused = true; b.Refresh() }
 func (b *PrimaryButton) FocusLost()   { b.focused = false; b.Refresh() }

@@ -94,6 +94,8 @@ Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenit
   https://github.com/srwiley/rasterx
 - github.com/yuin/goldmark, Copyright (c) 2019 Yusuke Inuzuka, MIT License
   https://github.com/yuin/goldmark
+- golang.org/x/crypto (pbkdf2, used by go-pkcs12), Copyright 2009 The Go Authors, BSD 3-Clause License
+  https://pkg.go.dev/golang.org/x/crypto
 - golang.org/x/image, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://pkg.go.dev/golang.org/x/image
 - golang.org/x/net, Copyright 2009 The Go Authors, BSD 3-Clause License
@@ -104,6 +106,9 @@ Linux x64; the union of all three; go-wsman-messages, Fyne, go-keyring and zenit
   https://pkg.go.dev/golang.org/x/text
 - gopkg.in/yaml.v3, Copyright (c) 2006-2011 Kirill Simonov; Copyright 2011-2016 Canonical Ltd., MIT License and Apache License 2.0
   https://github.com/go-yaml/yaml
+- software.sslmate.com/src/go-pkcs12 (reading .p12/.pfx files for the certificate import),
+  Copyright (c) 2015, 2018, 2019 Opsmate, Inc.; Copyright (c) 2009 The Go Authors, BSD 3-Clause License
+  https://software.sslmate.com/src/go-pkcs12
 
 Additional third-party Go modules included in openlamt-mcp, the MCP server (it contains no
 Fyne, zenity or GUI module; the MCP Go SDK is listed above):

@@ -147,10 +147,10 @@ func TestTLSCertificates(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Certificate{
-		{ID: certA.id, Subject: "CN=amt-a.example.com", Issuer: "CN=amt-a.example.com", Fingerprint: fingerprintOf(certA.der), HasPrivateKey: true, TLS: true},
-		{ID: certB.id, Subject: "CN=amt-b.example.com", Issuer: "CN=amt-b.example.com", Fingerprint: fingerprintOf(certB.der), HasPrivateKey: true},
-		{ID: certNoKey.id, Subject: "CN=nokey.example.com", Issuer: "CN=nokey.example.com", Fingerprint: fingerprintOf(certNoKey.der)},
-		{ID: certRoot.id, Subject: "CN=ca.example.com", Issuer: "CN=ca.example.com", Fingerprint: fingerprintOf(certRoot.der), TrustedRoot: true},
+		{ID: certA.id, Subject: "CN=amt-a.example.com", Issuer: "CN=amt-a.example.com", Fingerprint: fingerprintOf(certA.der), DER: certA.der, HasPrivateKey: true, TLS: true},
+		{ID: certB.id, Subject: "CN=amt-b.example.com", Issuer: "CN=amt-b.example.com", Fingerprint: fingerprintOf(certB.der), DER: certB.der, HasPrivateKey: true},
+		{ID: certNoKey.id, Subject: "CN=nokey.example.com", Issuer: "CN=nokey.example.com", Fingerprint: fingerprintOf(certNoKey.der), DER: certNoKey.der},
+		{ID: certRoot.id, Subject: "CN=ca.example.com", Issuer: "CN=ca.example.com", Fingerprint: fingerprintOf(certRoot.der), DER: certRoot.der, TrustedRoot: true},
 	}
 	for i := range want {
 		want[i].NotBefore = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)

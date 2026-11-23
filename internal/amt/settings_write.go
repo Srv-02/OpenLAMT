@@ -68,6 +68,9 @@ type GeneralChange struct {
 	DynamicDNS          *DDNSMode
 	DDNSIntervalMinutes *int // 0 (off) or at least 20; used in DDNSClient mode
 	DDNSTTLSeconds      *int // at least 1; used in DDNSClient mode
+	// IdleWakeTimeoutMinutes is how long AMT stays on after a wake or after the host sleeps
+	// (MinIdleTimeout to MaxIdleTimeout). Not risky.
+	IdleWakeTimeoutMinutes *int
 }
 
 func validLabel(s string) bool {
@@ -112,6 +115,9 @@ func (c GeneralChange) Validate() error {
 	if c.DDNSTTLSeconds != nil && (*c.DDNSTTLSeconds < 1 || *c.DDNSTTLSeconds > 1<<31-1) {
 		return invalid("DDNSTTLSeconds", "between 1 and 2147483647")
 	}
+	if c.IdleWakeTimeoutMinutes != nil && (*c.IdleWakeTimeoutMinutes < MinIdleTimeout || *c.IdleWakeTimeoutMinutes > MaxIdleTimeout) {
+		return invalid("IdleWakeTimeoutMinutes", "between 1 and 65535")
+	}
 	return nil
 }
 
@@ -142,6 +148,9 @@ func (c GeneralChange) Apply(cur GeneralSettings) GeneralSettings {
 	}
 	if c.DDNSTTLSeconds != nil {
 		n.DDNSTTLSeconds = *c.DDNSTTLSeconds
+	}
+	if c.IdleWakeTimeoutMinutes != nil {
+		n.IdleWakeTimeoutMinutes = *c.IdleWakeTimeoutMinutes
 	}
 	return n
 }
@@ -194,6 +203,7 @@ func (d *Device) SetGeneral(c GeneralChange, confirm Confirmation) error {
 	}
 	t.integer("DDNSPeriodicUpdateInterval", c.DDNSIntervalMinutes)
 	t.integer("DDNSTTL", c.DDNSTTLSeconds)
+	t.integer("IdleWakeTimeout", c.IdleWakeTimeoutMinutes)
 	if !t.changed {
 		return nil
 	}

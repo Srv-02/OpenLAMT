@@ -86,6 +86,13 @@ func errorSamples() map[string]error {
 		"amt.ErrAlarmExists":            amt.ErrAlarmExists,
 		"amt.ErrAlarmPast":              amt.ErrAlarmPast,
 		"amt.ErrAlarmsFull":             amt.ErrAlarmsFull,
+		"amt.ErrDefenseNameExists":      amt.ErrDefenseNameExists,
+		"amt.ErrDefensePolicyActive":    amt.ErrDefensePolicyActive,
+		"amt.ErrDefenseNotFound":        amt.ErrDefenseNotFound,
+		"amt.DefenseFilterInUseError":   &amt.DefenseFilterInUseError{Policy: "Isolate"},
+		"amt.ErrWatchdogExists":         amt.ErrWatchdogExists,
+		"amt.ErrWatchdogNotFound":       amt.ErrWatchdogNotFound,
+		"amt.WatchdogPolicySharedError": &amt.WatchdogPolicySharedError{Policy: "Isolate"},
 		"amt.ErrCertificateUncertain":   amt.ErrCertificateUncertain,
 		"amt.ErrConfirmationMismatch":   amt.ErrConfirmationMismatch,
 		"amt.ErrConsentRequired":        amt.ErrConsentRequired,
@@ -225,6 +232,7 @@ func TestDescribeMethodError(t *testing.T) {
 		{&amt.MethodError{Method: "AddUserAclEntryEx", ReturnValue: 23}, "cannot store more accounts"},
 		{&amt.MethodError{Method: "AddUserAclEntryEx", ReturnValue: 5}, "AddUserAclEntryEx (return value 5)"},
 		{&amt.MethodError{Method: "CommitChanges", ReturnValue: 2058}, "CommitChanges (return value 2058)"},
+		{&amt.MethodError{Method: "AddAction", ReturnValue: 23}, "no more watchdog actions"},
 	}
 	for _, c := range cases {
 		if got := describe(c.err); !strings.Contains(got, c.want) {

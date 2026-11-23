@@ -34,16 +34,23 @@ type listAction struct {
 }
 
 // listRow is one line: one cell per column (rich-text segments) and the row button (nil = none).
+// lead is a second button left of it (System Defense: "Activate…" before "Delete…"); the
+// action column must be wide enough for both.
 type listRow struct {
 	cells  [][]widget.RichTextSegment
 	action *widgets.PrimaryButton
+	lead   *widgets.PrimaryButton
 }
 
 // listLine is a laid-out row.
 type listLine struct {
 	cells  []*widget.RichText
 	action *widgets.PrimaryButton
+	lead   *widgets.PrimaryButton
 }
+
+// listLeadGap is the space between the lead button and the action button of a row.
+const listLeadGap float32 = 8
 
 // listTable is the table of a list page (Users.dc.html): a 1 px frame with radius 10, a gray
 // header, hairlines between the rows. Columns have fixed widths, one takes the rest, the
@@ -99,7 +106,7 @@ func (t *listTable) setRows(rows []listRow) {
 		}
 	}
 	for _, r := range rows {
-		l := &listLine{action: r.action}
+		l := &listLine{action: r.action, lead: r.lead}
 		for i := range t.cols {
 			var segs []widget.RichTextSegment
 			if i < len(r.cells) {
@@ -213,6 +220,9 @@ func (t *listTable) rowHeight(l *listLine, cols []float32) float32 {
 	if l.action != nil {
 		h = l.action.MinSize().Height
 	}
+	if l.lead != nil {
+		h = max(h, l.lead.MinSize().Height)
+	}
 	for i, c := range l.cells {
 		ip := c.Theme().Size(theme.SizeNameInnerPadding)
 		w := max(0, cols[i]-2*padH) + 2*ip
@@ -320,8 +330,14 @@ func (r *listTableRenderer) Layout(size fyne.Size) {
 		}
 		if l.action != nil {
 			bs := l.action.MinSize()
-			l.action.Move(fyne.NewPos(x+cols[len(t.cols)]-padH-bs.Width, y+(rh-bs.Height)/2))
+			right := x + cols[len(t.cols)] - padH - bs.Width
+			l.action.Move(fyne.NewPos(right, y+(rh-bs.Height)/2))
 			l.action.Resize(bs)
+			if l.lead != nil {
+				ls := l.lead.MinSize()
+				l.lead.Move(fyne.NewPos(right-listLeadGap-ls.Width, y+(rh-ls.Height)/2))
+				l.lead.Resize(ls)
+			}
 		}
 		y += rh
 	}
@@ -351,6 +367,9 @@ func (r *listTableRenderer) Refresh() {
 		}
 		for _, c := range l.cells {
 			r.objects = append(r.objects, c)
+		}
+		if l.lead != nil {
+			r.objects = append(r.objects, l.lead)
 		}
 		if l.action != nil {
 			r.objects = append(r.objects, l.action)

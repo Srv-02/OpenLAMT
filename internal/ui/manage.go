@@ -175,6 +175,7 @@ type manager struct {
 	users    *manageSource[amt.UserList] // created by the first Users pane
 	power    *powerData                  // created by the first Power pane
 	wifi     *wifiData                   // created by the first Wi-Fi pane
+	defense  *defenseData                // created by the first System Defense pane
 	closed   bool
 	tlsAsk   *panel // the last "without TLS" question (tests)
 

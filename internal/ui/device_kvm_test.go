@@ -33,6 +33,9 @@ type kvmHarness struct {
 // Tests read window state only after a signal from changed or frames (see device_test.go).
 func newKVMDevice(t *testing.T, dev *sessionFake, opts kvmtest.Options) *kvmHarness {
 	t.Helper()
+	old := kvmClosedSettle
+	kvmClosedSettle = func(v *kvmView) { v.loops.Wait() } // the loop's kvmEnded finishes before send runs
+	t.Cleanup(func() { kvmClosedSettle = old })
 	englishUI(t)
 	a := test.NewTempApp(t)
 	if opts.Updates == nil {

@@ -424,6 +424,11 @@ func endsKVM(action amt.PowerAction) bool {
 // kvmCloseWait bounds the wait for a closing KVM session before a power action that ends it.
 const kvmCloseWait = 5 * time.Second
 
+// kvmClosedSettle runs in the closeKVMThen waiter between the end of the session and the held-back
+// action. Production does nothing; tests wait there for the frame loop (see loopsDone), because
+// their fyne.Do runs inline and the loop's kvmEnded would lay out the window concurrently.
+var kvmClosedSettle = func(*kvmView) {}
+
 func (d *DeviceWindow) execute(action amt.PowerAction) {
 	if d.claimPower(lang.L("Wait until the running power action ends, then try again.")) != nil {
 		return
@@ -458,6 +463,7 @@ func (d *DeviceWindow) closeKVMThen(send func()) {
 		time.AfterFunc(kvmCloseWait, func() { fyne.Do(d.flushPowerAfterConnect) })
 		return
 	}
+	view := d.view
 	go func() {
 		t := time.NewTimer(kvmCloseWait)
 		defer t.Stop()
@@ -465,6 +471,7 @@ func (d *DeviceWindow) closeKVMThen(send func()) {
 		case <-closed:
 		case <-t.C: // send anyway; AMT reports the failure if the session is still open
 		}
+		kvmClosedSettle(view)
 		fyne.Do(send)
 	}()
 }

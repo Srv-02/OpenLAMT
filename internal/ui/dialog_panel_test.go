@@ -68,7 +68,7 @@ func TestPanelDialogsShareWidthAndButtonOrder(t *testing.T) {
 		{"quit", func() { showConfirm(w, "power", "Quit OpenLAMT?", "A KVM session is open.", "Quit", func() {}, nil) }, lang.L("Cancel") + "|Quit"},
 		{"error", func() { showMessage(w, "Oops", "text", "details") }, "Copy details|" + lang.L("OK")},
 		{"message", func() { showMessage(w, "Info", "text", "") }, lang.L("OK")},
-		{"trust", func() { showTrustDialog(w, "h.example.com", fpr, func(bool) {}) }, lang.L("Cancel") + "|Trust device"},
+		{"trust", func() { showTrustDialog(w, "h.example.com", fpr, true, func(bool) {}) }, lang.L("Cancel") + "|Trust device"},
 		{"mismatch", func() {
 			showMismatchDialog(w, &amt.FingerprintMismatchError{Host: "h.example.com", Expected: fpr, Actual: fpr})
 		}, "Close"},
@@ -157,7 +157,7 @@ func TestTrustDialogEnterNeverTrusts(t *testing.T) {
 	w, c := panelHarness(t)
 	var got []bool
 	show := func() *panel {
-		return showTrustDialog(w, "h.example.com", "AA:BB", func(ok bool) { got = append(got, ok) })
+		return showTrustDialog(w, "h.example.com", "AA:BB", true, func(ok bool) { got = append(got, ok) })
 	}
 	p := show()
 	if c.Focused() != p.cancel {

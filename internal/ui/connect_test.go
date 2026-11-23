@@ -66,7 +66,7 @@ func newHarness(t *testing.T) *harness {
 			answer(h.passwordAnswer())
 		}
 	}
-	h.c.askTrust = func(_, got string, answer func(bool)) { h.trusted <- got; answer(h.trustAnswer) }
+	h.c.askTrust = func(_, got string, _ bool, answer func(bool)) { h.trusted <- got; answer(h.trustAnswer) }
 	return h
 }
 

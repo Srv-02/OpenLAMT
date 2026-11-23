@@ -11,7 +11,6 @@ import (
 	models "github.com/device-management-toolkit/go-wsman-messages/v2/pkg/wsman/cim/models"
 
 	"github.com/Srv-02/openlamt/internal/amt"
-	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/session"
 )
 
@@ -202,7 +201,8 @@ func TestAbortLocksClosedManage(t *testing.T) {
 }
 
 // TestDeviceWindowGetsLoginStore: the start window hands its favorites manager to the device
-// window, which passes it to device management.
+// window (wrapped, so the start window follows a login change), which passes it to device
+// management.
 func TestDeviceWindowGetsLoginStore(t *testing.T) {
 	h := newStart(t)
 	sess, st, err := session.Open(context.Background(), amt.Config{Host: "device.example.com", Username: "admin", UseTLS: true, Fingerprint: fp},
@@ -212,7 +212,7 @@ func TestDeviceWindowGetsLoginStore(t *testing.T) {
 	}
 	d := h.s.addDevice(sess, st, "Büro")
 	d.onManager = func(m *manager) { m.tickEvery = 0; m.later = func(func()) {} }
-	if mgr, ok := d.loginStore.(*favorites.Manager); !ok || mgr != h.s.mgr {
+	if lf, ok := d.loginStore.(*loginFollower); !ok || lf.LoginStore != session.LoginStore(h.s.mgr) {
 		t.Fatalf("login store %T", d.loginStore)
 	}
 	d.setManageOpen(true)

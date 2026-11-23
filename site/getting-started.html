@@ -168,7 +168,7 @@
 <ol>
   <li>On the first TLS connection, OpenLAMT shows the SHA-256 fingerprint of the device certificate and asks <span class="ui">Trust this device?</span></li>
   <li>Compare the fingerprint with the one the device shows, for example in the BIOS (MEBx) or in your provisioning records. Click <span class="ui">Trust device</span> if it matches.</li>
-  <li>OpenLAMT saves the fingerprint in the keychain. Later connections check it silently.</li>
+  <li>For a favorite, OpenLAMT saves the fingerprint in the keychain. Later connections check it silently. A Quick Connect to a device that is no favorite accepts the certificate for this connection only and asks again next time.</li>
   <li>If the certificate ever changes, OpenLAMT stops the connection and shows <span class="ui">Certificate changed</span>.</li>
 </ol>
 </div>

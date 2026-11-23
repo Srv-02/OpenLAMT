@@ -180,7 +180,7 @@ func seriesManager(t *testing.T, dir string, apply func(fyne.App)) {
 	showAboutDialog(s.win, s.app)
 	shot("dialog-about")
 	closeOverlays(s.win)
-	showTrustDialog(s.win, "192.0.2.10", fp, func(bool) {})
+	showTrustDialog(s.win, "192.0.2.10", fp, true, func(bool) {})
 	shot("dialog-trust")
 	closeOverlays(s.win)
 	showPasswordDialog(s.win, "192.0.2.10", "admin", true, func(string, bool, bool) {})

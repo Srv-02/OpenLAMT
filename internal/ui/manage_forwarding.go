@@ -85,7 +85,7 @@ func (m *manager) showForwarding(w fyne.Window, f amt.Forwarding) *forwardingDia
 				style.ColorNameTextSecondary, false))
 			d.table = newListTable(false, []listColumn{
 				{title: lang.L("Target")},
-				{title: lang.L("Delivery"), width: 110},
+				{title: lang.L("Delivery"), width: 150},
 				{title: lang.L("Events"), width: 90},
 			}, &listAction{width: 64})
 			d.table.onHeight = d.relayout

@@ -70,9 +70,11 @@ func TestCertificateKeepsATrailingSpaceByteOfDER(t *testing.T) {
 		if !bytes.ContainsAny(c.Raw[len(c.Raw)-1:], " \t\n\v\f\r") {
 			continue
 		}
-		der, err := Certificate(c.Raw)
-		if err != nil || !bytes.Equal(der, c.Raw) {
-			t.Fatalf("DER ending in %#x: %v", c.Raw[len(c.Raw)-1], err)
+		for _, data := range [][]byte{c.Raw, append(bytes.Clone(c.Raw), "\r\n"...), append([]byte(" \n"), c.Raw...)} {
+			der, err := Certificate(data)
+			if err != nil || !bytes.Equal(der, c.Raw) {
+				t.Fatalf("DER ending in %#x (%d bytes given): %v", c.Raw[len(c.Raw)-1], len(data), err)
+			}
 		}
 		return
 	}

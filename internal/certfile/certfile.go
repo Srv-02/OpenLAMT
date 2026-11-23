@@ -46,13 +46,19 @@ func Certificate(data []byte) ([]byte, error) {
 			return b.Bytes, nil
 		}
 	}
-	// DER as it is first: its last byte can be one TrimSpace would cut (0x20, 0x0A, ...)
-	for _, der := range [][]byte{data, bytes.TrimSpace(data)} {
+	// DER, maybe with white space around it. The last byte of the DER itself can look like white
+	// space (0x20, 0x0A, ...: it belongs to the random signature), so trailing white space is
+	// taken away one byte at a time until the certificate parses.
+	der := bytes.TrimLeft(data, " \t\r\n\v\f")
+	for {
 		if _, err := x509.ParseCertificate(der); err == nil {
 			return der, nil
 		}
+		if len(der) == 0 || !bytes.ContainsAny(der[len(der)-1:], " \t\r\n\v\f") {
+			return nil, ErrNotCertificate
+		}
+		der = der[:len(der)-1]
 	}
-	return nil, ErrNotCertificate
 }
 
 // PKCS12 opens a .p12 or .pfx file with password and returns its certificate (DER) and RSA

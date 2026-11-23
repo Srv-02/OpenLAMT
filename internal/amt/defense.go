@@ -95,10 +95,20 @@ var (
 	ErrDefensePolicyActive = errors.New("the policy is active")
 	// ErrDefenseNotFound: the device has no filter or policy with this ID (any more).
 	ErrDefenseNotFound = errors.New("the filter or policy does not exist")
-	// ErrDefensePolicyLost: switching the active policy failed after the old link was deleted,
-	// and the old policy could not be linked again. The wired port may have no policy now.
+	// ErrDefensePolicyLost: switching the active policy failed after the old link was or may
+	// have been deleted, and neither policy could be linked again (or the links could not be
+	// read). The wired port may have no policy now.
 	ErrDefensePolicyLost = errors.New("the wired port may have no System Defense policy now")
 )
+
+// DefenseLinksError: more than one policy is linked to the wired port, after a policy switch
+// that failed half-way (issue #167). Which one the firmware enforces is unknown. Policies are
+// their names (the ID where a policy has none).
+type DefenseLinksError struct{ Policies []string }
+
+func (e *DefenseLinksError) Error() string {
+	return "the wired port has links to more than one System Defense policy: " + strings.Join(e.Policies, ", ")
+}
 
 // DefenseFilterInUseError: a policy contains the filter, so it cannot be deleted.
 type DefenseFilterInUseError struct{ Policy string }
@@ -144,7 +154,7 @@ type DefensePolicy struct {
 	// DropIn and DropOut drop the inbound and outbound traffic no filter matches.
 	DropIn, DropOut bool
 	Filters         []string // IDs of its filters
-	Active          bool     // enabled on the wired port
+	Active          bool     // linked to the wired port (see SystemDefense.Linked)
 }
 
 // SystemDefense is what the System Defense page shows.
@@ -153,8 +163,33 @@ type SystemDefense struct {
 	Offered  bool
 	Policies []DefensePolicy
 	Filters  []DefenseFilter
-	// Active is the ID of the policy enabled on the wired port; "" for none.
+	// Linked are the IDs of all policies linked to the wired port, in the order the device lists
+	// them: one or none, unless a policy switch failed half-way (LinkError).
+	Linked []string
+	// Active is the ID of the policy enabled on the wired port: the only entry of Linked, ""
+	// for none or more than one. With more the code does not pick one, because it cannot
+	// tell which policy the firmware enforces.
 	Active string
+}
+
+// LinkError is a *DefenseLinksError when more than one policy is linked to the wired port.
+func (s SystemDefense) LinkError() error {
+	if len(s.Linked) < 2 {
+		return nil
+	}
+	return &DefenseLinksError{Policies: s.names(s.Linked)}
+}
+
+// names returns the names of the policies ids, the ID where a policy has no name.
+func (s SystemDefense) names(ids []string) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if p, ok := s.Policy(id); ok && p.Name != "" {
+			id = p.Name
+		}
+		out = append(out, id)
+	}
+	return out
 }
 
 // Policy returns the policy with id.
@@ -434,23 +469,40 @@ func (d *Device) systemDefense(stats bool) (SystemDefense, error) {
 			s.Filters = append(s.Filters, filterFrom(o))
 		}
 	}
-	links, err := d.pullLinks(classPortPolicy)
+	links, err := d.portLinks()
 	if err != nil && !isMissingClass(err) {
 		return SystemDefense{}, writeError(op, err)
 	}
-	for _, l := range links {
-		if l.Antecedent.selector("DeviceID") == wiredPortID {
-			s.Active = l.Dependent.selector("InstanceID")
-		}
+	s.Linked = links
+	if len(links) == 1 {
+		s.Active = links[0]
 	}
 	for i := range s.Policies {
-		s.Policies[i].Active = s.Policies[i].ID == s.Active && s.Active != ""
+		s.Policies[i].Active = slices.Contains(s.Linked, s.Policies[i].ID)
 	}
 	slices.SortStableFunc(s.Policies, func(a, b DefensePolicy) int { return b.Precedence - a.Precedence })
 	if stats && s.Active != "" {
 		d.readFilterStats(&s)
 	}
 	return s, nil
+}
+
+// portLinks reads the IDs of the policies linked to the wired port, without duplicates.
+func (d *Device) portLinks() ([]string, error) {
+	links, err := d.pullLinks(classPortPolicy)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for _, l := range links {
+		if l.Antecedent.selector("DeviceID") != wiredPortID {
+			continue
+		}
+		if id := l.Dependent.selector("InstanceID"); id != "" && !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
 }
 
 // readFilterStats updates the statistics of the active policy on the wired port
@@ -683,15 +735,17 @@ func (d *Device) DeleteDefensePolicy(id string) error {
 	return writeError(op, d.deleteRaw(classDefensePolicy, []selector{{"InstanceID", p.ID}}))
 }
 
-// ActivateDefensePolicy enables the policy id on the wired port in place of the active one. A
+// ActivateDefensePolicy enables the policy id on the wired port in place of the linked ones. A
 // policy that drops traffic (SystemDefense.Drops) needs confirm for OpDefenseDrop.
 //
 // It creates the new link first and deletes the old one second, so a failed request never
 // leaves the port without a policy: Intel's class reference says a new link on a port with an
 // enabled policy enables the new policy and may delete the old link itself (a "not found" on
 // the delete is success). Only when the device refuses the Create while the old link exists
-// does it switch like MeshCommander, delete then create; if that Create fails too, it links the
-// old policy again and, when even that fails, returns ErrDefensePolicyLost.
+// does it switch like MeshCommander, delete then create; when the device refuses that Create
+// too, it links the old policy again and, when even that fails, returns ErrDefensePolicyLost.
+// After any other failed or unanswered step it reads the links once and settles them
+// (settleLinks). With id linked next to other policies it deletes the others.
 func (d *Device) ActivateDefensePolicy(id string, confirm Confirmation) error {
 	const op = "activate system defense policy"
 	sd, err := d.systemDefense(false)
@@ -709,28 +763,91 @@ func (d *Device) ActivateDefensePolicy(id string, confirm Confirmation) error {
 			return err
 		}
 	}
-	if sd.Active == "" {
+	old := slices.DeleteFunc(slices.Clone(sd.Linked), func(x string) bool { return x == id })
+	switch {
+	case len(sd.Linked) == 0:
 		return writeError(op, d.createPortLink(classPortPolicy, id))
+	case len(old) < len(sd.Linked): // id is linked already, next to others
+		if err := d.deleteLinks(old); err != nil {
+			return d.settleLinks(op, sd, id, err, false)
+		}
+		return nil
 	}
-	old := sd.Active
 	err = d.createPortLink(classPortPolicy, id)
 	if err == nil {
-		return writeError(op, d.deleteLinkIfPresent(old))
+		if err := d.deleteLinks(old); err != nil {
+			return d.settleLinks(op, sd, id, err, false) // the new link exists
+		}
+		return nil
 	}
-	if !deviceRefused(err) { // no answer or AccessDenied: the old link was not touched
+	if IsAccessDenied(err) { // not applied: the old link was not touched
 		return writeError(op, err)
+	}
+	if !deviceRefused(err) { // no answer: the new link may exist next to the old one
+		return d.settleLinks(op, sd, id, err, false)
 	}
 	// The firmware refuses a second link: delete the old one first.
-	if err := d.deleteLinkIfPresent(old); err != nil {
-		return writeError(op, err)
+	if err := d.deleteLinks(old); err != nil {
+		return d.settleLinks(op, sd, id, err, !notApplied(err))
 	}
 	if err := d.createPortLink(classPortPolicy, id); err != nil {
-		if rerr := d.createPortLink(classPortPolicy, old); rerr != nil {
+		if !notApplied(err) { // no answer: the new link may exist
+			return d.settleLinks(op, sd, id, err, true)
+		}
+		// Such a firmware holds one link, so old has one entry.
+		if rerr := d.createPortLink(classPortPolicy, old[0]); rerr != nil {
 			return fmt.Errorf("%s: %w: %w", op, ErrDefensePolicyLost, err)
 		}
 		return writeError(op, err)
 	}
 	return nil
+}
+
+// settleLinks reads the links of the wired port once after a failed or unanswered step (cause)
+// of the switch to id and settles them (issue #167):
+//   - only id linked: success;
+//   - id not linked, other policies are: the error of cause, the switch did not happen;
+//   - no link: links id once, else ErrDefensePolicyLost;
+//   - id and others linked: deletes the others once, else a *DefenseLinksError naming all.
+//
+// A failed read is ErrDefensePolicyLost when the port may have no link (mayBeEmpty: a delete
+// may have been applied and no create of id confirmed), else the error of cause.
+func (d *Device) settleLinks(op string, sd SystemDefense, id string, cause error, mayBeEmpty bool) error {
+	links, err := d.portLinks()
+	if err != nil {
+		if mayBeEmpty {
+			return fmt.Errorf("%s: %w: %w", op, ErrDefensePolicyLost, cause)
+		}
+		return writeError(op, cause)
+	}
+	others := slices.DeleteFunc(slices.Clone(links), func(x string) bool { return x == id })
+	switch {
+	case len(links) == 0:
+		if err := d.createPortLink(classPortPolicy, id); err != nil {
+			return fmt.Errorf("%s: %w: %w", op, ErrDefensePolicyLost, err)
+		}
+		return nil
+	case len(others) == len(links):
+		return writeError(op, cause)
+	case len(others) == 0:
+		return nil
+	}
+	if err := d.deleteLinks(others); err != nil {
+		return fmt.Errorf("%s: %w: %w", op, &DefenseLinksError{Policies: sd.names(links)}, err)
+	}
+	return nil
+}
+
+// deleteLinks deletes the links of the wired port to the policies ids (deleteLinkIfPresent),
+// each one even after a failure, and joins the errors.
+func (d *Device) deleteLinks(ids []string) error {
+	var errs []error
+	for _, id := range ids {
+		if err := d.deleteLinkIfPresent(id); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // deleteLinkIfPresent deletes the link of the wired port to policy id; a link that no longer
@@ -744,6 +861,10 @@ func (d *Device) deleteLinkIfPresent(id string) error {
 	return err
 }
 
+// notApplied reports an error the device answered with (a SOAP fault, AccessDenied too): it
+// did not apply the request. Any other error may hide an applied request without an answer.
+func notApplied(err error) bool { return deviceRefused(err) || IsAccessDenied(err) }
+
 // deviceRefused reports a SOAP fault other than AccessDenied: the device answered and refused
 // the request, so it did not apply it.
 func deviceRefused(err error) bool {
@@ -751,16 +872,20 @@ func deviceRefused(err error) bool {
 	return errors.As(err, &amtErr) && !strings.Contains(amtErr.SubCode, "AccessDenied")
 }
 
-// DeactivateDefensePolicy turns the active policy off: the wired port then has none. Without an
-// active policy it does nothing.
+// DeactivateDefensePolicy turns the active policy off: it deletes every link of the wired port,
+// so the port then has none, also after a failed switch left two. Without a link it does
+// nothing.
 func (d *Device) DeactivateDefensePolicy() error {
 	const op = "turn off system defense policy"
 	sd, err := d.systemDefense(false)
 	if err != nil {
 		return err
 	}
-	if sd.Active == "" {
-		return nil
+	var errs []error
+	for _, id := range sd.Linked {
+		if err := d.deletePortLink(classPortPolicy, id); err != nil {
+			errs = append(errs, err)
+		}
 	}
-	return writeError(op, d.deletePortLink(classPortPolicy, sd.Active))
+	return writeError(op, errors.Join(errs...))
 }

@@ -50,6 +50,7 @@ func describe(err error) string {
 	var ke *favorites.KeychainError
 	var pe *pinReadError
 	var ce *amt.ConsentError
+	var links *amt.DefenseLinksError
 	var kvmErr *amt.KVMError
 	var re *kvm.RedirectionError
 	var tile *kvm.TileError
@@ -65,6 +66,9 @@ func describe(err error) string {
 		return describeMayBeSet(err)
 	case errors.Is(err, amt.ErrDefensePolicyLost): // before the cause: the port may be unfiltered
 		return lang.L("Switching the policy failed, and the wired port may have no policy now. The operating system may be on the network without filtering. Refresh the page and activate a policy again.")
+	case errors.As(err, &links): // before the cause: two policies may filter
+		return lang.L("More than one policy is linked to the wired port: {{.Policies}}. It is unclear which one filters. Turn the policy off and activate one again.",
+			map[string]any{"Policies": strings.Join(links.Policies, ", ")})
 	case errors.As(err, &ce) && ce.Step == "SendOptInCode":
 		return lang.L("The device did not accept the consent code. Check the six digits on the device screen and try again.")
 	case errors.As(err, &ce):

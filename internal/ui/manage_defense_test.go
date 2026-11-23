@@ -266,6 +266,35 @@ func TestActivateAllowPolicyAndTurnOffNeedNoConfirmation(t *testing.T) {
 	}
 }
 
+// Issue #167: two linked policies are not shown as one active policy. The page names both
+// above the lists, and Turn Off on either one turns both off.
+func TestDefensePageTwoLinkedPolicies(t *testing.T) {
+	h, p := defenseHarness(t, true, func(st *session.FakeDefense) {
+		st.Defense.Active, st.Defense.Linked = "", []string{"allow", "iso"}
+	})
+	want := "More than one policy is linked to the wired port: Allow all, Isolate. It is unclear which one filters. Turn the policy off and activate one again."
+	if !p.err.box.Visible() || p.err.Text() != want {
+		t.Fatalf("error %v %q", p.err.box.Visible(), p.err.Text())
+	}
+	if p.active.Text != "· Active policy: Allow all, Isolate" {
+		t.Errorf("head %q", p.active.Text)
+	}
+	for i, l := range p.policies.lines {
+		if got := cellTexts(l); got[len(got)-1] != "Active" || l.lead.Text != "Turn Off…" {
+			t.Errorf("row %d %q, lead %q", i, got, l.lead.Text)
+		}
+	}
+	test.Tap(p.policies.lines[1].lead)
+	h.wait(t)
+	h.wait(t)
+	if got := h.dev.DefensePage().Written(); !slices.Equal(got, []string{"DeactivateDefensePolicy"}) {
+		t.Fatalf("writes %v", got)
+	}
+	if p.err.box.Visible() || p.active.Text != "· Active policy: None" {
+		t.Errorf("after Turn Off: error %v, head %q", p.err.box.Visible(), p.active.Text)
+	}
+}
+
 func TestDeletePolicySimpleAndActiveRefused(t *testing.T) {
 	h, p := defenseHarness(t, false, nil)
 	test.Tap(p.policies.lines[0].action) // the active one
@@ -627,6 +656,7 @@ func TestDefenseErrorTexts(t *testing.T) {
 		&amt.DefenseFilterInUseError{Policy: "Isolate"}:  "The policy “Isolate” uses this filter. Delete the policy first.",
 		&amt.WatchdogPolicySharedError{Policy: "Strict"}: "All watchdogs switch the same policy, “Strict”. Choose it, or delete the watchdogs that use it first.",
 		amt.ErrWatchdogExists:                            "A watchdog with this agent ID exists. Generate a new ID.",
+		fmt.Errorf("activate system defense policy: %w: %w", &amt.DefenseLinksError{Policies: []string{"Allow all", "Isolate"}}, errors.New("connection reset")): "More than one policy is linked to the wired port: Allow all, Isolate. It is unclear which one filters. Turn the policy off and activate one again.",
 	} {
 		if got := describe(err); got != want {
 			t.Errorf("describe(%v) = %q, want %q", err, got, want)

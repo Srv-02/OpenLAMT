@@ -571,6 +571,150 @@ func TestActivateSwitchOrder(t *testing.T) {
 	}
 }
 
+// Issue #167: after a failed or unanswered step of the switch the links are read once and
+// settled. The old link is "Allow all", the new one "No ARP".
+func TestActivateSettlesLinks(t *testing.T) {
+	reset := cfgResp{err: errors.New("connection reset")}
+	refused := func(t *testing.T) cfgResp { return cfgResp{err: faultErr(t, "already_exists_fault.xml")} }
+	ok, deleted := cfgResp{file: "create_ok.xml"}, cfgResp{file: "delete_ok.xml"}
+	onlyOld, onlyNew := cfgResp{file: "sd_portpolicy_pull.xml"}, cfgResp{file: "sd_portpolicy_pull_noarp.xml"}
+	none, both := cfgResp{file: "pull_empty.xml"}, cfgResp{file: "sd_portpolicy_pull_two.xml"}
+	create, del := "Create "+handleNoARP, "Delete "+handleAllow
+	cases := []struct {
+		name    string
+		creates func(t *testing.T) []cfgResp
+		deletes []cfgResp
+		read    cfgResp // the links after the failed step
+		writes  []string
+		want    func(error) bool
+	}{
+		{"only the new link: success",
+			func(*testing.T) []cfgResp { return []cfgResp{ok} }, []cfgResp{reset}, onlyNew,
+			[]string{create, del}, func(err error) bool { return err == nil }},
+		{"unanswered create, only the old link: plain error",
+			func(*testing.T) []cfgResp { return []cfgResp{reset} }, nil, onlyOld,
+			[]string{create}, plainSwitchError},
+		{"unanswered fallback delete, only the old link: plain error, no relink",
+			func(t *testing.T) []cfgResp { return []cfgResp{refused(t)} }, []cfgResp{reset}, onlyOld,
+			[]string{create, del}, plainSwitchError},
+		{"no link: the new one is linked once",
+			func(t *testing.T) []cfgResp { return []cfgResp{refused(t), ok} }, []cfgResp{reset}, none,
+			[]string{create, del, create}, func(err error) bool { return err == nil }},
+		{"no link and the link fails: port may have no policy",
+			func(t *testing.T) []cfgResp { return []cfgResp{refused(t), reset} }, []cfgResp{reset}, none,
+			[]string{create, del, create}, func(err error) bool { return errors.Is(err, ErrDefensePolicyLost) }},
+		{"unanswered fallback create, no link: the new one is linked once",
+			func(t *testing.T) []cfgResp { return []cfgResp{refused(t), reset, ok} }, nil, none,
+			[]string{create, del, create, create}, func(err error) bool { return err == nil }},
+		{"both links: the old one is deleted once",
+			func(*testing.T) []cfgResp { return []cfgResp{ok} }, []cfgResp{reset, deleted}, both,
+			[]string{create, del, del}, func(err error) bool { return err == nil }},
+		{"both links and the delete fails: the error names both",
+			func(*testing.T) []cfgResp { return []cfgResp{ok} }, []cfgResp{reset}, both,
+			[]string{create, del, del}, func(err error) bool {
+				var le *DefenseLinksError
+				return errors.As(err, &le) && slices.Equal(le.Policies, []string{"Allow all", "No ARP"})
+			}},
+		{"unanswered create, both links: the old one is deleted once",
+			func(*testing.T) []cfgResp { return []cfgResp{reset} }, nil, both,
+			[]string{create, del}, func(err error) bool { return err == nil }},
+		{"read fails after the fallback delete: port may have no policy",
+			func(t *testing.T) []cfgResp { return []cfgResp{refused(t)} }, []cfgResp{reset}, reset,
+			[]string{create, del}, func(err error) bool { return errors.Is(err, ErrDefensePolicyLost) }},
+		{"read fails while a link is sure: plain error",
+			func(*testing.T) []cfgResp { return []cfgResp{ok} }, []cfgResp{reset}, reset,
+			[]string{create, del}, plainSwitchError},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			seq := defenseSeq()
+			seq["Create|AMT_NetworkPortSystemDefensePolicy"] = c.creates(t)
+			if c.deletes != nil {
+				seq["Delete|AMT_NetworkPortSystemDefensePolicy"] = c.deletes
+			}
+			seq["Pull|AMT_NetworkPortSystemDefensePolicy"] = []cfgResp{onlyOld, c.read}
+			d, f := cfgDevice(seq)
+			err := d.ActivateDefensePolicy(handleNoARP, mustConfirm(t, OpDefenseDrop))
+			if !c.want(err) {
+				t.Fatalf("err %v", err)
+			}
+			if got := linkWrites(f); !slices.Equal(got, c.writes) {
+				t.Fatalf("writes %q, want %q", got, c.writes)
+			}
+		})
+	}
+}
+
+// plainSwitchError is a failed switch without the "no policy" or "two policies" warning.
+func plainSwitchError(err error) bool {
+	var le *DefenseLinksError
+	return err != nil && !errors.Is(err, ErrDefensePolicyLost) && !errors.As(err, &le)
+}
+
+// Issue #167: two links are not shown as one active policy.
+func TestGetSystemDefenseTwoLinksPicksNone(t *testing.T) {
+	seq := defenseSeq()
+	seq["Pull|AMT_NetworkPortSystemDefensePolicy"] = []cfgResp{{file: "sd_portpolicy_pull_two.xml"}}
+	d, f := cfgDevice(seq)
+	sd, err := d.GetSystemDefense()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sd.Active != "" || !slices.Equal(sd.Linked, []string{handleAllow, handleNoARP}) {
+		t.Fatalf("active %q, linked %q", sd.Active, sd.Linked)
+	}
+	for _, p := range sd.Policies {
+		if p.Active != (p.ID == handleAllow || p.ID == handleNoARP) {
+			t.Errorf("%s active %v", p.Name, p.Active)
+		}
+	}
+	var le *DefenseLinksError
+	if err := sd.LinkError(); !errors.As(err, &le) || !slices.Equal(le.Policies, []string{"Allow all", "No ARP"}) {
+		t.Errorf("link error %v", err)
+	}
+	if n := len(f.requestsFor("UpdateStatistics|AMT_SystemDefensePolicy")); n != 0 {
+		t.Errorf("%d UpdateStatistics with two links", n)
+	}
+	if err := d.DeleteDefensePolicy(handleNoARP); !errors.Is(err, ErrDefensePolicyActive) {
+		t.Errorf("delete of a linked policy: %v", err)
+	}
+	seq["Pull|AMT_NetworkPortSystemDefensePolicy"] = []cfgResp{{file: "sd_portpolicy_pull.xml"}}
+	d, _ = cfgDevice(seq)
+	if sd, _ := d.GetSystemDefense(); sd.LinkError() != nil || sd.Active != handleAllow {
+		t.Errorf("one link: active %q, %v", sd.Active, sd.LinkError())
+	}
+}
+
+// Issue #167: with two links, activating one of them deletes the other, another policy
+// replaces both, and Turn off deletes both.
+func TestDefenseWritesWithTwoLinks(t *testing.T) {
+	cases := []struct {
+		name   string
+		write  func(d *Device) error
+		writes []string
+	}{
+		{"activate a linked policy", func(d *Device) error { return d.ActivateDefensePolicy(handleNoARP, mustConfirm(t, OpDefenseDrop)) },
+			[]string{"Delete " + handleAllow}},
+		{"activate another policy", func(d *Device) error { return d.ActivateDefensePolicy(handleIsolate, mustConfirm(t, OpDefenseDrop)) },
+			[]string{"Create " + handleIsolate, "Delete " + handleAllow, "Delete " + handleNoARP}},
+		{"turn off", (*Device).DeactivateDefensePolicy,
+			[]string{"Delete " + handleAllow, "Delete " + handleNoARP}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			seq := defenseSeq()
+			seq["Pull|AMT_NetworkPortSystemDefensePolicy"] = []cfgResp{{file: "sd_portpolicy_pull_two.xml"}}
+			d, f := cfgDevice(seq)
+			if err := c.write(d); err != nil {
+				t.Fatal(err)
+			}
+			if got := linkWrites(f); !slices.Equal(got, c.writes) {
+				t.Fatalf("writes %q, want %q", got, c.writes)
+			}
+		})
+	}
+}
+
 func mustConfirm(t *testing.T, op Operation) Confirmation {
 	t.Helper()
 	c, err := ConfirmChecked(op, testHost, true)

@@ -43,8 +43,12 @@ func (p *FakeDefense) clone() amt.SystemDefense {
 	sd := p.Defense
 	sd.Policies = slices.Clone(sd.Policies)
 	sd.Filters = slices.Clone(sd.Filters)
+	sd.Linked = slices.Clone(sd.Linked)
+	if len(sd.Linked) == 0 && sd.Active != "" {
+		sd.Linked = []string{sd.Active}
+	}
 	for i := range sd.Policies {
-		sd.Policies[i].Active = sd.Policies[i].ID == sd.Active && sd.Active != ""
+		sd.Policies[i].Active = slices.Contains(sd.Linked, sd.Policies[i].ID)
 	}
 	return sd
 }
@@ -149,7 +153,7 @@ func (f *Fake) DeleteDefensePolicy(id string) error {
 		if _, ok := p.Defense.Policy(id); !ok {
 			return amt.ErrDefenseNotFound
 		}
-		if p.Defense.Active == id {
+		if p.Defense.Active == id || slices.Contains(p.Defense.Linked, id) {
 			return amt.ErrDefensePolicyActive
 		}
 		if p.Err != nil {
@@ -173,7 +177,7 @@ func (f *Fake) ActivateDefensePolicy(id string, c amt.Confirmation) error {
 		if p.Err != nil {
 			return p.Err
 		}
-		p.Defense.Active = id
+		p.Defense.Active, p.Defense.Linked = id, nil
 		return nil
 	})
 }
@@ -183,7 +187,7 @@ func (f *Fake) DeactivateDefensePolicy() error {
 		if p.Err != nil {
 			return p.Err
 		}
-		p.Defense.Active = ""
+		p.Defense.Active, p.Defense.Linked = "", nil
 		return nil
 	})
 }

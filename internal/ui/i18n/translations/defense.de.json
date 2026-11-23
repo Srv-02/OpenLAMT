@@ -52,6 +52,7 @@
   "Log event, activate {{.Policy}}": "Ereignis protokollieren, {{.Policy}} aktivieren",
   "Log event, turn off {{.Policy}}": "Ereignis protokollieren, {{.Policy}} ausschalten",
   "Match": "Treffer bei",
+  "More than one policy is linked to the wired port: {{.Policies}}. It is unclear which one filters. Turn the policy off and activate one again.": "Mehr als eine Policy ist mit dem kabelgebundenen Port verknüpft: {{.Policies}}. Welche davon filtert, ist unklar. Schalte die Policy aus und aktiviere eine neu.",
   "Not available on this device": "Auf diesem Gerät nicht verfügbar",
   "Not started": "Nicht gestartet",
   "Otherwise": "Sonst",

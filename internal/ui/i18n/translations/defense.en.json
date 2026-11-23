@@ -52,6 +52,7 @@
   "Log event, activate {{.Policy}}": "Log event, activate {{.Policy}}",
   "Log event, turn off {{.Policy}}": "Log event, turn off {{.Policy}}",
   "Match": "Match",
+  "More than one policy is linked to the wired port: {{.Policies}}. It is unclear which one filters. Turn the policy off and activate one again.": "More than one policy is linked to the wired port: {{.Policies}}. It is unclear which one filters. Turn the policy off and activate one again.",
   "Not available on this device": "Not available on this device",
   "Not started": "Not started",
   "Otherwise": "Otherwise",

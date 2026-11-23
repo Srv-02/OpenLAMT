@@ -163,3 +163,43 @@ func TestSecretTextWithoutTLSAsksFirst(t *testing.T) {
 		})
 	}
 }
+
+// TestSecretTextFollowsTheOpenSession (#137): kvm_type_text and sol_type_text send over the
+// session that is already open, so a favorite switched to TLS after the connect does not lift the
+// question for a secret text.
+func TestSecretTextFollowsTheOpenSession(t *testing.T) {
+	for _, name := range []string{"kvm_type_text", "sol_type_text"} {
+		t.Run(name, func(t *testing.T) {
+			a := &askAll{answer: &mcp.ElicitResult{Action: "decline"}}
+			h := newHarness(t)
+			h.elicit = a.handler
+			received := secretTextSetup(t, h, name)
+			h.favs[0].UseTLS = true // the person turned TLS on in the app; the open session is still plain
+			h.mustFail(name, dev("NUC", "text", "Hunter2", "secret", true), "not confirmed")
+			if len(a.messages) != 1 || !strings.Contains(a.messages[0], "no TLS") {
+				t.Fatalf("asked %q", a.messages)
+			}
+			if name == "kvm_type_text" && received() != 0 {
+				t.Fatal("typed over the plain session after a declined question")
+			}
+		})
+	}
+}
+
+// TestAnswerDoesNotSurviveATLSChange (#137): a question asked while the favorite had TLS is not
+// answered by a confirmation that arrives after TLS was turned off; the password is not sent.
+func TestAnswerDoesNotSurviveATLSChange(t *testing.T) {
+	h := newHarness(t)
+	f := h.addDeviceAs("NUC", "192.0.2.10", "operator", true)
+	f.Cfg.Users = deviceUsers()
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		h.favs[0].UseTLS = false // TLS is switched off while the question is open
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
+	h.start()
+	h.mustFail("update_user", dev("NUC", "user", "bob", "new_name", "robert", "password", newPassword), "favorite changed")
+	if f.Cfg.Users.Users[1].Name != "bob" {
+		t.Fatalf("written: %+v", f.Cfg.Users)
+	}
+}

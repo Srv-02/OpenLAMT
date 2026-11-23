@@ -232,15 +232,17 @@ func (s *server) solRead(ctx context.Context, _ *mcp.CallToolRequest, in solRead
 // confirmSOL asks the person in the MCP client before SOL input, when the config wants it, and
 // only for a call that can run: the device needs a running session.
 func (s *server) confirmSOL(req *mcp.CallToolRequest, fav favorites.Favorite, what string, secret bool) (*mcp.CallToolResult, error) {
+	tls := fav.UseTLS
 	if err := s.sol.use(fav, func(e *solEntry) error {
 		if !e.alive() {
 			return e.endedError()
 		}
+		tls = e.tls // the text goes over the open session, whatever the favorite says now
 		return nil
 	}); err != nil {
 		return nil, err
 	}
-	return s.confirmText(req, fav, what, secret)
+	return s.confirmText(req, fav, what, secret, tls)
 }
 
 // solWrite sends p to the running session of the device of fav in one Write.

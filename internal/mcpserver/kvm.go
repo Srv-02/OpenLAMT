@@ -35,6 +35,7 @@ type kvmEntry struct {
 	key      string      // favKey of the device
 	client   *kvm.Client // nil after a power action closed it; opened again on use
 	warnings []string    // of the last open, e.g. no TLS
+	tls      bool        // the open session uses TLS (the favorite may have changed since)
 	removed  bool        // disconnected, idle or shut down: the entry is no longer in the manager
 	lastUsed time.Time
 	timer    *time.Timer
@@ -98,6 +99,20 @@ func (m *kvmManager) has(fav favorites.Favorite) bool {
 	return m.entries[favKey(fav)] != nil
 }
 
+// sessionTLS reports whether the running session of the device of fav uses TLS; ok is false
+// without a running session.
+func (m *kvmManager) sessionTLS(fav favorites.Favorite) (tls, ok bool) {
+	m.mu.Lock()
+	e := m.entries[favKey(fav)]
+	m.mu.Unlock()
+	if e == nil {
+		return false, false
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.tls, !e.removed && e.alive()
+}
+
 // connect opens the session of the device of fav, or keeps the running one (already true), and
 // runs fn with the entry locked. A session that ended is opened again with code; agreed goes to
 // the opener.
@@ -131,7 +146,7 @@ func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code c
 				e.mu.Unlock()
 				return err
 			}
-			e.client, e.warnings, e.buttons = c, warnings, 0
+			e.client, e.warnings, e.buttons, e.tls = c, warnings, 0, fav.UseTLS
 			if created && m.idle > 0 {
 				e.timer = time.AfterFunc(m.idle, func() { m.expire(e) })
 			}
@@ -177,7 +192,7 @@ func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e 
 		case err != nil:
 			return &reopenError{err: err}
 		}
-		e.client, e.warnings, e.buttons = c, warnings, 0
+		e.client, e.warnings, e.buttons, e.tls = c, warnings, 0, fav.UseTLS
 	}
 	e.lastUsed = m.now()
 	err := fn(e)

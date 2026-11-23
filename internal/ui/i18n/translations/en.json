@@ -52,6 +52,7 @@
   "The confirmation does not match. Nothing was changed.": "The confirmation does not match. Nothing was changed.",
   "The content of the folder is too large for the image.": "The content of the folder is too large for the image.",
   "The device accepted the change, but OpenLAMT could not save it. Check that the keychain is unlocked.": "The device accepted the change, but OpenLAMT could not save it. Check that the keychain is unlocked.",
+  "The device already uses the new certificate, but OpenLAMT could not save its fingerprint: {{.Fingerprint}}. Check that the keychain is unlocked, then reset the fingerprint of this favorite and trust it again.": "The device already uses the new certificate, but OpenLAMT could not save its fingerprint: {{.Fingerprint}}. Check that the keychain is unlocked, then reset the fingerprint of this favorite and trust it again.",
   "The device already has an account with this name. Choose a different name.": "The device already has an account with this name. Choose a different name.",
   "The device cannot store more accounts. Remove an account you do not need and try again.": "The device cannot store more accounts. Remove an account you do not need and try again.",
   "The device closed the media session.": "The device closed the media session.",

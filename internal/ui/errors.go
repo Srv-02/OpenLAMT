@@ -53,6 +53,7 @@ func describe(err error) string {
 	var kvmErr *amt.KVMError
 	var re *kvm.RedirectionError
 	var tile *kvm.TileError
+	var ns *session.NotSavedError
 	var syn *json.SyntaxError
 	var path *fs.PathError
 	switch {
@@ -102,6 +103,10 @@ func describe(err error) string {
 		return lang.L("A favorite with this host and username already exists.")
 	case errors.Is(err, favorites.ErrNotFound):
 		return lang.L("This favorite no longer exists.")
+	case errors.As(err, &ns) && ns.Fingerprint != "": // before the keychain error it wraps: the pin is lost otherwise
+		return lang.L("The device already uses the new certificate, but OpenLAMT could not save its fingerprint: {{.Fingerprint}}. Check that the keychain is unlocked, then reset the fingerprint of this favorite and trust it again.", map[string]any{"Fingerprint": ns.Fingerprint})
+	case errors.Is(err, session.ErrNotSaved):
+		return lang.L("The device accepted the change, but OpenLAMT could not save it. Check that the keychain is unlocked.")
 	case errors.As(err, &ke):
 		return lang.L("The keychain could not be used: {{.Err}}", map[string]any{"Err": ke.Err.Error()})
 	case errors.As(err, &syn):
@@ -179,8 +184,6 @@ func describeDevice(err error) (string, bool) {
 		return lang.L("It is unclear whether the device accepted the new login. Try to sign in with the new login; if that fails, use the old one."), true
 	case errors.Is(err, amt.ErrCertificateUncertain):
 		return lang.L("It is unclear whether the device switched to the new certificate. Connect again and compare the fingerprint before you trust it."), true
-	case errors.Is(err, session.ErrNotSaved):
-		return lang.L("The device accepted the change, but OpenLAMT could not save it. Check that the keychain is unlocked."), true
 	case errors.As(err, &pw):
 		return lang.L("The device refused the power request (return value {{.Code}}). Try again later.", map[string]any{"Code": pw.ReturnValue}), true
 	case errors.As(err, &sl):

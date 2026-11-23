@@ -91,6 +91,14 @@ const (
 	Close  Name = "close"  // the "×" that clears the folder setting
 )
 
+// Stroked symbols of the network scan (#12) and of Export and Import Config (#7).
+const (
+	Radar    Name = "radar"    // "Scan Network"
+	Upload   Name = "upload"   // "Export…"
+	Download Name = "download" // "Import…", the tile of the Import dialog
+	Check    Name = "check"    // tile of the info dialog "Config exported"
+)
+
 // Filled symbols (no stroke): the file's fill is recolored like the stroke of the others.
 // Their color is fixed, see HeartPink and StarYellow; Get and Render ignore the stroke width.
 const (
@@ -103,7 +111,8 @@ var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, F
 	Server, Search, Lock, Eye, Edit, Duplicate, Delete, Add, Connect, Key, ChevronDown,
 	Coffee, ExternalLink, Info, Clear,
 	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings, Unmount,
-	Camera, Record, Stop, Zoom, Close}
+	Camera, Record, Stop, Zoom, Close,
+	Radar, Upload, Download, Check}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}

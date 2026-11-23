@@ -60,9 +60,9 @@ Each device opens in its own window with remote keyboard, video and mouse (KVM).
 
 ![Claude asks openlamt-mcp for the screen of Lab Server and shows the BIOS setup](screenshots/mcp.png)
 
-`openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can read status and logs, switch devices on and off, look at the screen and type, use the serial console and boot from an ISO. It runs on your computer and opens no network port.
+`openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can find devices in the network and manage favorites, read status and logs, switch devices on and off, look at the screen and type, use the serial console and boot from an ISO. It runs on your computer and opens no network port, also without the app on a Linux server without a desktop.
 
-- Device passwords stay in the keychain and never reach the agent.
+- Device passwords stay in the keychain or your password manager and never reach the agent.
 - A config file limits the agent to some devices or actions, or to reading only.
 - Changes that can cut you off from a device always ask you first.
 - An action log records every tool call.
@@ -204,7 +204,7 @@ Key combinations that the local operating system reserves, such as Ctrl+Alt+Del,
     - passwords and certificate fingerprints in the system keychain (services `openlamt` and `openlamt-fingerprint`)
     - temporary ISOs of mounted folders in `OpenLAMT/ider` in your cache folder (`~/Library/Caches`, `%LocalAppData%` or `~/.cache`), deleted on unmount
     - downloaded updates in `~/Downloads`, only when you ask for one
-    - `openlamt/openlamt-mcp.json` and `openlamt/openlamt-mcp-actions.log` in the same configuration folder, only if you use [openlamt-mcp](#mcp-server-openlamt-mcp)
+    - `openlamt/openlamt-mcp.json` and `openlamt/openlamt-mcp-actions.log` in the same configuration folder, only if you use [openlamt-mcp](#mcp-server-openlamt-mcp); `openlamt/.env` only if you create it and allow plaintext passwords
 - **Your devices:** OpenLAMT changes nothing you did not start, and risky changes need a confirmation.
 - **Network:** your AMT devices on ports `16992` to `16995`. One update check per start to `api.github.com`, which you can turn off in Settings.
 
@@ -228,7 +228,7 @@ Windows (x64)           openlamt-mcp-<version>-windows-x64.zip
 Linux (x64)             openlamt-mcp-<version>-linux-x64.tar.gz
 ```
 
-Save the device passwords in the app first, then add the program to your MCP client:
+Save the device passwords in the app first, or without the app with `openlamt-mcp password <favorite>` in a terminal (`openlamt-mcp trust <favorite>` trusts a TLS certificate), then add the program to your MCP client:
 
 ```json
 {"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}

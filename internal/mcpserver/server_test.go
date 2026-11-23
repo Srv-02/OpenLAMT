@@ -49,6 +49,11 @@ type harness struct {
 	elicit  func(*mcp.ElicitRequest) (*mcp.ElicitResult, error) // nil: the client has no elicitation
 	logins  *fakeLogins                                         // the LoginStore the server gets
 	logger  *slog.Logger                                        // the server's stderr log; nil discards
+	// mgr, if set, replaces favs: a real favorites manager (file in a temp folder, the memory
+	// keychain), so the favorites tools are offered.
+	mgr     *favorites.Manager
+	scanner Scanner
+	fetchFP func(ctx context.Context, host string) (string, error)
 
 	mu       sync.Mutex
 	connects []amt.Config
@@ -129,8 +134,12 @@ func (h *harness) start() {
 		}
 		h.logPath = h.cfg.ActionLogPath
 	}
-	srv := New(Options{Config: h.cfg, Favorites: h.favs, Keys: h.keys, Connect: h.connect, Logins: h.logins, Log: log, Logger: h.logger,
-		Version: "test"})
+	var favs FavoriteSource = h.favs
+	if h.mgr != nil {
+		favs = h.mgr
+	}
+	srv := New(Options{Config: h.cfg, Favorites: favs, Keys: h.keys, Connect: h.connect, Logins: h.logins, Log: log, Logger: h.logger,
+		Scanner: h.scanner, FetchFingerprint: h.fetchFP, Version: "test"})
 	h.srv = srv
 	t.Cleanup(srv.Close)
 	ct, st := mcp.NewInMemoryTransports()
@@ -295,7 +304,10 @@ func TestToolsFollowGroups(t *testing.T) {
 	input := []string{"kvm_mouse", "kvm_send_keys", "kvm_type_text", "sol_send_keys", "sol_type_text"}
 	media := []string{"media_boot_next", "media_mount", "media_status", "media_unmount"}
 	power := []string{"boot_from_iso", "boot_to_bios", "power_action"}
-	always := []string{"list_devices"}
+	// scan_network of the group favorites only reads: it stays in read_only (the favorites tools
+	// that write need a favorites manager, which this harness does not have; see
+	// TestFavoritesToolsFollowGroupAndReadOnly).
+	always := []string{"list_devices", "scan_network"}
 	for _, c := range []struct {
 		name  string
 		setup func(*Config)
@@ -401,7 +413,7 @@ func TestTLSFavoriteWithoutPinIsRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.start()
-	h.mustFail("device_status", dev("Lab Server"), "Connect once with the OpenLAMT app to pin the certificate")
+	h.mustFail("device_status", dev("Lab Server"), "runs `openlamt-mcp trust \"Lab Server\"`")
 	if n := len(h.connectCalls()); n != 0 {
 		t.Fatalf("connected %d times", n)
 	}
@@ -437,7 +449,7 @@ func TestDeviceLookupErrors(t *testing.T) {
 	h.mustFail("device_status", dev("Lab Server"), "not in allowed_devices")
 	h.mustFail("device_status", dev("Ghost"), "No favorite named \"Ghost\"")
 	h.mustFail("device_status", dev("Twin"), "2 favorites are named \"Twin\"")
-	h.mustFail("device_status", dev("NoPass"), "No password is stored")
+	h.mustFail("device_status", dev("NoPass"), `No password found for "NoPass"`)
 	h.mustFail("device_status", dev(""), "device is required")
 	if n := len(h.connectCalls()); n != 0 {
 		t.Fatalf("connected %d times", n)

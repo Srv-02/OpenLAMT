@@ -496,3 +496,68 @@ func TestMergeKeepsExistingPins(t *testing.T) {
 		}
 	}
 }
+
+// TestAddKeepsHostUserAndNameUnique: Add refuses a known host and user and a name another
+// favorite shows (also the host of a favorite without a name), and writes nothing then.
+func TestAddKeepsHostUserAndNameUnique(t *testing.T) {
+	m, _ := seeded(t)
+	if err := m.Add(Favorite{Name: "Other", Host: "device.example.com", Username: "admin"}); !errors.Is(err, ErrExists) {
+		t.Fatalf("same host and user: %v", err)
+	}
+	if err := m.Add(Favorite{Name: "Büro", Host: "other.example.com", Username: "admin"}); !errors.Is(err, ErrNameExists) {
+		t.Fatalf("same name: %v", err)
+	}
+	if err := m.Add(Favorite{Host: "nameless.example.com", Username: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Add(Favorite{Name: "nameless.example.com", Host: "third.example.com", Username: "admin"}); !errors.Is(err, ErrNameExists) {
+		t.Fatalf("name equal to the host of a nameless favorite: %v", err)
+	}
+	if err := m.Add(Favorite{Name: "Lager", Host: "device.example.com", Username: "root"}); err != nil {
+		t.Fatal(err)
+	}
+	list, _ := m.List()
+	if len(list) != 3 || list[2].Name != "Lager" {
+		t.Fatalf("%+v", list)
+	}
+}
+
+// TestUpdateDropsLoginOnNewHostOrUser: a new host or user deletes pin and password of the old
+// login (they do not move); a rename or a TLS change keeps both; names stay unique.
+func TestUpdateDropsLoginOnNewHostOrUser(t *testing.T) {
+	m, keys := seeded(t)
+	if err := m.Add(Favorite{Name: "Lager", Host: "store.example.com", Username: "admin"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Update("device.example.com", "admin", func(f *Favorite) { f.Name = "Lager" }); !errors.Is(err, ErrNameExists) {
+		t.Fatalf("duplicate name: %v", err)
+	}
+	if _, err := m.Update("device.example.com", "admin", func(f *Favorite) { f.Host = "store.example.com" }); !errors.Is(err, ErrExists) {
+		t.Fatalf("existing login: %v", err)
+	}
+	if _, err := m.Update("missing.example.com", "admin", func(*Favorite) {}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("missing: %v", err)
+	}
+	f, err := m.Update("device.example.com", "admin", func(f *Favorite) { f.Name, f.UseTLS = "Büro 2", false })
+	if err != nil || f.Name != "Büro 2" || f.UseTLS {
+		t.Fatalf("%+v %v", f, err)
+	}
+	if pw, _ := keys.Get("device.example.com", "admin"); pw != "secret-1" {
+		t.Fatal("a rename dropped the password")
+	}
+	if got, _ := keys.GetFingerprint("device.example.com", "admin"); got != fp {
+		t.Fatal("a rename dropped the pin")
+	}
+	f, err = m.Update("device.example.com", "admin", func(f *Favorite) { f.Host = "new.example.com" })
+	if err != nil || f.Host != "new.example.com" || f.Name != "Büro 2" {
+		t.Fatalf("%+v %v", f, err)
+	}
+	for _, h := range []string{"device.example.com", "new.example.com"} {
+		if _, err := keys.Get(h, "admin"); !errors.Is(err, keychain.ErrNotFound) {
+			t.Errorf("password of %s: %v", h, err)
+		}
+		if _, err := keys.GetFingerprint(h, "admin"); !errors.Is(err, keychain.ErrNotFound) {
+			t.Errorf("pin of %s: %v", h, err)
+		}
+	}
+}

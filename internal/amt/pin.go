@@ -69,6 +69,16 @@ func pinVerifier(host, expected string) func(cs tls.ConnectionState) error {
 	}
 }
 
+// FetchFingerprint reads the SHA-256 fingerprint (normalized) of the certificate the TLS server
+// at addr ("host:port") presents, within ConnectTimeout. The certificate is only read, never
+// trusted, and nothing is sent but the TLS handshake: the caller shows the fingerprint to a person
+// and pins it after confirmation (trust on first use).
+func FetchFingerprint(ctx context.Context, addr string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, ConnectTimeout)
+	defer cancel()
+	return fetchFingerprint(ctx, addr, nil)
+}
+
 // fetchFingerprint honours ctx for dial and handshake; callers pass a deadline.
 func fetchFingerprint(ctx context.Context, addr string, dial dialFunc) (string, error) {
 	if dial == nil {

@@ -12,6 +12,9 @@ import (
 var (
 	ErrNotFound = errors.New("favorite not found")
 	ErrExists   = errors.New("a favorite with this host and username already exists")
+	// ErrNameExists: another favorite shows the same name (DisplayName). Add and Update keep
+	// names unique, so a favorite can be found by its name (openlamt-mcp does that).
+	ErrNameExists = errors.New("another favorite has this name")
 )
 
 // KeychainError reports that the favorites file was updated but a keychain step failed.
@@ -101,6 +104,80 @@ func (m *Manager) Upsert(f Favorite) error {
 		list = append(list, f)
 	}
 	return m.store.Save(list)
+}
+
+// Add saves f as a new favorite. A favorite with the same host and username returns ErrExists,
+// one that shows the same name (DisplayName) ErrNameExists; nothing is written then.
+func (m *Manager) Add(f Favorite) error {
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	list, err := m.store.Load()
+	if err != nil {
+		return err
+	}
+	if index(list, f.Host, f.Username) >= 0 {
+		return ErrExists
+	}
+	if nameTaken(list, f.DisplayName(), -1) {
+		return ErrNameExists
+	}
+	return m.store.Save(append(list, f))
+}
+
+// Update applies change to the favorite host/username and saves it; it returns the favorite as
+// saved. The new host and username must not belong to another favorite (ErrExists) and the name
+// must stay unique (ErrNameExists). A new host or username deletes the certificate pin and the
+// password of the old login: unlike Edit, the password does not move, because it belonged to the
+// device the favorite pointed to before. File first, keychain second; keychain failures (other
+// than ErrNotFound) return *KeychainError.
+func (m *Manager) Update(host, username string, change func(*Favorite)) (Favorite, error) {
+	unlock, err := m.lockWrite()
+	if err != nil {
+		return Favorite{}, err
+	}
+	defer unlock()
+	list, err := m.store.Load()
+	if err != nil {
+		return Favorite{}, err
+	}
+	i := index(list, host, username)
+	if i < 0 {
+		return Favorite{}, ErrNotFound
+	}
+	f := list[i]
+	change(&f)
+	moved := f.Host != host || f.Username != username
+	if moved && index(list, f.Host, f.Username) >= 0 {
+		return Favorite{}, ErrExists
+	}
+	if nameTaken(list, f.DisplayName(), i) {
+		return Favorite{}, ErrNameExists
+	}
+	if f == list[i] {
+		return f, nil
+	}
+	list[i] = f
+	if err := m.store.Save(list); err != nil {
+		return Favorite{}, err
+	}
+	if !moved {
+		return f, nil
+	}
+	// Run both keychain steps even if one fails.
+	return f, keychainErr(ignoreNotFound(m.keys.DeleteFingerprint(host, username)), ignoreNotFound(m.keys.Delete(host, username)))
+}
+
+// nameTaken reports whether a favorite other than list[skip] shows name.
+func nameTaken(list []Favorite, name string, skip int) bool {
+	for j, g := range list {
+		if j != skip && g.DisplayName() == name {
+			return true
+		}
+	}
+	return false
 }
 
 // SetQuality stores the KVM quality (QualityHigh or QualityLow) of the favorite host/username.

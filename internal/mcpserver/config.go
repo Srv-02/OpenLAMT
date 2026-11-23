@@ -21,6 +21,9 @@ const (
 	ConfigFileName = "openlamt-mcp.json"
 	// ActionLogFileName is the default action log in the same folder.
 	ActionLogFileName = "openlamt-mcp-actions.log"
+	// EnvFileName is the file of plaintext passwords next to the config file; it is read only
+	// with passwords.allow_plaintext_passwords.
+	EnvFileName = ".env"
 )
 
 // Group is a tool group the config file switches on or off.
@@ -34,10 +37,11 @@ const (
 	GroupSettings    Group = "settings"    // AMT settings (later cut)
 	GroupUsers       Group = "users"       // AMT accounts (later cut)
 	GroupDestructive Group = "destructive" // actions that interrupt a running system
+	GroupFavorites   Group = "favorites"   // network scan and the favorites themselves
 )
 
 // Groups lists every group in the order of the config file.
-var Groups = []Group{GroupRead, GroupPowerBoot, GroupMedia, GroupKVMInput, GroupSettings, GroupUsers, GroupDestructive}
+var Groups = []Group{GroupRead, GroupPowerBoot, GroupMedia, GroupKVMInput, GroupSettings, GroupUsers, GroupDestructive, GroupFavorites}
 
 // Config is the operator's policy for the MCP server.
 type Config struct {
@@ -51,7 +55,18 @@ type Config struct {
 	SOLIdleTimeout            time.Duration // the same for a serial console (SOL) session
 	MediaAllowedPaths         []string      // folders media_mount may mount from (cleaned, absolute); empty means anywhere
 	Screenshot                ScreenshotConfig
+	Passwords                 PasswordConfig
 	Source                    string // the file read; empty when the defaults apply
+}
+
+// PasswordConfig says where the server finds device passwords besides the OS keychain.
+type PasswordConfig struct {
+	// Command prints the password of a favorite on stdout; nil for none. Its arguments may hold
+	// the placeholders {name}, {host} and {user}.
+	Command []string
+	// AllowPlaintext lets the server read passwords from environment variables and EnvFile.
+	AllowPlaintext bool
+	EnvFile        string // EnvFileName next to the config file
 }
 
 // ScreenshotConfig is the default size and format of kvm_screenshot; a call may override it.
@@ -102,14 +117,16 @@ func (sc ScreenshotConfig) check(prefix string) error {
 // and written to dir.
 func Defaults(dir string) Config {
 	c := Config{Groups: map[Group]bool{}, ActionLog: true, ActionLogPath: filepath.Join(dir, ActionLogFileName),
-		KVMIdleTimeout: DefaultKVMIdleTimeout, SOLIdleTimeout: DefaultSOLIdleTimeout, Screenshot: DefaultScreenshot}
+		KVMIdleTimeout: DefaultKVMIdleTimeout, SOLIdleTimeout: DefaultSOLIdleTimeout, Screenshot: DefaultScreenshot,
+		Passwords: PasswordConfig{EnvFile: filepath.Join(dir, EnvFileName)}}
 	for _, g := range Groups {
 		c.Groups[g] = true
 	}
 	return c
 }
 
-// Enabled reports whether the tools of g may run. read_only leaves only GroupRead.
+// Enabled reports whether the tools of g may run. read_only leaves only GroupRead (and
+// scan_network of GroupFavorites, which only reads; see register).
 func (c Config) Enabled(g Group) bool {
 	if c.ReadOnly && g != GroupRead {
 		return false
@@ -134,6 +151,7 @@ type fileConfig struct {
 		Settings    *bool `json:"settings"`
 		Users       *bool `json:"users"`
 		Destructive *bool `json:"destructive"`
+		Favorites   *bool `json:"favorites"`
 	} `json:"tool_groups"`
 	RequireClientConfirmation *bool `json:"require_client_confirmation"`
 	ActionLog                 *struct {
@@ -153,6 +171,10 @@ type fileConfig struct {
 	Media *struct {
 		AllowedPaths []string `json:"allowed_paths"`
 	} `json:"media"`
+	Passwords *struct {
+		Command                 []string `json:"command"`
+		AllowPlaintextPasswords *bool    `json:"allow_plaintext_passwords"`
+	} `json:"passwords"`
 }
 
 // Load reads the config file at path. A missing file yields Defaults of its folder, unless
@@ -194,7 +216,7 @@ func Load(path string, mustExist bool) (Config, error) {
 	if g := f.ToolGroups; g != nil {
 		for group, v := range map[Group]*bool{
 			GroupRead: g.Read, GroupPowerBoot: g.PowerBoot, GroupMedia: g.Media, GroupKVMInput: g.KVMInput,
-			GroupSettings: g.Settings, GroupUsers: g.Users, GroupDestructive: g.Destructive,
+			GroupSettings: g.Settings, GroupUsers: g.Users, GroupDestructive: g.Destructive, GroupFavorites: g.Favorites,
 		} {
 			if v != nil {
 				c.Groups[group] = *v
@@ -246,6 +268,20 @@ func Load(path string, mustExist bool) (Config, error) {
 				return Config{}, fmt.Errorf("parse %s: media.allowed_paths takes absolute folder paths, not %q", path, p)
 			}
 			c.MediaAllowedPaths = append(c.MediaAllowedPaths, filepath.Clean(p))
+		}
+	}
+	if pw := f.Passwords; pw != nil {
+		set(&c.Passwords.AllowPlaintext, pw.AllowPlaintextPasswords)
+		if len(pw.Command) > 0 {
+			prog := strings.TrimSpace(pw.Command[0])
+			if prog == "" || strings.ContainsAny(prog, "{}") {
+				return Config{}, fmt.Errorf("parse %s: passwords.command starts with the program to run; it must not be empty or hold a placeholder", path)
+			}
+			c.Passwords.Command = append([]string{prog}, pw.Command[1:]...)
+			if !commandHasHost(c.Passwords.Command) {
+				return Config{}, fmt.Errorf("parse %s: passwords.command must contain {host} in an argument, so each password is bound "+
+					"to the host it goes to ({name} and {user} may be used in addition)", path)
+			}
 		}
 	}
 	c.Source = path

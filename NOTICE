@@ -140,7 +140,7 @@ Linux x64; the union of all three; go-wsman-messages, rpc-go, Fyne, go-keyring a
   https://pkg.go.dev/golang.org/x/net
 - golang.org/x/sys, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://pkg.go.dev/golang.org/x/sys
-- golang.org/x/term (Linux and Windows builds, used by rpc-go), Copyright 2009 The Go Authors, BSD 3-Clause License
+- golang.org/x/term (used by rpc-go in the Linux and Windows builds, and by openlamt-mcp), Copyright 2009 The Go Authors, BSD 3-Clause License
   https://pkg.go.dev/golang.org/x/term
 - golang.org/x/text, Copyright 2009 The Go Authors, BSD 3-Clause License
   https://pkg.go.dev/golang.org/x/text

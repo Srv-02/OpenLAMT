@@ -107,6 +107,14 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		`{"kvm": {"screenshot_max_height": 100000}}`,
 		`{"sol": {"idle_timeout": 5}}`,
 		`{"sol": {"idle_timeout_seconds": -1}}`,
+		`{"passwords": {"cmd": ["pass"]}}`,
+		`{"passwords": {"command": "pass show x"}}`,
+		`{"passwords": {"command": ["", "show"]}}`,
+		`{"passwords": {"command": ["{name}"]}}`,
+		`{"passwords": {"command": ["pass", "show", "openlamt/{name}"]}}`,
+		`{"passwords": {"command": ["/usr/bin/op", "read", "op://lab/{user}/password"]}}`,
+		`{"passwords": {"allow_plaintext_passwords": "yes"}}`,
+		`{"tool_groups": {"favourites": false}}`,
 	} {
 		if _, err := Load(writeConfig(t, body), true); err == nil {
 			t.Errorf("%s: no error", body)
@@ -185,5 +193,24 @@ func TestLoadMediaAllowedPaths(t *testing.T) {
 		if _, err := Load(writeConfig(t, bad), true); err == nil {
 			t.Errorf("%s: no error", bad)
 		}
+	}
+}
+
+// TestLoadPasswordSettings: the password command and the plaintext opt-in; both are off by
+// default, the .env file sits next to the config file, and the favorites group can be switched off.
+func TestLoadPasswordSettings(t *testing.T) {
+	p := writeConfig(t, `{}`)
+	c, err := Load(p, true)
+	if err != nil || c.Passwords.Command != nil || c.Passwords.AllowPlaintext ||
+		c.Passwords.EnvFile != filepath.Join(filepath.Dir(p), EnvFileName) || !c.Enabled(GroupFavorites) {
+		t.Fatalf("%v %+v", err, c.Passwords)
+	}
+	c, err = Load(writeConfig(t, `{"passwords": {"command": [" pass ", "show", "openlamt/{host}"], "allow_plaintext_passwords": true},
+		"tool_groups": {"favorites": false}}`), true)
+	if err != nil || strings.Join(c.Passwords.Command, "|") != "pass|show|openlamt/{host}" || !c.Passwords.AllowPlaintext || c.Enabled(GroupFavorites) {
+		t.Fatalf("%v %+v", err, c.Passwords)
+	}
+	if c, err = Load(writeConfig(t, `{"passwords": {"command": []}}`), true); err != nil || c.Passwords.Command != nil {
+		t.Fatalf("empty command: %v %v", err, c.Passwords.Command)
 	}
 }

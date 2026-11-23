@@ -164,9 +164,11 @@ func (s *Scanner) open(ctx context.Context, a netip.Addr, port int) bool {
 // message of type 0x80 with the IANA enterprise number 4542.
 var presencePing = []byte{0x06, 0x00, 0xff, 0x06, 0x00, 0x00, 0x11, 0xbe, 0x80, 0x00, 0x00, 0x00}
 
-// isPong reports whether b is an ASF presence pong (message type 0x40).
+// isPong reports whether b is an ASF presence pong (message type 0x40) of a device that supports
+// DASH: bit 5 of the Supported Interactions byte (packet offset 21, DSP0232 9.2.1). IPMI BMCs must
+// answer the ping too, but they leave that bit clear.
 func isPong(b []byte) bool {
-	return len(b) >= 12 && b[0] == 0x06 && b[3] == 0x06 &&
+	return len(b) >= 22 && b[21]&0x20 != 0 && b[0] == 0x06 && b[3] == 0x06 &&
 		b[4] == 0x00 && b[5] == 0x00 && b[6] == 0x11 && b[7] == 0xbe && b[8] == 0x40
 }
 

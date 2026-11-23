@@ -326,9 +326,9 @@ func (s *server) solSendKeys(_ context.Context, req *mcp.CallToolRequest, in sol
 	for _, k := range in.Keys {
 		seq, name, ok := solKey(k)
 		if !ok {
-			return nil, sendKeysOutput{}, refuse("unknown key %q; use Enter, Tab, Shift+Tab, Backspace, Escape, Space, Up, Down, Left, Right, "+
+			return nil, sendKeysOutput{}, refuse("unknown key %s; use Enter, Tab, Shift+Tab, Backspace, Escape, Space, Up, Down, Left, Right, "+
 				"Home, End, Insert, Delete, PageUp, PageDown, F1 to F12, Ctrl+<letter>, Alt+<key> or a single printable ASCII character. "+
-				"Nothing was sent.", k)
+				"Nothing was sent.", quoteShort(k))
 		}
 		p = append(p, seq...)
 		names = append(names, name)

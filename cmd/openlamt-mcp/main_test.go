@@ -88,3 +88,15 @@ func TestRunVersion(t *testing.T) {
 		t.Fatalf("code=%d stdout=%q", code, stdout.String())
 	}
 }
+
+// TestReleaseVersionOverridesBuildInfo: the release workflow sets releaseVersion with -ldflags,
+// and --version prints it.
+func TestReleaseVersionOverridesBuildInfo(t *testing.T) {
+	old := releaseVersion
+	t.Cleanup(func() { releaseVersion = old })
+	releaseVersion = "v9.8.7-rc1"
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"--version"}, &stdout, &stderr, noServe(t)); code != 0 || stdout.String() != "openlamt-mcp v9.8.7-rc1\n" {
+		t.Fatalf("code=%d stdout=%q", code, stdout.String())
+	}
+}

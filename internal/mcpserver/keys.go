@@ -56,21 +56,21 @@ func parseKeyName(name string) (kvm.Key, bool) {
 func parseCombo(s string) ([]kvm.Key, error) {
 	parts := strings.Split(s, "+")
 	if len(parts) > maxComboKeys {
-		return nil, fmt.Errorf("%q has more than %d keys", s, maxComboKeys)
+		return nil, fmt.Errorf("%s has more than %d keys", quoteShort(s), maxComboKeys)
 	}
 	keys := make([]kvm.Key, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
 		if p == "" {
-			return nil, fmt.Errorf("%q has an empty key name", s)
+			return nil, fmt.Errorf("%s has an empty key name", quoteShort(s))
 		}
 		k, ok := parseKeyName(p)
 		if !ok {
-			return nil, fmt.Errorf("unknown key %q in %q", p, s)
+			return nil, fmt.Errorf("unknown key %s in %s", quoteShort(p), quoteShort(s))
 		}
 		for _, have := range keys {
 			if have == k {
-				return nil, fmt.Errorf("%q names the key %s twice", s, k)
+				return nil, fmt.Errorf("%s names the key %s twice", quoteShort(s), k)
 			}
 		}
 		keys = append(keys, k)

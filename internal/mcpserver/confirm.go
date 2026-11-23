@@ -1,9 +1,12 @@
 package mcpserver
 
 import (
+	"crypto/subtle"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -29,26 +32,54 @@ func (s *server) confirmFor(req *mcp.CallToolRequest, message, state string) (*m
 	if !s.cfg.RequireClientConfirmation {
 		return nil, nil
 	}
+	return s.ask(req, question{message: message, state: state,
+		stale: "The mounted image changed while the question was open, so the answer was for another image. " +
+			"Nothing was sent to the device; call the tool again."})
+}
+
+// question is what ask puts to the person in the MCP client.
+type question struct {
+	message string
+	state   string // request state the answer must carry
+	stale   string // refusal for an answer with another request state
+	title   string // title of the checkbox; "" for "Run this action"
+	// risk: the OpenLAMT app asks with an orange or red warning, so the question is asked even
+	// without require_client_confirmation.
+	risk bool
+}
+
+// ask puts q to the person in the MCP client. It returns (nil, nil) for an accepted confirm:true
+// with the current request state, a result carrying the input request when the client has to ask
+// first, and a refusal otherwise (also for a client without elicitation support).
+func (s *server) ask(req *mcp.CallToolRequest, q question) (*mcp.CallToolResult, error) {
 	if resp, ok := req.Params.InputResponses[confirmKey]; ok {
 		if r, ok := resp.(*mcp.ElicitResult); ok && r.Action == "accept" && r.Content["confirm"] == true {
-			if req.Params.RequestState != state {
-				return nil, refuse("The mounted image changed while the question was open, so the answer was for another image. " +
-					"Nothing was sent to the device; call the tool again.")
+			if subtle.ConstantTimeCompare([]byte(req.Params.RequestState), []byte(q.state)) != 1 {
+				return nil, refuse("%s", q.stale)
 			}
 			return nil, nil
 		}
 		return nil, refuse("The action was not confirmed in the MCP client. Nothing was sent to the device.")
 	}
 	if p := req.Session.InitializeParams(); p == nil || p.Capabilities == nil || p.Capabilities.Elicitation == nil {
+		if q.risk {
+			return nil, refuse("The OpenLAMT app asks before this change with a risk warning, so a person has to confirm it in the " +
+				"MCP client, but this MCP client cannot ask for confirmation (it does not support elicitation). " +
+				"Nothing was sent to the device. Make the change in the OpenLAMT app, or use an MCP client that supports elicitation.")
+		}
 		return nil, refuse("require_client_confirmation is on in the openlamt-mcp config, but this MCP client " +
 			"cannot ask for confirmation (it does not support elicitation). Nothing was sent to the device.")
 	}
-	return &mcp.CallToolResult{RequestState: state, InputRequests: mcp.InputRequestMap{confirmKey: &mcp.ElicitParams{
-		Message: message,
+	title := q.title
+	if title == "" {
+		title = "Run this action"
+	}
+	return &mcp.CallToolResult{RequestState: q.state, InputRequests: mcp.InputRequestMap{confirmKey: &mcp.ElicitParams{
+		Message: q.message,
 		RequestedSchema: &jsonschema.Schema{
 			Type: "object",
 			Properties: map[string]*jsonschema.Schema{
-				"confirm": {Type: "boolean", Title: "Run this action", Description: "The AI agent asks to run this action on the device."},
+				"confirm": {Type: "boolean", Title: title, Description: "The AI agent asks to run this action on the device."},
 			},
 			Required: []string{"confirm"},
 		},
@@ -80,4 +111,18 @@ func visible(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// maxQuoted is how many characters of an agent's value an error message repeats.
+const maxQuoted = 40
+
+// quoteShort quotes a value the agent sent, for an error message and so for the action log: Go
+// quoting (control and format characters escaped), at most maxQuoted characters, then the
+// length, so a huge or crafted value cannot flood the log or hide in it.
+func quoteShort(s string) string {
+	n := utf8.RuneCountInString(s)
+	if n <= maxQuoted {
+		return strconv.Quote(s)
+	}
+	return strconv.Quote(string([]rune(s)[:maxQuoted])) + fmt.Sprintf("… (%d characters)", n)
 }

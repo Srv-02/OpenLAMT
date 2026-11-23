@@ -117,7 +117,8 @@ func confirmation(op amt.Operation, host string) amt.Confirmation {
 	return c
 }
 
-// passwordNoTLS is the warning for a password sent without TLS (the app asks first, #37).
+// passwordNoTLS is the warning for a password sent without TLS (#37). The app asks before it
+// sends one; the MCP server warns in the question, if it asks, and in the result.
 func passwordNoTLS(user string) string {
 	return fmt.Sprintf("The connection to this device has no TLS. The password travels as a digest that works like the "+
 		"password itself: anyone who captures it on the network can sign in as %s.", user)

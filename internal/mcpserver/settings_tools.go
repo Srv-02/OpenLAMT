@@ -494,7 +494,8 @@ func (s *server) setTLSCertificate(ctx context.Context, req *mcp.CallToolRequest
 	if id == "" {
 		return nil, writeOutput{}, refuse("certificate_id is required: take the id of a usable certificate from get_settings.")
 	}
-	what := fmt.Sprintf("make AMT present the certificate «%s» for TLS", visible(id))
+	// Short and escaped: a long id must not push the warning out of the question.
+	what := fmt.Sprintf("make AMT present the certificate %s for TLS", quoteShort(id))
 	rec.action = "certificate " + quoteShort(id)
 	fav, err := s.lookup(in.Device)
 	if err != nil {

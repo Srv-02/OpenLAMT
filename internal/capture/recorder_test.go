@@ -76,7 +76,7 @@ func decodeAt(t *testing.T, data []byte, x, y int) color.RGBA {
 func TestRecorderKeepsTheTimeline(t *testing.T) {
 	clk := newFakeClock()
 	path := filepath.Join(t.TempDir(), "rec.avi")
-	r, err := StartRecorder(path, solid(32, 16, color.RGBA{R: 255}), clk.options(10, 0))
+	r, err := StartRecorder(create(t, path), solid(32, 16, color.RGBA{R: 255}), clk.options(10, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestRecorderKeepsTheTimeline(t *testing.T) {
 func TestRecorderFitsNewResolution(t *testing.T) {
 	clk := newFakeClock()
 	path := filepath.Join(t.TempDir(), "rec.avi")
-	r, err := StartRecorder(path, solid(64, 32, color.RGBA{R: 255}), clk.options(10, 0))
+	r, err := StartRecorder(create(t, path), solid(64, 32, color.RGBA{R: 255}), clk.options(10, 0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestRecorderStopsAtTheLimit(t *testing.T) {
 	clk := newFakeClock()
 	path := filepath.Join(t.TempDir(), "rec.avi")
 	first := solid(32, 16, color.RGBA{R: 255})
-	r, err := StartRecorder(path, first, clk.options(10, 4096))
+	r, err := StartRecorder(create(t, path), first, clk.options(10, 4096))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,10 +181,24 @@ func TestRecorderStopsAtTheLimit(t *testing.T) {
 	}
 }
 
-// TestRecorderReportsCreateError: a path that cannot be created fails at the start.
-func TestRecorderReportsCreateError(t *testing.T) {
-	_, err := StartRecorder(filepath.Join(t.TempDir(), "missing", "rec.avi"), solid(8, 8, color.RGBA{}), RecorderOptions{})
-	if err == nil {
+// create opens path for a recording as the save dialog path does.
+func create(t *testing.T, path string) *os.File {
+	t.Helper()
+	f, err := CreateChosen(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+// TestRecorderRemovesFileOnStartError: a recording that cannot start (empty frame) closes and
+// removes its file.
+func TestRecorderRemovesFileOnStartError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rec.avi")
+	if _, err := StartRecorder(create(t, path), image.NewRGBA(image.Rect(0, 0, 0, 0)), RecorderOptions{}); err == nil {
 		t.Fatal("no error")
+	}
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("file left: %v", err)
 	}
 }

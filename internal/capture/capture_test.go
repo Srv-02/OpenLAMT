@@ -40,19 +40,63 @@ func TestFileNameSanitisesDeviceName(t *testing.T) {
 	}
 }
 
-func TestUniquePathAddsCounter(t *testing.T) {
+// TestCreateUniqueNeverReusesAName: a taken name moves on to the next counter, and a symbolic
+// link planted at the name is not followed: its target stays untouched (O_EXCL, no truncate).
+func TestCreateUniqueNeverReusesAName(t *testing.T) {
 	dir := t.TempDir()
 	name := "openlamt-x-2026-11-23-101412.png"
-	if got := UniquePath(dir, name); got != filepath.Join(dir, name) {
-		t.Fatalf("free name: %s", got)
+	f, err := CreateUnique(dir, name)
+	if err != nil || f.Name() != filepath.Join(dir, name) {
+		t.Fatalf("free name: %v %v", f, err)
 	}
-	for _, n := range []string{name, "openlamt-x-2026-11-23-101412-2.png"} {
-		if err := os.WriteFile(filepath.Join(dir, n), nil, 0o600); err != nil {
-			t.Fatal(err)
-		}
+	f.Close()
+	if err := os.WriteFile(filepath.Join(dir, "openlamt-x-2026-11-23-101412-2.png"), []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	if got := UniquePath(dir, name); got != filepath.Join(dir, "openlamt-x-2026-11-23-101412-3.png") {
-		t.Fatalf("taken name: %s", got)
+	f, err = CreateUnique(dir, name)
+	if err != nil || f.Name() != filepath.Join(dir, "openlamt-x-2026-11-23-101412-3.png") {
+		t.Fatalf("taken names: %v %v", f, err)
+	}
+	f.Close()
+	if b, _ := os.ReadFile(filepath.Join(dir, "openlamt-x-2026-11-23-101412-2.png")); string(b) != "keep" {
+		t.Fatal("an existing file was truncated")
+	}
+
+	if runtime.GOOS == "windows" { // symbolic links need a privilege there
+		return
+	}
+	target := filepath.Join(t.TempDir(), "victim")
+	if err := os.WriteFile(target, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := "openlamt-y-2026-11-23-101412.avi"
+	if err := os.Symlink(target, filepath.Join(dir, link)); err != nil {
+		t.Fatal(err)
+	}
+	f, err = CreateUnique(dir, link)
+	if err != nil || f.Name() != filepath.Join(dir, "openlamt-y-2026-11-23-101412-2.avi") {
+		t.Fatalf("symlink name: %v %v", f, err)
+	}
+	f.WriteString("frame")
+	f.Close()
+	if b, _ := os.ReadFile(target); string(b) != "secret" {
+		t.Fatalf("symlink target changed: %q", b)
+	}
+}
+
+// TestWritePNGRemovesFileOnError: a failed write leaves no file behind.
+func TestWritePNGRemovesFileOnError(t *testing.T) {
+	dir := t.TempDir()
+	f, err := CreateUnique(dir, "shot.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close() // writing into a closed file fails
+	if err := WritePNG(f, image.NewRGBA(image.Rect(0, 0, 4, 4))); err == nil {
+		t.Fatal("no error")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "shot.png")); !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("file left: %v", err)
 	}
 }
 

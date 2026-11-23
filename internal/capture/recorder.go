@@ -61,8 +61,9 @@ type Recorder struct {
 	err     error
 }
 
-// StartRecorder creates path, writes first as the first frame and starts the clock.
-func StartRecorder(path string, first *image.RGBA, opts RecorderOptions) (*Recorder, error) {
+// StartRecorder records into f (from CreateUnique or CreateChosen), which it closes at the end:
+// it writes first as the first frame and starts the clock. On failure f is closed and removed.
+func StartRecorder(f *os.File, first *image.RGBA, opts RecorderOptions) (*Recorder, error) {
 	if opts.FPS <= 0 {
 		opts.FPS = DefaultFPS
 	}
@@ -81,13 +82,12 @@ func StartRecorder(path string, first *image.RGBA, opts RecorderOptions) (*Recor
 			return t.C, t.Stop
 		}
 	}
+	path := f.Name()
 	b := first.Bounds()
 	if b.Empty() {
+		f.Close()
+		os.Remove(path)
 		return nil, errors.New("capture: empty frame")
-	}
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
-	if err != nil {
-		return nil, err
 	}
 	a, err := NewAVIWriter(f, b.Dx(), b.Dy(), opts.FPS)
 	if err != nil {

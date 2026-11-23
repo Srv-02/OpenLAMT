@@ -294,3 +294,37 @@ func TestRecTimeAndSize(t *testing.T) {
 		}
 	}
 }
+
+// TestCaptureInFolderNeverFollowsALink: a symbolic link planted at the proposed name in the
+// capture folder is neither followed nor truncated; screenshot and recording take the next name.
+func TestCaptureInFolderNeverFollowsALink(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symbolic links need a privilege on Windows")
+	}
+	dir := t.TempDir()
+	victim := filepath.Join(t.TempDir(), "victim")
+	if err := os.WriteFile(victim, []byte("secret"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"openlamt-Büro-2026-11-23-101412.png", "openlamt-Büro-2026-11-23-101412.avi"} {
+		if err := os.Symlink(victim, filepath.Join(dir, n)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h, _, saved := captureDevice(t, dir, false)
+	test.Tap(h.d.shotBtn)
+	recv(t, saved)
+	if h.d.capture.line.Text != "Screenshot saved: openlamt-Büro-2026-11-23-101412-2.png" {
+		t.Fatalf("status %q", h.d.capture.line.Text)
+	}
+	test.Tap(h.d.recBtn)
+	test.Tap(h.d.recBtn)
+	recv(t, saved)
+	aviFrames(t, filepath.Join(dir, "openlamt-Büro-2026-11-23-101412-2.avi"))
+	if h.d.capture.line.Text != "Recording saved: openlamt-Büro-2026-11-23-101412-2.avi" {
+		t.Fatalf("status %q", h.d.capture.line.Text)
+	}
+	if b, _ := os.ReadFile(victim); string(b) != "secret" {
+		t.Fatalf("link target changed: %q", b)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -102,10 +103,24 @@ func (d *DeviceWindow) setCaptureStatus(text string) {
 	d.relayoutStatus()
 }
 
-// captureDest finds the file for a new screenshot or recording of kind: a free name in the
-// folder of the settings, or the save dialog with the proposed name when no folder is set or the
-// folder cannot take the file (the status bar says why). chosen runs on the Fyne thread.
-func (d *DeviceWindow) captureDest(kind captureKind, chosen func(path string)) {
+// captureFile is where a new screenshot or recording goes: a new file in the folder of the
+// settings (dir and name; the name gets a counter if it is taken), or path, the file the user
+// chose in the save dialog (which asked before overwriting).
+type captureFile struct{ dir, name, path string }
+
+// create opens the file: in the folder only a name that does not exist yet (O_EXCL, so nothing
+// there is followed, truncated or overwritten), the chosen file of the dialog truncated.
+func (c captureFile) create() (*os.File, error) {
+	if c.dir != "" {
+		return capture.CreateUnique(c.dir, c.name)
+	}
+	return capture.CreateChosen(c.path)
+}
+
+// captureDest finds the file for a new screenshot or recording of kind: the folder of the
+// settings, or the save dialog with the proposed name when no folder is set or the folder
+// cannot take the file (the status bar says why). chosen runs on the Fyne thread.
+func (d *DeviceWindow) captureDest(kind captureKind, chosen func(captureFile)) {
 	name := capture.FileName(d.name, d.capture.now(), kind.ext)
 	dir := d.settings.CaptureFolder()
 	decide := func(err error) {
@@ -114,7 +129,7 @@ func (d *DeviceWindow) captureDest(kind captureKind, chosen func(path string)) {
 		}
 		switch {
 		case err == nil:
-			chosen(capture.UniquePath(dir, name))
+			chosen(captureFile{dir: dir, name: name})
 			return
 		case errors.Is(err, capture.ErrFolderMissing):
 			d.setCaptureStatus(lang.L("The folder {{.Folder}} does not exist. Choose where to save the file.", map[string]any{"Folder": dir}))
@@ -122,7 +137,7 @@ func (d *DeviceWindow) captureDest(kind captureKind, chosen func(path string)) {
 			d.setCaptureStatus(lang.L("The folder {{.Folder}} is not writable. Choose where to save the file.", map[string]any{"Folder": dir}))
 		}
 		d.releaseKeys()
-		d.capture.pickers.save(d.win, kind, name, chosen, func(err error) {
+		d.capture.pickers.save(d.win, kind, name, func(path string) { chosen(captureFile{path: path}) }, func(err error) {
 			d.setCaptureStatus(lang.L("Could not save the file: {{.Err}}", map[string]any{"Err": describe(err)}))
 		})
 	}
@@ -147,13 +162,25 @@ func (d *DeviceWindow) takeScreenshot() {
 	}
 	d.touchIdle() // local input, like Ctrl+Alt+Del
 	d.focusView()
-	d.captureDest(screenshotKind(), func(path string) { d.saveScreenshot(path, img) })
+	d.captureDest(screenshotKind(), func(dest captureFile) { d.saveScreenshot(dest, img) })
 }
 
-func (d *DeviceWindow) saveScreenshot(path string, img *image.RGBA) {
+// saveScreenshot writes img on a goroutine: into a new file of the folder, or replacing the
+// file chosen in the dialog only once it is complete (capture.SavePNG).
+func (d *DeviceWindow) saveScreenshot(dest captureFile, img *image.RGBA) {
 	done := d.exitWork.add()
 	go func() {
-		err := capture.SavePNG(path, img)
+		path := dest.path
+		var err error
+		if dest.dir != "" {
+			var f *os.File
+			if f, err = dest.create(); err == nil {
+				path = f.Name()
+				err = capture.WritePNG(f, img)
+			}
+		} else {
+			err = capture.SavePNG(path, img)
+		}
 		done()
 		fyne.Do(func() {
 			if !d.closed {
@@ -184,9 +211,9 @@ func (d *DeviceWindow) toggleRecording() {
 	d.captureDest(recordingKind(), d.startRecording)
 }
 
-// startRecording records into path from the frame shown now on; the session may have ended
+// startRecording records into dest from the frame shown now on; the session may have ended
 // while the save dialog was open.
-func (d *DeviceWindow) startRecording(path string) {
+func (d *DeviceWindow) startRecording(dest captureFile) {
 	if d.capture.recorder != nil || !d.captureAllowed() {
 		return
 	}
@@ -194,7 +221,11 @@ func (d *DeviceWindow) startRecording(path string) {
 	if img == nil {
 		return
 	}
-	r, err := capture.StartRecorder(path, img, d.capture.options)
+	f, err := dest.create()
+	var r *capture.Recorder
+	if err == nil {
+		r, err = capture.StartRecorder(f, img, d.capture.options)
+	}
 	if err != nil {
 		d.setCaptureStatus(lang.L("Could not start the recording: {{.Err}}", map[string]any{"Err": describe(err)}))
 		return

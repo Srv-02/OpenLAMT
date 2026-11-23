@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,18 +56,30 @@ func FileName(device string, t time.Time, ext string) string {
 	return fmt.Sprintf("openlamt-%s-%s.%s", name, t.Format("2006-01-02-150405"), ext)
 }
 
-// UniquePath returns dir/name, or dir/<name>-2.<ext>, -3 and so on if that file exists: two
-// screenshots in the same second must not overwrite each other.
-func UniquePath(dir, name string) string {
-	path := filepath.Join(dir, name)
+// maxTries bounds the search for a free name in CreateUnique.
+const maxTries = 10000
+
+// CreateUnique creates a new file for name in dir: dir/name, or dir/<name>-2.<ext>, -3 and so on
+// if that name is taken (two screenshots in the same second). The name is reserved atomically
+// with O_CREATE|O_EXCL, so a file or a symbolic link that appears there is never followed,
+// truncated or overwritten; the caller writes into the returned file.
+func CreateUnique(dir, name string) (*os.File, error) {
 	ext := filepath.Ext(name)
 	base := strings.TrimSuffix(name, ext)
+	path := filepath.Join(dir, name)
 	for i := 2; ; i++ {
-		if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
-			return path
+		f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+		if !errors.Is(err, fs.ErrExist) || i > maxTries {
+			return f, err
 		}
 		path = filepath.Join(dir, fmt.Sprintf("%s-%d%s", base, i, ext))
 	}
+}
+
+// CreateChosen creates or truncates the file the user chose in the save dialog, which asked
+// before it let an existing file be chosen.
+func CreateChosen(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o600)
 }
 
 // CheckFolder reports whether dir can take a new file: ErrNoFolder for an empty value,
@@ -90,9 +103,23 @@ func CheckFolder(dir string) error {
 	return nil
 }
 
-// SavePNG writes img to path as PNG at its native resolution. The file is written under a
-// temporary name next to it and renamed at the end, so a failed write leaves nothing behind
-// and an existing file (the save dialog asked) is only replaced by a complete one.
+// WritePNG writes img as PNG at its native resolution into f (from CreateUnique) and closes
+// it; on failure the file is removed again.
+func WritePNG(f *os.File, img image.Image) error {
+	err := png.Encode(f, img)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		os.Remove(f.Name())
+	}
+	return err
+}
+
+// SavePNG writes img to path, the file the user chose in the save dialog, as PNG at its native
+// resolution. The file is written under a new temporary name (O_EXCL) next to it and renamed
+// at the end: a failed write leaves nothing behind, an existing file (the dialog asked) is only
+// replaced by a complete one, and a symbolic link at path is replaced, not followed.
 func SavePNG(path string, img image.Image) error {
 	f, err := os.CreateTemp(filepath.Dir(path), ".openlamt-*.png")
 	if err != nil {

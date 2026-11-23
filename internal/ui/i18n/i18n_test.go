@@ -172,7 +172,8 @@ func TestUsedKeysExist(t *testing.T) {
 }
 
 // Fyne picks its language from the OS (NSLocale on macOS, LANG elsewhere) and registers translations
-// process-wide, so no test calls Init or switches the language: the texts are read from the JSON files.
+// process-wide, so no test calls Init or switches the language in this process (only the child
+// processes of TestUILanguageFollowsTheTexts do): the texts are read from the JSON files.
 func TestGermanTranslations(t *testing.T) {
 	de := keysOf(t, "de.json")
 	if got := de["Connect"]; got != "Verbinden" {
@@ -194,7 +195,7 @@ func TestGermanTranslations(t *testing.T) {
 }
 
 // Without registered translations lang.L returns the key, which is the English text; this is also
-// what an unknown key or an unsupported system language yields. Init must not be called in this package.
+// what an unknown key or an unsupported system language yields. Init must not be called in this process.
 func TestFallbackReturnsKey(t *testing.T) {
 	if got := lang.L("Connect"); got != "Connect" {
 		t.Fatalf("fallback: %q", got)

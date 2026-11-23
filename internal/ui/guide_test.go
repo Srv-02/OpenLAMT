@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/Srv-02/openlamt/internal/ui/i18n"
@@ -17,26 +16,14 @@ const (
 	guideDE = "https://srv-02.github.io/OpenLAMT/de/"
 )
 
-// TestUserGuideURLFollowsLanguage: a forced language wins over the OS; with System the OS
-// language decides, German (any region) opens the German guide, everything else the English one.
+// TestUserGuideURLFollowsLanguage: German texts open the German guide, English texts the
+// English one. i18n.TestUILanguageFollowsTheTexts checks which language the texts use.
 func TestUserGuideURLFollowsLanguage(t *testing.T) {
-	for _, c := range []struct {
-		setting string
-		system  fyne.Locale
-		want    string
-	}{
-		{i18n.German, "en-US", guideDE},
-		{i18n.English, "de-AT", guideEN},
-		{i18n.System, "de", guideDE},
-		{i18n.System, "de-AT", guideDE},
-		{i18n.System, "de-DE-Latn", guideDE},
-		{i18n.System, "en-GB", guideEN},
-		{i18n.System, "fr-FR", guideEN},
-		{i18n.System, "", guideEN},
-	} {
-		if got := userGuideURL(c.setting, c.system); got != c.want {
-			t.Errorf("setting %q, OS %q: %s, want %s", c.setting, c.system, got, c.want)
-		}
+	if got := userGuideURL(i18n.German); got != guideDE {
+		t.Errorf("German: %s, want %s", got, guideDE)
+	}
+	if got := userGuideURL(i18n.English); got != guideEN {
+		t.Errorf("English: %s, want %s", got, guideEN)
 	}
 }
 
@@ -59,7 +46,8 @@ func TestSidebarFooterHasHelpBetweenScanAndSettings(t *testing.T) {
 	}
 	opened := urlsOpened(t)
 	test.Tap(s.helpBtn)
-	if want := userGuideURL(i18n.Active(), lang.SystemLocale()); len(*opened) != 1 || (*opened)[0] != want {
-		t.Fatalf("opened %v, want %s", *opened, want)
+	// The tests of this package register no app translations, so the texts are English.
+	if len(*opened) != 1 || (*opened)[0] != guideEN {
+		t.Fatalf("opened %v, want %s", *opened, guideEN)
 	}
 }

@@ -89,8 +89,8 @@ func TestReadsWaitForTheFileLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	reads := map[string]func(){
-		"List": func() { m.List() },
-		"Find": func() { m.Find("device.example.com", "admin") },
+		"List":              func() { m.List() },
+		"Find":              func() { m.Find("device.example.com", "admin") },
 		"ChangeFingerprint": func() { m.ChangeFingerprint("device.example.com", "admin", "aa", "bb") },
 	}
 	for name, read := range reads {

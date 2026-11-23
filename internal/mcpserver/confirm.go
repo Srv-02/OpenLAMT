@@ -18,11 +18,23 @@ const confirmKey = "openlamt_confirm"
 // protocol versions the server sends it itself) and calls the handler again with the answer.
 // A client without elicitation support and every answer but an accepted confirm:true refuse.
 func (s *server) confirm(req *mcp.CallToolRequest, message string) (*mcp.CallToolResult, error) {
+	return s.confirmFor(req, message, "")
+}
+
+// confirmFor is confirm for an action on something that may change while the question is open
+// (the mounted image). state names it; the question carries it as the request state, and an
+// answer whose request state is not the current one is refused: the person agreed to something
+// else.
+func (s *server) confirmFor(req *mcp.CallToolRequest, message, state string) (*mcp.CallToolResult, error) {
 	if !s.cfg.RequireClientConfirmation {
 		return nil, nil
 	}
 	if resp, ok := req.Params.InputResponses[confirmKey]; ok {
 		if r, ok := resp.(*mcp.ElicitResult); ok && r.Action == "accept" && r.Content["confirm"] == true {
+			if req.Params.RequestState != state {
+				return nil, refuse("The mounted image changed while the question was open, so the answer was for another image. " +
+					"Nothing was sent to the device; call the tool again.")
+			}
 			return nil, nil
 		}
 		return nil, refuse("The action was not confirmed in the MCP client. Nothing was sent to the device.")
@@ -31,7 +43,7 @@ func (s *server) confirm(req *mcp.CallToolRequest, message string) (*mcp.CallToo
 		return nil, refuse("require_client_confirmation is on in the openlamt-mcp config, but this MCP client " +
 			"cannot ask for confirmation (it does not support elicitation). Nothing was sent to the device.")
 	}
-	return &mcp.CallToolResult{InputRequests: mcp.InputRequestMap{confirmKey: &mcp.ElicitParams{
+	return &mcp.CallToolResult{RequestState: state, InputRequests: mcp.InputRequestMap{confirmKey: &mcp.ElicitParams{
 		Message: message,
 		RequestedSchema: &jsonschema.Schema{
 			Type: "object",

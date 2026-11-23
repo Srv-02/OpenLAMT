@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"sync"
@@ -25,6 +26,8 @@ var (
 	buildImage = mkiso.BuildTemp
 	// pendingKeep is how long an image waits for the media_mount call with the consent code.
 	pendingKeep = 10 * time.Minute
+	// beforeImage runs between the path check and opening the image; tests swap files there.
+	beforeImage func()
 )
 
 // clearBootTimeout bounds clearing the IDE-R boot option after an unmount or at Close.
@@ -51,6 +54,7 @@ type mediaManager struct {
 	clearBoot func(device string) error
 	logger    *slog.Logger
 	now       func() time.Time // clock of the mount time and the read rate; tests replace it
+	mounts    uint64           // mounts so far, under mu; numbers the entries (gen)
 }
 
 // mediaEntry is the mount of one device. Its mutex serializes the calls on it; it is not held
@@ -68,16 +72,18 @@ type mediaEntry struct {
 	size      int64
 	info      *mkiso.Info // folder only
 	mountedAt time.Time
-	bootNext  bool // media_boot_next set the IDE-R boot option (or may have, after a failure)
+	gen       uint64 // number of the mount in this server, so a confirmed action finds the mount it was asked for
+	bootNext  bool   // media_boot_next set the IDE-R boot option (or may have, after a failure)
 
 	sampleAt    time.Time // previous media_status sample of the read rate
 	sampleBytes int64
 }
 
-// mediaSource is what media_mount was asked to mount.
+// mediaSource is what media_mount was asked to mount, after mediaPath resolved and checked it.
 type mediaSource struct {
-	path   string
-	folder bool
+	path    string // resolved, clean and absolute
+	folder  bool
+	checked os.FileInfo // what mediaPath checked; the image must be the same file or folder
 }
 
 // pendingImage is an image kept for the media_mount call with the consent code.
@@ -209,17 +215,37 @@ func (m *mediaManager) dropPending(device string, p *pendingImage) {
 	_ = p.img.Close()
 }
 
-// image returns the image kept for src, or opens the ISO or builds the folder image.
+// image returns the image kept for src, or opens the ISO or builds the folder image. What it
+// opens must still be what mediaPath checked: the path resolves to the same place and names the
+// same file or folder (os.SameFile), so a link or file swapped after the check is refused.
 func (m *mediaManager) image(ctx context.Context, device string, src mediaSource) (ider.Image, *mkiso.Info, error) {
 	if p := m.takePending(device); p != nil {
-		if p.src == src {
+		if p.src.path == src.path && p.src.folder == src.folder && os.SameFile(p.src.checked, src.checked) {
 			return p.img, p.info, nil
 		}
 		_ = p.img.Close()
 	}
+	if r, err := filepath.EvalSymlinks(src.path); err != nil || r != src.path {
+		return nil, nil, changedSource(src)
+	}
 	if !src.folder {
-		img, err := ider.OpenISO(src.path)
-		return img, nil, err
+		f, err := os.Open(src.path)
+		if err != nil {
+			return nil, nil, err
+		}
+		fi, err := f.Stat() // the opened file itself, not the path
+		if err != nil || !fi.Mode().IsRegular() || !os.SameFile(fi, src.checked) {
+			f.Close()
+			return nil, nil, changedSource(src)
+		}
+		if fi.Size() == 0 {
+			f.Close()
+			return nil, nil, refuse("%s is empty.", visible(src.path))
+		}
+		return &isoFile{File: f, size: fi.Size()}, nil, nil
+	}
+	if fi, err := os.Stat(src.path); err != nil || !fi.IsDir() || !os.SameFile(fi, src.checked) {
+		return nil, nil, changedSource(src)
 	}
 	t, info, err := buildImage(ctx, src.path, mkiso.Options{})
 	if err != nil {
@@ -227,6 +253,19 @@ func (m *mediaManager) image(ctx context.Context, device string, src mediaSource
 	}
 	return t, &info, nil
 }
+
+func changedSource(src mediaSource) error {
+	return refuse("%s changed after it was checked (a link or the file was replaced). Nothing was mounted.", visible(src.path))
+}
+
+// isoFile is an opened ISO file as an IDE-R image (ider.OpenISO opens by path; here the file is
+// opened first and checked through its handle).
+type isoFile struct {
+	*os.File
+	size int64
+}
+
+func (f *isoFile) Size() int64 { return f.size }
 
 // mount prepares the image of src and mounts it on device, then runs fn with the entry locked.
 // It runs until ctx or the manager's base context ends (Close); Close waits for it.
@@ -249,6 +288,9 @@ func (m *mediaManager) mount(ctx context.Context, device string, src mediaSource
 		}
 		return err
 	}
+	if beforeImage != nil {
+		beforeImage()
+	}
 	img, info, err := m.image(ctx, device, src)
 	if err != nil {
 		return fail(err)
@@ -269,6 +311,8 @@ func (m *mediaManager) mount(ctx context.Context, device string, src mediaSource
 	defer e.mu.Unlock()
 	m.mu.Lock()
 	closed := m.closed
+	m.mounts++
+	e.gen = m.mounts
 	m.mu.Unlock()
 	if closed { // Close came while the session opened: it is ours to end
 		m.remove(e)

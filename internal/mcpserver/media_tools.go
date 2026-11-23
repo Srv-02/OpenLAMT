@@ -59,8 +59,9 @@ func (s *server) registerMedia(srv *mcp.Server) {
 			"Devices that require user consent show a six-digit code on their screen: call without consent_code first, ask a person at the device " +
 			"for the code, then call again with it (the image is kept for that call). The image stays mounted until media_unmount, until the device " +
 			"ends the session, or until this server stops. Then use media_boot_next or boot_from_iso to boot from it. " +
-			"Links in the path are resolved first. The home folder itself, folders above it, SSH, GnuPG, AWS and GitHub CLI credentials, " +
-			"the macOS keychains and the OpenLAMT configuration are never mounted, and the operator may limit mounts to media.allowed_paths."},
+			"Links in the path are resolved first. The home folder itself, folders above it, the folders that hold credentials and settings " +
+			"(for example ~/.ssh, ~/.config, ~/Library, %APPDATA%) and the OpenLAMT configuration are never mounted, and the operator may limit " +
+			"mounts to media.allowed_paths."},
 		s.mediaMount)
 	addTool(s, srv, &mcp.Tool{Name: "media_unmount", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 		Description: "Unmount the image this server mounted on a device (a device installing or reading from it fails then) and clear the " +
@@ -128,9 +129,9 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 	}
 	switch {
 	case fi.IsDir():
-		src = mediaSource{path: resolved, folder: true}
+		src = mediaSource{path: resolved, folder: true, checked: fi}
 	case fi.Mode().IsRegular() && strings.EqualFold(filepath.Ext(resolved), ".iso"):
-		src, size = mediaSource{path: resolved}, fi.Size()
+		src, size = mediaSource{path: resolved, checked: fi}, fi.Size()
 	default:
 		return mediaSource{}, 0, refuse("path must be an .iso file or a folder.")
 	}
@@ -305,15 +306,26 @@ type mediaBootNextOutput struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// mountedName is the name of the image mounted on device; it refuses without a running mount.
-func (s *server) mountedName(device string) (string, error) {
-	var name string
-	err := s.media.mounted(device, func(e *mediaEntry) error {
-		name = e.name
+// mountedRef is the name and number of the mount on device; it refuses without a running mount.
+func (s *server) mountedRef(device string) (name string, gen uint64, err error) {
+	err = s.media.mounted(device, func(e *mediaEntry) error {
+		name, gen = e.name, e.gen
 		return nil
 	})
-	return name, err
+	return name, gen, err
 }
+
+// sameMount refuses when the mount of e is not the one numbered gen that the person confirmed.
+func sameMount(e *mediaEntry, gen uint64) error {
+	if e.gen != gen {
+		return refuse("The mounted image of %q changed meanwhile (now «%s»). Nothing was sent to the device; call the tool again.",
+			e.device, visible(e.name))
+	}
+	return nil
+}
+
+// mountState is the request state of a confirmation about the mount numbered gen.
+func mountState(gen uint64) string { return fmt.Sprintf("mount %d", gen) }
 
 func (s *server) mediaBootNext(ctx context.Context, req *mcp.CallToolRequest, in mediaBootNextInput, rec *record) (*mcp.CallToolResult, mediaBootNextOutput, error) {
 	rec.device, rec.action = in.Device, "off"
@@ -324,19 +336,22 @@ func (s *server) mediaBootNext(ctx context.Context, req *mcp.CallToolRequest, in
 	if err != nil {
 		return nil, mediaBootNextOutput{}, err
 	}
-	name, err := s.mountedName(in.Device)
+	name, gen, err := s.mountedRef(in.Device)
 	if err != nil {
 		return nil, mediaBootNextOutput{}, err
 	}
 	// Clearing takes nothing away the person has to agree to, like the app's check mark.
 	if in.Enabled {
 		what := fmt.Sprintf("set the device to boot from «%s» at its next start (no restart now)", visible(name))
-		if res, err := s.confirm(req, confirmMessage(what, fav)); res != nil || err != nil {
+		if res, err := s.confirmFor(req, confirmMessage(what, fav), mountState(gen)); res != nil || err != nil {
 			return res, mediaBootNextOutput{}, err
 		}
 	}
 	out := mediaBootNextOutput{Device: in.Device}
 	err = s.media.mounted(in.Device, func(e *mediaEntry) error {
+		if err := sameMount(e, gen); err != nil {
+			return err
+		}
 		sess, _, _, warnings, err := s.openDevice(ctx, in.Device)
 		if err != nil {
 			return err
@@ -369,17 +384,20 @@ func (s *server) bootFromISO(ctx context.Context, req *mcp.CallToolRequest, in d
 	if err != nil {
 		return nil, bootOutput{}, err
 	}
-	name, err := s.mountedName(in.Device)
+	name, gen, err := s.mountedRef(in.Device)
 	if err != nil {
 		return nil, bootOutput{}, err
 	}
 	rec.action = name
 	what := fmt.Sprintf("restart and boot once from «%s» (a running device is reset; unsaved work is lost)", visible(name))
-	if res, err := s.confirm(req, confirmMessage(what, fav)); res != nil || err != nil {
+	if res, err := s.confirmFor(req, confirmMessage(what, fav), mountState(gen)); res != nil || err != nil {
 		return res, bootOutput{}, err
 	}
 	var out bootOutput
 	err = s.media.mounted(in.Device, func(e *mediaEntry) error {
+		if err := sameMount(e, gen); err != nil {
+			return err
+		}
 		sess, st, _, warnings, err := s.openDevice(ctx, in.Device)
 		if err != nil {
 			return err

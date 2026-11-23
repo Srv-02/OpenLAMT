@@ -792,9 +792,10 @@ func mustMkdirFile(t *testing.T, dir, name string) string {
 }
 
 // TestMediaMountRefusesProtectedPaths: whatever the config says, media_mount never mounts the
-// home folder itself, a folder above it, credentials (SSH, GnuPG, AWS, GitHub CLI) or the
-// OpenLAMT configuration, also when a link leads there; other folders in the home folder may be
-// mounted. Nothing reaches the device.
+// home folder itself, a folder above it, the folders with credentials and settings (SSH, GnuPG,
+// AWS, ~/.config, ~/.local/share, Kubernetes, Docker, pass, Firefox, ~/Library on macOS, the
+// system's per-user config and cache folders) or the OpenLAMT configuration, also when a link
+// leads there; other folders in the home folder may be mounted. Nothing reaches the device.
 func TestMediaMountRefusesProtectedPaths(t *testing.T) {
 	files := newMediaFiles(t)
 	home, err := filepath.EvalSymlinks(t.TempDir())
@@ -829,6 +830,17 @@ func TestMediaMountRefusesProtectedPaths(t *testing.T) {
 	refused := []string{home, filepath.Dir(home), filepath.Join(home, ".ssh"), sshISO, filepath.Join(home, ".gnupg"),
 		filepath.Join(home, ".aws"), filepath.Join(home, ".config"), filepath.Join(home, ".config", "gh"),
 		filepath.Dir(favPath), cfgISO, filepath.Dir(h.cfg.ActionLogPath)}
+	for _, rel := range []string{".kube", ".docker", ".password-store", ".mozilla", filepath.Join(".local", "share")} {
+		refused = append(refused, mustMkdirFile(t, filepath.Join(home, rel), "secret.iso"), filepath.Join(home, rel))
+	}
+	if runtime.GOOS == "darwin" {
+		refused = append(refused, mustMkdirFile(t, filepath.Join(home, "Library", "Keychains"), "login.iso"), filepath.Join(home, "Library"))
+	}
+	cacheDir, err := os.UserCacheDir() // %LOCALAPPDATA% on Windows
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused = append(refused, mustMkdirFile(t, cacheDir, "cached.iso"), cacheDir)
 	if link := filepath.Join(files.dir, "innocent"); os.Symlink(filepath.Join(home, ".ssh"), link) == nil {
 		refused = append(refused, link)
 	} else {
@@ -891,5 +903,87 @@ func TestMediaMountAllowedPaths(t *testing.T) {
 	}
 	if n := len(h.connectCalls()); n != 0 {
 		t.Fatalf("%d device connections", n)
+	}
+}
+
+// TestMediaMountRefusesSwapAfterCheck: a file or link swapped between the path check and the
+// opening of the image is refused (the opened file is compared with the checked one through its
+// handle), and nothing is mounted.
+func TestMediaMountRefusesSwapAfterCheck(t *testing.T) {
+	files := newMediaFiles(t)
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	addIDER(t, f)
+	h.start()
+	other := filepath.Join(files.dir, "other.iso")
+	if err := os.WriteFile(other, []byte("not the checked file"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	beforeImage = func() {
+		if err := os.Rename(other, files.iso); err != nil { // the checked file is replaced
+			t.Error(err)
+		}
+	}
+	t.Cleanup(func() { beforeImage = nil })
+	h.mustFail("media_mount", dev("NUC", "path", files.iso), "changed after it was checked")
+
+	link := filepath.Join(files.dir, "tools-link")
+	if err := os.Symlink(files.folder, link); err != nil {
+		t.Logf("no symlink: %v", err) // Windows without the privilege
+	} else {
+		// The folder checked is the resolved one; replacing it by a link to elsewhere is refused.
+		moved := files.folder + "-moved"
+		beforeImage = func() {
+			if err := os.Rename(files.folder, moved); err != nil {
+				t.Error(err)
+			}
+			if err := os.Symlink(files.dir, files.folder); err != nil {
+				t.Error(err)
+			}
+		}
+		h.mustFail("media_mount", dev("NUC", "path", link), "changed after it was checked")
+	}
+	if n := len(f.IDERStarts()); n != 0 {
+		t.Fatalf("%d mounts", n)
+	}
+	if out := h.mustOK("media_status", dev("NUC")); out["mounted"] != false {
+		t.Fatalf("status %v", out)
+	}
+}
+
+// TestMediaConfirmationBindsTheMount: boot_from_iso and media_boot_next ask about one mount; if
+// another image is mounted while the question is open (simulated by a new mount number), the
+// answer is refused and nothing is sent to the device.
+func TestMediaConfirmationBindsTheMount(t *testing.T) {
+	files := newMediaFiles(t)
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	srv := addIDER(t, f)
+	h.cfg.RequireClientConfirmation = true
+	remount := false
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		if remount {
+			e := h.mediaEntry("NUC")
+			e.mu.Lock()
+			e.gen += 100 // another mount took its place meanwhile
+			e.mu.Unlock()
+		}
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
+	h.start()
+	h.mount(srv, dev("NUC", "path", files.iso))
+	remount = true
+	h.mustFail("boot_from_iso", dev("NUC"), "changed while the question was open")
+	h.mustFail("media_boot_next", dev("NUC", "enabled", true), "changed while the question was open")
+	if p := f.Powered(); len(p) != 0 {
+		t.Fatalf("powered %v", p)
+	}
+	if next, _ := f.ISOCalls(); next != 0 {
+		t.Fatalf("NextBootFromISO calls %d", next)
+	}
+	remount = false
+	h.mustOK("media_boot_next", dev("NUC", "enabled", true))
+	if next, _ := f.ISOCalls(); next != 1 {
+		t.Fatalf("NextBootFromISO calls %d", next)
 	}
 }

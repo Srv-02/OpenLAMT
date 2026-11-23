@@ -174,6 +174,7 @@ type manager struct {
 	onPopOut func()
 	users    *manageSource[amt.UserList] // created by the first Users pane
 	power    *powerData                  // created by the first Power pane
+	wifi     *wifiData                   // created by the first Wi-Fi pane
 	closed   bool
 	tlsAsk   *panel // the last "without TLS" question (tests)
 

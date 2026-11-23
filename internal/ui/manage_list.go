@@ -371,6 +371,7 @@ type listSpec struct {
 	tools   []fyne.CanvasObject   // page head (window) / right-aligned row above the table (sidebar)
 	refresh func()                // non-nil: a "Refresh" button after the tools
 	src     interface{ reload() } // read again after a write; nil = none
+	lead    []fyne.CanvasObject   // between the error text and the table (Wi-Fi: the state card); its visibility is up to the caller
 
 	emptyTitle, emptyText string            // a title shows the empty-state card instead of an empty table
 	note                  fyne.CanvasObject // under the table, its visibility is up to the caller
@@ -401,7 +402,7 @@ func (m *manager) newListPage(compact bool, s listSpec) *listPage {
 		p.refresh = newManageButton(lang.L("Refresh"), s.refresh)
 		p.tools = append(p.tools, p.refresh)
 	}
-	objs := []fyne.CanvasObject{p.err.box, p.table}
+	objs := append(append([]fyne.CanvasObject{p.err.box}, s.lead...), p.table)
 	if s.emptyTitle != "" {
 		p.empty = newEmptyCard(s.emptyTitle, s.emptyText)
 		p.empty.Hide()

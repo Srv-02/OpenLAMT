@@ -76,6 +76,7 @@
   "{{.Path}}: {{.Reason}}": "{{.Path}}: {{.Reason}}",
   "Host is required.": "Host is required.",
   "IPv6 addresses are not supported.": "IPv6 addresses are not supported.",
+  "If you trust it, OpenLAMT accepts it for this connection only. Save the device as a favorite so that OpenLAMT remembers the certificate and warns you if it ever changes.": "If you trust it, OpenLAMT accepts it for this connection only. Save the device as a favorite so that OpenLAMT remembers the certificate and warns you if it ever changes.",
   "If you trust it, OpenLAMT remembers the certificate and warns you if it ever changes.": "If you trust it, OpenLAMT remembers the certificate and warns you if it ever changes.",
   "Independent project, not affiliated with Intel.": "Independent project, not affiliated with Intel.",
   "KVM auto-connect": "KVM auto-connect",

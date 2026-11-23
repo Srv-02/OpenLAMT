@@ -53,7 +53,7 @@ type connector struct {
 
 	// Dialogs, replaced in tests.
 	askPassword func(host, user string, offerSave bool, answer func(password string, save, ok bool))
-	askTrust    func(host, fp string, answer func(bool))
+	askTrust    func(host, fp string, remembered bool, answer func(bool)) // remembered: a favorite stores the pin
 }
 
 func newConnector(parent fyne.Window, mgr *favorites.Manager, keys keychain.Store, connect session.ConnectFunc) *connector {
@@ -63,7 +63,9 @@ func newConnector(parent fyne.Window, mgr *favorites.Manager, keys keychain.Stor
 	c.askPassword = func(host, user string, offerSave bool, answer func(string, bool, bool)) {
 		showPasswordDialog(parent, host, user, offerSave, answer)
 	}
-	c.askTrust = func(host, fp string, answer func(bool)) { showTrustDialog(parent, host, fp, answer) }
+	c.askTrust = func(host, fp string, remembered bool, answer func(bool)) {
+		showTrustDialog(parent, host, fp, remembered, answer)
+	}
 	return c
 }
 
@@ -193,7 +195,9 @@ func (c *connector) askPasswordThen(req connectRequest, offerSave bool) {
 
 // dial runs on a goroutine; the trust prompt blocks it until the user answers.
 func (c *connector) dial(req connectRequest) {
-	tp := &trustPrompt{ask: c.askTrust, ctx: req.att.ctx}
+	// Only a favorite stores the pin (persist); the dialog says so.
+	ask := func(host, fp string, answer func(bool)) { c.askTrust(host, fp, req.isFavorite, answer) }
+	tp := &trustPrompt{ask: ask, ctx: req.att.ctx}
 	s, st, err := session.Open(req.att.ctx, req.cfg, tp, c.connect)
 	if err != nil {
 		if errors.Is(err, session.ErrAuth) && tp.confirmed != "" && req.cfg.Fingerprint == "" {

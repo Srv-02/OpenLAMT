@@ -15,7 +15,10 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui/style"
 )
 
-func showTrustDialog(parent fyne.Window, host, fp string, answer func(bool)) *panel {
+// showTrustDialog asks whether to trust the certificate fp of host. remembered tells whether a
+// trusted certificate is stored (a favorite) or only accepted for this connection (Quick Connect
+// to a device that is no favorite).
+func showTrustDialog(parent fyne.Window, host, fp string, remembered bool, answer func(bool)) *panel {
 	// Trusting a certificate is a security decision: no Enter, Cancel has the focus.
 	return showPanel(parent, panelSpec{
 		noEnter:  true,
@@ -28,6 +31,9 @@ func showTrustDialog(parent fyne.Window, host, fp string, answer func(bool)) *pa
 		intro := widget.NewLabel(lang.L("OpenLAMT is connecting to {{.Host}} for the first time. The device presents this certificate (SHA-256):", map[string]any{"Host": host}))
 		intro.Wrapping = fyne.TextWrapWord
 		outro := widget.NewLabel(lang.L("If you trust it, OpenLAMT remembers the certificate and warns you if it ever changes."))
+		if !remembered {
+			outro.SetText(lang.L("If you trust it, OpenLAMT accepts it for this connection only. Save the device as a favorite so that OpenLAMT remembers the certificate and warns you if it ever changes."))
+		}
 		outro.Wrapping = fyne.TextWrapWord
 		return []fyne.CanvasObject{intro, fingerprintBlock(fp), outro}
 	})

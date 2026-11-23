@@ -54,7 +54,7 @@ func newStart(t *testing.T) *startHarness {
 	h.s.onError = func(err error) { h.errs <- err }
 	h.s.openDevice = func(sess *session.Session, _ amt.Status, _ string) { h.opened <- sess.Config() }
 	h.s.onReloaded = func() { h.reloaded <- struct{}{} }
-	h.s.conn.askTrust = func(_, _ string, answer func(bool)) { answer(true) }
+	h.s.conn.askTrust = func(_, _ string, _ bool, answer func(bool)) { answer(true) }
 	end := h.s.conn.onDone
 	h.s.conn.onDone = func(host, user string) { end(host, user); h.ended <- struct{}{} }
 	return h

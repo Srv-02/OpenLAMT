@@ -487,7 +487,7 @@ var (
 // readingPath is the order of the pages that carry a pager. The other pages have none.
 var readingPath = []string{
 	"getting-started.html", "favorites.html", "device-window.html", "management.html",
-	"amt-settings.html", "confirmations.html", "settings.html",
+	"amt-settings.html", "confirmations.html", "settings.html", "this-computer.html",
 }
 
 // TestExternalLinksOpenInNewTab requires every link to another site to open in a new tab

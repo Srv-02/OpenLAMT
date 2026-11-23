@@ -37,7 +37,8 @@
 <li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
 <li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
 <li><a href="settings.html">App-Einstellungen und Updates</a></li>
-<li><a href="troubleshooting.html" aria-current="page">Fehlerbehebung</a><ol class="toc"><li><a href="#start">Die App startet nicht</a></li><li><a href="#connect">Keine Verbindung</a></li><li><a href="#permissions">Meldungen zu Berechtigungen</a></li><li><a href="#consent">Benutzerzustimmung</a></li><li><a href="#kvm">Fernbildschirm (KVM)</a></li><li><a href="#console">Serielle Konsole</a></li><li><a href="#media">Medien</a></li><li><a href="#boot">Boot-Optionen und Löschen</a></li><li><a href="#certificates">Zertifikate und Weiterleitung</a></li><li><a href="#keychain">Passwörter und Schlüsselbund</a></li><li><a href="#updates">Updates</a></li><li><a href="#report">Ein Problem melden</a></li></ol></li>
+<li><a href="this-computer.html">Dieser Computer</a></li>
+<li><a href="troubleshooting.html" aria-current="page">Fehlerbehebung</a><ol class="toc"><li><a href="#start">Die App startet nicht</a></li><li><a href="#connect">Keine Verbindung</a></li><li><a href="#permissions">Meldungen zu Berechtigungen</a></li><li><a href="#consent">Benutzerzustimmung</a></li><li><a href="#kvm">Fernbildschirm (KVM)</a></li><li><a href="#console">Serielle Konsole</a></li><li><a href="#media">Medien</a></li><li><a href="#boot">Boot-Optionen und Löschen</a></li><li><a href="#certificates">Zertifikate und Weiterleitung</a></li><li><a href="#keychain">Passwörter und Schlüsselbund</a></li><li><a href="#updates">Updates</a></li><li><a href="#this-computer">Dieser Computer</a></li><li><a href="#report">Ein Problem melden</a></li></ol></li>
 <li><a href="mcp.html">MCP-Server</a></li>
 <li><a href="about.html">Über OpenLAMT</a></li>
 </ol>
@@ -197,6 +198,20 @@
   <dd>GitHub begrenzt die Anfragen pro Adresse. Versuche es später erneut.</dd>
   <dt>Das Update wurde nicht installiert</dt>
   <dd>Das Paket bleibt in <code>~/Downloads</code>, und das Fenster sagt, wie du es installierst. Siehe <a href="settings.html#update-window">Das Update-Fenster</a>.</dd>
+</dl>
+
+<h2 id="this-computer">Dieser Computer</h2>
+<dl class="terms">
+  <dt>„OpenLAMT braucht pkexec, um nach Administratorrechten zu fragen. Installiere polkit und versuche es erneut.“</dt>
+  <dd>Nur unter Linux. „Prüfen“ und die Schritte der Einrichtung unter <a href="this-computer.html">Dieser Computer</a> brauchen pkexec für die Abfrage der Administratorrechte. Installiere es aus den Paketen deiner Distribution: Es gehört zu polkit, unter Debian und Ubuntu steckt es im eigenen Paket <code>pkexec</code>.</dd>
+  <dt>„Die Administratorrechte wurden nicht erteilt. Es wurde nichts geändert.“</dt>
+  <dd>Die Abfrage von pkexec oder UAC wurde abgebrochen, oder das Passwort darin war falsch. Klicke noch einmal auf die Schaltfläche und bestätige die Abfrage.</dd>
+  <dt>„Kein Intel AMT gefunden“</dt>
+  <dd>Die Intel ME dieses Computers hat kein Intel AMT gemeldet. AMT ist vielleicht im BIOS ausgeschaltet, der Intel-ME-Treiber fehlt oder ist veraltet, oder der Computer ist keine vPro-Plattform. Siehe <a href="this-computer.html#no-amt">Kein Intel AMT gefunden</a>.</dd>
+  <dt>„Intel AMT hat die Änderung abgelehnt: …“</dt>
+  <dd>Die Firmware hat AMT nicht eingeschaltet, aktiviert oder deaktiviert. Siehe <a href="this-computer.html#errors">Meldungen</a>.</dd>
+  <dt>„Ein anderes Programm belegt den Intel-AMT-Port 16992 auf diesem Computer. Es wurde nichts geändert.“</dt>
+  <dd>Ein anderes Programm als Intels LMS lauscht auf diesem Port, deshalb hat die Aktivierung nicht begonnen. Beende dieses Programm und versuche es erneut.</dd>
 </dl>
 
 <h2 id="report">Ein Problem melden</h2>

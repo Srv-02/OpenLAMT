@@ -143,6 +143,8 @@ func describeDevice(err error) (string, bool) {
 		return lang.L("The file is not a certificate."), true
 	case errors.Is(err, certfile.ErrWrongPassword):
 		return lang.L("Wrong password for the .p12 file."), true
+	case errors.Is(err, certfile.ErrKeyMismatch):
+		return lang.L("No certificate in the file matches its private key."), true
 	case errors.Is(err, certfile.ErrUnsupportedKey):
 		return lang.L("The key in the file is not an RSA key. Intel AMT accepts only RSA keys."), true
 	case errors.Is(err, amt.ErrInvalidValue):

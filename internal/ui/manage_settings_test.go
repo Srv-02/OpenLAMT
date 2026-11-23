@@ -495,6 +495,26 @@ func TestSettingsTLSDialog(t *testing.T) {
 	}
 }
 
+func TestSettingsTLSChangeReloadsTheCertificatesPage(t *testing.T) {
+	h, p := settingsHarness(t, nil)
+	h.m.certsPane(false).shown() // the Certificates page was opened before
+	h.wait(t)
+	if h.m.certs.reads != 1 || !h.m.certs.val.Certificates[1].TLS || h.m.certs.val.Certificates[0].TLS {
+		t.Fatalf("reads %d, store %+v", h.m.certs.reads, h.m.certs.val.Certificates)
+	}
+	test.Tap(p.change)
+	h.wait(t) // certificates
+	test.Tap(p.tlsForm.options[0])
+	test.Tap(p.dialog.check)
+	test.Tap(p.dialog.action)
+	h.wait(t) // write
+	h.wait(t)
+	h.wait(t) // settings and certificates, in either order
+	if h.m.certs.reads != 2 || !h.m.certs.val.Certificates[0].TLS || h.m.certs.val.Certificates[1].TLS {
+		t.Errorf("reads %d, TLS marks %v %v", h.m.certs.reads, h.m.certs.val.Certificates[0].TLS, h.m.certs.val.Certificates[1].TLS)
+	}
+}
+
 func TestSettingsTurnOffAMT(t *testing.T) {
 	h, p := settingsHarness(t, nil)
 	test.Tap(p.turnOff)

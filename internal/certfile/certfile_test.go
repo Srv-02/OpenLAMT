@@ -122,6 +122,29 @@ func TestPKCS12(t *testing.T) {
 	}
 }
 
+func TestPKCS12PicksTheCertificateOfTheKey(t *testing.T) {
+	leafKey, caKey := rsaKey(t), rsaKey(t)
+	leaf := makeCert(t, leafKey, &leafKey.PublicKey)
+	ca := makeCert(t, caKey, &caKey.PublicKey)
+	// The encoder writes its cert argument first: passing the CA there puts the CA before the leaf.
+	pfx, err := pkcs12.Modern.Encode(leafKey, ca, []*x509.Certificate{leaf}, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, key, err := PKCS12(pfx, "pw")
+	if err != nil || !bytes.Equal(der, leaf.Raw) || !key.Equal(leafKey) {
+		t.Fatalf("CA first: %v", err)
+	}
+	other := rsaKey(t)
+	pfx, err = pkcs12.Modern.Encode(other, ca, []*x509.Certificate{leaf}, "pw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := PKCS12(pfx, "pw"); !errors.Is(err, ErrKeyMismatch) {
+		t.Fatalf("no matching certificate: %v", err)
+	}
+}
+
 func TestPKCS12NeedsAnRSAKey(t *testing.T) {
 	k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

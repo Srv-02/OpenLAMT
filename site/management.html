@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Device management · OpenLAMT User Guide</title>
+<meta name="description" content="Hardware, event log, audit log, AMT settings, user accounts, power policy, Wi-Fi, System Defense and the WSMAN Browser.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html">Overview</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html">Device window</a></li>
+<li><a href="management.html" aria-current="page">Device management</a><ol class="toc"><li><a href="#open">Sidebar and window</a></li><li><a href="#hardware">Hardware</a></li><li><a href="#event-log">Event log</a></li><li><a href="#audit-log">Audit log</a></li><li><a href="#settings">Settings</a></li><li><a href="#users">Users</a></li><li><a href="#power">Power</a></li><li><a href="#wifi">Wi-Fi</a></li><li><a href="#system-defense">System Defense</a></li><li><a href="#wsman">WSMAN Browser</a></li></ol></li>
+<li><a href="amt-settings.html">AMT settings explained</a></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html">App settings and updates</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="mcp.html">MCP server</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Device management</h1>
+<p class="lead">Device management shows what is in a device and what its Intel AMT is set to. Change settings, manage accounts and plan wake-ups, next to the remote screen or in a window of its own.</p>
+
+<h2 id="open">Sidebar and window</h2>
+<div class="prose">
+<p>Click <span class="ui">Manage</span> in the device window. A sidebar opens next to the remote screen. The external-link symbol <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg> in its head opens the same pages in a window of their own, with a list of pages on the left.</p>
+<p>The sidebar has a tab for each main page: <span class="ui">Hardware</span>, <span class="ui">Events</span>, <span class="ui">Audit</span>, <span class="ui">Settings</span> and <span class="ui">Users</span>. The last tab, <span class="ui">More</span>, opens a menu with further pages. A page you choose there gives the tab its name, for example <span class="ui">Power</span>. Pages marked with <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg> in the menu, such as the WSMAN Browser, need more room and open in the window.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server</span></div>
+  <div class="row2" style="height:430px">
+    <div class="stage" style="flex:1"><span style="color:#A1A1A6">Remote screen</span></div>
+    <div class="side400">
+      <div class="hd">Device management <span style="color:var(--text2);display:inline-flex"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg></span></div>
+      <div class="segtabs"><span>Hardware</span><span>Events</span><span>Audit</span><span class="on">Settings</span><span>Users</span><span style="flex:.8">More <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+      <div class="menu" style="top:96px;right:16px;min-width:220px">
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div>
+        <div class="msep"></div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser<span class="k"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-ext"/></svg></span></div>
+      </div>
+      <div style="margin-top:14px;color:var(--text2);font-size:12px">Settings page…</div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The sidebar with the More menu open.</figcaption>
+</figure>
+<div class="prose">
+<p>The pages under <span class="ui">More</span> are <a href="#power">Power</a>, <a href="#wifi">Wi-Fi</a> and <a href="#system-defense">System Defense</a>. The <a href="#wsman">WSMAN Browser</a> is under <span class="ui">Diagnostics</span>.</p>
+<p>Every page reads its data when you open it. The foot of a page says how old the data is, for example “Read 12 s ago”. <span class="ui">Refresh</span> reads again.</p>
+<p>If the account may not read a page, the page says “This account is not allowed to read this information on the device.” Parts it may not read show “N/A”. See <a href="confirmations.html#limited-accounts">Limited accounts</a>.</p>
+</div>
+
+<h2 id="hardware">Hardware</h2>
+<figure class="shot">
+<div class="scr"><div class="win w880 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Hardware</h3><span class="cnt"></span></div>
+      <div class="mbody">
+        <div class="sect">System</div>
+        <div class="card"><div class="r"><span class="l">Manufacturer</span><span class="v">ACME Lab</span></div><div class="r"><span class="l">Model</span><span class="v">Mini PC Q670</span></div><div class="r"><span class="l">Serial number</span><span class="v">ACME-0001</span></div><div class="r"><span class="l">BIOS</span><span class="v">M3J 1.27 (Oct 2026)</span></div></div>
+        <div class="sect">Processor and memory</div>
+        <div class="card"><div class="r"><span class="l">CPU</span><span class="v">Intel Core i5 · 4.6 GHz</span></div><div class="r"><span class="l">RAM DIMM0</span><span class="v">16 GB DDR5 · 4800 MT/s</span></div></div>
+        <div class="sect">AMT</div>
+        <div class="card"><div class="r"><span class="l">Version</span><span class="v">16.1.25 · Build 2016</span></div><div class="r"><span class="l">Mode</span><span class="v">ACM</span></div></div>
+        <div class="mfoot" style="display:flex">Read 12 s ago<span class="sp"></span><span class="lnk">Refresh</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The Hardware page in the management window.</figcaption>
+</figure>
+<div class="prose">
+<p>The Hardware page lists system, BIOS, processors, memory, drives and the AMT version with its <a href="amt-settings.html#control-mode">control mode</a>. AMT reads these values from the device itself, so they work while the operating system is off. Sections the device does not report are left out.</p>
+</div>
+
+<h2 id="event-log">Event log</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:420px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Event log</h3><span class="cnt">· 44 entries</span>
+        <div class="chips"><span class="on">All</span><span>Warning</span><span>Critical</span></div>
+        <div class="fld ph" style="width:180px;height:30px;border-radius:8px"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>&nbsp;Filter</div>
+        <span class="b out">Refresh</span></div>
+      <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Time</th><th>Severity</th><th>Source</th><th>Description</th></tr></thead><tbody>
+        <tr><td>Nov 23, 2026 09:58:12</td><td><span class="dot" style="background:#6E6E73"></span> Info</td><td>BIOS</td><td>Starting operating system boot process</td></tr>
+        <tr><td>Nov 23, 2026 09:57:31</td><td><span class="dot" style="background:#C75300"></span> Warning</td><td>BIOS</td><td>No bootable media found</td></tr>
+        <tr><td>Nov 22, 2026 17:41:52</td><td><span class="dot" style="background:#6E6E73"></span> Info</td><td>BIOS</td><td>Starting operating system boot process</td></tr>
+      </tbody></table></div><div class="mfoot">Newest first. Read in 0.4 s.</div></div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The event log, filtered by severity and text.</figcaption>
+</figure>
+<div class="prose">
+<p>The event log holds what the platform reported: BIOS progress, boot problems, sensor events and AMT messages. The device keeps it in its own memory, so it also covers times when the operating system did not run.</p>
+<ul>
+  <li>The chips <span class="ui">All</span>, <span class="ui">Warning</span> and <span class="ui">Critical</span> filter by severity. <span class="ui">Filter</span> searches the text.</li>
+  <li>Click an entry to see every field, including the raw data. The arrow buttons and the <kbd>Up</kbd> and <kbd>Down</kbd> keys step through the list. <span class="ui">Copy</span> puts the entry on the clipboard.</li>
+</ul>
+</div>
+
+<h2 id="audit-log">Audit log</h2>
+<div class="prose">
+<p>The audit log records who did what on the device: sign-ins, remote sessions, power actions and changes to settings and accounts. Each entry names the <span class="ui">Initiator</span> (the account), the network <span class="ui">Address</span> it came from and the <span class="ui">Event</span>. <span class="ui">Filter</span> searches the text, and a click opens the details, as in the event log.</p>
+<p>Which events AMT records depends on the audit policy of the device. An account needs the permission <span class="ui">Audit log</span> to read the log.</p>
+</div>
+
+<h2 id="settings">Settings</h2>
+<div class="prose">
+<p>The Settings page shows and changes the Intel AMT settings of the device. <a href="amt-settings.html">AMT settings explained</a> describes what each one does. Here is how the page works.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:900px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Settings</h3><span class="cnt"></span></div>
+      <div class="mbody" style="gap:8px">
+        <div class="sect">General</div>
+        <div class="card">
+          <div class="r"><span class="lw">Host name</span><span class="rt">labserver <span class="b out sm">Change…</span></span></div>
+          <div class="r"><span class="lw">Domain</span><span class="rt">example.com <span class="b out sm">Change…</span></span></div>
+          <div class="r"><span class="lw">Respond to ping</span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw">Dynamic DNS</span><span class="sw"></span></div>
+        </div>
+        <div class="sect">Environment detection</div>
+        <div class="card"><div class="r"><span class="lw">Intranet domains</span><span class="rt">example.com <span class="b out sm">Change…</span></span></div></div>
+        <div class="sect">Network</div>
+        <div class="card"><div class="r"><span class="lw">Address</span><span class="seg"><span class="on">DHCP</span><span>Static</span></span></div><div class="r"><span class="lw">IP address</span><span class="rt" style="color:var(--text)">192.0.2.10 / 24 · gateway 192.0.2.1</span></div></div>
+        <div class="sect">Remote features</div>
+        <div class="card">
+          <div class="r"><span class="lw">KVM</span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw">Media redirection (IDE-R)</span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw">Serial over LAN (SOL)</span><span class="sw"></span></div>
+          <div class="r"><span class="lw">User consent</span><span class="seg"><span>None</span><span class="on">KVM only</span><span>All</span></span></div>
+        </div>
+        <div class="sect">Clock and TLS</div>
+        <div class="card">
+          <div class="r"><span class="lw">AMT clock</span><span class="rt">15 s behind <span class="b out sm">Sync Now</span></span></div>
+          <div class="r"><span class="lw">TLS certificate</span><span class="rt">SHA-256 4F:2A:…:9C <span class="b out sm">Change…</span></span></div>
+        </div>
+        <div class="sect" style="color:var(--danger)">Danger zone</div>
+        <div class="redcard">
+          <div class="r"><div class="lw"><b>Turn off AMT</b><div class="d">Only the BIOS (MEBx) at the device can turn it back on.</div></div><span class="b red sm">Turn Off…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The Settings page of a device in Admin Control Mode.</figcaption>
+</figure>
+<div class="prose">
+<p>Switches and choices write at once. A change that can cut you off from the device asks first and names the device. <span class="ui">Change…</span> opens a dialog with the new value.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Setting</th><th>Change</th><th>Asks</th></tr></thead>
+  <tbody>
+    <tr><td>Host name, Domain</td><td><span class="ui">Change…</span></td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>Respond to ping</td><td>Switch</td><td><span class="lv none">no</span></td></tr>
+    <tr><td>Dynamic DNS</td><td>Switch, with an explanation of the effect</td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>Intranet domains</td><td><span class="ui">Change…</span>: add and remove domains</td><td><span class="lv red">red</span></td></tr>
+    <tr><td>Address (DHCP or Static)</td><td>Choice opens <span class="ui">Change network settings</span> with address, subnet mask, gateway and DNS</td><td><span class="lv red">red</span></td></tr>
+    <tr><td>KVM, Media redirection, Serial over LAN</td><td>Switch. Turning on asks nothing</td><td><span class="lv or">orange</span> to turn off</td></tr>
+    <tr><td>User consent</td><td>Choice: None, KVM only, All</td><td><span class="lv none">no</span></td></tr>
+    <tr><td>AMT clock</td><td><span class="ui">Sync Now</span> sets it to the time of your computer</td><td><span class="lv none">no</span></td></tr>
+    <tr><td>TLS certificate</td><td><span class="ui">Change…</span>: choose one of the certificates on the device</td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>Turn off AMT</td><td><span class="ui">Turn Off…</span></td><td><span class="lv red">red</span>, cannot be undone remotely</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Some devices do not let you change a setting remotely, for example the user consent policy in Client Control Mode. The control is then disabled, or the device answers “The device does not allow changing this setting.”</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w520">
+    <h4>Change network settings</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg><div><b>Risk of lockout.</b> A wrong address makes the device unreachable. Only the BIOS (MEBx) at the device can fix it.</div></div>
+    <div class="grid2"><div><div class="fl">IP address</div><div class="fld">192.0.2.10</div></div><div><div class="fl">Subnet mask</div><div class="fld">255.255.255.0</div></div>
+    <div><div class="fl">Gateway</div><div class="fld">192.0.2.1</div></div><div><div class="fl">Primary DNS</div><div class="fld">192.0.2.53</div></div>
+    <div><div class="fl">Secondary DNS</div><div class="fld ph">Secondary DNS</div></div></div>
+    <div style="margin-top:12px"><label class="risk"><input type="checkbox" disabled>I understand the risk for Lab-Server (192.0.2.10)</label></div>
+    <div class="foot"><span class="b">Cancel</span><span class="b red dis">Save</span></div>
+  </div>
+</div></div>
+<figcaption>A red confirmation. The button stays disabled until the checkbox with the device name is ticked.</figcaption>
+</figure>
+
+<h2 id="users">Users</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:440px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Users</h3><span class="cnt"></span><span class="b out">+ Add user</span></div>
+      <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Name</th><th>Status</th><th>Access</th><th>Permissions</th><th></th></tr></thead><tbody>
+        <tr><td>admin</td><td>Enabled</td><td>Network and local</td><td>Administrator</td><td class="ra"><span class="b out sm">Edit</span></td></tr>
+        <tr><td>helpdesk<span style="color:var(--danger)">*</span></td><td>Enabled</td><td>Network</td><td>Power control, KVM, media, console, Settings</td><td class="ra"><span class="b rtint sm">Edit</span></td></tr>
+        <tr><td>user1</td><td>Disabled</td><td>Local</td><td>Event log, Audit log</td><td class="ra"><span class="b out sm">Edit</span></td></tr>
+        <tr class="grey"><td>$$OsAdmin</td><td>System</td><td>Local</td><td>System account</td><td class="ra"><span class="b out sm dis">Edit</span></td></tr>
+      </tbody></table></div>
+      <div class="mfoot"><span style="color:var(--danger)">*</span> Signed-in account. Changing its name, password or permissions can lock you out of this device.</div></div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The Users page, signed in as helpdesk.</figcaption>
+</figure>
+<div class="prose">
+<p>The Users page lists the AMT accounts of the device. These accounts are separate from the accounts of the operating system.</p>
+<dl class="terms">
+  <dt>Status</dt><dd>Enabled, Disabled or System. A disabled account cannot sign in. System accounts belong to AMT and cannot be changed.</dd>
+  <dt>Access</dt><dd>Where the account may sign in from: <span class="ui">Network</span> (other computers), <span class="ui">Local</span> (software on the device itself) or both.</dd>
+  <dt>Permissions</dt><dd>What the account may do: <span class="ui">Power control</span>, <span class="ui">KVM, media, console</span>, <span class="ui">Hardware</span>, <span class="ui">Event log</span>, <span class="ui">Audit log</span>, <span class="ui">Settings</span>. In AMT these are called realms; see <a href="amt-settings.html#realms">Accounts and realms</a>.</dd>
+</dl>
+<h3 id="add-user">Add, edit and delete accounts</h3>
+<ul>
+  <li><span class="ui">+ Add user</span> opens <span class="ui">Add user</span>: user name, password twice, <span class="ui">Enabled</span>, <span class="ui">Access</span> and <span class="ui">Permissions</span>.</li>
+  <li>A password needs 8 to 32 ASCII characters with upper and lower case, a digit and a symbol.</li>
+  <li><span class="ui">Edit</span> opens the same fields. Leave the password empty to keep it.</li>
+  <li><span class="ui">Delete User…</span> in the edit dialog asks <span class="lv or">orange</span>: the user can no longer sign in, and this cannot be undone.</li>
+</ul>
+<h3 id="admin-account">The admin account</h3>
+<p>The built-in admin account has every permission and cannot be deleted. <span class="ui">Edit</span> on it opens <span class="ui">Change the admin account</span> for a new name or password. This asks <span class="lv red">red</span>: if the new password is lost, only the BIOS (MEBx) at the device can reset it. Tick <span class="ui">Update the password in the keychain</span> when OpenLAMT signs in with this account.</p>
+<h3 id="own-account">Your own account</h3>
+<p>The account OpenLAMT is signed in with carries a red <span style="color:var(--danger)">*</span>. Its <span class="ui">Edit</span> opens <span class="ui">Edit your account</span>, without <span class="ui">Enabled</span> and without <span class="ui">Delete User…</span>, because AMT does not allow either for the account of the running connection. Saving asks <span class="lv or">orange</span> and lists the changes, because a wrong password or a removed permission can lock you out. After a password change OpenLAMT updates the keychain. If that fails, it shows the new password once so you can copy it.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>Change your own account?</h4>
+    <div class="wbox"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg><div>OpenLAMT signs in to Lab-Server with this account. A wrong name or password, or a removed permission, can lock you out until an administrator fixes it.</div></div>
+    <div class="chg">Password: changed<br>Settings removed</div>
+    <label class="risk"><input type="checkbox" disabled>I understand the risk for Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Cancel</span><span class="b red dis">Change Account</span></div>
+  </div>
+  <div class="dlg">
+    <div class="qhead"><div class="qtile or"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-unlock"/></svg></div><div style="flex:1">
+    <h4>Send the password without TLS?</h4>
+    <p>The connection to Lab-Server has no TLS. The password travels as a digest that works like the password itself. Anyone who captures it on the network can sign in as helpdesk.</p>
+    <span class="ck"><i></i>Don’t show again</span></div></div>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Send Anyway</span></div>
+  </div>
+</div></div>
+<figcaption>Left: the orange confirmation for your own account. Right: the warning before a password goes out without TLS.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="without-tls">Passwords without TLS</h3>
+<p>Over a connection without TLS, OpenLAMT asks <span class="ui">Send the password without TLS?</span> before it adds an account, changes a password or changes the admin account. AMT does not send the password in clear text, but the digest it sends works like the password. Use TLS where you can. <span class="ui">Don’t show again</span> hides the question; <a href="settings.html#data">Reset Warnings</a> brings it back.</p>
+</div>
+
+<h2 id="power">Power</h2>
+<div class="prose">
+<p>The Power page is under <span class="ui">More</span>. It sets when AMT stays on, and it powers the device on at set times.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Power</h3><span class="cnt"></span><span class="b out">Refresh</span></div>
+      <div class="mbody">
+        <div class="sect">Power policy</div>
+        <div class="card">
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Power package <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="dd">Desktop: on in S0, ME wake in S3, S4-5 <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Idle timeout <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="rt">1 minute <span class="b out sm">Change…</span></span></div>
+          <div class="r"><span class="lw">Sleep and hibernate</span><span class="rt">Sleep supported · Hibernate not supported</span></div>
+        </div>
+        <div class="sect" style="justify-content:space-between;margin-bottom:0">Wake alarms <span class="b out sm" style="margin-bottom:6px">+ Add Alarm</span></div>
+        <div class="tcard">
+          <table class="mt"><thead><tr><th>Name</th><th>Next wake</th><th>Repeat</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Nightly backup</td><td>Nov 24, 2026 02:00</td><td>Every day</td><td class="ra"><span class="b out sm">Delete…</span></td></tr>
+            <tr><td>Patch day</td><td>Dec 08, 2026 22:00</td><td>Every 28 days</td><td class="ra"><span class="b out sm">Delete…</span></td></tr>
+            <tr><td>Maintenance window</td><td>Nov 28, 2026 06:30</td><td>Once, then deleted</td><td class="ra"><span class="b out sm">Delete…</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="mfoot">Times in this computer’s time zone (CET, UTC+01:00). Intel AMT stores them in UTC.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The Power page with three wake alarms.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="power-policy">Power policy</h3>
+<dl class="terms">
+  <dt>Power package</dt><dd>Decides when Intel AMT stays on: only while the computer runs, or also while it sleeps or is switched off. The list shows the packages the device offers, with their own names. See <a href="amt-settings.html#power-policy">Power policies</a>.</dd>
+  <dt>Idle timeout</dt><dd>Minutes after which the management engine goes to power saving (1 to 65,535). The timer starts again whenever AMT serves a request. Some power packages ignore it.</dd>
+  <dt>Sleep and hibernate</dt><dd>Read only. Shows whether the device supports these states, which explains grey entries in the Power menu.</dd>
+</dl>
+<p>A package that keeps remote power-on changes at once. A package that turns AMT off while the computer sleeps or is off asks <span class="lv or">orange</span>: you then cannot power the device on remotely until someone switches it on at the device.</p>
+
+<h3 id="wake-alarms">Wake alarms</h3>
+<p>A wake alarm powers the device on at a set time, for example for a nightly backup. The device stores at most five.</p>
+<ul>
+  <li><span class="ui">+ Add Alarm</span> asks for a name (up to 32 characters), date, time and <span class="ui">Repeat</span>: <span class="ui">Never</span>, <span class="ui">Every day</span>, <span class="ui">Every week</span> or <span class="ui">Custom</span> (every n days, hours or minutes).</li>
+  <li><span class="ui">Delete after it fires</span> removes an alarm that does not repeat after it ran.</li>
+  <li>You enter times in the time zone of your computer. AMT stores them in UTC. The foot of the page names the zone.</li>
+  <li>AMT cannot edit an alarm. Delete it (<span class="lv simple">simple</span>) and add a new one.</li>
+</ul>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>Add wake alarm</h4>
+    <div class="fl" style="margin-top:0">Name</div><div class="fld">Nightly backup</div>
+    <div class="grid2"><div><div class="fl">Date</div><div class="fld">2026-11-24</div></div><div><div class="fl">Time</div><div class="fld">02:00</div></div></div>
+    <div class="fl">Repeat</div><span class="dd" style="height:30px">Every day <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span>
+    <div class="r" style="padding:10px 0 0;border:0;min-height:0"><span class="lw">Delete after it fires</span><span class="sw" style="opacity:.35"></span></div>
+    <div class="hint">Only for alarms that do not repeat.</div>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Add Alarm</span></div>
+  </div>
+  <div class="dlg">
+    <h4>Change the power package?</h4>
+    <div class="wbox"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg><div>With this package, Intel AMT is off while Lab-Server sleeps or is switched off. You cannot power it on remotely until someone switches it on at the device.</div></div>
+    <div class="chg">Desktop: on in S0, ME wake in S3, S4-5 → Desktop: on in S0</div>
+    <label class="risk"><input type="checkbox" disabled>I understand the risk for Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Cancel</span><span class="b red dis">Change Package</span></div>
+  </div>
+</div></div>
+<figcaption>Left: a new wake alarm. Right: the orange question before a package without remote power-on.</figcaption>
+</figure>
+
+<h2 id="wifi">Wi-Fi</h2>
+<div class="prose">
+<p>The Wi-Fi page is under <span class="ui">More</span>. It decides when Intel AMT may use the Wi-Fi adapter of the device, and which Wi-Fi networks AMT knows. These profiles belong to AMT, not to the operating system.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Wi-Fi</h3><span class="cnt">· 2 profiles</span><span class="b out">+ Add Profile</span><span class="b out">Refresh</span></div>
+      <div class="mbody">
+        <div class="card">
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Wi-Fi in Intel AMT <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><span class="seg"><span>Off</span><span>While on</span><span class="on">Always</span></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">Sync profiles from the operating system <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><div class="d">Intel AMT also uses Wi-Fi networks saved in Windows.</div></div><span class="sw on g"></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">Share profiles with UEFI <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span></span><div class="d">Lets One Click Recovery boot over Wi-Fi.</div></div><span class="sw"></span></div>
+          <div class="r"><span class="lw">Connection now</span><span class="rt">192.0.2.61</span></div>
+        </div>
+        <div class="tcard">
+          <table class="mt"><thead><tr><th style="width:70px">Priority</th><th>Profile</th><th>Network (SSID)</th><th>Security</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Office</td><td>ACME-Lab</td><td>WPA2-Personal (AES)</td><td class="ra"><span class="b out sm">Edit</span></td></tr>
+            <tr><td>2</td><td>Workshop</td><td>ACME-Workshop</td><td>WPA3-Personal</td><td class="ra"><span class="b out sm">Edit</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="mfoot">Lower number = tried first. Profiles from the operating system are not listed.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The Wi-Fi page with two AMT profiles.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Wi-Fi in Intel AMT</dt><dd><span class="ui">Off</span>: never. <span class="ui">While on</span>: only while the computer runs. <span class="ui">Always</span>: also in sleep and while it is off but plugged in. Choose Always to reach the device without a cable while it sleeps or is off.</dd>
+  <dt>Sync profiles from the operating system</dt><dd>Intel AMT also connects to the Wi-Fi networks that Windows has saved, through the Intel drivers in Windows. These profiles do not appear in the list.</dd>
+  <dt>Share profiles with UEFI</dt><dd>Hands the AMT profiles to the UEFI firmware of the device, so One Click Recovery can boot over Wi-Fi.</dd>
+  <dt>Connection now</dt><dd>The wireless address AMT uses right now, or “Not connected”. AMT does not report the network name or the signal strength.</dd>
+</dl>
+<h3 id="wifi-profiles">Profiles</h3>
+<ul>
+  <li><span class="ui">+ Add Profile</span> asks for <span class="ui">Profile name</span>, <span class="ui">Network name (SSID)</span>, priority, security and the password twice (8 to 63 characters). A lower priority number is tried first.</li>
+  <li><span class="ui">Security</span> offers what the device supports: WPA-Personal (TKIP), WPA2-Personal (AES) or WPA3-Personal. Older AMT versions have no WPA3. Enterprise profiles (802.1X) show as “Other method”; you can delete them, not create them.</li>
+  <li><span class="ui">Edit</span> changes a profile. AMT cannot rename one, so the name is fixed. Leave the password empty to keep it.</li>
+  <li><span class="ui">Delete Profile…</span> in the edit dialog asks <span class="lv simple">simple</span>.</li>
+  <li>Over a connection without TLS, OpenLAMT first asks <span class="ui">Send the key without TLS?</span>, because the key travels unencrypted.</li>
+</ul>
+<div class="warn"><b>When OpenLAMT reaches the device over Wi-Fi</b>Deleting a profile or choosing <span class="ui">Off</span> can cut the connection you are using. OpenLAMT notices this and asks <span class="lv red">red</span>: only a cable or the device itself brings the connection back.</div>
+</div>
+
+<h2 id="system-defense">System Defense</h2>
+<div class="prose">
+<p>System Defense is a firewall inside Intel AMT. It filters the network traffic of the operating system, never AMT's own traffic. Use it to cut an infected computer off the network while you keep remote access through AMT. The agent watchdog on the same page reacts when software in the operating system stops working.</p>
+<p>Intel AMT has these functions up to version 11. On newer devices the page says “Not available on this device”.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:640px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>System Defense</h3><span class="cnt">· Active policy: Allow all</span><span class="b out">Refresh</span></div>
+      <div class="mbody" style="gap:8px">
+        <div class="sect" style="margin-bottom:0">Policies <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span><span class="sp"></span><span class="b out sm" style="margin-bottom:6px">+ Add Policy</span></div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Policy</th><th>Precedence</th><th>Otherwise</th><th>Filters</th><th>State</th><th></th></tr></thead><tbody>
+          <tr><td>Allow all</td><td>2</td><td>Allow</td><td>0</td><td><span class="pill ok">Active</span></td><td class="ra"><span class="b out sm">Turn Off…</span> <span class="b out sm">Delete…</span></td></tr>
+          <tr><td>Isolate</td><td>1</td><td>Drop</td><td>2</td><td><span class="pill">Off</span></td><td class="ra"><span class="b out sm">Activate…</span> <span class="b out sm">Delete…</span></td></tr>
+        </tbody></table></div>
+        <div class="sect" style="margin-bottom:0">Filters <span class="sp"></span><span class="b out sm" style="margin-bottom:6px">+ Add Filter</span></div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Filter</th><th>Type</th><th>Direction</th><th>Match</th><th>Action</th><th></th></tr></thead><tbody>
+          <tr><td>allow-dhcp</td><td>IPv4</td><td>Outbound</td><td>UDP 67-68</td><td>Allow</td><td class="ra"><span class="b out sm">Delete…</span></td></tr>
+          <tr><td>allow-dns</td><td>IPv4</td><td>Outbound</td><td>UDP 53 to 192.0.2.1</td><td>Allow</td><td class="ra"><span class="b out sm">Delete…</span></td></tr>
+        </tbody></table></div>
+        <div class="sect" style="margin-bottom:0">Agent watchdog <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg></span><span class="sp"></span><span class="b out sm" style="margin-bottom:6px">+ Add Watchdog</span></div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Agent</th><th>Startup</th><th>Heartbeat</th><th>State</th><th>When heartbeats stop</th><th></th></tr></thead><tbody>
+          <tr><td>backup-agent</td><td>120 s</td><td>30 s</td><td><span class="pill ok">Running</span></td><td>Log event, activate Isolate</td><td class="ra"><span class="b out sm">Delete…</span></td></tr>
+        </tbody></table></div>
+        <div class="mfoot">An agent in the operating system sends heartbeats to Intel AMT. OpenLAMT only sets up the watchdog; it runs no agent.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The System Defense page in the management window.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="defense-policies">Policies and filters</h3>
+<ul>
+  <li>A <b>filter</b> matches traffic: IPv4, IPv6 or Ethernet, inbound or outbound, a protocol (TCP, UDP, ICMP or any), ports and a remote address. Its action is <span class="ui">Allow</span> or <span class="ui">Drop</span>. It can count matches and write an event log entry on a match.</li>
+  <li>A <b>policy</b> bundles filters and decides what happens to the traffic no filter matches (<span class="ui">Otherwise</span>). When several policies apply, the higher <span class="ui">Precedence</span> wins.</li>
+  <li>One policy is active at a time. <span class="ui">Activate…</span> switches to another one, <span class="ui">Turn Off…</span> stops filtering. While a policy is active, the filters show how often they matched.</li>
+  <li>AMT cannot change a policy, filter or watchdog. Delete it (<span class="lv simple">simple</span>) and add a new one. A filter that a policy uses, or an active policy, must be freed first; the page says what to do.</li>
+</ul>
+<p>Activating a policy that drops traffic asks <span class="lv or">orange</span>: the operating system loses all network traffic the policy drops. Intel AMT stays reachable, so you can turn the policy off again on this page. A policy that drops nothing, and turning a policy off, ask nothing.</p>
+
+<h3 id="watchdog">Agent watchdog</h3>
+<p>Intel AMT watches an agent in the operating system that sends heartbeats, for example a backup or anti-virus agent. OpenLAMT only sets up the watchdog; you need an agent that speaks to AMT.</p>
+<ul>
+  <li><span class="ui">+ Add Watchdog</span> asks for the agent name and an <span class="ui">Agent ID</span>. <span class="ui">Generate</span> creates one; the agent must use the same ID.</li>
+  <li><span class="ui">Startup timeout</span> and <span class="ui">Heartbeat timeout</span> decide how long AMT waits for the first and the next heartbeat.</li>
+  <li><span class="ui">When heartbeats stop</span>: write an event log entry and, if you like, activate a policy. <span class="ui">When heartbeats start again</span>: write an entry and turn the policy off again.</li>
+  <li>All watchdogs switch the same policy. A watchdog that would activate a dropping policy asks <span class="lv or">orange</span>.</li>
+  <li>The <span class="ui">State</span> column shows Not started, Running, Expired, Stopped or Suspended.</li>
+</ul>
+</div>
+
+<h2 id="wsman">WSMAN Browser</h2>
+<div class="prose">
+<p>The WSMAN Browser shows the raw data of Intel AMT: the classes of the WS-Management interface and their values. Use it to look up a setting OpenLAMT does not show, or to compare devices. It only reads.</p>
+<p>Open it from <span class="ui">More</span> &gt; <span class="ui">WSMAN Browser</span>. It opens in the management window, under <span class="ui">Diagnostics</span>.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Device management</span></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-log"/></svg>Event log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shield"/></svg>Audit log</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>Settings</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-users"/></svg>Users</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-wifi"/></svg>Wi-Fi</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ngrp">Diagnostics</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>WSMAN Browser</h3><span class="pill" style="margin-left:8px">Read only</span><span class="cnt"></span><span class="b out">Copy as XML</span><span class="b out">Refresh</span></div>
+      <div class="split" style="flex:1">
+        <div class="clslist">
+          <div class="fld ph" style="height:28px;margin-bottom:6px"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>&nbsp;Find class</div>
+          <div class="g">AMT</div>
+          <div class="c">AMT_AuditLog</div><div class="c">AMT_BootCapabilities</div><div class="c sel">AMT_GeneralSettings</div><div class="c">AMT_RedirectionService</div><div class="c">AMT_TLSSettingData</div>
+          <div class="g">CIM</div>
+          <div class="c">CIM_BIOSElement</div><div class="c">CIM_ComputerSystemPackage</div><div class="c">CIM_PowerManagementService</div>
+          <div class="g">IPS</div>
+          <div class="c">IPS_OptInService</div><div class="c">IPS_PowerManagementService</div>
+        </div>
+        <div style="flex:1;min-width:0;padding:16px 20px;overflow:auto">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px"><b class="mono" style="font-size:13px">AMT_GeneralSettings</b><span style="color:var(--text2)">· 1 instance</span></div>
+          <div class="tcard"><table class="mt"><thead><tr><th style="width:240px">Property</th><th>Value</th></tr></thead><tbody>
+            <tr><td class="mono">HostName</td><td class="mono">labserver</td></tr>
+            <tr><td class="mono">DomainName</td><td class="mono">example.com</td></tr>
+            <tr><td class="mono">PingResponseEnabled</td><td class="mono">true</td></tr>
+            <tr><td class="mono">DDNSUpdateEnabled</td><td class="mono">false</td></tr>
+            <tr><td class="mono">AMTNetworkEnabled</td><td class="mono">1 (Enabled)</td></tr>
+            <tr><td class="mono">PowerSource</td><td class="mono">0 (AC)</td></tr>
+          </tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>A class read in the WSMAN Browser.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li>The class list groups the classes by AMT, CIM and IPS. <span class="ui">Find class</span> filters it.</li>
+  <li>A click reads every instance of the class. Several instances get chips “Instance 1”, “Instance 2” and so on.</li>
+  <li>Known numeric values show their meaning, for example <code>1 (Enabled)</code>.</li>
+  <li><span class="ui">Copy as XML</span> copies the instances to the clipboard, with values in full length.</li>
+  <li>A class the device does not have, or the account may not read, shows a short reason instead.</li>
+  <li>A read stops at 200 instances or 1 MiB of data and then says “Truncated”.</li>
+</ul>
+</div>
+<nav class="pager" aria-label="Pages"><a href="device-window.html" rel="prev"><small>Previous</small>Device window</a><a href="amt-settings.html" rel="next" style="text-align:right"><small>Next</small>AMT settings explained</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

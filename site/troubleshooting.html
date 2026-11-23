@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting · OpenLAMT User Guide</title>
+<meta name="description" content="What the error messages of OpenLAMT mean and what to do about them.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html">Overview</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html">Device window</a></li>
+<li><a href="management.html">Device management</a></li>
+<li><a href="amt-settings.html">AMT settings explained</a></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html">App settings and updates</a></li>
+<li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a><ol class="toc"><li><a href="#start">The app does not start</a></li><li><a href="#connect">Cannot connect</a></li><li><a href="#permissions">Permission messages</a></li><li><a href="#consent">User consent</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console</a></li><li><a href="#media">Media</a></li><li><a href="#keychain">Passwords and keychain</a></li><li><a href="#updates">Updates</a></li><li><a href="#report">Report a problem</a></li></ol></li>
+<li><a href="mcp.html">MCP server</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Troubleshooting</h1>
+<p class="lead">OpenLAMT says in plain words what went wrong. This page lists the common messages, what they mean and what to do.</p>
+
+<h2 id="start">The app does not start</h2>
+<dl class="terms">
+  <dt>macOS: “OpenLAMT cannot be opened” or “Apple could not verify”</dt>
+  <dd>The app is not notarized. Open <b>System Settings</b> &gt; <b>Privacy &amp; Security</b> and click <b>Open Anyway</b>, or remove the quarantine attribute. See <a href="getting-started.html#install-macos">Install on macOS</a>.</dd>
+  <dt>Windows: “Windows protected your PC”</dt>
+  <dd>SmartScreen does not know the unsigned file. Click <b>More info</b>, then <b>Run anyway</b>.</dd>
+  <dt>Linux: the AppImage does not start</dt>
+  <dd>Without FUSE 2, start it with <code>--appimage-extract-and-run</code>. It needs glibc 2.35 or newer. On older systems, use the <code>.deb</code> or build from source.</dd>
+</dl>
+
+<h2 id="connect">Cannot connect</h2>
+<dl class="terms">
+  <dt>“192.0.2.10 cannot be reached from this computer.”</dt>
+  <dd>Check the address and the network. The device must be on, connected by cable (or Wi-Fi with AMT Wi-Fi set up), and in a network your computer can reach.</dd>
+  <dt id="macos-network">On macOS, every device is unreachable</dt>
+  <dd>macOS blocks apps from the local network until you allow it. Open <b>System Settings</b> &gt; <b>Privacy &amp; Security</b> &gt; <b>Local Network</b> and turn OpenLAMT on.</dd>
+  <dt>“192.0.2.10 did not answer in time.”</dt>
+  <dd>The device is off the network, or a firewall drops the packets. AMT uses the ports 16992 to 16995.</dd>
+  <dt>“192.0.2.10 refused the connection on port 16993.”</dt>
+  <dd>Something answers at this address, but not AMT. Check that the address belongs to the AMT interface, and that AMT is activated. A <a href="favorites.html#scan">network scan</a> shows which addresses run AMT.</dd>
+  <dt>“… does not accept TLS connections on port 16993.”</dt>
+  <dd>TLS is not set up on the device. Turn off <span class="ui">Use TLS</span> for this favorite and connect again.</dd>
+  <dt>“… does not accept connections without TLS on port 16992.”</dt>
+  <dd>Many devices allow only TLS. Turn on <span class="ui">Use TLS</span> and connect again.</dd>
+  <dt>“The TLS handshake with the device failed.”</dt>
+  <dd>The device uses TLS settings OpenLAMT does not support, for example a very old protocol version. A firmware update of the device often helps.</dd>
+  <dt>“The name lab.example.com could not be found.”</dt>
+  <dd>DNS does not know the name. Check it, or use the IP address of the device.</dd>
+  <dt>“Authentication failed: wrong username or password.”</dt>
+  <dd>The device rejected the login. AMT user names and passwords are case-sensitive. The admin password is the one set at activation, for example in MEBx.</dd>
+  <dt>“Certificate changed”</dt>
+  <dd>The certificate of the device no longer matches the trusted one. Read <a href="getting-started.html#certificate-changed">When the certificate changes on purpose</a> before you do anything.</dd>
+  <dt>“IPv6 addresses are not supported.”</dt>
+  <dd>Use the IPv4 address or a host name.</dd>
+</dl>
+
+<h2 id="permissions">Permission messages</h2>
+<dl class="terms">
+  <dt>“This account is not allowed to do this on the device.”</dt>
+  <dd>The account lacks the permission for this action. Sign in with an account that has it, or ask an administrator to add it on the <a href="management.html#users">Users page</a>.</dd>
+  <dt>“Not allowed for this account”, “Power: not allowed”, “N/A”</dt>
+  <dd>The account may not read this part. Everything else works. See <a href="confirmations.html#limited-accounts">Limited accounts</a>.</dd>
+  <dt>“The device does not allow changing this setting.”</dt>
+  <dd>The device itself locks the setting, for example the consent policy in Client Control Mode.</dd>
+</dl>
+
+<h2 id="consent">User consent</h2>
+<dl class="terms">
+  <dt>OpenLAMT asks for a consent code</dt>
+  <dd>The device shows a six-digit code on its screen. Ask the person at the device for it. See <a href="amt-settings.html#user-consent">User consent</a>.</dd>
+  <dt>“The device did not accept the consent code.”</dt>
+  <dd>Check the six digits on the device screen and try again. The code is valid for a limited time; a new attempt shows a new one.</dd>
+  <dt>Nobody is at the device</dt>
+  <dd>On a device in Admin Control Mode, an administrator can set <span class="ui">User consent</span> to <span class="ui">None</span> on the Settings page. In Client Control Mode, consent is always required.</dd>
+</dl>
+
+<h2 id="kvm">Remote screen (KVM)</h2>
+<dl class="terms">
+  <dt>“The device refused the KVM session (status …). Another KVM session to this device may still be open.”</dt>
+  <dd>AMT allows one KVM session per device. Close the other one: a second OpenLAMT window, another tool such as MeshCommander, or an AI agent through <a href="mcp.html">openlamt-mcp</a>.</dd>
+  <dt>“The device refused to enable KVM … KVM may be disabled in the AMT settings of the device.”</dt>
+  <dd>Turn on <span class="ui">KVM</span> on the <a href="management.html#settings">Settings page</a>. Some devices also need KVM enabled in MEBx.</dd>
+  <dt>The screen stays black</dt>
+  <dd>AMT shows only the output of the Intel graphics in the processor. With a separate graphics card in use, KVM stays black. Otherwise the screen may just be asleep: move the mouse or press a key. A device that is off shows nothing until you power it on.</dd>
+  <dt>“KVM disconnected after 30 minutes without input.”</dt>
+  <dd>OpenLAMT closed an idle session. Change the time in <a href="settings.html#remote-screen">Settings</a>.</dd>
+  <dt>Key combinations do not reach the device</dt>
+  <dd>Your computer keeps some combinations for itself. Use the <span class="ui">Ctrl+Alt+Del</span> button. See <a href="device-window.html#keyboard">Keyboard</a>.</dd>
+  <dt>Type Clipboard types wrong characters</dt>
+  <dd>The layout does not match the device. Choose the right one under <span class="ui">Keyboard</span>.</dd>
+  <dt>The picture is slow</dt>
+  <dd>Switch <span class="ui">Quality</span> to Low quality (256 colors).</dd>
+</dl>
+
+<h2 id="console">Serial console</h2>
+<dl class="terms">
+  <dt>“The device did not start the serial console.”</dt>
+  <dd>Serial over LAN may be off. Turn it on on the <a href="management.html#settings">Settings page</a> and try again.</dd>
+  <dt>The console stays empty</dt>
+  <dd>The console only shows what the device sends to its AMT serial port. The BIOS or the operating system must use that port as console. On Linux, add a kernel option such as <code>console=ttyS1,115200</code> for the right port; the port number differs between devices.</dd>
+</dl>
+
+<h2 id="media">Media</h2>
+<dl class="terms">
+  <dt>“This device does not support media redirection (IDE-R).”</dt>
+  <dd>The device does not offer media redirection, so OpenLAMT cannot mount images on it.</dd>
+  <dt>The device does not boot from the ISO</dt>
+  <dd>Use <span class="ui">Restart from ISO…</span> or <span class="ui">Boot from ISO on next start</span>. Check that the image suits the boot mode of the device: a mounted folder boots only over UEFI and needs <code>EFI/BOOT/BOOTX64.EFI</code>. With Secure Boot, the boot loader on the image must be signed.</dd>
+  <dt>Folder errors such as “A file in the folder is 4 GiB or larger”</dt>
+  <dd>A folder becomes an ISO image first, which has limits: each file under 4 GiB, names up to 103 characters, names that differ in more than upper and lower case. The message names the limit.</dd>
+  <dt>“The device closed the media session.”</dt>
+  <dd>AMT ended the session. Mount the image again.</dd>
+</dl>
+
+<h2 id="keychain">Passwords and keychain</h2>
+<dl class="terms">
+  <dt>“The keychain could not be used: …”</dt>
+  <dd>On Linux, start a Secret Service provider such as GNOME Keyring or KeePassXC and unlock it. On macOS, unlock the login keychain.</dd>
+  <dt>“The trusted certificate could not be read from the keychain, so OpenLAMT did not connect.”</dt>
+  <dd>The keychain is locked or unavailable. OpenLAMT refuses to connect without the trusted fingerprint. Unlock the keychain and try again.</dd>
+  <dt>“New password not saved”</dt>
+  <dd>The device took a new password, but the keychain did not. Copy the password from the dialog now. It is shown only once.</dd>
+</dl>
+
+<h2 id="updates">Updates</h2>
+<dl class="terms">
+  <dt>“Could not check for updates: GitHub's rate limit is reached.”</dt>
+  <dd>GitHub limits requests per address. Try again later.</dd>
+  <dt>The update did not install</dt>
+  <dd>The package stays in <code>~/Downloads</code>, and the window says how to install it. See <a href="settings.html#update-window">The update window</a>.</dd>
+</dl>
+
+<h2 id="report">Report a problem</h2>
+<div class="prose">
+<p>Open an issue on <a href="https://github.com/Srv-02/OpenLAMT/issues">GitHub</a>. Name your system, the OpenLAMT version, the AMT version of the device and the exact message. Leave out host names, addresses, serial numbers and passwords: issues are public.</p>
+</div>
+<nav class="pager" aria-label="Pages"><a href="settings.html" rel="prev"><small>Previous</small>App settings and updates</a><a href="mcp.html" rel="next" style="text-align:right"><small>Next</small>MCP server</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

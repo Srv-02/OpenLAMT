@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenLAMT User Guide</title>
+<meta name="description" content="How to use OpenLAMT, the local desktop app for Intel AMT: power, remote screen, console, media and device management.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html" aria-current="page">Overview</a><ol class="toc"><li><a href="#pages">What is in this guide</a></li><li><a href="#what">What OpenLAMT does</a></li><li><a href="#conventions">How to read this guide</a></li></ol></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html">Device window</a></li>
+<li><a href="management.html">Device management</a></li>
+<li><a href="amt-settings.html">AMT settings explained</a></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html">App settings and updates</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="mcp.html">MCP server</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>OpenLAMT User Guide</h1>
+<p class="lead">OpenLAMT is a local desktop app for Intel AMT. It switches your devices on and off, shows their screen and serial console, boots them from an ISO and manages their AMT settings. It runs on macOS, Windows and Linux, without a browser and without a server.</p>
+
+<figure class="shot">
+<div class="scr"><div class="win w1000 app">
+  <div class="osbar"><i></i><i></i><i></i><span>OpenLAMT</span></div>
+  <div class="row2" style="height:560px">
+    <div class="sb">
+      <div class="search"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>Search</div>
+      <div class="sbh">Favorites</div>
+      <div class="fav sel"><div class="t"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">Lab-Server</div><div class="h">192.0.2.10</div></div><span class="dot on"></span></div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">Build-Host</div><div class="h">build.example.com</div></div><span class="dot off"></span></div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">NAS</div><div class="h">nas.example.com</div></div><span class="dot sb"></span></div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">192.0.2.25</div><div class="h">192.0.2.25</div></div><span class="dot un"></span></div>
+      <div class="sbfoot"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-plus"/></svg>Quick Connect<span class="sp"></span><span class="ib"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-radar"/></svg></span><span class="ib"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-sliders"/></svg></span></div>
+    </div>
+    <div class="detail">
+      <div class="dtop"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-edit"/></svg><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-dup"/></svg><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-trash"/></svg></div>
+      <div class="dbody">
+        <div class="dhead"><div class="bigtile"><svg class="i s28" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg></div><div style="flex:1"><h3>Lab-Server</h3><div class="meta">AMT 16.1.25 · ACM · <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg>TLS</div></div><span class="b pri" style="height:36px;padding:0 18px">Connect <svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-arrow"/></svg></span></div>
+        <div class="card">
+          <div class="r"><span class="l">Status</span><span class="v"><span class="dot on"></span> Powered on</span></div>
+          <div class="r"><span class="l">Host/IP</span><span class="v">192.0.2.10</span></div>
+          <div class="r"><span class="l">Name</span><span class="v">Lab-Server</span></div>
+          <div class="r"><span class="l">Username</span><span class="v">admin</span></div>
+          <div class="r"><span class="l">Password</span><span class="v">Saved in keychain</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>The main window: favorites on the left with their power state, the chosen device on the right.</figcaption>
+</figure>
+
+<h2 id="pages">What is in this guide</h2>
+<div class="cards">
+  <a href="getting-started.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-down"/></svg>Getting started</b><span>Install the app, connect to your first device, trust its certificate.</span></a>
+  <a href="favorites.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg>Favorites and scan</b><span>Save devices, use Quick Connect, find devices on the network, move your configuration.</span></a>
+  <a href="device-window.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-monitor"/></svg>Device window</b><span>Power menu, remote screen, screenshots and recordings, console and media.</span></a>
+  <a href="management.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-panel"/></svg>Device management</b><span>Hardware, logs, AMT settings, accounts, power, Wi-Fi, System Defense and the WSMAN Browser.</span></a>
+  <a href="amt-settings.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-sun"/></svg>AMT settings explained</b><span>What each Intel AMT setting does, for administrators.</span></a>
+  <a href="confirmations.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-warn"/></svg>Confirmations and permissions</b><span>How OpenLAMT asks before risky changes. What limited accounts see.</span></a>
+  <a href="settings.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-sliders"/></svg>App settings and updates</b><span>Language, appearance, remote screen options, Check Now and one-click updates.</span></a>
+  <a href="troubleshooting.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg>Troubleshooting</b><span>What the error messages mean and what to do.</span></a>
+  <a href="mcp.html"><b><svg class="i s18" aria-hidden="true"><use href="assets/icons.svg#i-code"/></svg>MCP server</b><span>Let an AI agent use your devices through openlamt-mcp.</span></a>
+</div>
+
+<h2 id="what">What OpenLAMT does</h2>
+<div class="prose">
+<ul>
+  <li><b>Power:</b> power on, power off, reset, power cycle, shut down, sleep, hibernate, reboot into the BIOS, boot from an ISO.</li>
+  <li><b>Remote screen (KVM):</b> keyboard, video and mouse of the device, also in the BIOS. Take screenshots and record videos.</li>
+  <li><b>Serial console (SOL):</b> the text console of the device, for example a Linux login prompt.</li>
+  <li><b>Media (IDE-R):</b> mount an ISO file or a folder on the device as a CD drive and boot from it.</li>
+  <li><b>Device management:</b> hardware, event log, audit log, AMT settings, user accounts, power policy and wake alarms, Wi-Fi profiles, System Defense with the agent watchdog, and a browser for the raw AMT classes.</li>
+  <li><b>Favorites:</b> keep your devices with their settings. Passwords stay in the system keychain.</li>
+</ul>
+<p>OpenLAMT is a client for one person at one computer. It talks to each device directly on the network. It has no server, no cloud account and no remote access through the internet (no CIRA or MPS).</p>
+</div>
+
+<div class="note"><b>Which version this guide describes</b>The guide follows the newest development state of OpenLAMT. If your copy lacks a feature described here, update to the newest release.</div>
+
+<h2 id="conventions">How to read this guide</h2>
+<div class="prose">
+<ul>
+  <li>Names of buttons, menus and fields are in <span class="ui">bold</span>, exactly as the app shows them in English.</li>
+  <li>The screens are drawn in the look of the app. They follow the light or dark appearance of this page. On a small screen, swipe a screen sideways to see all of it.</li>
+  <li>The labels <span class="lv simple">simple</span>, <span class="lv q">question</span>, <span class="lv or">orange</span> and <span class="lv red">red</span> name the confirmation an action asks for. <a href="confirmations.html">Confirmations and permissions</a> explains them.</li>
+  <li>All names and addresses are examples: <code>example.com</code>, <code>192.0.2.0/24</code>, “ACME Lab”.</li>
+</ul>
+</div>
+<nav class="pager" aria-label="Pages"><span></span><a href="getting-started.html" rel="next" style="text-align:right"><small>Next</small>Getting started</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

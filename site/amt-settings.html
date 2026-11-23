@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMT settings explained · OpenLAMT User Guide</title>
+<meta name="description" content="What the Intel AMT settings do and when an administrator changes them.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html">Overview</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html">Device window</a></li>
+<li><a href="management.html">Device management</a></li>
+<li><a href="amt-settings.html" aria-current="page">AMT settings explained</a><ol class="toc"><li><a href="#basics">How Intel AMT works</a></li><li><a href="#control-mode">Control mode: ACM and CCM</a></li><li><a href="#general">Host name, domain and ping</a></li><li><a href="#environment-detection">Environment detection</a></li><li><a href="#network">Network address and IP sync</a></li><li><a href="#redirection">Remote features (redirection)</a></li><li><a href="#user-consent">User consent</a></li><li><a href="#clock">AMT clock</a></li><li><a href="#tls">TLS</a></li><li><a href="#realms">Accounts and realms</a></li><li><a href="#power-policy">Power policies</a></li><li><a href="#turn-off">Turn off AMT</a></li></ol></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html">App settings and updates</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="mcp.html">MCP server</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>AMT settings explained</h1>
+<p class="lead">This page explains the Intel AMT settings OpenLAMT shows, the way an administrator needs them: what each one does, when to change it, and what can go wrong.</p>
+
+<div class="note"><b>Before you change anything</b>Most settings on this page decide whether you can still reach the device over the network. A wrong value often needs a visit to the device: its BIOS extension (Intel MEBx) is then the only way back. OpenLAMT asks first and names the device, but it cannot undo a change for you.</div>
+
+<h2 id="basics">How Intel AMT works</h2>
+<div class="prose">
+<p>Intel AMT is part of the Intel management engine (ME), a small computer inside the chipset. It has its own firmware, its own clock and its own network stack. It shares the network card of the device but answers on its own ports. That is why AMT works while the operating system is off, hangs or is not installed yet.</p>
+<p>AMT must be activated (provisioned) before anyone can use it over the network. Activation sets the admin password, the control mode and usually TLS. You do it in the BIOS extension Intel MEBx (often <kbd>Ctrl</kbd>+<kbd>P</kbd> at boot) or with Intel's provisioning tools. OpenLAMT works with devices that are already activated.</p>
+</div>
+
+<h2 id="control-mode">Control mode: ACM and CCM</h2>
+<div class="prose">
+<p>The control mode is fixed at activation. OpenLAMT shows it in the status bar of the device window and on the Hardware page.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th></th><th>Admin Control Mode (ACM)</th><th>Client Control Mode (CCM)</th></tr></thead>
+  <tbody>
+    <tr><td>How it is activated</td><td>In MEBx at the device, or remotely with a provisioning certificate</td><td>From the operating system of the device, without proof of ownership</td></tr>
+    <tr><td>User consent</td><td>Optional: None, KVM only or All</td><td>Always required for remote screen, media, console and boot changes</td></tr>
+    <tr><td>Typical use</td><td>Servers, lab machines, devices without a person in front</td><td>Desktops where a user should see and allow every remote session</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Some functions need more rights than CCM grants. If a device refuses a change, check its control mode first.</p>
+</div>
+
+<h2 id="general">Host name, domain and ping</h2>
+<dl class="terms">
+  <dt>Host name and Domain</dt>
+  <dd>The name AMT uses for itself, for example <code>labserver</code> in <code>example.com</code>. With Dynamic DNS, AMT registers this name in DNS. Change it when you rename the device. Risk: favorites that use the old name stop working until you edit them. Asks <span class="lv or">orange</span>.</dd>
+  <dt>Respond to ping</dt>
+  <dd>Lets AMT answer an ICMP ping. Turn it on to check reachability with <code>ping</code> or a monitoring tool. It changes nothing else.</dd>
+  <dt>Dynamic DNS</dt>
+  <dd>AMT registers its own host name in DNS. Use it when the device gets its address by DHCP and your DNS server accepts dynamic updates. Risk: the device may then be reachable under a different name than in your favorites, and favorites that use the name stop working until you edit them. Asks <span class="lv or">orange</span>.</dd>
+</dl>
+
+<h2 id="environment-detection">Environment detection</h2>
+<div class="prose">
+<p><span class="ui">Intranet domains</span> tell AMT which networks are “inside”. AMT compares the DNS suffix it gets from DHCP with these domains. If none matches, AMT assumes it is outside your network and closes its network access there.</p>
+<p><b>When you need it:</b> only with remote access from outside through a management server (CIRA). OpenLAMT does not use CIRA. On a home or lab network, leave the list as it is.</p>
+<p><b>What can go wrong:</b> a wrong or missing entry can make AMT stop answering on your local network. Only the BIOS (MEBx) at the device can then fix the list. Asks <span class="lv red">red</span>.</p>
+</div>
+
+<h2 id="network">Network address and IP sync</h2>
+<div class="prose">
+<p>On the wired port, AMT and the operating system share the network card. AMT still needs an IPv4 address of its own configuration.</p>
+</div>
+<dl class="terms">
+  <dt>DHCP</dt>
+  <dd>AMT asks the DHCP server for its address, like the operating system. Usually both get the same address. This is the simplest choice.</dd>
+  <dt>Static</dt>
+  <dd>AMT uses the address, subnet mask, gateway and DNS servers you enter. Use it in networks without DHCP. OpenLAMT turns IP sync off when it sets a static address.</dd>
+  <dt>IP sync</dt>
+  <dd>With a static address in the operating system, AMT can take over that address through the Intel management service (LMS) of the device. AMT then follows the operating system. OpenLAMT shows the address it reads, and choosing <span class="ui">Static</span> replaces IP sync with a fixed address.</dd>
+</dl>
+<div class="prose">
+<p><b>What can go wrong:</b> a wrong address, mask or gateway makes the device unreachable. Only the BIOS (MEBx) at the device can fix it. Asks <span class="lv red">red</span>. OpenLAMT changes only the wired port. IPv6 is not supported.</p>
+</div>
+
+<h2 id="redirection">Remote features (redirection)</h2>
+<div class="prose">
+<p>AMT “redirects” the screen, a drive and a serial port of the device to your computer. Each feature can be switched on its own.</p>
+</div>
+<dl class="terms">
+  <dt>KVM</dt><dd>Keyboard, video and mouse: the <a href="device-window.html#kvm">remote screen</a>.</dd>
+  <dt>Media redirection (IDE-R)</dt><dd>A virtual CD drive for <a href="device-window.html#media">ISO images and folders</a>.</dd>
+  <dt>Serial over LAN (SOL)</dt><dd>A virtual serial port for the <a href="device-window.html#console">text console</a>.</dd>
+</dl>
+<div class="prose">
+<p>Turning a feature on asks nothing. Turning it off asks <span class="lv or">orange</span>, because open sessions of that kind end at once. You can turn it on again from OpenLAMT. When you open Media or Console on a device where IDE-R or SOL is off, OpenLAMT offers to turn it on.</p>
+<p>Turn off what you do not use. Each feature is another way into the device for anyone with a valid AMT account.</p>
+</div>
+
+<h2 id="user-consent">User consent</h2>
+<div class="prose">
+<p>User consent makes AMT ask a person at the device before a remote session. AMT shows a six-digit code on the screen of the device, on top of whatever runs there. The remote user must enter that code. This proves that someone at the device agrees.</p>
+</div>
+<dl class="terms">
+  <dt>None</dt><dd>No consent. Remote sessions start at once.</dd>
+  <dt>KVM only</dt><dd>Consent for the remote screen. Media and console start without it.</dd>
+  <dt>All</dt><dd>Consent for every redirection session and for boot changes.</dd>
+</dl>
+<div class="prose">
+<p><b>When you need it:</b> on desktops where a person works and should see every remote session. On a server room machine, nobody can read the code, so <span class="ui">None</span> fits there.</p>
+<p>In Client Control Mode the device always requires consent, and the setting cannot be lowered. Some devices do not allow remote changes of this setting at all; the choice is then disabled. Plain power actions such as Power On or Reset never need consent.</p>
+</div>
+
+<h2 id="clock">AMT clock</h2>
+<div class="prose">
+<p>AMT has its own clock. It uses it for log entries, wake alarms and the validity of certificates. A clock that is far off makes log times misleading and can break TLS. The Settings page shows how far the AMT clock is ahead of or behind your computer. <span class="ui">Sync Now</span> sets it to the time of your computer. It asks nothing.</p>
+</div>
+
+<h2 id="tls">TLS</h2>
+<div class="prose">
+<p>With TLS, AMT encrypts management and redirection traffic (ports 16993 and 16995). Without TLS, a digest of the password and every keystroke travel in clear on the network. Use TLS everywhere you can.</p>
+<p>TLS is set up at activation. The Settings page shows the SHA-256 fingerprint of the certificate AMT presents. <span class="ui">Change…</span> lists the certificates stored on the device with their expiry dates and lets you pick another one. AMT then restarts TLS with it, and OpenLAMT updates the fingerprint it trusts for this device. Asks <span class="lv or">orange</span>, because a wrong certificate can break the connection for other tools.</p>
+<p>OpenLAMT pins the certificate on the first connection. See <a href="getting-started.html#tls">TLS and certificate pinning</a>.</p>
+</div>
+
+<h2 id="realms">Accounts and realms</h2>
+<div class="prose">
+<p>AMT controls access with realms: groups of functions an account may use. OpenLAMT bundles them into six permissions. A permission counts as given when the account has all its realms. Realms outside these groups stay as they are when you edit an account.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Permission in OpenLAMT</th><th>AMT realms</th><th>What it allows</th></tr></thead>
+  <tbody>
+    <tr><td class="ui">Power control</td><td>Remote Control</td><td>Power actions and boot options</td></tr>
+    <tr><td class="ui">KVM, media, console</td><td>Redirection</td><td>Remote screen, IDE-R and SOL sessions</td></tr>
+    <tr><td class="ui">Hardware</td><td>Hardware Asset</td><td>The Hardware page</td></tr>
+    <tr><td class="ui">Event log</td><td>Event Log Reader</td><td>Reading the event log</td></tr>
+    <tr><td class="ui">Audit log</td><td>Security Audit Log</td><td>Reading the audit log</td></tr>
+    <tr><td class="ui">Settings</td><td>PT Administration, General Info, Network Time</td><td>The Settings page</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p><span class="ui">Access</span> decides where an account may sign in from: <span class="ui">Network</span>, <span class="ui">Local</span> (software on the device) or <span class="ui">Both</span>.</p>
+<p>Give each person or tool its own account with only the permissions it needs. A helpdesk account with <span class="ui">Power control</span> and <span class="ui">KVM, media, console</span> can help users without changing AMT. OpenLAMT works with such accounts and shows what they may not read; see <a href="confirmations.html#limited-accounts">Limited accounts</a>.</p>
+</div>
+
+<h2 id="power-policy">Power policies</h2>
+<div class="prose">
+<p>The power package decides in which power states of the device AMT stays on. The states have short names:</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>State</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>S0</td><td>The device runs.</td></tr>
+    <tr><td>S3</td><td>Sleep (suspend to RAM).</td></tr>
+    <tr><td>S4</td><td>Hibernate (suspend to disk).</td></tr>
+    <tr><td>S5</td><td>Soft off: switched off, but on power.</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>A package named, for example, “Desktop: on in S0, ME wake in S3, S4-5” keeps AMT reachable while the device sleeps or is off. Only then can you power the device on remotely. A package “on in S0” saves a little power but turns AMT off with the device. Then nobody can power it on over the network until someone switches it on at the device. OpenLAMT therefore asks <span class="lv or">orange</span> before such a change.</p>
+<p>The names and the list of packages come from the device. Some devices refuse frequent changes of the package to protect their flash memory: “its flash write limit is reached. Try again later.”</p>
+<p>The <span class="ui">Idle timeout</span> sets after how many minutes without requests the management engine goes to power saving. It wakes again on the next request. Raise it if AMT turns off before you finish working.</p>
+</div>
+
+<h2 id="turn-off">Turn off AMT</h2>
+<div class="prose">
+<p><span class="ui">Turn Off…</span> in the <span class="ui">Danger zone</span> switches AMT off on the network. The device then stops answering at once: no power control, KVM or media, not from OpenLAMT and not from any other tool. <b>This cannot be undone remotely.</b> Only the BIOS (MEBx) at the device can turn it back on. Asks <span class="lv red">red</span>.</p>
+<p>Use it when you retire a device, hand it to someone else, or want to be sure nobody manages it over the network.</p>
+</div>
+<nav class="pager" aria-label="Pages"><a href="management.html" rel="prev"><small>Previous</small>Device management</a><a href="confirmations.html" rel="next" style="text-align:right"><small>Next</small>Confirmations and permissions</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

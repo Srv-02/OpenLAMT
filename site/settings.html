@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>App settings and updates · OpenLAMT User Guide</title>
+<meta name="description" content="The settings of OpenLAMT itself, and how updates work.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html">Overview</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html">Device window</a></li>
+<li><a href="management.html">Device management</a></li>
+<li><a href="amt-settings.html">AMT settings explained</a></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html" aria-current="page">App settings and updates</a><ol class="toc"><li><a href="#open">The settings dialog</a></li><li><a href="#general">General</a></li><li><a href="#updates">Updates</a></li><li><a href="#devices">Devices</a></li><li><a href="#remote-screen">Remote screen</a></li><li><a href="#data">Data</a></li><li><a href="#about">About and support</a></li></ol></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="mcp.html">MCP server</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>App settings and updates</h1>
+<p class="lead">These settings belong to OpenLAMT on your computer. They change nothing on your devices. The AMT settings of a device are on its <a href="management.html#settings">Settings page</a>.</p>
+
+<h2 id="open">The settings dialog</h2>
+<div class="prose">
+<p>Click the sliders symbol <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-sliders"/></svg> next to <span class="ui">Quick Connect</span> at the bottom of the sidebar. Changes apply when you click <span class="ui">Save</span>. <span class="ui">Cancel</span> drops them.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w600" style="padding-bottom:14px">
+    <h4 style="font-size:16px">Settings</h4>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div class="sect" style="margin-top:0">General</div>
+      <div class="card">
+        <div class="r"><span class="lw">Language</span><span class="dd">System <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+        <div class="r"><span class="lw">Appearance</span><span class="dd">System <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+        <div class="r"><div class="lw">Color blind mode<div class="d">Status colors that stay distinct with red-green color blindness.</div></div><span class="sw"></span></div>
+      </div>
+      <div class="sect">Updates</div>
+      <div class="card">
+        <div class="r"><div class="lw">Check for updates<div class="d" style="color:var(--success)">You are using the latest version (1.2.0).</div></div><span class="b out sm">Check Now</span><span class="sw on"></span></div>
+      </div>
+      <div class="sect">Devices</div>
+      <div class="card"><div class="r"><span class="lw">Poll interval</span><span class="fld" style="width:56px;height:26px">10</span><span style="color:var(--text2)">seconds</span></div></div>
+      <div class="sect">Remote screen</div>
+      <div class="card">
+        <div class="r"><span class="lw">KVM quality</span><span class="dd">High <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+        <div class="r"><span class="lw">KVM auto-connect</span><span class="sw on"></span></div>
+        <div class="r"><span class="lw">Disconnect KVM without input after</span><span class="dd">30 minutes <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+        <div class="r"><span class="lw">Type clipboard layout</span><span class="dd">Automatic (system language) <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span></div>
+        <div class="r"><div class="lw">Screenshots and recordings<div class="d mono">~/Pictures/OpenLAMT</div></div>
+          <span class="b out sm"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-folder"/></svg>Choose…</span><span class="b sm"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-x"/></svg></span></div>
+      </div>
+      <div class="sect">Data</div>
+      <div class="card">
+        <div class="r"><div class="lw">Configuration<div class="d">Favorites and settings as a file. Passwords stay in the keychain.</div></div><span class="b out sm"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-up"/></svg>Export…</span><span class="b out sm"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-down"/></svg>Import…</span></div>
+        <div class="r"><div class="lw">Hidden messages<div class="d">Show all messages again that were hidden with “Don’t show again”.</div></div><span class="b sm">Reset Warnings</span></div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--sep);margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:12px">
+      <div class="fav" style="margin:0;padding:0"><div class="t"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></div><b>OpenLAMT</b></div><span class="sp"></span>
+      <span style="display:inline-flex;gap:5px;align-items:center"><svg class="i s14" style="color:#FF375F" aria-hidden="true"><use href="assets/icons.svg#i-heart"/></svg>Support</span>
+      <span style="display:inline-flex;gap:5px;align-items:center"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-info"/></svg>About &amp; Credits</span>
+    </div>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Save</span></div>
+  </div>
+</div></div>
+<figcaption>The settings dialog. In the app the sections scroll and the buttons stay in place.</figcaption>
+</figure>
+
+<h2 id="general">General</h2>
+<dl class="terms">
+  <dt>Language</dt><dd>English or German. <span class="ui">System</span> follows your computer. The language changes the next time OpenLAMT starts.</dd>
+  <dt>Appearance</dt><dd>Light, Dark or System. System follows your computer, also while OpenLAMT runs.</dd>
+  <dt>Color blind mode</dt><dd>Status colors that stay distinct with red-green color blindness, for example the power dots of the favorites.</dd>
+</dl>
+
+<h2 id="updates">Updates</h2>
+<div class="prose">
+<p>With <span class="ui">Check for updates</span> on, OpenLAMT asks GitHub at each start whether a newer release exists. <span class="ui">Check Now</span> asks right away, also when the switch is off. The row then says “Checking…”, then shows the result: the latest version in green, or the reason in red, for example “GitHub did not answer. Try again later.” A newer version opens the update window.</p>
+<p>The request carries no account, token or data about your devices. GitHub sees your IP address.</p>
+</div>
+
+<h3 id="update-window">The update window</h3>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>OpenLAMT 1.3.0 is available</h4>
+    <p>You are using 1.2.0. Update downloads the new version, replaces OpenLAMT and starts it again.</p>
+    <p style="margin-bottom:4px">What’s new:</p>
+    <div style="margin-bottom:10px">• Scan the network for Intel AMT devices<br>• Take screenshots of the remote screen<br>• Edit your own account on the device</div>
+    <div class="prog"><i style="width:40%"></i></div><div class="hint">Downloading… 12.4 of 31.0 MB</div>
+    <div class="foot"><span class="b">Later</span><span class="b pri dis">Downloading…</span></div>
+  </div>
+  <div class="dlg">
+    <h4>OpenLAMT 1.3.0 downloaded</h4>
+    <p>OpenLAMT could not open the installer: no app is set up for .deb files. Install the file yourself:</p>
+    <div class="chg">~/Downloads/OpenLAMT-1.3.0-linux-x64.deb</div>
+    <div class="foot"><span class="b">Close</span><span class="b pri">Show in Folder</span></div>
+  </div>
+</div></div>
+<figcaption>Left: an update downloads on Windows. Right: the handover did not work, so the file waits in Downloads.</figcaption>
+</figure>
+<div class="prose">
+<p>The window shows the first lines of the release notes. <span class="ui">Update</span> downloads the new version and checks it against the SHA-256 checksum GitHub states. <span class="ui">Later</span> closes the window, also during the download. Then OpenLAMT quits the normal way (open KVM sessions ask first) and hands over to your system:</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>System</th><th>What Update does</th></tr></thead>
+  <tbody>
+    <tr><td>macOS</td><td>Opens the new disk image in the Finder and quits. Drag the new app onto the old one.</td></tr>
+    <tr><td>Windows</td><td>Replaces <code>OpenLAMT.exe</code> and starts the new version. In a folder only an administrator may write to, such as <code>Program Files</code>, Windows asks for permission first. The old file stays as <code>OpenLAMT.exe.old</code> until the new version deletes it.</td></tr>
+    <tr><td>Linux (.deb)</td><td>Opens the package in your software installer and quits.</td></tr>
+    <tr><td>Linux (AppImage)</td><td>Downloads the new AppImage. <span class="ui">Show in Folder</span> shows it; replace the old file yourself.</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>If a step fails, for example because you declined the Windows permission prompt, the package stays in <code>~/Downloads</code> and the window says how to install it yourself. If the download does not match its checksum or breaks off, <span class="ui">Update failed</span> says so and nothing is installed. <span class="ui">Try Again</span> starts over.</p>
+</div>
+
+<h2 id="devices">Devices</h2>
+<dl class="terms">
+  <dt>Poll interval</dt><dd>How often OpenLAMT reads the power state of your favorites and of open devices, in seconds (1 to 3600). The default is 10.</dd>
+</dl>
+
+<h2 id="remote-screen">Remote screen</h2>
+<dl class="terms">
+  <dt>KVM quality</dt><dd>High (65,536 colors) or Low (256 colors) for every device without its own choice. Low needs less bandwidth.</dd>
+  <dt>KVM auto-connect</dt><dd>Connects the remote screen as soon as a device window opens. A favorite can override it.</dd>
+  <dt>Disconnect KVM without input after</dt><dd>Ends a remote screen session after this many minutes without keyboard or mouse input, or <span class="ui">Never</span>. The default is 30 minutes. AMT allows one KVM session per device, so a forgotten window would block others.</dd>
+  <dt>Type clipboard layout</dt><dd>The keyboard layout <a href="device-window.html#type-clipboard">Type Clipboard</a> uses on the device. <span class="ui">Automatic (system language)</span> picks the layout of your system language. A favorite can override it.</dd>
+  <dt>Screenshots and recordings</dt><dd>The folder for <a href="device-window.html#screenshot">screenshots</a> and <a href="device-window.html#record">recordings</a>. <span class="ui">Choose…</span> sets it, <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-x"/></svg> clears it. Without a folder, OpenLAMT asks for a file name each time.</dd>
+</dl>
+
+<h2 id="data">Data</h2>
+<dl class="terms">
+  <dt>Configuration</dt><dd><span class="ui">Export…</span> and <span class="ui">Import…</span> move favorites and settings as a file. See <a href="favorites.html#export-import">Export and import</a>.</dd>
+  <dt>Hidden messages</dt><dd><span class="ui">Reset Warnings</span> shows every message again that you hid with “Don’t show again”.</dd>
+</dl>
+
+<h2 id="about">About and support</h2>
+<div class="prose">
+<p><span class="ui">About &amp; Credits</span> shows the version and the third-party libraries with their licenses. <span class="ui">Support</span> shows ways to help the project, such as a star on GitHub or a coffee. OpenLAMT is free and open source.</p>
+</div>
+<nav class="pager" aria-label="Pages"><a href="confirmations.html" rel="prev"><small>Previous</small>Confirmations and permissions</a><a href="troubleshooting.html" rel="next" style="text-align:right"><small>Next</small>Troubleshooting</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

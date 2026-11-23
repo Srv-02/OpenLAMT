@@ -107,7 +107,9 @@ func (b *InfoButton) TypedKey(e *fyne.KeyEvent) {
 }
 
 func (b *InfoButton) CreateRenderer() fyne.WidgetRenderer {
-	ring := &canvas.Circle{StrokeWidth: 1.5}
+	// hidden and colored from the start: before the first Refresh a plain circle would show its
+	// default stroke (the focus ring would appear without focus)
+	ring := &canvas.Circle{StrokeWidth: 1.5, Hidden: !b.focused, StrokeColor: style.Color(style.ColorNameAccentText)}
 	return &infoButtonRenderer{b: b, ring: ring}
 }
 

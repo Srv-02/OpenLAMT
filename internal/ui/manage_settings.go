@@ -146,22 +146,22 @@ func (m *manager) settingsPane(compact bool) *managePane {
 		p.confirmDDNS(on)
 	})
 	p.general = newSettingsCard(
-		amtSettingsRow(lang.L("Host name"), container.New(&rowLayout{gap: 12, fill: -1}, p.hostText, p.changeHost)),
-		amtSettingsRow(lang.L("Domain"), container.New(&rowLayout{gap: 12, fill: -1}, p.domainText, p.changeDomain)),
-		amtSettingsRow(lang.L("Respond to ping"), p.ping),
-		amtSettingsRow(lang.L("Dynamic DNS"), p.ddns))
+		amtSettingsRowHelp(lang.L("Host name"), helpHostName, container.New(&rowLayout{gap: 12, fill: -1}, p.hostText, p.changeHost)),
+		amtSettingsRowHelp(lang.L("Domain"), helpDomain, container.New(&rowLayout{gap: 12, fill: -1}, p.domainText, p.changeDomain)),
+		amtSettingsRowHelp(lang.L("Respond to ping"), helpPing, p.ping),
+		amtSettingsRowHelp(lang.L("Dynamic DNS"), helpDdns, p.ddns))
 
 	p.envLines = container.New(layout.NewCustomPaddedVBoxLayout(0))
 	p.changeEnv = settingsButton(lang.L("Change…"), p.openEnvironment)
-	p.env = newSettingsCard(amtSettingsRow(lang.L("Intranet domains"),
+	p.env = newSettingsCard(amtSettingsRowHelp(lang.L("Intranet domains"), helpEnvDomains,
 		container.New(&rowLayout{gap: 12, fill: -1}, p.envLines, p.changeEnv)))
 
 	p.address = widgets.NewSegmented(widgets.SegmentedText, widgets.TextOptions(lang.L("DHCP"), lang.L("Static")), nil)
 	p.address.OnChanged = p.openNetwork
 	p.address.OnReselected = p.openNetwork
 	p.ipText = designText("", 13, theme.ColorNameForeground, false)
-	ip := amtSettingsRow(lang.L("IP address"), p.ipText)
-	p.network = newSettingsCard(amtSettingsRow(lang.L("Address"), p.address), ip)
+	ip := amtSettingsRowHelp(lang.L("IP address"), helpNetIP, p.ipText)
+	p.network = newSettingsCard(amtSettingsRowHelp(lang.L("Address"), helpNetAddress, p.address), ip)
 	p.ipRow = p.network.ref(1)
 
 	p.kvm = p.newFeatureSwitch(featureKVM, func(on bool) amt.FeatureChange { return amt.FeatureChange{KVM: &on} })
@@ -174,10 +174,10 @@ func (m *manager) settingsPane(compact bool) *managePane {
 		p.d.write(func() error { return m.sess.SetConsent(policy) }, true)
 	}
 	p.features = newSettingsCard(
-		amtSettingsRow(lang.L("KVM"), p.kvm),
-		amtSettingsRow(lang.L("Media redirection (IDE-R)"), p.ider),
-		amtSettingsRow(lang.L("Serial over LAN (SOL)"), p.sol),
-		amtSettingsRow(lang.L("User consent"), p.consent))
+		amtSettingsRowHelp(lang.L("KVM"), helpKvm, p.kvm),
+		amtSettingsRowHelp(lang.L("Media redirection (IDE-R)"), helpIder, p.ider),
+		amtSettingsRowHelp(lang.L("Serial over LAN (SOL)"), helpSol, p.sol),
+		amtSettingsRowHelp(lang.L("User consent"), helpConsent, p.consent))
 	p.kvmRow = p.features.ref(0)
 
 	p.clockText = designText("", 13, style.ColorNameTextSecondary, false)
@@ -187,8 +187,8 @@ func (m *manager) settingsPane(compact bool) *managePane {
 	p.tlsText = designText("", 13, style.ColorNameTextSecondary, false)
 	p.change = settingsButton(lang.L("Change…"), p.openTLS)
 	p.clockTLS = newSettingsCard(
-		amtSettingsRow(lang.L("AMT clock"), container.New(&rowLayout{gap: 12, fill: -1}, p.clockText, p.sync)),
-		amtSettingsRow(lang.L("TLS certificate"), container.New(&rowLayout{gap: 12, fill: -1}, p.tlsText, p.change)))
+		amtSettingsRowHelp(lang.L("AMT clock"), helpClock, container.New(&rowLayout{gap: 12, fill: -1}, p.clockText, p.sync)),
+		amtSettingsRowHelp(lang.L("TLS certificate"), helpTls, container.New(&rowLayout{gap: 12, fill: -1}, p.tlsText, p.change)))
 	p.clockRow, p.tlsRow = p.clockTLS.ref(0), p.clockTLS.ref(1)
 
 	p.turnOff = widgets.NewPrimaryButton(lang.L("Turn Off…"), nil, p.confirmTurnOff)
@@ -390,6 +390,12 @@ func amtSettingsRow(key string, right fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(settingsRowLayout{}, designText(key, 13, style.ColorNameControlText, false), right)
 }
 
+// amtSettingsRowHelp is amtSettingsRow with the info button of the setting behind the key.
+func amtSettingsRowHelp(key string, id helpID, right fyne.CanvasObject) fyne.CanvasObject {
+	left := container.NewHBox(designText(key, 13, style.ColorNameControlText, false), helpButton(id))
+	return container.New(settingsRowLayout{}, left, right)
+}
+
 // settingsRowLayout places the key on the left and the right object at its minimum width on
 // the right (narrower if the row is too narrow), both in the vertical middle.
 type settingsRowLayout struct{}
@@ -474,7 +480,7 @@ func settingsButton(text string, tapped func()) *widgets.PrimaryButton {
 // dangerCard is the card of the danger zone: light red with a red border, "Turn off AMT" in
 // semibold red above the explanation, the full red button on the right.
 func (p *settingsPane) dangerCard() fyne.CanvasObject {
-	title := designText(lang.L("Turn off AMT"), 14, style.ColorNameDangerZoneText, true)
+	title := container.NewHBox(designText(lang.L("Turn off AMT"), 14, style.ColorNameDangerZoneText, true), helpButton(helpTurnOff))
 	text := richLine(textSeg(lang.L("Only the BIOS (MEBx) at the device can turn it back on."), style.ColorNameDangerZoneText, false))
 	// the rich text has the theme's inner padding around its text; pull it to the title
 	pad := theme.InnerPadding()

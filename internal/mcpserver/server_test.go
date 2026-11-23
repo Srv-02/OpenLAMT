@@ -739,7 +739,10 @@ func TestLogsShortenAgentStrings(t *testing.T) {
 	text := h.mustFail("device_status", dev(long), "No favorite named")
 	padded := "NUC" + strings.Repeat(" ", n) // found: the lookup trims it
 	h.mustFail("power_action", dev(padded, "action", "reset"), "ReturnValue 4")
-	path := h.mustFail("media_mount", dev("NUC", "path", "/"+long+".iso"), "Cannot read")
+	path, _, isErr := h.call("media_mount", dev("NUC", "path", filepath.Join(t.TempDir(), long+".iso")))
+	if !isErr || !strings.Contains(path, ".iso (") { // the end of the path, the file name, is kept
+		t.Fatalf("media_mount of a missing path: %v %.200s", isErr, path)
+	}
 	for _, msg := range []string{text, path} {
 		if len(msg) > 1000 || !strings.Contains(msg, "characters)") {
 			t.Errorf("error text of %d bytes: %.200s", len(msg), msg)

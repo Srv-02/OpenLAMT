@@ -159,8 +159,16 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 }
 
 // shortPath shows a path the agent gave in an error text: control and format characters
-// visible, at most maxLogged characters.
-func shortPath(p string) string { return shorten(visible(p), maxLogged) }
+// visible, at most maxLogged characters. A longer path keeps its start and its end (the file
+// name) and says how long it was.
+func shortPath(p string) string {
+	r := []rune(visible(p))
+	if len(r) <= maxLogged {
+		return string(r)
+	}
+	head := maxLogged / 4
+	return fmt.Sprintf("%s…%s (%d characters)", string(r[:head]), string(r[len(r)-(maxLogged-head):]), len(r))
+}
 
 // withoutPath is err without the path a *fs.PathError repeats.
 func withoutPath(err error) error {

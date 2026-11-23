@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"image/png"
 	"net/netip"
 	"os"
@@ -691,4 +692,14 @@ func TestDefenseShots(t *testing.T) {
 	wp.watchdogDlg.Dismiss()
 	switchVariant(h.a, theme.VariantDark)
 	shot("defense-window-dark.png", w.win)
+}
+
+// Issue #161: a failed policy switch that may leave the port without policy says so, whatever
+// the cause behind it.
+func TestDescribeDefensePolicyLost(t *testing.T) {
+	englishUI(t)
+	err := fmt.Errorf("activate system defense policy: %w: %w", amt.ErrDefensePolicyLost, amt.ErrIncompleteResponse)
+	if got := describe(err); !strings.Contains(got, "may have no policy now") {
+		t.Fatalf("describe = %q", got)
+	}
 }

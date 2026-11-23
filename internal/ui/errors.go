@@ -63,6 +63,8 @@ func describe(err error) string {
 		return describeRootLeft(err)
 	case errors.Is(err, amt.ErrBootMayBeSet), errors.Is(err, amt.ErrEraseMayBeSet): // first: the warning must not give way to the cause
 		return describeMayBeSet(err)
+	case errors.Is(err, amt.ErrDefensePolicyLost): // before the cause: the port may be unfiltered
+		return lang.L("Switching the policy failed, and the wired port may have no policy now. The operating system may be on the network without filtering. Refresh the page and activate a policy again.")
 	case errors.As(err, &ce) && ce.Step == "SendOptInCode":
 		return lang.L("The device did not accept the consent code. Check the six digits on the device screen and try again.")
 	case errors.As(err, &ce):

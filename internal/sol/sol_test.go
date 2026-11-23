@@ -588,3 +588,51 @@ func TestNoDataAfterEndSOL(t *testing.T) {
 		}
 	}
 }
+
+// Issue #162: a Write that passed its own check before Close and then meets the closing flag in
+// send must not abort the read loop, or END_SOL_REPLY is never read and END_REDIRECTION never
+// sent.
+func TestCloseDuringWriteCompletesGoodbye(t *testing.T) {
+	old := closeTimeout
+	closeTimeout = 5 * time.Second // the peer answers; a timeout would hide a missing 0x12
+	defer func() { closeTimeout = old }()
+	c, p := start(t)
+
+	c.wmu.Lock() // the Write waits in send behind the test, past its own closing check
+	wrote := make(chan error, 1)
+	go func() { _, err := c.Write([]byte("pasted text")); wrote <- err }()
+	time.Sleep(50 * time.Millisecond)
+	closed := make(chan error, 1)
+	go func() { closed <- c.Close() }()
+	for deadline := time.Now().Add(5 * time.Second); ; {
+		c.mu.Lock()
+		closing := c.closing
+		c.mu.Unlock()
+		if closing {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("close did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	c.wmu.Unlock()
+
+	if err := <-wrote; !errors.Is(err, ErrClosed) {
+		t.Fatalf("write err = %v", err)
+	}
+	p.Expect(t, 0x22)
+	p.EndReply(t)
+	p.Expect(t, 0x12)
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("close hangs")
+	}
+	if !errors.Is(c.Err(), ErrClosed) {
+		t.Fatalf("err = %v", c.Err())
+	}
+}

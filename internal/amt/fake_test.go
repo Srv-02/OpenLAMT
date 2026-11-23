@@ -26,11 +26,15 @@ func routeKey(request string) string {
 type fakeWSMan struct {
 	routes   map[string]string // routeKey -> file name under testdata/
 	requests []string          // every Post body, in order, appended before the route lookup
+	onPost   func(key string)  // optional, called with the routeKey of every Post before it answers
 }
 
 func (f *fakeWSMan) Post(msg string) ([]byte, error) {
 	f.requests = append(f.requests, msg)
 	key := routeKey(msg)
+	if f.onPost != nil {
+		f.onPost(key)
+	}
 	name, ok := f.routes[key]
 	if !ok {
 		return nil, fmt.Errorf("fake: no route for %q", key)

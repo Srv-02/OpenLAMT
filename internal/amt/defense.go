@@ -15,6 +15,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/device-management-toolkit/go-wsman-messages/v2/pkg/amterror"
 )
 
 // System Defense (issue #28): network filters (AMT_IPHeadersFilter, AMT_Hdr8021Filter), the
@@ -93,6 +95,9 @@ var (
 	ErrDefensePolicyActive = errors.New("the policy is active")
 	// ErrDefenseNotFound: the device has no filter or policy with this ID (any more).
 	ErrDefenseNotFound = errors.New("the filter or policy does not exist")
+	// ErrDefensePolicyLost: switching the active policy failed after the old link was deleted,
+	// and the old policy could not be linked again. The wired port may have no policy now.
+	ErrDefensePolicyLost = errors.New("the wired port may have no System Defense policy now")
 )
 
 // DefenseFilterInUseError: a policy contains the filter, so it cannot be deleted.
@@ -678,9 +683,15 @@ func (d *Device) DeleteDefensePolicy(id string) error {
 	return writeError(op, d.deleteRaw(classDefensePolicy, []selector{{"InstanceID", p.ID}}))
 }
 
-// ActivateDefensePolicy enables the policy id on the wired port in place of the active one
-// (delete the old link, create the new one, as MeshCommander). A policy that drops traffic
-// (SystemDefense.Drops) needs confirm for OpDefenseDrop.
+// ActivateDefensePolicy enables the policy id on the wired port in place of the active one. A
+// policy that drops traffic (SystemDefense.Drops) needs confirm for OpDefenseDrop.
+//
+// It creates the new link first and deletes the old one second, so a failed request never
+// leaves the port without a policy: Intel's class reference says a new link on a port with an
+// enabled policy enables the new policy and may delete the old link itself (a "not found" on
+// the delete is success). Only when the device refuses the Create while the old link exists
+// does it switch like MeshCommander, delete then create; if that Create fails too, it links the
+// old policy again and, when even that fails, returns ErrDefensePolicyLost.
 func (d *Device) ActivateDefensePolicy(id string, confirm Confirmation) error {
 	const op = "activate system defense policy"
 	sd, err := d.systemDefense(false)
@@ -698,12 +709,46 @@ func (d *Device) ActivateDefensePolicy(id string, confirm Confirmation) error {
 			return err
 		}
 	}
-	if sd.Active != "" {
-		if err := d.deletePortLink(classPortPolicy, sd.Active); err != nil {
-			return writeError(op, err)
-		}
+	if sd.Active == "" {
+		return writeError(op, d.createPortLink(classPortPolicy, id))
 	}
-	return writeError(op, d.createPortLink(classPortPolicy, id))
+	old := sd.Active
+	err = d.createPortLink(classPortPolicy, id)
+	if err == nil {
+		return writeError(op, d.deleteLinkIfPresent(old))
+	}
+	if !deviceRefused(err) { // no answer or AccessDenied: the old link was not touched
+		return writeError(op, err)
+	}
+	// The firmware refuses a second link: delete the old one first.
+	if err := d.deleteLinkIfPresent(old); err != nil {
+		return writeError(op, err)
+	}
+	if err := d.createPortLink(classPortPolicy, id); err != nil {
+		if rerr := d.createPortLink(classPortPolicy, old); rerr != nil {
+			return fmt.Errorf("%s: %w: %w", op, ErrDefensePolicyLost, err)
+		}
+		return writeError(op, err)
+	}
+	return nil
+}
+
+// deleteLinkIfPresent deletes the link of the wired port to policy id; a link that no longer
+// exists (DestinationUnreachable, the WS-Management fault for a missing instance) is success.
+func (d *Device) deleteLinkIfPresent(id string) error {
+	err := d.deletePortLink(classPortPolicy, id)
+	var amtErr *amterror.AMTError
+	if errors.As(err, &amtErr) && strings.Contains(amtErr.SubCode, "DestinationUnreachable") {
+		return nil
+	}
+	return err
+}
+
+// deviceRefused reports a SOAP fault other than AccessDenied: the device answered and refused
+// the request, so it did not apply it.
+func deviceRefused(err error) bool {
+	var amtErr *amterror.AMTError
+	return errors.As(err, &amtErr) && !strings.Contains(amtErr.SubCode, "AccessDenied")
 }
 
 // DeactivateDefensePolicy turns the active policy off: the wired port then has none. Without an

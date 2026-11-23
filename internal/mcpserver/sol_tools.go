@@ -231,7 +231,7 @@ func (s *server) solRead(ctx context.Context, _ *mcp.CallToolRequest, in solRead
 
 // confirmSOL asks the person in the MCP client before SOL input, when the config wants it, and
 // only for a call that can run: the device needs a running session.
-func (s *server) confirmSOL(req *mcp.CallToolRequest, fav favorites.Favorite, what string) (*mcp.CallToolResult, error) {
+func (s *server) confirmSOL(req *mcp.CallToolRequest, fav favorites.Favorite, what string, secret bool) (*mcp.CallToolResult, error) {
 	if err := s.sol.use(fav, func(e *solEntry) error {
 		if !e.alive() {
 			return e.endedError()
@@ -240,7 +240,7 @@ func (s *server) confirmSOL(req *mcp.CallToolRequest, fav favorites.Favorite, wh
 	}); err != nil {
 		return nil, err
 	}
-	return s.confirm(req, fav, confirmMessage(what, fav))
+	return s.confirmText(req, fav, what, secret)
 }
 
 // solWrite sends p to the running session of the device of fav in one Write.
@@ -317,7 +317,7 @@ func (s *server) solTypeText(_ context.Context, req *mcp.CallToolRequest, in sol
 	if err != nil {
 		return nil, solTypeOutput{}, err
 	}
-	if res, err := s.confirmSOL(req, fav, solTypePrompt(text, enters, in.Secret)); res != nil || err != nil {
+	if res, err := s.confirmSOL(req, fav, solTypePrompt(text, enters, in.Secret), in.Secret); res != nil || err != nil {
 		return res, solTypeOutput{}, err
 	}
 	p := []byte(strings.ReplaceAll(text, "\n", "\r"))
@@ -356,7 +356,7 @@ func (s *server) solSendKeys(_ context.Context, req *mcp.CallToolRequest, in sol
 	if err != nil {
 		return nil, sendKeysOutput{}, err
 	}
-	if res, err := s.confirmSOL(req, fav, "press "+list+" on the serial console"); res != nil || err != nil {
+	if res, err := s.confirmSOL(req, fav, "press "+list+" on the serial console", false); res != nil || err != nil {
 		return res, sendKeysOutput{}, err
 	}
 	if err := s.solWrite(fav, p); err != nil {

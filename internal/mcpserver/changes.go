@@ -14,7 +14,7 @@ import (
 // Settings and account changes ask like the OpenLAMT app: a change the app writes at once asks
 // only with require_client_confirmation; a change the app guards with an orange or red warning
 // always asks the person in the MCP client, and a red one also needs the device name in the
-// argument confirm.
+// argument confirm. A change that sends a password to a device without TLS always asks too (#37).
 
 // change describes a settings or account write for its question.
 type change struct {
@@ -24,6 +24,7 @@ type change struct {
 	what    string    // what the agent asks for, as in confirmMessage
 	warning string    // the app's warning; "" for none
 	notes   []string  // more lines for the question, e.g. the TLS warning for a password
+	noTLS   bool      // the call sends a password to a device without TLS: always asks (#37)
 }
 
 // riskWarnings are the warnings of the app's orange and red dialogs, in the MCP server's own
@@ -82,7 +83,7 @@ func (s *server) confirmChange(req *mcp.CallToolRequest, c change, fav favorites
 			quoteShort(fav.DisplayName()))
 	}
 	risky := c.level >= amt.LevelOrange
-	if !risky && !s.cfg.RequireClientConfirmation {
+	if !risky && !c.noTLS && !s.cfg.RequireClientConfirmation {
 		return nil, nil
 	}
 	msg := fmt.Sprintf("The AI agent asks OpenLAMT to %s on device %q (%s).", c.what, fav.DisplayName(), fav.Host)
@@ -93,7 +94,7 @@ func (s *server) confirmChange(req *mcp.CallToolRequest, c change, fav favorites
 		msg += "\n\n" + n
 	}
 	msg += "\n\nAllow it?"
-	q := question{message: msg, state: s.callState(c.tool, c.in, fav), risk: risky,
+	q := question{message: msg, state: s.callState(c.tool, c.in, fav), risk: risky, noTLS: c.noTLS,
 		stale: "The arguments of the call or the favorite changed while the question was open, so the answer was for another change. " +
 			"Nothing was sent to the device; call the tool again."}
 	if risky {

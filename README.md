@@ -23,6 +23,8 @@ Linux (x64)             OpenLAMT-<version>-linux-x64.AppImage  (any distribution
 
 Start OpenLAMT and connect to your first device with **Quick Connect**. The builds are not code-signed, so macOS and Windows warn on the first launch: see [Manual install](#manual-install).
 
+The [user guide](https://srv-02.github.io/OpenLAMT/) explains every window, page and Intel AMT setting step by step.
+
 ## Features
 
 ### One app on every desktop

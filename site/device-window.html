@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The device window · OpenLAMT User Guide</title>
+<meta name="description" content="Power control, remote screen (KVM), screenshots, recordings, serial console and media in the device window.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html">Overview</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html" aria-current="page">Device window</a><ol class="toc"><li><a href="#overview">Toolbar and status bar</a></li><li><a href="#power">Power menu</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console (SOL)</a></li><li><a href="#media">Media (IDE-R)</a></li></ol></li>
+<li><a href="management.html">Device management</a></li>
+<li><a href="amt-settings.html">AMT settings explained</a></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html">App settings and updates</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="mcp.html">MCP server</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>The device window</h1>
+<p class="lead">Each device opens in a window of its own. The toolbar holds power control, the remote screen, the serial console, media and device management.</p>
+
+<h2 id="overview">Toolbar and status bar</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server</span></div>
+  <div class="tb">
+    <div class="who"><span class="dot on"></span><div><b>Lab-Server</b><small>192.0.2.10</small></div></div>
+    <div class="ti act"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span><span>Power</span>
+      <div class="menu" style="top:56px;left:0">
+        <div class="mi dis"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power On</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Power Off…</div>
+        <div class="msep"></div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-reset"/></svg>Reset…</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-cycle"/></svg>Power Cycle…</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-chip"/></svg>Reboot to BIOS…</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-disc"/></svg>Boot from ISO…</div>
+        <div class="msep"></div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Shutdown…</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Sleep…</div>
+        <div class="mi dis"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg>Hibernate…</div>
+      </div>
+    </div>
+    <div class="tdiv"></div>
+    <div class="segk"><div class="ti act"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-monitor"/></svg><span>KVM</span></div><div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-console"/></svg><span>Console</span></div></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-disc"/></svg><span>Media</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;gap:2px;color:var(--text)"><span class="hq">HQ</span><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span><span>Quality</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-zoom"/></svg><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span><span>Scale</span></div>
+    <div class="tdiv"></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-keyboard"/></svg><span>Ctrl+Alt+Del</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-clip"/></svg><span>Type Clipboard</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-keyboard"/></svg><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span><span>Keyboard</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-camera"/></svg><span>Screenshot</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-rec"/></svg><span>Record</span></div>
+    <div class="tdiv"></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-panel"/></svg><span>Manage</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-full"/></svg><span>Full Screen</span></div>
+  </div>
+  <div class="stage" style="height:520px">
+    <div class="rscreen">
+      <div class="ttl">Ubuntu 24.04.1 LTS lab-server tty1</div><div>&nbsp;</div>
+      <div>lab-server login: admin</div><div>Password:</div><div>Last login: Sun Nov 22 21:04:11 2026 from 192.0.2.50</div>
+      <div>admin@lab-server:~$ uptime</div><div> 10:14:12 up 3 days,  2:41,  1 user,  load average: 0.08, 0.05, 0.01</div><div>admin@lab-server:~$ _</div>
+    </div>
+  </div>
+  <div class="stbar">
+    <span class="item"><span class="dot on"></span>Powered on</span><span>AMT 16.1.25</span><span>Control mode ACM</span>
+    <span class="sp"></span>
+    <span class="item"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg>TLS</span><span>KVM connected</span>
+  </div>
+</div></div>
+<figcaption>The device window with the remote screen and the Power menu open. Hibernate is grey because this device does not support it.</figcaption>
+</figure>
+<div class="prose">
+<p>The toolbar has four groups:</p>
+<ol>
+  <li><span class="ui">Power</span>: the Power menu.</li>
+  <li><span class="ui">KVM</span> and <span class="ui">Console</span> switch the view. <span class="ui">Media</span>, <span class="ui">Quality</span> and <span class="ui">Scale</span> belong to it.</li>
+  <li>Input and capture: <span class="ui">Ctrl+Alt+Del</span>, <span class="ui">Type Clipboard</span>, <span class="ui">Keyboard</span>, <span class="ui">Screenshot</span>, <span class="ui">Record</span>.</li>
+  <li><span class="ui">Manage</span> opens <a href="management.html">device management</a>. <span class="ui">Full Screen</span> fills the screen with the remote picture.</li>
+</ol>
+<p>The status bar shows the power state, the AMT version, the <a href="amt-settings.html#control-mode">control mode</a>, whether the connection uses TLS, and the state of the remote screen. Messages about screenshots, recordings and media appear there as well.</p>
+</div>
+
+<h2 id="power">Power menu</h2>
+<div class="prose">
+<p>OpenLAMT reads the power state when you open the menu. Entries that do not fit the state are grey: a running device cannot be powered on, a device that is off only offers <span class="ui">Power On</span>, <span class="ui">Reboot to BIOS…</span> and <span class="ui">Boot from ISO…</span>. While the device sleeps, or its state is unknown, every entry is open. Entries with “…” ask first.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Entry</th><th>What happens</th><th>Asks</th></tr></thead>
+  <tbody>
+    <tr><td class="ui">Power On</td><td>Switches the device on.</td><td><span class="lv none">no</span></td></tr>
+    <tr><td class="ui">Power Off…</td><td>Switches off at once, without shutting down the operating system. Unsaved data and running VMs are lost.</td><td><span class="lv simple">simple</span></td></tr>
+    <tr><td class="ui">Reset…</td><td>Restarts at once, without shutting down the operating system.</td><td><span class="lv simple">simple</span></td></tr>
+    <tr><td class="ui">Power Cycle…</td><td>Switches off and on again at once, without shutting down the operating system.</td><td><span class="lv simple">simple</span></td></tr>
+    <tr><td class="ui">Reboot to BIOS…</td><td>Restarts at once and opens the BIOS setup. A device that is off powers on into the BIOS.</td><td><span class="lv simple">simple</span>, none when the device is off</td></tr>
+    <tr><td class="ui">Boot from ISO…</td><td>Restarts from the ISO you mounted under <a href="#media">Media</a>, once. Grey without a mounted image.</td><td><span class="lv q">question</span></td></tr>
+    <tr><td class="ui">Shutdown…</td><td>Shuts the operating system down in an orderly way, then switches off.</td><td><span class="lv simple">simple</span></td></tr>
+    <tr><td class="ui">Sleep…</td><td>The operating system goes to sleep. The device stays reachable and wakes on request.</td><td><span class="lv simple">simple</span></td></tr>
+    <tr><td class="ui">Hibernate…</td><td>The operating system saves its memory to disk and switches off.</td><td><span class="lv simple">simple</span></td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p><span class="ui">Shutdown…</span> needs help from the operating system. AMT offers it only while the Intel management service (LMS) runs on the device. <span class="ui">Sleep…</span> and <span class="ui">Hibernate…</span> stay grey unless the device lists these power states. The <a href="management.html#power">Power page</a> shows which states a device supports.</p>
+<p>AMT refuses Power Off, Power Cycle and Shutdown while a remote screen session is open. OpenLAMT therefore closes the session first and connects again when the device is back.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <div class="qhead"><div class="qtile red"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></div><div style="flex:1">
+    <h4>Power off Lab-Server?</h4>
+    <p>The machine is switched off immediately, without shutting down the operating system. Unsaved data and running VMs are lost.</p></div></div>
+    <div class="foot"><span class="b">Cancel</span><span class="b red">Power Off</span></div>
+  </div>
+</div></div>
+<figcaption>A simple confirmation. <span class="ui">Cancel</span> has the focus, and Enter does not run the action.</figcaption>
+</figure>
+
+<h2 id="kvm">Remote screen (KVM)</h2>
+<div class="prose">
+<p>KVM shows the screen of the device and sends your keyboard and mouse to it. It works from the moment the device powers on, also in the BIOS and in the boot loader.</p>
+<ul>
+  <li>Click <span class="ui">Connect KVM</span> in the middle of the window. With <a href="favorites.html#favorite-fields">KVM auto-connect</a> on, the screen connects when the window opens.</li>
+  <li>If the device asks for <a href="getting-started.html#consent">user consent</a>, enter the six-digit code from its screen.</li>
+  <li>When KVM connects, OpenLAMT presses a harmless key (F15) to wake a dark screen.</li>
+  <li><span class="ui">Quality</span> switches between High quality (65,536 colors) and Low quality (256 colors). Low is faster on slow links.</li>
+  <li>OpenLAMT ends the session after a time without input. Set the time in <a href="settings.html#remote-screen">Settings</a>.</li>
+  <li>AMT allows one KVM session per device. If another tool holds it, the device refuses a second one.</li>
+</ul>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="win w880 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server</span></div>
+  <div class="stage" style="height:320px">
+    <div class="empty" style="color:#A1A1A6">
+      <div style="width:72px;height:72px;border-radius:16px;background:#1E1E20;display:grid;place-items:center;margin:0 auto 14px;color:#A1A1A6"><svg class="i s32" aria-hidden="true"><use href="assets/icons.svg#i-monitor"/></svg></div>
+      <b style="color:#F5F5F7;font-size:17px">Remote screen not connected</b>Lab-Server is powered on. Connect KVM to see the screen<br>and control keyboard and mouse.
+      <div style="margin-top:16px"><span class="b pri" style="height:36px"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-monitor"/></svg>Connect KVM</span></div>
+    </div>
+  </div>
+  <div class="stbar"><span class="item"><span class="dot on"></span>Powered on</span><span>AMT 16.1.25</span><span>Control mode ACM</span><span class="sp"></span><span class="item"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg>TLS</span><span>KVM not connected</span></div>
+</div></div>
+<figcaption>Before KVM connects. Toolbar buttons that need a session stay grey.</figcaption>
+</figure>
+
+<h3 id="keyboard">Keyboard</h3>
+<div class="prose">
+<p>Your computer keeps some key combinations for itself, for example <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Del</kbd>, <kbd>Cmd</kbd>+<kbd>Tab</kbd> and, on Windows, <kbd>Win</kbd>+<kbd>L</kbd>. They never reach the device. Use the <span class="ui">Ctrl+Alt+Del</span> button to send that combination.</p>
+</div>
+
+<h3 id="type-clipboard">Type Clipboard</h3>
+<div class="prose">
+<p><span class="ui">Type Clipboard</span> types the text on your clipboard into the device, key by key. Use it for long passwords or commands, also in the BIOS or a console without copy and paste.</p>
+<ul>
+  <li>The device must use the keyboard layout you choose under <span class="ui">Keyboard</span>. OpenLAMT knows 16 layouts. <span class="ui">Default</span> uses the layout of the favorite or of the <a href="settings.html#remote-screen">app setting</a>.</li>
+  <li>Characters the layout cannot type are skipped. At most 2,000 characters are typed at once.</li>
+  <li>The status bar shows the progress. <span class="ui">Stop typing</span> ends it.</li>
+</ul>
+</div>
+
+<h3 id="scale">Scale</h3>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="menu" style="position:static;min-width:260px">
+    <div class="mi hl"><span class="ck0"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg></span>Fit to Window<span class="k">Ctrl+0</span></div>
+    <div class="mi"><span class="ck0"></span>Actual Size (100%)<span class="k">Ctrl+1</span></div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"></span>50%</div>
+    <div class="mi"><span class="ck0"></span>75%</div>
+    <div class="mi"><span class="ck0"></span>150%</div>
+    <div class="mi"><span class="ck0"></span>200%</div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"></span>Zoom In<span class="k">Ctrl++</span></div>
+    <div class="mi"><span class="ck0"></span>Zoom Out<span class="k">Ctrl+-</span></div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"></span>Reverse Mouse Wheel</div>
+  </div>
+</div></div>
+<figcaption>The Scale menu.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li><span class="ui">Fit to Window</span> is the default. The picture follows the window size.</li>
+  <li><span class="ui">Actual Size (100%)</span> shows one remote pixel per screen pixel, also on high-resolution displays. Fixed sizes show scroll bars when the picture is larger than the window.</li>
+  <li><span class="ui">Zoom In</span> and <span class="ui">Zoom Out</span> step from the current size.</li>
+  <li>The shortcuts use <kbd>Ctrl</kbd> on every system. They work when the focus is not in the remote picture, because there every key goes to the device.</li>
+  <li>The size applies to this window and is not saved. Full screen always fits.</li>
+  <li><span class="ui">Reverse Mouse Wheel</span> turns the scroll direction around. OpenLAMT saves it for each favorite.</li>
+</ul>
+</div>
+
+<h3 id="screenshot">Screenshot</h3>
+<div class="prose">
+<p><span class="ui">Screenshot</span> saves the remote screen as a PNG file in its own resolution, without the toolbar. It works once KVM shows a picture. The name looks like <code>openlamt-Lab-Server-2026-11-23-101412.png</code>.</p>
+<p>With a folder set under <a href="settings.html#remote-screen">Screenshots and recordings</a>, the file goes there at once. Without one, OpenLAMT asks where to save it. The status bar shows “Screenshot saved: …” or the reason it failed. OpenLAMT never overwrites a file in the folder: it adds <code>-2</code>, <code>-3</code> and so on.</p>
+</div>
+
+<h3 id="record">Record</h3>
+<div class="prose">
+<p><span class="ui">Record</span> records the remote screen as a video. The button turns into a red <span class="ui">Stop</span>, and the status bar shows the time and size, for example “REC 02:14 · 18 MB”.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w880 app">
+  <div class="tb">
+    <div class="who"><span class="dot on"></span><div><b>Lab-Server</b><small>192.0.2.10</small></div></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-keyboard"/></svg><span>Ctrl+Alt+Del</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-clip"/></svg><span>Type Clipboard</span></div>
+    <div class="ti"><span style="display:flex;align-items:center;color:var(--text)"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-keyboard"/></svg><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-chev"/></svg></span><span>Keyboard</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-camera"/></svg><span>Screenshot</span></div>
+    <div class="ti rec"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-stop"/></svg><span>Stop</span></div>
+    <div class="tdiv"></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-panel"/></svg><span>Manage</span></div>
+    <div class="ti"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-full"/></svg><span>Full Screen</span></div>
+  </div>
+  <div class="stbar"><span class="item"><span class="dot on"></span>Powered on</span><span>AMT 16.1.25</span><span class="sp"></span><span class="item" style="color:var(--danger);font-weight:600"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-rec"/></svg>REC 02:14 · 18 MB</span><span class="item"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg>TLS</span><span>KVM connected</span></div>
+</div></div>
+<figcaption>A recording runs. Part of the toolbar is shown.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li>The video is a Motion-JPEG AVI file at 10 frames per second. VLC and the players of Windows and macOS play it.</li>
+  <li>The recording stops when you click <span class="ui">Stop</span>, when KVM ends and when you close the window. OpenLAMT waits until the file is complete before it quits.</li>
+  <li>A recording stops by itself shortly before 2 GB and says so.</li>
+  <li>The file name and the folder follow the same rules as screenshots, with <code>.avi</code>.</li>
+</ul>
+</div>
+
+<h3 id="full-screen">Full screen</h3>
+<div class="prose">
+<p><span class="ui">Full Screen</span> fills the screen with the remote picture. A small bar at the top offers KVM and Console, <span class="ui">Exit Full Screen</span>, <span class="ui">Ctrl+Alt+Del</span>, <span class="ui">Type Clipboard</span>, <span class="ui">Screenshot</span> and <span class="ui">Record</span>.</p>
+</div>
+
+<h2 id="console">Serial console (SOL)</h2>
+<div class="prose">
+<p><span class="ui">Console</span> shows the serial console of the device over Serial over LAN (SOL). Use it for systems with a text console on the serial port, for example a Linux server with <code>console=ttyS0</code>, or a BIOS with console redirection. Switch between <span class="ui">KVM</span> and <span class="ui">Console</span> at any time, also in full screen. <span class="ui">Type Clipboard</span> works in the console too.</p>
+<p>If SOL is turned off on the device, OpenLAMT asks <span class="ui">Enable Serial over LAN?</span>. The setting stays on until you turn it off on the <a href="management.html#settings">Settings page</a>.</p>
+</div>
+
+<h2 id="media">Media (IDE-R)</h2>
+<div class="prose">
+<p><span class="ui">Media</span> mounts an ISO image on the device as a CD drive. The device sees it like a real drive, even before an operating system starts. Use it to install an operating system, run a firmware update or bring tools and drivers to the device.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="menu" style="position:static;min-width:240px">
+    <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-disc"/></svg>Mount ISO…</div>
+    <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-folder"/></svg>Mount Folder…</div>
+  </div>
+  <div class="menu" style="position:static;min-width:280px">
+    <div class="mtitle">ubuntu-24.04-server.iso · 18.4 MB/s</div>
+    <div class="msep"></div>
+    <div class="mi"><span class="ck0"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-check"/></svg></span>Boot from ISO on next start</div>
+    <div class="mi"><span class="ck0"></span>Restart from ISO…</div>
+    <div class="msep"></div>
+    <div class="mi"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-x"/></svg>Unmount</div>
+  </div>
+</div></div>
+<figcaption>The Media menu before and after mounting an image.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li><span class="ui">Mount ISO…</span> mounts an ISO file (CD or DVD). Floppy and disk images (<code>.img</code>) do not work.</li>
+  <li><span class="ui">Mount Folder…</span> turns a folder into a temporary ISO first and mounts it, read only. Each file must be smaller than 4 GB. Large folders take a moment to prepare. The device can boot from a folder over UEFI if it holds <code>EFI/BOOT/BOOTX64.EFI</code>.</li>
+  <li><span class="ui">Boot from ISO on next start</span> makes the next start of the device boot from the image, once.</li>
+  <li><span class="ui">Restart from ISO…</span> restarts the device now and boots once from the image. After that it boots from its own drive again.</li>
+  <li><span class="ui">Unmount</span> removes the image. Closing the window with an image mounted asks first, because an installation running from it would fail.</li>
+</ul>
+<p>The status bar shows the transfer rate. While an image is mounted, the device also shows an empty floppy drive. That is how AMT media redirection works.</p>
+<p>If media redirection is turned off on the device, OpenLAMT asks <span class="ui">Enable media redirection?</span>. On macOS and Windows, OpenLAMT uses the file dialog of the system. On Linux it shows its own.</p>
+</div>
+<nav class="pager" aria-label="Pages"><a href="favorites.html" rel="prev"><small>Previous</small>Favorites and scan</a><a href="management.html" rel="next" style="text-align:right"><small>Next</small>Device management</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

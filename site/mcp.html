@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MCP server (openlamt-mcp) · OpenLAMT User Guide</title>
+<meta name="description" content="Let an AI agent use your OpenLAMT favorites through the local MCP server openlamt-mcp.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html">Overview</a></li>
+<li><a href="getting-started.html">Getting started</a></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html">Device window</a></li>
+<li><a href="management.html">Device management</a></li>
+<li><a href="amt-settings.html">AMT settings explained</a></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html">App settings and updates</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="mcp.html" aria-current="page">MCP server</a><ol class="toc"><li><a href="#what">What it is</a></li><li><a href="#devices">Devices, passwords and TLS</a></li><li><a href="#tools">Tools</a></li><li><a href="#config">Limit what the agent may do</a></li></ol></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>MCP server (openlamt-mcp)</h1>
+<p class="lead"><code>openlamt-mcp</code> lets an AI agent use your OpenLAMT favorites: read status and logs, control power, look at the screen and type. It runs on your computer and opens no network port.</p>
+
+<h2 id="what">What it is</h2>
+<div class="prose">
+<p>MCP (Model Context Protocol) is a standard way for AI apps to call tools. Claude Desktop, Claude Code and other MCP clients can start <code>openlamt-mcp</code> and talk to it over standard input and output. The agent then sees tools such as <code>list_devices</code> or <code>power_action</code>.</p>
+<p><code>openlamt-mcp</code> is a separate program next to the app. It is not part of the release downloads yet. Build it from the source with Go (no C compiler needed):</p>
+<pre><code>go build -o openlamt-mcp ./cmd/openlamt-mcp</code></pre>
+<p>Then add it to your MCP client:</p>
+<pre><code>{"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}</code></pre>
+</div>
+
+<h2 id="devices">Devices, passwords and TLS</h2>
+<div class="prose">
+<ul>
+  <li>The agent sees your OpenLAMT favorites by their names. It cannot add a host, a user name or a password.</li>
+  <li>Passwords come from the system keychain. Save the password in the app first. Passwords never pass through the MCP connection and never appear in answers or logs.</li>
+  <li>A TLS device works only after you connected once with the app and trusted its certificate. The MCP server never trusts a new certificate.</li>
+  <li>Devices without TLS work, with a warning in each answer.</li>
+</ul>
+</div>
+
+<h2 id="tools">Tools</h2>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Tool</th><th>What it does</th><th>Group</th></tr></thead>
+  <tbody>
+    <tr><td><code>list_devices</code></td><td>Lists the allowed favorites. Makes no connection.</td><td>read</td></tr>
+    <tr><td><code>device_status</code></td><td>Power state, AMT version, control mode, TLS.</td><td>read</td></tr>
+    <tr><td><code>hardware_info</code></td><td>System, board, BIOS, processors, memory, drives.</td><td>read</td></tr>
+    <tr><td><code>event_log</code>, <code>audit_log</code></td><td>Log entries, filtered by time, severity or text.</td><td>read</td></tr>
+    <tr><td><code>power_action</code></td><td>Power on, off, reset, power cycle, shut down. The same rules as the Power menu.</td><td>power_boot, destructive</td></tr>
+    <tr><td><code>boot_to_bios</code></td><td>Restarts into the BIOS setup.</td><td>power_boot, destructive</td></tr>
+    <tr><td><code>kvm_connect</code>, <code>kvm_disconnect</code></td><td>Opens or closes the remote screen session of a device.</td><td>read</td></tr>
+    <tr><td><code>kvm_screenshot</code></td><td>The screen as an image sized for AI models: at most 1280 pixels on the longest side, JPEG by default.</td><td>read</td></tr>
+    <tr><td><code>kvm_send_keys</code></td><td>Presses keys and combinations such as <code>Ctrl+Alt+Delete</code>.</td><td>kvm_input</td></tr>
+    <tr><td><code>kvm_mouse</code></td><td>Moves, clicks and scrolls at a point of the last screenshot.</td><td>kvm_input</td></tr>
+    <tr><td><code>kvm_type_text</code></td><td>Types text in the keyboard layout of the favorite.</td><td>kvm_input</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p><code>destructive</code> covers every power action except power on. Power off, power cycle and shutdown close an open KVM session first, because AMT refuses them while KVM is open.</p>
+<p>AMT allows one KVM session per device. While the agent holds it, the app cannot connect KVM to that device, and the other way round. The session closes with <code>kvm_disconnect</code>, after five minutes without a call, or when the MCP client stops the server.</p>
+<p>If a device asks for <a href="amt-settings.html#user-consent">user consent</a>, the agent must ask a person at the device for the six-digit code and pass it as <code>consent_code</code>.</p>
+</div>
+
+<h2 id="config">Limit what the agent may do</h2>
+<div class="warn"><b>Without a config file, everything is allowed.</b>Every favorite and every action, without confirmation. Write a config file before you hand your devices to an agent you do not fully trust.</div>
+<div class="prose">
+<p>The config file is <code>openlamt-mcp.json</code> next to <code>favorites.json</code> in your configuration folder, or the file given with <code>--config &lt;path&gt;</code>. Each key you leave out keeps its default. An unknown key stops the server, so a typo cannot leave everything open.</p>
+<pre><code>{
+  "read_only": false,
+  "allowed_devices": [],
+  "tool_groups": {"read": true, "power_boot": true, "media": true, "kvm_input": true,
+                  "settings": true, "users": true, "destructive": true},
+  "require_client_confirmation": false,
+  "action_log": {"enabled": true, "path": ""},
+  "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
+          "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80}
+}</code></pre>
+</div>
+<dl class="terms">
+  <dt><code>read_only</code></dt><dd>Leaves only the read tools, the screenshot included.</dd>
+  <dt><code>allowed_devices</code></dt><dd>Favorite names the agent may use. Empty means all.</dd>
+  <dt><code>tool_groups</code></dt><dd>Switches groups of tools off. A tool of a disabled group does not exist for the agent.</dd>
+  <dt><code>require_client_confirmation</code></dt><dd>Asks you in the MCP client before each power action and each key, mouse or typing call. The question shows every key and the text to type, with each line break (an Enter press) shown as ⏎. If the agent marks a single line as <code>secret</code>, the question says that the agent chose to hide it. A client that cannot ask gets a refusal.</dd>
+  <dt><code>action_log</code></dt><dd>Writes one line per tool call to <code>openlamt-mcp-actions.log</code> next to the config file, or to <code>path</code>. It holds keys and mouse actions, but never typed text or a consent code.</dd>
+  <dt><code>kvm</code></dt><dd>The idle timeout of a KVM session (<code>0</code> keeps it open until the server stops) and the default size, format (<code>jpeg</code> or <code>png</code>) and quality of screenshots. The agent may ask for another size or format per call.</dd>
+</dl>
+<div class="prose">
+<p>A good start for a helper agent that only looks:</p>
+<pre><code>{"read_only": true, "allowed_devices": ["Lab-Server"]}</code></pre>
+</div>
+<nav class="pager" aria-label="Pages"><a href="troubleshooting.html" rel="prev"><small>Previous</small>Troubleshooting</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

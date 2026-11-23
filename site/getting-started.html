@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started · OpenLAMT User Guide</title>
+<meta name="description" content="Install OpenLAMT on macOS, Windows or Linux and connect to your first Intel AMT device.">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/guide.css">
+<script src="assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <a class="brand" href="index.html"><span class="logo"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-power"/></svg></span>OpenLAMT <small>User Guide</small></a>
+  <span class="sp"></span>
+  <div class="themebar" role="group" aria-label="Appearance" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Light</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dark</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT on GitHub"><svg class="i s20" aria-hidden="true"><use href="assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Guide">
+<h2>Guide</h2>
+<ol>
+<li><a href="index.html">Overview</a></li>
+<li><a href="getting-started.html" aria-current="page">Getting started</a><ol class="toc"><li><a href="#requirements">What you need</a></li><li><a href="#install">Install</a></li><li><a href="#first-connection">Connect to your first device</a></li><li><a href="#tls">TLS and certificate pinning</a></li><li><a href="#data">Where OpenLAMT keeps your data</a></li><li><a href="#remove">Remove OpenLAMT</a></li></ol></li>
+<li><a href="favorites.html">Favorites and scan</a></li>
+<li><a href="device-window.html">Device window</a></li>
+<li><a href="management.html">Device management</a></li>
+<li><a href="amt-settings.html">AMT settings explained</a></li>
+<li><a href="confirmations.html">Confirmations and permissions</a></li>
+<li><a href="settings.html">App settings and updates</a></li>
+<li><a href="troubleshooting.html">Troubleshooting</a></li>
+<li><a href="mcp.html">MCP server</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Getting started</h1>
+<p class="lead">Install OpenLAMT, connect to your first device and learn how OpenLAMT keeps the connection safe.</p>
+
+<h2 id="requirements">What you need</h2>
+<div class="prose">
+<ul>
+  <li>A device with Intel AMT that is activated and reachable over the network. OpenLAMT uses the ports <code>16992</code> to <code>16995</code>.</li>
+  <li>The user name and password of an AMT account on that device. The built-in account is usually <code>admin</code>.</li>
+  <li>macOS on Apple Silicon, Windows on x64, or Linux on x64.</li>
+  <li>On Linux: a Secret Service provider such as GNOME Keyring or KeePassXC, so OpenLAMT can save passwords.</li>
+</ul>
+<p>Intel AMT must be set up on the device before OpenLAMT can use it. You do this once in the BIOS of the device (Intel MEBx) or with Intel's provisioning tools. OpenLAMT does not activate AMT for you.</p>
+</div>
+
+<h2 id="install">Install</h2>
+<div class="prose">
+<p>Download the file for your system from the <a href="https://github.com/Srv-02/OpenLAMT/releases">Releases page</a>:</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>System</th><th>File</th></tr></thead>
+  <tbody>
+    <tr><td>macOS (Apple Silicon)</td><td><code>OpenLAMT-&lt;version&gt;-macos-arm64.dmg</code></td></tr>
+    <tr><td>Windows (x64)</td><td><code>OpenLAMT-&lt;version&gt;-windows-x64.zip</code></td></tr>
+    <tr><td>Linux (x64), any distribution</td><td><code>OpenLAMT-&lt;version&gt;-linux-x64.AppImage</code></td></tr>
+    <tr><td>Linux (x64), Debian, Ubuntu and derivatives</td><td><code>OpenLAMT-&lt;version&gt;-linux-x64.deb</code></td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>The builds are not code-signed. macOS and Windows therefore warn on the first launch. The steps below show how to start the app anyway.</p>
+
+<h3 id="install-macos">macOS</h3>
+<ol>
+  <li>Open the disk image (<code>.dmg</code>).</li>
+  <li>Drag <code>OpenLAMT.app</code> onto the <code>Applications</code> shortcut next to it.</li>
+  <li>Start OpenLAMT once. Gatekeeper blocks it, because the app has only an ad-hoc signature.</li>
+  <li>Open <b>System Settings</b> &gt; <b>Privacy &amp; Security</b> and click <b>Open Anyway</b> next to OpenLAMT. On macOS 15 Sequoia and later, right click &gt; Open no longer works for this.</li>
+</ol>
+<p>Instead of step 4 you can remove the quarantine attribute in a terminal:</p>
+<pre><code>xattr -dr com.apple.quarantine /Applications/OpenLAMT.app</code></pre>
+<p>On the first connection, macOS asks whether OpenLAMT may find devices on the local network. Allow it. If you said no, see <a href="troubleshooting.html#macos-network">Troubleshooting</a>.</p>
+
+<h3 id="install-windows">Windows</h3>
+<ol>
+  <li>Unzip the file.</li>
+  <li>Start <code>OpenLAMT.exe</code>. No installer is needed.</li>
+  <li>SmartScreen shows “Windows protected your PC”. Click <b>More info</b>, then <b>Run anyway</b>.</li>
+</ol>
+
+<h3 id="install-appimage">Linux: AppImage</h3>
+<p>The AppImage runs on any distribution with glibc 2.35 or newer (for example Ubuntu 22.04 and later). Make it executable and start it:</p>
+<pre><code>chmod +x OpenLAMT-&lt;version&gt;-linux-x64.AppImage
+./OpenLAMT-&lt;version&gt;-linux-x64.AppImage</code></pre>
+<p>If your system lacks FUSE 2, start it with <code>--appimage-extract-and-run</code>. The AppImage uses the OpenGL and X11 or Wayland libraries of your desktop.</p>
+
+<h3 id="install-deb">Linux: .deb</h3>
+<pre><code>sudo apt install ./OpenLAMT-&lt;version&gt;-linux-x64.deb</code></pre>
+<p>apt installs the libraries the app needs. Start OpenLAMT from the application menu or with <code>openlamt</code>. The package recommends <code>gnome-keyring</code>. Without a running Secret Service provider, OpenLAMT cannot save passwords.</p>
+</div>
+
+<h2 id="first-connection">Connect to your first device</h2>
+<div class="prose">
+<ol>
+  <li>Click <span class="ui">Quick Connect</span> at the bottom of the sidebar.</li>
+  <li>Enter the <span class="ui">Host/IP</span> of the device, for example <code>192.0.2.10</code> or <code>lab.example.com</code>. Do not add a port.</li>
+  <li>Enter the <span class="ui">Username</span> and the <span class="ui">Password</span> of the AMT account.</li>
+  <li>Leave <span class="ui">Use TLS</span> on if the device has TLS set up. Most activated devices do.</li>
+  <li>Click <span class="ui">Connect</span>. The device window opens.</li>
+</ol>
+<p>Click <span class="ui">Save as favorite</span> instead to keep the device in the sidebar. The password then goes into the keychain of your system.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="win w880 app">
+  <div class="osbar"><i></i><i></i><i></i><span>OpenLAMT</span></div>
+  <div class="row2" style="height:470px">
+    <div class="sb">
+      <div class="search"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-search"/></svg>Search</div>
+      <div class="sbh">Favorites</div>
+      <div class="empty" style="padding:24px 22px"><b>No favorites yet</b>Save a connection as a favorite to find it here.
+        <div style="margin-top:12px"><span class="b out sm"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-radar"/></svg>Scan Network…</span></div></div>
+      <div class="sbfoot"><svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-plus"/></svg>Quick Connect<span class="sp"></span><span class="ib"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-radar"/></svg></span><span class="ib"><svg class="i" aria-hidden="true"><use href="assets/icons.svg#i-sliders"/></svg></span></div>
+    </div>
+    <div class="detail">
+      <div class="dbody" style="padding-top:28px">
+        <div class="dhead"><div class="bigtile"><svg class="i s28" aria-hidden="true"><use href="assets/icons.svg#i-server"/></svg></div><div style="flex:1"><h3>Quick Connect</h3></div><span class="b out">Save as favorite</span><span class="b pri" style="height:36px;padding:0 18px">Connect</span></div>
+        <div class="card">
+          <div class="r"><span class="l">Host/IP</span><span class="fld" style="flex:1">192.0.2.10</span></div>
+          <div class="r"><span class="l">Name</span><span class="fld ph" style="flex:1">Name</span></div>
+          <div class="r"><span class="l">Username</span><span class="fld" style="flex:1">admin</span></div>
+          <div class="r"><span class="l">Password</span><span class="fld" style="flex:1">••••••••••</span></div>
+        </div>
+        <div class="card"><div class="r"><svg class="i s16" aria-hidden="true"><use href="assets/icons.svg#i-lock"/></svg><span class="v">Use TLS</span><span class="sw on"></span></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Quick Connect: one device, without saving it first.</figcaption>
+</figure>
+
+<h3 id="password-prompt">Password prompt</h3>
+<div class="prose">
+<p>If no password is saved, OpenLAMT asks for it when you connect: <span class="ui">Password for admin@192.0.2.10</span>. Tick <span class="ui">Save password</span> to keep it in the keychain. OpenLAMT saves a password only after the device accepted it.</p>
+</div>
+
+<h3 id="consent">User consent code</h3>
+<div class="prose">
+<p>Some devices ask a person at the device to agree before a remote session starts. The device then shows a six-digit code on its own screen. OpenLAMT asks for it in the dialog <span class="ui">User consent</span>. Ask the person at the device for the code and enter it. Without the code, the session does not start.</p>
+<p>When AMT asks for consent depends on the control mode and the <a href="amt-settings.html#user-consent">user consent setting</a> of the device.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>User consent</h4>
+    <p>Enter the six-digit consent code shown on the device screen.</p>
+    <div style="display:flex;gap:10px;align-items:center"><span>Consent code</span><span class="fld" style="flex:1">482 915</span></div>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Continue</span></div>
+  </div>
+</div></div>
+<figcaption>The consent dialog. <span class="ui">Continue</span> stays disabled until six digits are entered.</figcaption>
+</figure>
+
+<h2 id="tls">TLS and certificate pinning</h2>
+<div class="prose">
+<p>With TLS, OpenLAMT encrypts the connection to the device. It uses port <code>16993</code> for management and <code>16995</code> for the remote screen, console and media. Without TLS it uses <code>16992</code> and <code>16994</code>. Then passwords and data travel unencrypted, and OpenLAMT shows “Without TLS” next to the device.</p>
+<p>Most AMT devices use a self-signed certificate. No public authority can confirm it. OpenLAMT therefore uses <b>trust on first use</b>:</p>
+<ol>
+  <li>On the first TLS connection, OpenLAMT shows the SHA-256 fingerprint of the device certificate and asks <span class="ui">Trust this device?</span></li>
+  <li>Compare the fingerprint with the one the device shows, for example in the BIOS (MEBx) or in your provisioning records. Click <span class="ui">Trust device</span> if it matches.</li>
+  <li>OpenLAMT saves the fingerprint in the keychain. Later connections check it silently.</li>
+  <li>If the certificate ever changes, OpenLAMT stops the connection and shows <span class="ui">Certificate changed</span>.</li>
+</ol>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w520">
+    <h4>Trust this device?</h4>
+    <p>OpenLAMT is connecting to 192.0.2.10 for the first time. The device presents this certificate (SHA-256):</p>
+    <div class="fp">4F:2A:91:0C:7E:55:B3:18:D2:6A:0F:E4:93:27:C1:8B:<br>5D:A0:3E:76:19:F2:84:CB:0D:61:9A:3F:E8:25:47:9C</div>
+    <p>If you trust it, OpenLAMT remembers the certificate and warns you if it ever changes.</p>
+    <div class="foot"><span class="b">Cancel</span><span class="b pri">Trust device</span></div>
+  </div>
+  <div class="dlg w520">
+    <h4>Certificate changed</h4>
+    <p>WARNING: the certificate of 192.0.2.10 does not match the trusted fingerprint. This may be a man-in-the-middle attack. The connection was aborted.</p>
+    <p style="margin-bottom:4px">Expected</p><div class="fp">4F:2A:91:0C:7E:55:B3:18:…:E8:25:47:9C</div>
+    <p style="margin-bottom:4px">Received</p><div class="fp">A7:03:5B:E2:11:9D:4C:70:…:0B:C6:12:58</div>
+    <p>To trust a new certificate on purpose, edit the favorite and reset its fingerprint.</p>
+    <div class="foot"><span class="b pri">Close</span></div>
+  </div>
+</div></div>
+<figcaption>Left: the first TLS connection. Right: the certificate no longer matches.</figcaption>
+</figure>
+
+<div class="prose">
+<h3 id="certificate-changed">When the certificate changes on purpose</h3>
+<p>A device gets a new certificate after a new provisioning, a firmware reset or when an administrator replaces it. If you know why it changed:</p>
+<ol>
+  <li>Select the favorite and click the edit symbol <svg class="i s14" aria-hidden="true"><use href="assets/icons.svg#i-edit"/></svg>.</li>
+  <li>Turn on <span class="ui">Reset fingerprint</span> under <span class="ui">Advanced</span> and click <span class="ui">Save</span>.</li>
+  <li>Connect again and check the new fingerprint before you trust it.</li>
+</ol>
+<p>If you change the TLS certificate of a device in OpenLAMT itself (<a href="management.html#settings">Settings page</a>), OpenLAMT updates the saved fingerprint on its own.</p>
+<div class="warn"><b>If you do not know why it changed, do not reset the fingerprint.</b>Someone may be between your computer and the device. Check the network first.</div>
+</div>
+
+<h2 id="data">Where OpenLAMT keeps your data</h2>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>What</th><th>Where</th></tr></thead>
+  <tbody>
+    <tr><td>Favorites</td><td><code>openlamt/favorites.json</code> in your configuration folder: <code>~/Library/Application Support</code> (macOS), <code>%AppData%</code> (Windows), <code>~/.config</code> (Linux)</td></tr>
+    <tr><td>Passwords and certificate fingerprints</td><td>The system keychain, services <code>openlamt</code> and <code>openlamt-fingerprint</code>. Never in a file.</td></tr>
+    <tr><td>Temporary ISOs of mounted folders</td><td><code>OpenLAMT/ider</code> in your cache folder, deleted on unmount</td></tr>
+    <tr><td>Screenshots and recordings</td><td>The folder you choose in <a href="settings.html#remote-screen">Settings</a>, or where the save dialog puts them</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>OpenLAMT changes nothing on a device that you did not start. On the network it talks only to your AMT devices and, once per start, to <code>api.github.com</code> for the <a href="settings.html#updates">update check</a>. You can turn the update check off.</p>
+</div>
+
+<h2 id="remove">Remove OpenLAMT</h2>
+<div class="prose">
+<ol>
+  <li>Delete the app: <code>OpenLAMT.app</code>, the folder with <code>OpenLAMT.exe</code>, the AppImage file, or run <code>sudo apt remove openlamt</code>.</li>
+  <li>Delete the <code>openlamt</code> folder in your configuration folder and, if present, the <code>OpenLAMT</code> folder in your cache folder.</li>
+  <li>Optionally delete the keychain entries of the services <code>openlamt</code> and <code>openlamt-fingerprint</code>.</li>
+</ol>
+</div>
+<nav class="pager" aria-label="Pages"><a href="index.html" rel="prev"><small>Previous</small>Overview</a><a href="favorites.html" rel="next" style="text-align:right"><small>Next</small>Favorites and scan</a></nav>
+<footer class="site">
+<p>OpenLAMT is free software under the Apache License 2.0. It is an independent project and not affiliated with, endorsed by or supported by Intel Corporation. Intel and AMT are trademarks of Intel Corporation. Every device name, address and value in this guide is an example.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

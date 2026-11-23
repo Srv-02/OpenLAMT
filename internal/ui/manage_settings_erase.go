@@ -274,6 +274,12 @@ func (p *settingsPane) showEraseStarted() {
 // poller job with the user consent (KVM's dialog) and the erase, the Power menu locked; errors
 // go to the window's error report. done runs on the Fyne thread.
 func (d *DeviceWindow) startErase(o amt.EraseOptions, c amt.Confirmation, done func(error)) {
+	if d.powerBusy { // another power action holds the shared consent cancel (biosCancel)
+		err := userError(lang.L("Wait until the running power action ends, then erase the drives."))
+		d.onError(err)
+		done(err)
+		return
+	}
 	d.setPowerBusy(true)
 	ctx, cancel := context.WithCancel(context.Background())
 	d.biosCancel = cancel // shutdown ends a consent dialog through it, as for Reboot to BIOS

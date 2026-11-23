@@ -332,3 +332,28 @@ func TestEraseRunsConsentInTheDeviceWindow(t *testing.T) {
 		t.Fatal("state after the erase")
 	}
 }
+
+// Erase Drives while a power action runs is refused: it would overwrite the shared consent
+// cancel (biosCancel), and closing the window could no longer end the second dialog (#126).
+func TestEraseRefusedWhileAPowerActionRuns(t *testing.T) {
+	h := bootWindow(t, models.PowerStateOn, rpeInfo(allRPE, true), true)
+	c, err := amt.ConfirmChecked(amt.OpErase, "device.example.com", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancelled := false
+	h.d.biosCancel = func() { cancelled = true } // the consent dialog of a running Reboot to BIOS
+	h.d.setPowerBusy(true)
+	done := make(chan error, 1)
+	h.d.startErase(amt.EraseOptions{Platform: true, Actions: amt.EraseSSDs}, c, func(err error) { done <- err })
+	if err := <-done; err == nil {
+		t.Fatal("erase started during a power action")
+	}
+	if len(h.errs) != 1 || len(h.asked) != 0 || len(h.dev.BootFake().Erases()) != 0 {
+		t.Fatalf("errors %d asked %d erases %v", len(h.errs), len(h.asked), h.dev.BootFake().Erases())
+	}
+	h.d.shutdown()
+	if !cancelled {
+		t.Fatal("the cancel of the running action was lost")
+	}
+}

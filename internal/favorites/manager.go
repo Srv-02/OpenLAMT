@@ -43,15 +43,25 @@ func NewManager(store *Store, keys keychain.Store) *Manager {
 	return &Manager{store: store, keys: keys}
 }
 
-func (m *Manager) List() ([]Favorite, error) {
+// lockRead takes the same locks as lockWrite, so a read never has the file open while another
+// process renames a new version over it: on Windows that rename fails (Go opens files without
+// FILE_SHARE_DELETE). If the lock file cannot be taken, the read goes on without it.
+func (m *Manager) lockRead() (unlock func()) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
+	release, err := m.store.Lock()
+	if err != nil {
+		return m.mu.Unlock
+	}
+	return func() { release(); m.mu.Unlock() }
+}
+
+func (m *Manager) List() ([]Favorite, error) {
+	defer m.lockRead()()
 	return m.store.Load()
 }
 
 func (m *Manager) Find(host, username string) (Favorite, bool, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
+	defer m.lockRead()()
 	list, err := m.store.Load()
 	if err != nil {
 		return Favorite{}, false, err

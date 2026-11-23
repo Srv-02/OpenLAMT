@@ -37,22 +37,22 @@ func freeUDP(t *testing.T) int {
 	return c.LocalAddr().(*net.UDPAddr).Port
 }
 
-// fakePong answers every presence ping on ip:port with a pong; it returns the number of pings.
-func fakePong(t *testing.T, ip string, port int) *int {
+// fakePong answers every presence ping on ip:port with a pong; it returns a function that reads the number of pings.
+func fakePong(t *testing.T, ip string, port int) func() int {
 	t.Helper()
 	return fakePongWith(t, ip, port, 0x20)
 }
 
 // fakePongWith is fakePong with the given Supported Interactions byte: 0x20 is an AMT device
 // (DASH), 0x00 an IPMI BMC.
-func fakePongWith(t *testing.T, ip string, port int, interactions byte) *int {
+func fakePongWith(t *testing.T, ip string, port int, interactions byte) func() int {
 	t.Helper()
 	c, err := net.ListenPacket("udp", net.JoinHostPort(ip, strconv.Itoa(port)))
 	if err != nil {
 		t.Skip("cannot bind", ip, err)
 	}
 	t.Cleanup(func() { c.Close() })
-	pings := new(int)
+	var pings int
 	var mu sync.Mutex
 	go func() {
 		buf := make([]byte, 64)
@@ -65,14 +65,18 @@ func fakePongWith(t *testing.T, ip string, port int, interactions byte) *int {
 				continue
 			}
 			mu.Lock()
-			*pings++
+			pings++
 			mu.Unlock()
 			pong := []byte{0x06, 0x00, 0xff, 0x06, 0x00, 0x00, 0x11, 0xbe, 0x40, buf[9], 0x00, 0x10,
 				0x00, 0x00, 0x11, 0xbe, 0, 0, 0, 0, 0x81, interactions, 0, 0, 0, 0, 0, 0}
 			c.WriteTo(pong, from)
 		}
 	}()
-	return pings
+	return func() int {
+		mu.Lock()
+		defer mu.Unlock()
+		return pings
+	}
 }
 
 // fakeWeb serves "GET /" with the Server header on ip:port, with TLS when useTLS.
@@ -145,8 +149,8 @@ func TestScanFindsDevices(t *testing.T) {
 	if !got[1].PortsClosed() || got[0].PortsClosed() || got[2].PortsClosed() {
 		t.Error("PortsClosed is wrong")
 	}
-	if *pings != 1 {
-		t.Errorf("%d pings to the first device, want 1", *pings)
+	if n := pings(); n != 1 {
+		t.Errorf("%d pings to the first device, want 1", n)
 	}
 	if len(progress) != 5 || progress[len(progress)-1] != [2]int{5, 5} {
 		t.Errorf("progress %v, want 5 steps ending at 5 of 5", progress)
@@ -229,14 +233,14 @@ func TestIsPong(t *testing.T) {
 func TestNetworkOf(t *testing.T) {
 	_, small, _ := net.ParseCIDR("192.0.2.0/24")
 	_, mid, _ := net.ParseCIDR("198.51.100.0/22")
-	_, big, _ := net.ParseCIDR("10.0.0.0/8")
+	_, big, _ := net.ParseCIDR("203.0.0.0/8")
 	nets := []*net.IPNet{small, mid, big}
-	for in, want := range map[string]string{"192.0.2.77": "192.0.2.0/24", "198.51.101.9": "198.51.100.0/22", "10.9.8.7": "10.9.8.0/24"} {
+	for in, want := range map[string]string{"192.0.2.77": "192.0.2.0/24", "198.51.101.9": "198.51.100.0/22", "203.0.113.7": "203.0.113.0/24"} {
 		if got, ok := networkOf(netip.MustParseAddr(in), nets); !ok || got != want {
 			t.Errorf("%s: %q %v, want %q", in, got, ok, want)
 		}
 	}
-	if _, ok := networkOf(netip.MustParseAddr("203.0.113.1"), nets); ok {
+	if _, ok := networkOf(netip.MustParseAddr("198.51.99.1"), nets); ok {
 		t.Error("an address outside every network found one")
 	}
 }

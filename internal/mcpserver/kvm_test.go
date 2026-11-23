@@ -437,11 +437,13 @@ func TestKVMTypeTextUsesLayout(t *testing.T) {
 	}
 }
 
-// skewClock returns a clock for a session manager that runs ahead of the real one by what
-// the test adds to the returned counter, so idle timeouts expire without waiting in real time.
+// skewClock returns a fully fake clock for a session manager: a fixed base plus what the test
+// adds to the returned counter. Real time does not leak in, so idle timeouts expire without
+// waiting and rates derived from elapsed time are exact.
 func skewClock() (func() time.Time, *atomic.Int64) {
 	var skew atomic.Int64
-	return func() time.Time { return time.Now().Add(time.Duration(skew.Load())) }, &skew
+	base := time.Now()
+	return func() time.Time { return base.Add(time.Duration(skew.Load())) }, &skew
 }
 
 // TestKVMIdleTimeoutClosesSession: a session without calls is closed and needs kvm_connect.

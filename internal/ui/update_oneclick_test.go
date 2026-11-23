@@ -65,6 +65,7 @@ func newOneClick(t *testing.T, goos string, before ...func(o *oneClick)) *oneCli
 			o.opened = append(o.opened, p)
 			return o.openErr
 		},
+		Downloads:  downloadsDir,
 		Executable: func() (string, error) { return o.exe, nil },
 		Writable:   func(string) bool { return o.writable },
 		PrivateDir: func() (string, error) {
@@ -285,7 +286,13 @@ func TestUpdateLinuxOpensTheDebAndQuits(t *testing.T) {
 	if got := o.events2(); got != "open OpenLAMT-v0.2.0-linux-x64.deb, quit" {
 		t.Fatalf("events %s", got)
 	}
-	o.handedOverPrivately(t, "deb")
+	// The .deb goes to Downloads, not to a private /tmp folder a snap installer cannot read.
+	if len(o.opened) != 1 || len(o.private) != 0 || filepath.Dir(o.opened[0]) != o.dir || strings.HasPrefix(filepath.Base(o.opened[0]), ".") {
+		t.Fatalf("opened %v, private folders %v, Downloads %s", o.opened, o.private, o.dir)
+	}
+	if b, err := os.ReadFile(o.opened[0]); err != nil || string(b) != "deb" {
+		t.Fatalf("handed over %q %v", b, err)
+	}
 }
 
 func TestUpdateHandoverFailureShowsTheFallback(t *testing.T) {

@@ -133,10 +133,10 @@ func gone(t *testing.T, dir string) {
 	}
 }
 
-// TestInstallOpensFromAPrivateFolder: the DMG and the .deb are written from the verified bytes
-// into a new private folder and opened there, not in Downloads.
+// TestInstallOpensFromAPrivateFolder: the DMG is written from the verified bytes into a new
+// private folder and opened there, not in Downloads.
 func TestInstallOpensFromAPrivateFolder(t *testing.T) {
-	for goos, name := range map[string]string{"darwin": "OpenLAMT-v0.2.0-macos-arm64.dmg", "linux": "OpenLAMT-v0.2.0-linux-x64.deb"} {
+	for goos, name := range map[string]string{"darwin": "OpenLAMT-v0.2.0-macos-arm64.dmg"} {
 		t.Run(goos, func(t *testing.T) {
 			private := privateDirs{t: t}
 			var opened []string
@@ -161,6 +161,49 @@ func TestInstallOpensFromAPrivateFolder(t *testing.T) {
 			}
 			gone(t, private.made[1])
 		})
+	}
+}
+
+// TestInstallLinuxOpensFromDownloads: a snap installer (Ubuntu App Center) cannot read the
+// private /tmp folder, so the verified .deb is saved to Downloads under a free, non-hidden
+// name and opened from there; nothing lands in the private folder (issue #89).
+func TestInstallLinuxOpensFromDownloads(t *testing.T) {
+	const name = "OpenLAMT-v0.2.0-linux-x64.deb"
+	downloads := t.TempDir()
+	if err := os.WriteFile(filepath.Join(downloads, name), []byte("earlier"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	private := privateDirs{t: t}
+	var opened []string
+	in := Installer{GOOS: "linux", PrivateDir: private.make, Downloads: func() (string, error) { return downloads, nil },
+		Open: func(p string) error {
+			opened = append(opened, p)
+			if got := readFile(t, p); got != "verified" {
+				t.Errorf("opened file holds %q", got)
+			}
+			return nil
+		}}
+	restart, err := in.Install(Package{Name: name, Data: []byte("verified")})
+	if err != nil || restart != "" || len(opened) != 1 || len(private.made) != 0 {
+		t.Fatalf("restart %q, err %v, opened %v, private %v", restart, err, opened, private.made)
+	}
+	if filepath.Dir(opened[0]) != downloads || strings.HasPrefix(filepath.Base(opened[0]), ".") || filepath.Base(opened[0]) == name {
+		t.Fatalf("opened %s: want a new, non-hidden file in %s", opened[0], downloads)
+	}
+	if got := readFile(t, filepath.Join(downloads, name)); got != "earlier" {
+		t.Fatalf("an earlier download was overwritten: %q", got)
+	}
+	// A failed open is ErrOpen and leaves no half-used file behind.
+	in.Open = func(string) error { return &exec.ExitError{} }
+	if _, err := in.Install(Package{Name: name, Data: []byte("verified")}); !errors.Is(err, ErrOpen) {
+		t.Fatalf("a failed open must be ErrOpen: %v", err)
+	}
+	if es, _ := os.ReadDir(downloads); len(es) != 2 {
+		t.Fatalf("downloads holds %d entries, want 2", len(es))
+	}
+	in.Downloads = func() (string, error) { return "", errors.New("no folder") }
+	if _, err := in.Install(Package{Name: name, Data: []byte("verified")}); !errors.Is(err, ErrOpen) {
+		t.Fatalf("no downloads folder must be ErrOpen: %v", err)
 	}
 }
 
@@ -449,7 +492,7 @@ func TestDownloadReportsProgress(t *testing.T) {
 
 func TestNewInstallerIsTheRunningSystem(t *testing.T) {
 	in := NewInstaller()
-	if in.GOOS != runtime.GOOS || in.Open == nil || in.Executable == nil || in.Writable == nil || in.PrivateDir == nil ||
+	if in.GOOS != runtime.GOOS || in.Open == nil || in.Executable == nil || in.Writable == nil || in.PrivateDir == nil || in.Downloads == nil ||
 		in.Rename == nil || in.Remove == nil || in.Elevate == nil || in.Start == nil {
 		t.Fatalf("installer %+v", in)
 	}

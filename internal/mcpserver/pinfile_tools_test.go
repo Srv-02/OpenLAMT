@@ -153,11 +153,16 @@ func TestPinFileDamagedAtRuntimeIsNamed(t *testing.T) {
 func TestPinFileAddFavoritePinsIntoFile(t *testing.T) {
 	h := newPinHarness(t)
 	h.fetchFP = func(context.Context, string) (string, error) { return testFP, nil }
-	h.elicit = func(*mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+	asked := ""
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = r.Params.Message
 		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{trustField: true}}, nil
 	}
 	h.start()
 	out := h.mustOK("add_favorite", map[string]any{"name": "Lab", "host": "lab.example.com", "tls": true})
+	if !strings.Contains(asked, "`openlamt-mcp trust Lab`") || strings.Contains(asked, "OpenLAMT app") {
+		t.Fatalf("question %q", asked)
+	}
 	if pin, _ := h.store.GetFingerprint("lab.example.com", "admin"); pin != testFP || out["certificate_pinned"] != true {
 		t.Fatalf("pin %q, out %v", pin, out)
 	}
@@ -187,7 +192,7 @@ func TestPinFileFavoriteEditsWithoutKeychain(t *testing.T) {
 	out := h.mustOK("update_favorite", dev("Lab", "host", "lab2.example.com"))
 	w, _ := json.Marshal(out["warnings"])
 	if out["host"] != "lab2.example.com" || out["certificate_pinned"] != false ||
-		!strings.Contains(string(w), "keychain step failed") || !strings.Contains(string(w), "certificates.pin_file is on") {
+		!strings.Contains(string(w), "no password was saved or removed there") || strings.Contains(string(w), "set passwords.command") {
 		t.Fatalf("%v", out)
 	}
 	if _, err := h.store.GetFingerprint("lab.example.com", "admin"); !errors.Is(err, keychain.ErrNotFound) {

@@ -78,7 +78,7 @@ func (s *server) listDevices(ctx context.Context, _ *mcp.CallToolRequest, _ stru
 		var pinErr error
 		if f.UseTLS {
 			var fp string
-			fp, err = s.keys.GetFingerprint(f.Host, f.Username)
+			fp, err := s.keys.GetFingerprint(f.Host, f.Username)
 			d.CertificatePinned = err == nil && fp != ""
 			if err != nil && !errors.Is(err, keychain.ErrNotFound) {
 				pinErr = err

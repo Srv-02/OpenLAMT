@@ -155,7 +155,7 @@ func (p *pinFile) load() (map[string]string, error) {
 	}
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
 		return nil, pinErr("%s holds the trusted certificates but other users may read or change it (mode %04o): "+
-			"make it readable and writable by its owner only (mode 0600)", p.path, info.Mode().Perm())
+			"make it readable and writable by its owner only (mode 0600) or turn certificates.pin_file off", p.path, info.Mode().Perm())
 	}
 	b, err := io.ReadAll(f)
 	if err != nil {

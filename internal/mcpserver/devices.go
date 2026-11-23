@@ -31,6 +31,9 @@ func (s *server) keychainError(err error) error {
 	switch {
 	case errors.As(err, &pf):
 		return refuse("Cannot use the file of trusted certificates (certificates.pin_file): %v.", pf)
+	case s.cfg.Certificates.PinFile && len(s.cfg.Passwords.Command) > 0:
+		return refuse("The system keychain cannot be read (%v), so no password was saved or removed there. "+
+			"Passwords come from passwords.command, so nothing else is needed.", err)
 	case s.cfg.Certificates.PinFile:
 		return refuse("Cannot read the system keychain (%v). Trusted certificates do not need it (certificates.pin_file is on), "+
 			"passwords do: on a computer without a keychain, set passwords.command in the openlamt-mcp config.", err)

@@ -79,7 +79,7 @@
 <ul>
   <li>The agent sees your OpenLAMT favorites by their names. With the group <code>favorites</code> it can also scan the network and add, change and delete favorites (see <a href="#favorites">Scan and favorites</a>). It never sees or sets a device password. The app and <code>openlamt-mcp</code> can run at the same time and share the favorites safely.</li>
   <li><code>openlamt-mcp</code> finds device passwords itself: in the system keychain (where the app saves them), else through your <a href="#password-sources">password command</a>. Passwords never pass through the MCP connection and never appear in answers, questions or logs.</li>
-  <li>A TLS device works only after a person trusted its certificate: in the app, with <code>openlamt-mcp trust</code> in a terminal, or in the question of <code>add_favorite</code>. The MCP server never trusts a certificate by itself.</li>
+  <li>A TLS device works only after a person trusted its certificate: in the app, with <code>openlamt-mcp trust</code> in a terminal, or in the question of <code>add_favorite</code> (with <code>certificates.pin_file</code> only the last two count, see <a href="#pin-file">Linux without a keychain</a>). The MCP server never trusts a certificate by itself.</li>
   <li><code>list_devices</code> shows for each favorite whether a password is found (<code>password_found</code>, <code>password_source</code>) and whether its certificate is trusted (<code>certificate_pinned</code>), so the agent can tell you what is missing. It contacts no device.</li>
   <li>Devices without TLS work, with a warning in each answer.</li>
   <li>If a device asks for <a href="amt-settings.html#user-consent">user consent</a>, the agent has to ask a person at the device for the six-digit code on its screen and pass it as <code>consent_code</code> (<code>boot_to_bios</code>, <code>kvm_connect</code>, <code>sol_connect</code>, <code>media_mount</code>).</li>
@@ -175,7 +175,7 @@
 <ul>
   <li>The question shows what changes and the app’s warning. Your answer counts only for exactly these arguments and this favorite (its name, host and user). If one of them changes, the call is refused.</li>
   <li>Lowering the user consent policy counts as orange because KVM, SOL, IDE-R and boot changes then run without a person at the device confirming them. If the current policy cannot be read, the change counts as lowering.</li>
-  <li>When the account the favorite signs in with or its certificate changes, the keychain and the favorite follow, as in the app.</li>
+  <li>When the account the favorite signs in with or its certificate changes, the saved pin (keychain or pin file), the saved password and the favorite follow, as in the app.</li>
 </ul>
 <h3 id="passwords">Passwords of AMT accounts</h3>
 <p>Passwords of new or changed accounts are tool arguments: the agent chooses them, so they are part of your conversation with it and of the MCP client’s records. <code>openlamt-mcp</code> never writes them to the action log, a log line, an answer or a question.</p>

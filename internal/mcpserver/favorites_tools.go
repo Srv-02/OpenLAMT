@@ -369,7 +369,7 @@ func (s *server) addFavorite(ctx context.Context, req *mcp.CallToolRequest, in a
 	}
 
 	// With TLS and a client that can ask, the person may trust the certificate right here. A
-	// pin that exists already (keychain or pin file) (from an earlier favorite) stays as it is.
+	// pin from an earlier favorite (keychain or pin file) stays as it is.
 	var fp string
 	var notes []string
 	pinned := false
@@ -392,7 +392,7 @@ func (s *server) addFavorite(ctx context.Context, req *mcp.CallToolRequest, in a
 				_, err := s.ask(req, question{}) // the refusal for a client without elicitation
 				return nil, favoriteOutput{}, err
 			}
-			return addQuestion(fav, fp, state, s.cfg.RequireClientConfirmation), favoriteOutput{}, nil
+			return addQuestion(fav, fp, state, s.cfg.RequireClientConfirmation, s.cfg.Certificates.PinFile), favoriteOutput{}, nil
 		}
 		if subtle.ConstantTimeCompare([]byte(req.Params.RequestState), []byte(state)) != 1 {
 			return nil, favoriteOutput{}, refuse("The arguments or the certificate of the device changed while the question was open, " +
@@ -429,12 +429,16 @@ func (s *server) addFavorite(ctx context.Context, req *mcp.CallToolRequest, in a
 
 // addQuestion asks the person in the MCP client about a new favorite: whether to add it (with
 // require_client_confirmation) and, when the device presented a certificate, whether to trust it.
-func addQuestion(fav favorites.Favorite, fp, state string, confirm bool) *mcp.CallToolResult {
+func addQuestion(fav favorites.Favorite, fp, state string, confirm, pinFile bool) *mcp.CallToolResult {
 	tls := "without TLS"
 	if fav.UseTLS {
 		tls = "over TLS"
 	}
 	msg := fmt.Sprintf("The AI agent adds the OpenLAMT favorite %q: user %q on %s, %s.", visible(fav.Name), visible(fav.Username), fav.Host, tls)
+	later := "\"openlamt-mcp trust\" or in the OpenLAMT app"
+	if pinFile { // trusting in the app does not count with the pin file
+		later = commandLine("trust", fav.DisplayName())
+	}
 	props := map[string]*jsonschema.Schema{}
 	var required []string
 	if confirm {
@@ -444,7 +448,7 @@ func addQuestion(fav favorites.Favorite, fp, state string, confirm bool) *mcp.Ca
 	if fp != "" {
 		msg += "\n\nThe device presents this certificate (SHA-256):\n" + fingerprintLines(fp) +
 			"\n\nIf you trust it, OpenLAMT remembers the certificate and refuses the connection if it ever changes. " +
-			"If you are not sure, leave it unticked and check it later with \"openlamt-mcp trust\" or in the OpenLAMT app."
+			"If you are not sure, leave it unticked and check it later with " + later + "."
 		props[trustField] = &jsonschema.Schema{Type: "boolean", Title: "Trust this certificate",
 			Description: "Pin the certificate shown above for this favorite."}
 	}

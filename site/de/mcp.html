@@ -79,7 +79,7 @@
 <ul>
   <li>Der Agent sieht deine OpenLAMT-Favoriten unter ihren Namen. Mit der Gruppe <code>favorites</code> kann er auch das Netzwerk durchsuchen und Favoriten anlegen, ändern und löschen (siehe <a href="#favorites">Scan und Favoriten</a>). Ein Gerätepasswort sieht oder setzt er nie. Die App und <code>openlamt-mcp</code> können gleichzeitig laufen und teilen sich die Favoriten sicher.</li>
   <li><code>openlamt-mcp</code> findet Gerätepasswörter selbst: im Schlüsselbund des Systems (dort speichert sie die App), sonst über deinen <a href="#password-sources">Passwort-Befehl</a>. Passwörter gehen nie über die MCP-Verbindung und erscheinen nie in Antworten, Rückfragen oder Protokollen.</li>
-  <li>Ein TLS-Gerät funktioniert erst, wenn eine Person seinem Zertifikat vertraut hat: in der App, mit <code>openlamt-mcp trust</code> im Terminal oder in der Rückfrage von <code>add_favorite</code>. Der MCP-Server vertraut nie von sich aus einem Zertifikat.</li>
+  <li>Ein TLS-Gerät funktioniert erst, wenn eine Person seinem Zertifikat vertraut hat: in der App, mit <code>openlamt-mcp trust</code> im Terminal oder in der Rückfrage von <code>add_favorite</code> (mit <code>certificates.pin_file</code> zählen nur die letzten beiden, siehe <a href="#pin-file">Linux ohne Schlüsselbund</a>). Der MCP-Server vertraut nie von sich aus einem Zertifikat.</li>
   <li><code>list_devices</code> zeigt je Favorit, ob ein Passwort gefunden wird (<code>password_found</code>, <code>password_source</code>) und ob seinem Zertifikat vertraut wird (<code>certificate_pinned</code>). So kann dir der Agent sagen, was fehlt. Es kontaktiert kein Gerät.</li>
   <li>Geräte ohne TLS funktionieren, mit einer Warnung in jeder Antwort.</li>
   <li>Verlangt ein Gerät eine <a href="amt-settings.html#user-consent">Benutzerzustimmung</a>, muss der Agent eine Person am Gerät nach dem sechsstelligen Code auf dessen Bildschirm fragen und ihn als <code>consent_code</code> übergeben (<code>boot_to_bios</code>, <code>kvm_connect</code>, <code>sol_connect</code>, <code>media_mount</code>).</li>
@@ -175,7 +175,7 @@
 <ul>
   <li>Die Rückfrage zeigt, was sich ändert, und die Warnung der App. Deine Antwort gilt nur für genau diese Argumente und diesen Favoriten (Name, Host und Benutzer). Ändert sich eines davon, wird der Aufruf abgelehnt.</li>
   <li>Das Absenken der Richtlinie für die Benutzerzustimmung zählt als orange, weil KVM, SOL, IDE-R und Boot-Änderungen danach ohne Bestätigung durch eine Person am Gerät laufen. Lässt sich die aktuelle Richtlinie nicht lesen, zählt die Änderung als Absenken.</li>
-  <li>Ändert sich das Konto, mit dem sich der Favorit anmeldet, oder dessen Zertifikat, ziehen Schlüsselbund und Favorit nach, wie in der App.</li>
+  <li>Ändert sich das Konto, mit dem sich der Favorit anmeldet, oder dessen Zertifikat, ziehen der gespeicherte Pin (Schlüsselbund oder Pin-Datei), das gespeicherte Passwort und der Favorit nach, wie in der App.</li>
 </ul>
 <h3 id="passwords">Passwörter von AMT-Konten</h3>
 <p>Passwörter neuer oder geänderter Konten sind Argumente von Werkzeugen: Der Agent wählt sie, deshalb sind sie Teil deiner Unterhaltung mit ihm und der Aufzeichnungen des MCP-Clients. <code>openlamt-mcp</code> schreibt sie nie ins Aktionsprotokoll, in eine Logzeile, eine Antwort oder eine Rückfrage.</p>

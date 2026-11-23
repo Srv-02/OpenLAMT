@@ -29,5 +29,6 @@
   "While it is on, anyone with an account that may set boot options can erase the device.": "While it is on, anyone with an account that may set boot options can erase the device.",
   "{{.Name}} does not support remote erase.": "{{.Name}} does not support remote erase.",
   "{{.Name}} restarts and erases the drives. The BIOS reports progress and the result in the event log.": "{{.Name}} restarts and erases the drives. The BIOS reports progress and the result in the event log.",
-  "{{.Name}} restarts and erases what you select below. The operating system and all files on the drives are lost.": "{{.Name}} restarts and erases what you select below. The operating system and all files on the drives are lost."
+  "{{.Name}} restarts and erases what you select below. The operating system and all files on the drives are lost.": "{{.Name}} restarts and erases what you select below. The operating system and all files on the drives are lost.",
+  "Wait until the running power action ends, then erase the drives.": "Wait until the running power action ends, then erase the drives."
 }

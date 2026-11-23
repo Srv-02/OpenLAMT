@@ -29,5 +29,6 @@
   "While it is on, anyone with an account that may set boot options can erase the device.": "Solange es an ist, kann jedes Konto, das Boot-Optionen setzen darf, das Gerät löschen.",
   "{{.Name}} does not support remote erase.": "{{.Name}} unterstützt kein Löschen aus der Ferne.",
   "{{.Name}} restarts and erases the drives. The BIOS reports progress and the result in the event log.": "{{.Name}} startet neu und löscht die Laufwerke. Das BIOS meldet Fortschritt und Ergebnis im Ereignisprotokoll.",
-  "{{.Name}} restarts and erases what you select below. The operating system and all files on the drives are lost.": "{{.Name}} startet neu und löscht, was du unten auswählst. Das Betriebssystem und alle Dateien auf den Laufwerken gehen verloren."
+  "{{.Name}} restarts and erases what you select below. The operating system and all files on the drives are lost.": "{{.Name}} startet neu und löscht, was du unten auswählst. Das Betriebssystem und alle Dateien auf den Laufwerken gehen verloren.",
+  "Wait until the running power action ends, then erase the drives.": "Warte, bis die laufende Power-Aktion endet, und lösche dann die Laufwerke."
 }

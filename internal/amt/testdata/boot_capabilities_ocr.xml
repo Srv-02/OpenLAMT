@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:h="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/AMT_BootCapabilities">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/AMT_BootCapabilities/GetResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000005</b:MessageID>
+        <c:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/AMT_BootCapabilities</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <h:AMT_BootCapabilities>
+            <h:AMTSecureBootControl>true</h:AMTSecureBootControl>
+            <h:BIOSPause>true</h:BIOSPause>
+            <h:BIOSReflash>false</h:BIOSReflash>
+            <h:BIOSSecureBoot>true</h:BIOSSecureBoot>
+            <h:BIOSSetup>true</h:BIOSSetup>
+            <h:ConfigurationDataReset>false</h:ConfigurationDataReset>
+            <h:ElementName>Intel(r) AMT: Boot Capabilities</h:ElementName>
+            <h:ForceCDorDVDBoot>true</h:ForceCDorDVDBoot>
+            <h:ForceDiagnosticBoot>false</h:ForceDiagnosticBoot>
+            <h:ForceHardDriveBoot>true</h:ForceHardDriveBoot>
+            <h:ForceHardDriveSafeModeBoot>true</h:ForceHardDriveSafeModeBoot>
+            <h:ForcePXEBoot>true</h:ForcePXEBoot>
+            <h:ForceUEFIHTTPSBoot>true</h:ForceUEFIHTTPSBoot>
+            <h:ForceUEFIPBABoot>false</h:ForceUEFIPBABoot>
+            <h:ForceWinREBoot>false</h:ForceWinREBoot>
+            <h:ForcedProgressEvents>false</h:ForcedProgressEvents>
+            <h:IDER>true</h:IDER>
+            <h:InstanceID>Intel(r) AMT:BootCapabilities 0</h:InstanceID>
+            <h:KeyboardLock>true</h:KeyboardLock>
+            <h:PlatformErase>0</h:PlatformErase>
+            <h:PowerButtonLock>true</h:PowerButtonLock>
+            <h:ResetButtonLock>true</h:ResetButtonLock>
+            <h:SOL>true</h:SOL>
+            <h:SecureErase>false</h:SecureErase>
+            <h:SleepButtonLock>false</h:SleepButtonLock>
+            <h:UserPasswordBypass>true</h:UserPasswordBypass>
+            <h:VerbosityQuiet>true</h:VerbosityQuiet>
+            <h:VerbosityScreenBlank>false</h:VerbosityScreenBlank>
+            <h:VerbosityVerbose>true</h:VerbosityVerbose>
+        </h:AMT_BootCapabilities>
+    </a:Body>
+</a:Envelope>

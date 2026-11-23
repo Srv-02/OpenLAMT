@@ -161,6 +161,9 @@ type DeviceWindow struct {
 	onTypeClipboard              func()                                                // "Type clipboard" dialog (type_clipboard.go); nil keeps the buttons disabled
 	kvmScroll                    *container.Scroll                                     // around the view; scrolls a zoomed image (Scale menu)
 
+	// Boot Options and One Click Recovery (device_boot.go), only touched on the Fyne thread.
+	boot bootState
+
 	// Screenshot, Record (device_capture.go) and the Scale menu (device_scale.go), only touched on the Fyne thread.
 	shotBtn, recBtn, barShot, barRec *widgets.ToolbarButton
 	capture                          captureState
@@ -279,9 +282,11 @@ func (d *DeviceWindow) shutdown() {
 		d.biosCancel = nil
 	}
 	unmount := d.media.release(!d.aborted)
+	stopBoot := d.releaseBoot()
 	done := d.exitWork.add()
 	go func() {
 		unmount()
+		stopBoot() // the temporary root of One Click Recovery goes before the session
 		done()
 		d.poller.Stop()
 		d.sess.Close()

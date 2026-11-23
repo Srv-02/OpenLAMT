@@ -23,8 +23,8 @@ func TestAllSymbolsEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 51 || len(All) != 49 || len(Filled) != 2 {
-		t.Fatalf("%d files, %d stroked, %d filled; want 51, 49, 2", len(entries), len(All), len(Filled))
+	if len(entries) != 52 || len(All) != 50 || len(Filled) != 2 {
+		t.Fatalf("%d files, %d stroked, %d filled; want 52, 50, 2", len(entries), len(All), len(Filled))
 	}
 	for _, n := range Filled {
 		b, err := files.ReadFile("svg/" + string(n) + ".svg")

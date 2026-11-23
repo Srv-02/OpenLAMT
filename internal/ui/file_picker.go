@@ -16,6 +16,10 @@ var (
 	pickSaveFile = func(parent fyne.Window, title, name string, chosen func(path string)) {
 		saveFileDialog(parent, title, name, chosen)
 	}
+	// pickBootImage asks for the image of One Click Recovery (.efi or .iso, issue #21).
+	pickBootImage = func(parent fyne.Window, title string, chosen func(path string)) {
+		bootImageDialog(parent, title, chosen)
+	}
 	// pickOpenFile asks which file to open.
 	pickOpenFile = func(parent fyne.Window, title string, chosen func(path string)) {
 		openFileDialog(parent, title, chosen)

@@ -42,3 +42,11 @@ func openFileDialog(parent fyne.Window, title string, chosen func(path string)) 
 		return zenity.SelectFile(zenity.Title(title), jsonFilter())
 	})
 }
+
+// bootImageDialog is the dialog of the operating system for the image of One Click Recovery.
+func bootImageDialog(parent fyne.Window, title string, chosen func(path string)) {
+	native(parent, chosen, func() (string, error) {
+		return zenity.SelectFile(zenity.Title(title),
+			zenity.FileFilters{{Name: lang.L("Boot images"), Patterns: []string{"*.efi", "*.iso"}, CaseFold: true}})
+	})
+}

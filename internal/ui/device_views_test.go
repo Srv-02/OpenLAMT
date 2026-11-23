@@ -239,7 +239,7 @@ func TestStatusBarExtras(t *testing.T) {
 	if d.mediaLine.color != style.ColorNameAccentText {
 		t.Fatalf("media status color %s", d.mediaLine.color)
 	}
-	tls := d.statusRow.Objects[4]
+	tls := d.statusRow.Objects[5]
 	x := func(o fyne.CanvasObject) float32 { return o.Position().X }
 	if !(x(d.version) < x(d.mediaLine) && x(d.mediaLine) < x(tls) && x(tls) < x(d.kvmLine) && x(d.kvmLine) < x(d.consoleLine)) {
 		t.Fatalf("order: media %v tls %v kvm %v console %v", x(d.mediaLine), x(tls), x(d.kvmLine), x(d.consoleLine))

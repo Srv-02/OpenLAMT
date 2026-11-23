@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/bootserve"
 	"github.com/Srv-02/openlamt/internal/certfile"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
@@ -95,6 +96,9 @@ func errorSamples() map[string]error {
 		"amt.ErrWatchdogNotFound":       amt.ErrWatchdogNotFound,
 		"amt.WatchdogPolicySharedError": &amt.WatchdogPolicySharedError{Policy: "Isolate"},
 		"amt.ErrCertificateUncertain":   amt.ErrCertificateUncertain,
+		"amt.ErrOCROffInBIOS":           amt.ErrOCROffInBIOS,
+		"bootserve.ErrNotDownloaded":    bootserve.ErrNotDownloaded,
+		"bootserve.PortInUseError":      &bootserve.PortInUseError{Port: 8443, Err: errors.New("x")},
 		"amt.ErrCertificateInUse":       amt.ErrCertificateInUse,
 		"amt.ErrCertificateStoreFull":   amt.ErrCertificateStoreFull,
 		"certfile.ErrNotCertificate":    certfile.ErrNotCertificate,
@@ -170,6 +174,7 @@ var errorExceptions = map[string]string{
 	"typing.ErrUnknownLayout":   "unreachable: resolveLayout only returns known layouts",
 	"amt.RedirectionOffError":   "only openlamt-mcp sets Config.NeverEnable (read_only); the app never gets it",
 	"session.ErrUnsupported":    "a capability that only a test double lacks; *amt.Device implements every one (compile-time checks)",
+	"bootserve.ErrClosed":       "the window closed the boot server; device_boot.go shows nothing",
 	"amt.ClassUnsupportedError": "shown as the message card of the WSMAN Browser page (manage_wsman.go errorText), not in the error dialog",
 	"capture.ErrNoFolder":       "control flow; device_capture.go opens the save dialog",
 	"capture.ErrFolderMissing":  "shown as its own status text in device_capture.go before the save dialog",

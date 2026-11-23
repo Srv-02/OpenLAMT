@@ -46,3 +46,22 @@ func openFileDialog(parent fyne.Window, title string, chosen func(path string)) 
 	dlg.Resize(mediaDialogSize)
 	dlg.Show()
 }
+
+// bootImageDialog is the Fyne dialog for the image of One Click Recovery (.efi or .iso).
+func bootImageDialog(parent fyne.Window, title string, chosen func(path string)) {
+	dlg := dialog.NewFileOpen(func(r fyne.URIReadCloser, err error) {
+		if err != nil {
+			showError(parent, err)
+			return
+		}
+		if r == nil {
+			return
+		}
+		path := r.URI().Path()
+		r.Close()
+		chosen(path)
+	}, parent)
+	dlg.SetFilter(storage.NewExtensionFileFilter([]string{".efi", ".iso"}))
+	dlg.Resize(mediaDialogSize)
+	dlg.Show()
+}

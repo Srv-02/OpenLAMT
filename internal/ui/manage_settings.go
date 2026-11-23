@@ -31,12 +31,21 @@ import (
 type settingsData struct {
 	m        *manager
 	src      *manageSource[amt.Settings]
-	busy     bool  // a write (or the read of the certificates) runs: the page is locked
-	writeErr error // the last write failed and the device window has no onError: the page shows it
+	boot     bootInfoCell // the One Click Recovery row (manage_settings_ocr.go), read with src
+	busy     bool         // a write (or the read of the certificates) runs: the page is locked
+	writeErr error        // the last write failed and the device window has no onError: the page shows it
 }
 
 func newSettingsData(m *manager) *settingsData {
-	return &settingsData{m: m, src: newManageSource(m, m.sess.Settings)}
+	d := &settingsData{m: m}
+	d.src = newManageSource(m, func() (amt.Settings, error) {
+		s, err := m.sess.Settings()
+		if err == nil {
+			d.boot.read(m.sess)
+		}
+		return s, err
+	})
+	return d
 }
 
 // locked reports whether the controls are locked: a write or a read runs.
@@ -115,6 +124,8 @@ type settingsPane struct {
 	changeHost, changeDomain, changeEnv                   *widgets.PrimaryButton
 	sync, change, turnOff                                 *widgets.PrimaryButton
 	ipRow, kvmRow, clockRow, tlsRow                       *settingsRowRef
+	ocr                                                   *widgets.Switch // One Click Recovery (manage_settings_ocr.go)
+	ocrRow                                                *settingsRowRef
 	applying                                              bool // render sets values: the callbacks do nothing
 	dialog                                                *riskDialog
 	nameField                                             *dialogEntry // "New host name" or "New domain"
@@ -177,8 +188,10 @@ func (m *manager) settingsPane(compact bool) *managePane {
 		amtSettingsRowHelp(lang.L("KVM"), helpKvm, p.kvm),
 		amtSettingsRowHelp(lang.L("Media redirection (IDE-R)"), helpIder, p.ider),
 		amtSettingsRowHelp(lang.L("Serial over LAN (SOL)"), helpSol, p.sol),
-		amtSettingsRowHelp(lang.L("User consent"), helpConsent, p.consent))
+		amtSettingsRowHelp(lang.L("User consent"), helpConsent, p.consent),
+		p.ocrSettingsRow())
 	p.kvmRow = p.features.ref(0)
+	p.ocrRow = p.features.ref(4)
 
 	p.clockText = designText("", 13, style.ColorNameTextSecondary, false)
 	p.sync = settingsButton(lang.L("Sync Now"), func() {
@@ -293,6 +306,7 @@ func (p *settingsPane) show(s amt.Settings) {
 	} else {
 		p.consent.SetSelected(widgets.NoSelection)
 	}
+	p.showOCR()
 	p.features.sync()
 
 	clockRead := s.Readable(amt.SettingsClock)
@@ -332,6 +346,7 @@ func (p *settingsPane) lock(on bool) {
 	}
 	c := s.Consent
 	setEnabled(p.consent, !on && c.Available && c.CanModify)
+	setEnabled(p.ocr, !on)
 }
 
 func setEnabled(w fyne.Disableable, on bool) {

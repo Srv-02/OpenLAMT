@@ -430,6 +430,13 @@ func (s *server) setRemoteFeatures(ctx context.Context, req *mcp.CallToolRequest
 	if off {
 		ch.level, ch.warning = amt.LevelOrange, riskWarnings[amt.OpFeaturesOff]
 	}
+	if policy != nil && s.consentLowered(ctx, in.Device, *policy) {
+		ch.level = amt.LevelOrange
+		if ch.warning != "" {
+			ch.warning += " "
+		}
+		ch.warning += consentLowerWarning
+	}
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
@@ -458,6 +465,25 @@ func (s *server) setRemoteFeatures(ctx context.Context, req *mcp.CallToolRequest
 		return acceptedReadAgain, w, nil
 	})
 	return nil, out, err
+}
+
+// consentLowerWarning is the warning for a lower user consent policy.
+const consentLowerWarning = "Lowering user consent lets KVM, SOL, IDE-R and boot changes run without a person at the device confirming them."
+
+// consentLowered reports whether setting the policy to want weakens the device's current one
+// (all, then kvm, then none). It fails closed: a policy that cannot be read counts as lowered,
+// so the client is asked.
+func (s *server) consentLowered(ctx context.Context, device string, want amt.ConsentPolicy) bool {
+	sess, _, _, _, err := s.openDevice(ctx, device)
+	if err != nil {
+		return true
+	}
+	defer sess.Close()
+	st, err := sess.Settings()
+	if err != nil || !st.Consent.Available {
+		return true
+	}
+	return want < st.Consent.Policy
 }
 
 // sessionsEnd warns that a change ends open redirection sessions, also this server's.

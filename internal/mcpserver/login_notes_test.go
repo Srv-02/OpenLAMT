@@ -16,7 +16,7 @@ import (
 // loginKeys is a memory keychain whose password reads and writes can be switched off.
 type loginKeys struct {
 	*keychain.Memory
-	failGet, failSet bool
+	failGet, failSet, failSetFP bool
 }
 
 var errLocked = errors.New("keychain locked")
@@ -33,6 +33,13 @@ func (k *loginKeys) Set(h, u, p string) error {
 		return errLocked
 	}
 	return k.Memory.Set(h, u, p)
+}
+
+func (k *loginKeys) SetFingerprint(h, u, fp string) error {
+	if k.failSetFP {
+		return errLocked
+	}
+	return k.Memory.SetFingerprint(h, u, fp)
 }
 
 const (
@@ -150,7 +157,7 @@ func TestLoginNotesEnvFile(t *testing.T) {
 	}
 	h.startThen(func() { h.srv.s.pws.getenv = func(string) (string, bool) { return "", false } })
 	w, _ := notes(t, h, "new_name", "ops")
-	wantAll(t, w, "from the file `"+h.cfg.Passwords.EnvFile+"`, and that still holds the old one. Open that file and replace the old password after `"+nasVar+"=` with the new one.")
+	wantAll(t, w, "from the file `"+homePath(h.cfg.Passwords.EnvFile)+"`, and that still holds the old one. Open that file and replace the old password after `"+nasVar+"=` with the new one.")
 	wantNone(t, w, "environment variable")
 }
 
@@ -202,7 +209,7 @@ func TestLoginNotesNoKeychain(t *testing.T) {
 	w, res := notes(t, h, "new_name", "ops")
 	wantAll(t, w, "because this computer has no system keychain (the safe password storage of the operating system). "+
 		"Store the new password in your password manager and set `passwords.command` in the openlamt-mcp config so OpenLAMT can read it there. "+
-		"Or, less safe and meant for test labs, add the line `"+nasVar+"=<new password>` to the file `"+h.cfg.Passwords.EnvFile+
+		"Or, less safe and meant for test labs, add the line `"+nasVar+"=<new password>` to the file `"+homePath(h.cfg.Passwords.EnvFile)+
 		"` and set `allow_plaintext_passwords` to true in the config; after either change, restart your AI app. Until you do, OpenLAMT cannot connect to NAS.")
 	wantNone(t, w, "openlamt-mcp password")
 	wantNone(t, res, "from now on")
@@ -306,3 +313,82 @@ func TestLoginNotesAdminAccount(t *testing.T) {
 }
 
 var _ session.LoginStore = (*favorites.Manager)(nil)
+
+// keychainLockedNote is the C-locked text, as the password step of note E shows it.
+const keychainLockedStep = "save the password for NAS again in the app or with `openlamt-mcp password \"NAS\"` in a terminal"
+
+// TestLoginNotesRenameKeychainFailsWithFallbacks: the keychain cannot save the password of a
+// rename while the password manager or the .env file serve other devices. The note still
+// names the keychain.
+func TestLoginNotesRenameKeychainFailsWithFallbacks(t *testing.T) {
+	for name, setup := range map[string]func(h *harness){
+		"command": func(h *harness) {
+			setCommand(h, []string{"pm", "{host}"}, func([]string) ([]byte, error) { return nil, errors.New("exited with status 1") })
+		},
+		"plaintext": func(h *harness) { h.cfg.Passwords.AllowPlaintext = true; h.start() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			h, keys := newLoginHarness(t, "operator", true, true)
+			setup(h)
+			keys.failSet = true
+			w, res := notes(t, h, "new_name", "ops")
+			wantAll(t, w, `so it still signs in as "operator"`, keychainLockedStep)
+			wantNone(t, w, "password manager", "passwords.command", EnvFileName, nasVar, newPassword)
+			wantNone(t, res, "from now on", newPassword)
+		})
+	}
+}
+
+// brokenList is a FavoriteSource whose List fails once broken is set.
+type brokenList struct {
+	FavoriteSource
+	broken bool
+}
+
+func (b *brokenList) List() ([]favorites.Favorite, error) {
+	if b.broken {
+		return nil, errors.New("favorites file unreadable")
+	}
+	return b.FavoriteSource.List()
+}
+
+// breakingLogins breaks the favorite list when the account change reaches the store, and
+// fails like a full disk.
+type breakingLogins struct {
+	session.LoginStore
+	list *brokenList
+}
+
+func (b *breakingLogins) ChangeLogin(host, oldUser, newUser, newPassword string) error {
+	b.list.broken = true
+	return errors.New("disk full")
+}
+
+// TestLoginNotesFavoriteListUnreadable: the list of favorites cannot be read after the change.
+func TestLoginNotesFavoriteListUnreadable(t *testing.T) {
+	h, _ := newLoginHarness(t, "operator", true, true)
+	h.start()
+	list := &brokenList{FavoriteSource: h.mgr}
+	h.srv.s.favs = list
+	h.srv.s.logins = &breakingLogins{LoginStore: h.mgr, list: list}
+	w, res := notes(t, h, "new_name", "ops")
+	wantAll(t, w, `The device nas.example.com now accepts the user "ops", but OpenLAMT could not read its list of favorites (saved device entries) to update it. `+
+		`Check in the OpenLAMT app or with your AI agent that the favorite for this device uses the user "ops" and the new password. Until then, the next connection may fail.`)
+	wantNone(t, w, "disk full", "unreadable", newPassword)
+	wantNone(t, res, "from now on", newPassword)
+}
+
+// TestLoginNotesPinNotMoved: the password is saved, the pin cannot move to the new user.
+func TestLoginNotesPinNotMoved(t *testing.T) {
+	h, keys := newLoginHarness(t, "operator", true, true)
+	h.start()
+	keys.failSetFP = true
+	w, res := notes(t, h, "new_name", "ops")
+	wantAll(t, w, `NAS now uses the user "ops", but OpenLAMT could not carry the trusted certificate of NAS over to the new user. `+
+		"Trust it again with `openlamt-mcp trust \"NAS\"` in a terminal. Until you do, OpenLAMT cannot connect to NAS.")
+	wantNone(t, w, "keychain is locked", "password for NAS again", newPassword)
+	wantNone(t, res, "from now on", newPassword)
+	if list, _ := h.mgr.List(); list[0].Username != "ops" {
+		t.Errorf("favorite %+v", list)
+	}
+}

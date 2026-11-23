@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bestätigungen und Berechtigungen · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Wie OpenLAMT vor riskanten Änderungen nachfragt und was eingeschränkte Konten sehen.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/confirmations.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/confirmations.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/confirmations.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../confirmations.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="confirmations.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html" aria-current="page">Bestätigungen und Berechtigungen</a><ol class="toc"><li><a href="#levels">Die Bestätigungsstufen</a></li><li><a href="#which">Welche Aktion wie fragt</a></li><li><a href="#dont-show">„Nicht mehr anzeigen“</a></li><li><a href="#limited-accounts">Eingeschränkte Konten</a></li></ol></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Bestätigungen und Berechtigungen</h1>
+<p class="lead">OpenLAMT sperrt keine Einstellungen weg. Stattdessen fragt jede Aktion, die Schaden anrichten kann, vorher nach, und je größer der mögliche Schaden, desto deutlicher die Rückfrage. Diese Seite erklärt die Stufen und was Konten mit eingeschränkten Berechtigungen sehen.</p>
+
+<h2 id="levels">Die Bestätigungsstufen</h2>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Stufe</th><th>Was du siehst</th><th>Enter bestätigt</th></tr></thead>
+  <tbody>
+    <tr><td><span class="lv none">keine</span></td><td>Die Aktion läuft sofort. Das Ergebnis erscheint in der Statusleiste oder als kurze Meldung.</td><td>–</td></tr>
+    <tr><td><span class="lv simple">einfach</span></td><td>Ein rotes Symbol, ein Satz zur Wirkung, <span class="ui">Abbrechen</span> und eine rote Aktionsschaltfläche.</td><td>Nein</td></tr>
+    <tr><td><span class="lv q">Rückfrage</span></td><td>Ein blaues oder orangefarbenes Symbol über dem Titel und eine blaue Hauptschaltfläche. Für Fälle, in denen du zwischen zwei normalen Wegen wählst.</td><td>Blau: ja. Orange: nein</td></tr>
+    <tr><td><span class="lv or">orange</span></td><td>Ein orangefarbener Warnkasten, oft mit der Änderung als „alt → neu“, und das Kontrollkästchen <span class="ui">Ich verstehe das Risiko für Lab-Server (192.0.2.10)</span>. Die rote Schaltfläche funktioniert erst, wenn du es anhakst.</td><td>Nein</td></tr>
+    <tr><td><span class="lv red">rot</span></td><td>Ein roter Warnkasten, der mit einem fetten Satz beginnt, bei Bedarf zusätzliche Felder und dasselbe Kontrollkästchen.</td><td>Nein</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Das Kontrollkästchen nennt das Gerät mit seiner Adresse. So merkst du, wenn das falsche Fenster vorne liegt. <span class="ui">Abbrechen</span> ist immer die sichere Wahl, und <kbd>Esc</kbd> bricht jeden Dialog ab.</p>
+<p>Verlangt ein Gerät eine <a href="amt-settings.html#user-consent">Benutzerzustimmung</a>, kommt der Consent-Code zu diesen Stufen hinzu: Bei Fernsitzungen, Neustart ins BIOS, Boot-Optionen und Laufwerke löschen fragt OpenLAMT nach deiner Bestätigung und vor jeder Änderung nach dem Code.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <div class="qhead"><div class="qtile red"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-reset"/></svg></div><div style="flex:1">
+    <h4>Reset an Lab-Server auslösen?</h4>
+    <p>Das Gerät startet sofort neu, ohne das Betriebssystem herunterzufahren. Ungespeicherte Daten und laufende VMs gehen verloren.</p></div></div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red">Reset</span></div>
+  </div>
+  <div class="dlg">
+    <div class="qhead"><div class="qtile blue"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-disc"/></svg></div><div style="flex:1">
+    <h4>Medienumleitung aktivieren?</h4>
+    <p>Die Medienumleitung (IDE-R) ist auf „Lab-Server“ deaktiviert. Aktivieren, um ISO-Dateien und Ordner auf diesem Gerät einzuhängen? Die Einstellung bleibt aktiv, bis du sie in den Einstellungen deaktivierst.</p></div></div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Aktivieren</span></div>
+  </div>
+</div></div>
+<figcaption>Links: eine einfache Bestätigung. Rechts: eine Rückfrage.</figcaption>
+</figure>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>KVM auf „Lab-Server“ deaktivieren?</h4>
+    <p>Offene KVM-Sitzungen enden sofort. Du kannst KVM in den Einstellungen wieder aktivieren.</p>
+    <label class="risk"><input type="checkbox" checked disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red">Deaktivieren</span></div>
+  </div>
+  <div class="dlg">
+    <h4>AMT im Netzwerk ausschalten?</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div><b>Das lässt sich aus der Ferne nicht rückgängig machen.</b> „Lab-Server“ antwortet sofort nicht mehr im Netzwerk: keine Stromsteuerung, kein KVM und keine Medien, weder aus OpenLAMT noch aus einem anderen Programm. Nur das BIOS (MEBx) am Gerät kann AMT wieder einschalten.</div></div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">AMT ausschalten</span></div>
+  </div>
+</div></div>
+<figcaption>Links: orange und angehakt, die Schaltfläche funktioniert also. Rechts: rot, noch nicht angehakt.</figcaption>
+</figure>
+
+<h2 id="which">Welche Aktion wie fragt</h2>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Stufe</th><th>Aktionen</th></tr></thead>
+  <tbody>
+    <tr><td><span class="lv none">keine</span></td><td>Einschalten, Screenshot, Aufnahme, Netzwerkscan, Export, Jetzt prüfen, Aktualisieren, Lesen im WSMAN Browser, Jetzt abgleichen, Auf Ping antworten, Benutzerzustimmung, Einschalten einer Fernzugriffsfunktion, Schalten von One Click Recovery oder Remote Platform Erase, Hinzufügen einer Weckzeit, Importieren eines Zertifikats, Hinzufügen eines Weiterleitungsziels, die Audit-Einstellungen (außer unten genannt), ein Energiepaket, das das Einschalten aus der Ferne erhält, der Leerlauf-Timeout, WLAN-Status und -Profile (außer unten genannt), Hinzufügen von System-Defense-Filtern, -Richtlinien und -Watchdogs, Aktivieren einer Richtlinie, die nichts verwirft, Ausschalten einer Richtlinie</td></tr>
+    <tr><td><span class="lv simple">einfach</span></td><td>Ausschalten, Reset, Power Cycle, Neustart ins BIOS (nicht, wenn das Gerät aus ist), Herunterfahren, Schlafmodus, Hibernate, Boot-Optionen (der Dialog selbst ist die Bestätigung), Löschen einer Weckzeit, eines WLAN-Profils, einer System-Defense-Richtlinie, eines Filters oder Watchdogs, eines unbenutzten Zertifikats oder Schlüssels oder eines Weiterleitungsziels, Löschen eines Favoriten, Beenden mit offenen KVM-Sitzungen</td></tr>
+    <tr><td><span class="lv q">Rückfrage</span></td><td>Von ISO booten und Von ISO neu starten, Einschalten von SOL oder Medienumleitung aus dem Gerätefenster, Schließen eines Fensters mit eingehängter ISO, Import, Senden eines Passworts, eines WLAN-Schlüssels, eines privaten Schlüssels oder eines Laufwerkspassworts ohne TLS (orangefarbenes Symbol)</td></tr>
+    <tr><td><span class="lv or">orange</span></td><td>Hostname, Domäne, dynamisches DNS, Ausschalten von KVM, IDE-R oder SOL, das TLS-Zertifikat, Bearbeiten deines eigenen Kontos, Löschen eines Benutzers, ein Energiepaket ohne Einschalten aus der Ferne, Aktivieren einer System-Defense-Richtlinie, die Verkehr verwirft (auch über einen Watchdog), Löschen eines vertrauenswürdigen Stammzertifikats, HTTPS-Boot von einer Datei auf diesem Computer, Ausschalten des Audit-Protokolls</td></tr>
+    <tr><td><span class="lv red">rot</span></td><td>Das Admin-Konto, die Netzwerkadresse, die Umgebungserkennung, Ausschalten von AMT, Löschen eines WLAN-Profils oder Ausschalten des WLANs, während OpenLAMT das Gerät über WLAN erreicht, Leeren des Audit-Protokolls, Löschen der Laufwerke</td></tr>
+  </tbody>
+</table></div>
+
+<h2 id="dont-show">„Nicht mehr anzeigen“</h2>
+<div class="prose">
+<p>Manche Meldungen bieten <span class="ui">Nicht mehr anzeigen</span> an, zum Beispiel die Warnung, bevor ein Passwort ohne TLS hinausgeht. Bestätigungen mit Kontrollkästchen tun das nie. Um alle ausgeblendeten Meldungen zurückzuholen, klicke auf <span class="ui">Hinweise zurücksetzen</span> in den <a href="settings.html#data">Einstellungen</a>.</p>
+</div>
+
+<h2 id="limited-accounts">Eingeschränkte Konten</h2>
+<div class="prose">
+<p>Ein AMT-Konto kann nur einen Teil der <a href="amt-settings.html#realms">Berechtigungen</a> haben, zum Beispiel nur <span class="ui">KVM, Medien, Konsole</span>. OpenLAMT verbindet sich auch mit einem solchen Konto und zeigt, was es nicht lesen darf, statt zu scheitern.</p>
+<ul>
+  <li>Das Gerätefenster meldet in der Statusleiste „Power: nicht erlaubt“, „AMT: nicht erlaubt“ oder „Control Mode: nicht erlaubt“. Der Favorit zeigt „Für dieses Konto nicht erlaubt“ und einen grauen Ring.</li>
+  <li>Eine Verwaltungsseite, die das Konto nicht lesen darf, meldet „Dieses Konto darf diese Informationen auf dem Gerät nicht lesen.“</li>
+  <li>Auf der Seite „Einstellungen“ zeigen Abschnitte, die das Konto nicht lesen darf, <span class="ui">N/A</span>. Ihre Schalter sind aus und deaktiviert, ihre Auswahlfelder zeigen keine Auswahl, und ihre Schaltflächen sind deaktiviert. Lesbare Abschnitte funktionieren wie gewohnt.</li>
+  <li>Eine Aktion, die das Konto nicht ausführen darf, endet mit „Dieses Konto darf das auf dem Gerät nicht.“</li>
+</ul>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="card" style="width:460px;background:var(--bg);padding:12px">
+    <div class="sect">Netzwerk</div>
+    <div class="card"><div class="r"><span class="lw">Adresse</span><span class="seg" style="opacity:.35"><span>DHCP</span><span>Statisch</span></span></div><div class="r"><span class="lw">IP-Adresse</span><span class="rt">N/A</span></div></div>
+    <div class="sect" style="margin-top:12px">Fernzugriff</div>
+    <div class="card"><div class="r"><span class="lw">KVM</span><span class="sw" style="opacity:.35"></span></div><div class="r"><span class="lw">Medienumleitung (IDE-R)</span><span class="sw" style="opacity:.35"></span></div><div class="r"><span class="lw">Serial over LAN (SOL)</span><span class="sw" style="opacity:.35"></span></div><div class="r"><span class="lw">Benutzerzustimmung</span><span class="seg" style="opacity:.35"><span>Keine</span><span>Nur KVM</span><span>Alle</span></span></div></div>
+  </div>
+</div></div>
+<figcaption>Abschnitte ohne Leseberechtigung: „N/A“, keine Auswahl, alles deaktiviert.</figcaption>
+</figure>
+<div class="prose">
+<p>Energieaktionen, KVM, Medien und die Konsole brauchen nur ihre eigene Berechtigung. Ein Konto, das nur Redirection hat, kann deshalb den Fernbildschirm nutzen, eine ISO einhängen und die Konsole öffnen, obwohl es die Einstellungen nicht lesen kann.</p>
+</div>
+<nav class="pager" aria-label="Seiten"><a href="amt-settings.html" rel="prev"><small>Zurück</small>AMT-Einstellungen erklärt</a><a href="settings.html" rel="next" style="text-align:right"><small>Weiter</small>App-Einstellungen und Updates</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

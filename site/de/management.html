@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geräteverwaltung · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Hardware, Ereignisprotokoll und Weiterleitung, Audit-Protokoll und seine Einstellungen, AMT-Einstellungen und Laufwerke löschen, Benutzerkonten, Energierichtlinie, WLAN, System Defense, Zertifikate und der WSMAN Browser.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/management.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/management.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/management.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../management.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="management.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html" aria-current="page">Geräteverwaltung</a><ol class="toc"><li><a href="#open">Seitenleiste und Fenster</a></li><li><a href="#hardware">Hardware</a></li><li><a href="#event-log">Ereignisprotokoll</a></li><li><a href="#audit-log">Audit-Protokoll</a></li><li><a href="#settings">Einstellungen</a></li><li><a href="#users">Benutzer</a></li><li><a href="#power">Power</a></li><li><a href="#wifi">WLAN</a></li><li><a href="#system-defense">System Defense</a></li><li><a href="#certificates">Zertifikate</a></li><li><a href="#wsman">WSMAN Browser</a></li></ol></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Geräteverwaltung</h1>
+<p class="lead">Die Geräteverwaltung zeigt, was in einem Gerät steckt und wie sein Intel AMT eingestellt ist. Ändere Einstellungen, verwalte Konten, Zertifikate und Weckzeiten, leite Ereignisse weiter oder lösche die Laufwerke, neben dem Fernbildschirm oder in einem eigenen Fenster.</p>
+
+<h2 id="open">Seitenleiste und Fenster</h2>
+<div class="prose">
+<p>Klicke im Gerätefenster auf <span class="ui">Verwalten</span>. Neben dem Fernbildschirm öffnet sich eine Seitenleiste. Das Symbol für externe Links <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-ext"/></svg> in ihrem Kopf öffnet dieselben Seiten in einem eigenen Fenster, mit einer Liste der Seiten links.</p>
+<p>Die Seitenleiste hat für jede Hauptseite einen Tab: <span class="ui">Hardware</span>, <span class="ui">Ereignisse</span>, <span class="ui">Audit</span>, <span class="ui">Einstellungen</span> und <span class="ui">Benutzer</span>. Der letzte Tab, <span class="ui">Mehr</span>, öffnet ein Menü mit weiteren Seiten. Eine Seite, die du dort wählst, gibt dem Tab ihren Namen, zum Beispiel <span class="ui">Power</span> oder <span class="ui">Zert.</span> für Zertifikate. Seiten, die im Menü mit <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-ext"/></svg> markiert sind, etwa der WSMAN Browser, brauchen mehr Platz und öffnen sich im Fenster.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server</span></div>
+  <div class="row2" style="height:430px">
+    <div class="stage" style="flex:1"><span style="color:#A1A1A6">Fernbildschirm</span></div>
+    <div class="side400">
+      <div class="hd">Geräteverwaltung <span style="color:var(--text2);display:inline-flex"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-ext"/></svg></span></div>
+      <div class="segtabs"><span>Hardware</span><span>Ereignisse</span><span>Audit</span><span class="on">Einstellungen</span><span>Benutzer</span><span style="flex:.8">Mehr <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span></div>
+      <div class="menu" style="top:96px;right:16px;min-width:220px">
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div>
+        <div class="msep"></div>
+        <div class="mi"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser<span class="k"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-ext"/></svg></span></div>
+      </div>
+      <div style="margin-top:14px;color:var(--text2);font-size:12px">Seite Einstellungen …</div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seitenleiste mit geöffnetem Menü Mehr.</figcaption>
+</figure>
+<div class="prose">
+<p>Unter <span class="ui">Mehr</span> liegen die Seiten <a href="#power">Power</a>, <a href="#wifi">WLAN</a>, <a href="#system-defense">System Defense</a> und <a href="#certificates">Zertifikate</a>. Der <a href="#wsman">WSMAN Browser</a> liegt unter <span class="ui">Diagnose</span>.</p>
+<p>Jede Seite liest ihre Daten, wenn du sie öffnest. Der Fuß einer Seite zeigt, wie alt die Daten sind, zum Beispiel „Vor 12 s gelesen“. <span class="ui">Aktualisieren</span> liest sie neu.</p>
+<p>Darf das Konto eine Seite nicht lesen, zeigt die Seite „Dieses Konto darf diese Informationen auf dem Gerät nicht lesen.“ Teile, die es nicht lesen darf, zeigen „N/A“. Siehe <a href="confirmations.html#limited-accounts">Eingeschränkte Konten</a>.</p>
+</div>
+
+<h2 id="hardware">Hardware</h2>
+<figure class="shot">
+<div class="scr"><div class="win w880 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Hardware</h3><span class="cnt"></span></div>
+      <div class="mbody">
+        <div class="sect">System</div>
+        <div class="card"><div class="r"><span class="l">Hersteller</span><span class="v">ACME Lab</span></div><div class="r"><span class="l">Modell</span><span class="v">Mini PC Q670</span></div><div class="r"><span class="l">Seriennummer</span><span class="v">ACME-0001</span></div><div class="r"><span class="l">BIOS</span><span class="v">M3J 1.27 (Oct 2026)</span></div></div>
+        <div class="sect">Prozessor und Arbeitsspeicher</div>
+        <div class="card"><div class="r"><span class="l">CPU</span><span class="v">Intel Core i5 · 4.6 GHz</span></div><div class="r"><span class="l">RAM DIMM0</span><span class="v">16 GB DDR5 · 4800 MT/s</span></div></div>
+        <div class="sect">AMT</div>
+        <div class="card"><div class="r"><span class="l">Version</span><span class="v">16.1.25 · Build 2016</span></div><div class="r"><span class="l">Modus</span><span class="v">ACM</span></div></div>
+        <div class="mfoot" style="display:flex">Vor 12 s gelesen<span class="sp"></span><span class="lnk">Aktualisieren</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seite Hardware im Verwaltungsfenster.</figcaption>
+</figure>
+<div class="prose">
+<p>Die Seite Hardware listet System, BIOS, Prozessoren, Arbeitsspeicher, Laufwerke und die AMT-Version mit ihrem <a href="amt-settings.html#control-mode">Steuerungsmodus</a>. AMT liest diese Werte aus dem Gerät selbst, deshalb stehen sie auch bereit, wenn das Betriebssystem aus ist. Abschnitte, die das Gerät nicht meldet, fehlen.</p>
+</div>
+
+<h2 id="event-log">Ereignisprotokoll</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:470px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Ereignisprotokoll</h3><span class="cnt">· 44 Einträge</span>
+        <div class="chips"><span class="on">Alle</span><span>Warnung</span><span>Kritisch</span></div>
+        <div class="fld ph" style="width:180px;height:30px;border-radius:8px"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-search"/></svg>&nbsp;Filter</div>
+        <span class="b out">Weiterleitung…</span><span class="b out">Aktualisieren</span></div>
+      <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Zeit</th><th>Schweregrad</th><th>Quelle</th><th>Beschreibung</th></tr></thead><tbody>
+        <tr><td>Nov 23, 2026 09:58:12</td><td><span class="dot" style="background:#6E6E73"></span> Info</td><td>BIOS</td><td>Starting operating system boot process</td></tr>
+        <tr><td>Nov 23, 2026 09:57:31</td><td><span class="dot" style="background:#C75300"></span> Warnung</td><td>BIOS</td><td>No bootable media found</td></tr>
+        <tr><td>Nov 22, 2026 17:41:52</td><td><span class="dot" style="background:#6E6E73"></span> Info</td><td>BIOS</td><td>Starting operating system boot process</td></tr>
+      </tbody></table></div><div class="mfoot">Neueste zuerst. Gelesen in 0.4 s.</div></div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Das Ereignisprotokoll, gefiltert nach Schweregrad und Text. <span class="ui">Weiterleitung…</span> legt fest, wohin Intel AMT Ereignisse schickt.</figcaption>
+</figure>
+<div class="prose">
+<p>Das Ereignisprotokoll enthält, was die Plattform gemeldet hat: BIOS-Fortschritt, Startprobleme, Sensorereignisse und AMT-Meldungen. Das Gerät speichert es in seinem eigenen Speicher, deshalb deckt es auch Zeiten ab, in denen das Betriebssystem nicht lief.</p>
+<ul>
+  <li>Die Chips <span class="ui">Alle</span>, <span class="ui">Warnung</span> und <span class="ui">Kritisch</span> filtern nach Schweregrad. <span class="ui">Filter</span> durchsucht den Text.</li>
+  <li>Klicke auf einen Eintrag, um alle Felder zu sehen, auch die Rohdaten. Die Pfeilschaltflächen und die Tasten <kbd>↑</kbd> und <kbd>↓</kbd> blättern durch die Liste. <span class="ui">Kopieren</span> legt den Eintrag in die Zwischenablage.</li>
+</ul>
+</div>
+
+<h3 id="forwarding">Ereignis-Weiterleitung</h3>
+<div class="prose">
+<p><span class="ui">Weiterleitung…</span> im Kopf des Ereignisprotokolls listet die Ziele, an die Intel AMT seine Ereignisse schickt, sobald sie auftreten, zum Beispiel einen SIEM-Collector oder einen Monitoring-Server. AMT schickt sie als WS-Management-Ereignisse (WS-Eventing). OpenLAMT legt nur das Ziel auf dem Gerät fest; es empfängt selbst keine Ereignisse und betreibt keinen Empfänger. Syslog wird nicht angeboten.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w600">
+    <h4>Ereignis-Weiterleitung</h4>
+    <p style="color:var(--text2)">Intel AMT schickt Ereignisse an diese Ziele. OpenLAMT legt nur das Ziel fest; es empfängt selbst keine Ereignisse.</p>
+    <div class="tcard"><table class="mt"><thead><tr><th>Ziel</th><th>Zustellung</th><th>Ereignisse</th><th></th></tr></thead><tbody>
+      <tr><td class="mono">http://192.0.2.5:16997/events</td><td>Push</td><td>Alle</td><td class="ra"><span class="b out sm">Bearbeiten</span></td></tr>
+      <tr><td class="mono">https://siem.example.com/amt</td><td>Push mit Bestätigung</td><td>Alle</td><td class="ra"><span class="b out sm">Bearbeiten</span></td></tr>
+    </tbody></table></div>
+    <div class="foot"><span class="b out left">+ Ziel hinzufügen</span><span class="b pri">Fertig</span></div>
+  </div>
+  <div class="dlg w520">
+    <h4>Weiterleitungsziel hinzufügen</h4>
+    <div class="fl" style="margin-top:0">Adresse</div><div class="fld mono" style="font-size:12px">http://192.0.2.5:16997/events</div>
+    <div class="hint">Ein Empfänger für WS-Management-Ereignisse, zum Beispiel ein SIEM-Collector.</div>
+    <div class="grid2"><div><div class="fl">Zustellung</div><span class="seg"><span class="on">Push</span><span>Mit Bestätigung</span></span></div><div><div class="fl">Ereignisse</div><span class="dd" style="height:30px;width:100%">Alle <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span></div></div>
+    <div class="fl">Anmeldung am Ziel</div><span class="seg"><span class="on">Keine</span><span>Digest</span></span>
+    <div class="grid2" style="opacity:.4"><div><div class="fl">Benutzername</div><div class="fld ph">Benutzername</div></div><div><div class="fl">Passwort</div><div class="fld ph">Passwort</div></div></div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Ziel hinzufügen</span></div>
+  </div>
+</div></div>
+<figcaption>Die Liste der Ziele und der Dialog für ein neues Ziel. Ohne Ziele zeigt die Liste „Keine Ziele“: Intel AMT behält Ereignisse dann nur im eigenen Ereignisprotokoll.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Adresse</dt><dd>Die URL des Empfängers, beginnend mit <code>http://</code> oder <code>https://</code>, bis zu 253 Zeichen. Bei allem anderen steht unter dem Feld „Gib eine Adresse ein, die mit http:// oder https:// beginnt.“</dd>
+  <dt>Zustellung</dt><dd><span class="ui">Push</span> schickt jedes Ereignis einmal. <span class="ui">Mit Bestätigung</span> wartet, bis der Empfänger jedes Ereignis bestätigt.</dd>
+  <dt>Ereignisse</dt><dd>Welche Ereignisse AMT schickt. Die Liste zeigt die Ereignisgruppen, die das Gerät anbietet, mit den Namen des Geräts. <span class="ui">Alle</span> ist die Vorgabe.</dd>
+  <dt>Anmeldung am Ziel</dt><dd><span class="ui">Keine</span> oder <span class="ui">Digest</span> mit Benutzername und Passwort für den Empfänger. Über eine Verbindung ohne TLS fragt OpenLAMT zuerst <span class="ui">Schlüssel ohne TLS senden?</span>, weil das Passwort unverschlüsselt übertragen wird.</dd>
+</dl>
+<p>Beim Hinzufügen eines Ziels fragt OpenLAMT nichts. Lehnt das Gerät das Ziel ab, zeigt OpenLAMT den Grund, zum Beispiel „Lab-Server hat das Ziel abgelehnt: …“.</p>
+<p>Intel AMT kann ein Ziel nicht ändern. <span class="ui">Bearbeiten</span> öffnet deshalb <span class="ui">Weiterleitungsziel bearbeiten</span>, das nur Adresse, Zustellung und Ereignisse zeigt. Um ein Ziel zu ändern, klicke dort auf <span class="ui">Ziel löschen…</span> (<span class="lv simple">einfach</span>: „Intel AMT schickt keine Ereignisse mehr an …“) und füge ein neues hinzu.</p>
+</div>
+
+<h2 id="audit-log">Audit-Protokoll</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:470px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Audit-Protokoll</h3><span class="cnt">· 34 Einträge</span>
+        <div class="fld ph" style="width:200px;height:30px;border-radius:8px"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-search"/></svg>&nbsp;Filter</div>
+        <span class="b out">Einstellungen…</span><span class="b out">Aktualisieren</span></div>
+      <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Zeit</th><th>Auslöser</th><th>Adresse</th><th>Ereignis</th></tr></thead><tbody>
+        <tr><td>Nov 23, 2026 10:00:00</td><td>admin</td><td>192.0.2.50</td><td>KVM Session Started</td></tr>
+        <tr><td>Nov 22, 2026 18:12:09</td><td>admin</td><td>192.0.2.50</td><td>Audit Policy Changed</td></tr>
+        <tr><td>Nov 22, 2026 18:11:47</td><td>helpdesk</td><td>192.0.2.51</td><td>Remote Power Action</td></tr>
+      </tbody></table></div><div class="mfoot">Neueste zuerst. Gelesen in 0.3 s.</div></div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Das Audit-Protokoll. <span class="ui">Einstellungen…</span> öffnet die Audit-Einstellungen.</figcaption>
+</figure>
+<div class="prose">
+<p>Das Audit-Protokoll zeichnet auf, wer was auf dem Gerät getan hat: Anmeldungen, Fernsitzungen, Power-Aktionen und Änderungen an Einstellungen und Konten. Jeder Eintrag nennt den <span class="ui">Auslöser</span> (das Konto), die <span class="ui">Adresse</span> im Netzwerk, von der er kam, und das <span class="ui">Ereignis</span>. <span class="ui">Filter</span> durchsucht den Text, und ein Klick öffnet die Details, wie im Ereignisprotokoll.</p>
+<p>Welche Ereignisse AMT aufzeichnet, hängt von der Audit-Richtlinie des Geräts ab. Zum Lesen des Protokolls braucht ein Konto die Berechtigung <span class="ui">Audit-Protokoll</span>.</p>
+</div>
+
+<h3 id="audit-settings">Audit-Einstellungen</h3>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Audit-Einstellungen</h4>
+    <div class="card">
+      <div class="r"><span class="lw" style="display:flex;gap:6px;align-items:center">Ereignisse aufzeichnen <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="sw on"></span></div>
+      <div class="r"><span class="lw" style="display:flex;gap:6px;align-items:center">Wenn das Protokoll voll ist <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="dd">Älteste Einträge überschreiben <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span></div>
+      <div class="r"><span class="lw">Belegt</span><span class="rt">34 Einträge · 9 %</span></div>
+    </div>
+    <div class="fl">Aufgezeichnete Ereignisse</div>
+    <div class="grid2" style="font-size:12.5px"><span class="ck on"><i></i>Konten und Sicherheit</span><span class="ck on"><i></i>Ein/Aus und Start (Fernsteuerung)</span><span class="ck on"><i></i>KVM-, Medien- und Konsolensitzungen</span><span class="ck on"><i></i>Firmware-Updates</span><span class="ck on"><i></i>Netzwerkeinstellungen</span><span class="ck on"><i></i>Uhr</span><span class="ck"><i></i>Ereignis-Weiterleitung</span><span class="ck"><i></i>System Defense</span><span class="ck"><i></i>Agent-Watchdog</span><span class="ck"><i></i>WLAN</span><span class="ck on"><i></i>Benutzerzustimmung</span><span class="ck on"><i></i>Änderungen am Audit-Protokoll</span></div>
+    <div class="card" style="margin-top:12px">
+      <div class="r"><div class="lw">Protokoll leeren<div class="d">Löscht alle 34 Einträge.</div></div><span class="b red sm">Protokoll leeren…</span></div>
+    </div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Speichern</span></div>
+  </div>
+  <div class="dlg">
+    <h4>Audit-Protokoll von Lab-Server leeren?</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div><b>Das lässt sich nicht rückgängig machen.</b> Alle 34 Einträge werden gelöscht. Das Protokoll behält einen neuen Eintrag, der das Leeren vermerkt.</div></div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Protokoll leeren</span></div>
+  </div>
+</div></div>
+<figcaption>Die Audit-Einstellungen und die rote Bestätigung, bevor das Protokoll geleert wird.</figcaption>
+</figure>
+<div class="prose">
+<p><span class="ui">Einstellungen…</span> im Kopf des Audit-Protokolls öffnet die Audit-Richtlinie des Geräts. Änderungen werden geschrieben, wenn du auf <span class="ui">Speichern</span> klickst.</p>
+<dl class="terms">
+  <dt>Ereignisse aufzeichnen</dt><dd>Schaltet das Audit-Protokoll ein oder aus. Lass es an. Solange es aus ist, hinterlassen Änderungen am Gerät keine Spur im Audit-Protokoll; einige Ereignisse werden immer aufgezeichnet. Das Ausschalten fragt <span class="lv or">orange</span> („Änderungen an Lab-Server werden nicht mehr aufgezeichnet.“).</dd>
+  <dt>Wenn das Protokoll voll ist</dt><dd><span class="ui">Älteste Einträge überschreiben</span> zeichnet weiter auf. <span class="ui">Nach Mindestalter überschreiben</span> behält Einträge so viele Tage, wie du unter <span class="ui">Tage aufbewahren</span> einträgst (1 bis 100), bevor es sie überschreibt. <span class="ui">Aufzeichnung anhalten</span> behält jeden Eintrag, bis du das Protokoll leerst; solange das Protokoll voll ist, blockiert Intel AMT dann kritische Aktionen.</dd>
+  <dt>Belegt</dt><dd>Wie viele Einträge das Protokoll enthält und wie voll es ist.</dd>
+  <dt>Aufgezeichnete Ereignisse</dt><dd>Zwölf Gruppen von Ereignissen in einfachen Worten, von <span class="ui">Konten und Sicherheit</span> bis <span class="ui">Änderungen am Audit-Protokoll</span>. Eine Gruppe ist angehakt, wenn das Gerät irgendein Ereignis daraus aufzeichnet. Ein Haken zeichnet alle Ereignisse der Gruppe auf; ohne Haken werden sie nicht mehr aufgezeichnet.</dd>
+  <dt>Protokoll leeren</dt><dd><span class="ui">Protokoll leeren…</span> löscht alle Einträge auf einmal und fragt <span class="lv red">rot</span>. Danach enthält das Protokoll einen neuen Eintrag, der das Leeren vermerkt.</dd>
+</dl>
+<p>Ein Konto, das das Audit-Protokoll lesen, aber seine Einstellungen nicht ändern darf, bekommt „Keine Berechtigung für Audit-Einstellungen“. Zum Ändern der Einstellungen brauchst du ein Konto mit der Berechtigung <span class="ui">Audit-Protokoll</span> auf dem Gerät; siehe <a href="amt-settings.html#realms">Konten und Realms</a>.</p>
+<p>OpenLAMT bietet keine Möglichkeit, das Audit-Protokoll anzuhalten. Intel AMT kann das Protokoll für höchstens fünf Minuten sperren, zeichnet in dieser Zeit nichts auf und verweigert kritische Aktionen. OpenLAMT nutzt diese Sperre nur kurz, während es das Protokoll leert.</p>
+</div>
+
+<h2 id="settings">Einstellungen</h2>
+<div class="prose">
+<p>Die Seite Einstellungen zeigt und ändert die Intel-AMT-Einstellungen des Geräts. <a href="amt-settings.html">AMT-Einstellungen erklärt</a> beschreibt, was jede davon tut. Hier steht, wie die Seite funktioniert.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:1010px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Einstellungen</h3><span class="cnt"></span></div>
+      <div class="mbody" style="gap:8px">
+        <div class="sect">Allgemein</div>
+        <div class="card">
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Hostname <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="rt">labserver <span class="b out sm">Ändern…</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Domäne <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="rt">example.com <span class="b out sm">Ändern…</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Auf Ping antworten <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Dynamisches DNS <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="sw"></span></div>
+        </div>
+        <div class="sect">Umgebungserkennung</div>
+        <div class="card"><div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Intranet-Domänen <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="rt">example.com <span class="b out sm">Ändern…</span></span></div></div>
+        <div class="sect">Netzwerk</div>
+        <div class="card"><div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Adresse <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="seg"><span class="on">DHCP</span><span>Statisch</span></span></div><div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">IP-Adresse <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="rt" style="color:var(--text)">192.0.2.10 / 24 · Gateway 192.0.2.1</span></div></div>
+        <div class="sect">Fernzugriff</div>
+        <div class="card">
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">KVM <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Medienumleitung (IDE-R) <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="sw on g"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Serial over LAN (SOL) <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="sw"></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Benutzerzustimmung <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="seg"><span>Keine</span><span class="on">Nur KVM</span><span>Alle</span></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">One Click Recovery (HTTPS-Boot) <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><div class="d">Muss auch im BIOS eingeschaltet sein.</div></div><span class="sw on g"></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">Remote Platform Erase <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><div class="d">Erlaubt „Laufwerke löschen“ im Gefahrenbereich.</div></div><span class="sw on g"></span></div>
+        </div>
+        <div class="sect">Uhr und TLS</div>
+        <div class="card">
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">AMT-Uhr <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="rt">15 s nach <span class="b out sm">Jetzt abgleichen</span></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">TLS-Zertifikat <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="rt">SHA-256 4F:2A:…:9C <span class="b out sm">Ändern…</span></span></div>
+        </div>
+        <div class="sect" style="color:var(--danger)">Gefahrenbereich</div>
+        <div class="redcard">
+          <div class="r"><div class="lw"><b style="display:inline-flex;align-items:center;gap:6px">AMT ausschalten <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></b><div class="d">Nur das BIOS (MEBx) am Gerät kann es wieder einschalten.</div></div><span class="b red sm">Ausschalten…</span></div>
+          <div class="r"><div class="lw"><b>Laufwerke löschen</b><div class="d">Startet das Gerät neu und löscht seine Laufwerke.</div></div><span class="b red sm">Löschen…</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seite Einstellungen eines Geräts im Admin Control Mode, das One Click Recovery und Remote Platform Erase unterstützt. Die ⓘ-Schaltflächen erklären jede Einstellung.</figcaption>
+</figure>
+<div class="prose">
+<p>Schalter und Auswahlen schreiben sofort. Eine Änderung, die dich vom Gerät abschneiden kann, fragt vorher und nennt das Gerät. <span class="ui">Ändern…</span> öffnet einen Dialog für den neuen Wert.</p>
+<p><span class="ui">One Click Recovery (HTTPS-Boot)</span> und <span class="ui">Remote Platform Erase</span> erscheinen nur, wenn das Gerät sie unterstützt, also auf neueren Geräten (Intel AMT 16 und neuer). Auf einem Gerät ganz ohne Löschen aus der Ferne zeigt <span class="ui">Laufwerke löschen</span> „Lab-Server unterstützt kein Löschen aus der Ferne.“ und eine graue Schaltfläche.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Einstellung</th><th>Änderung</th><th>Bestätigung</th></tr></thead>
+  <tbody>
+    <tr><td>Hostname, Domäne</td><td><span class="ui">Ändern…</span></td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>Auf Ping antworten</td><td>Schalter</td><td><span class="lv none">keine</span></td></tr>
+    <tr><td>Dynamisches DNS</td><td>Schalter, mit einer Erklärung der Auswirkung</td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>Intranet-Domänen</td><td><span class="ui">Ändern…</span>: Domänen hinzufügen und entfernen</td><td><span class="lv red">rot</span></td></tr>
+    <tr><td>Adresse (DHCP oder Statisch)</td><td>Die Auswahl öffnet <span class="ui">Netzwerkeinstellungen ändern</span> mit Adresse, Subnetzmaske, Gateway und DNS</td><td><span class="lv red">rot</span></td></tr>
+    <tr><td>KVM, Medienumleitung, Serial over LAN</td><td>Schalter. Das Einschalten fragt nichts</td><td><span class="lv or">orange</span> beim Ausschalten</td></tr>
+    <tr><td>Benutzerzustimmung</td><td>Auswahl: Keine, Nur KVM, Alle</td><td><span class="lv none">keine</span></td></tr>
+    <tr><td>One Click Recovery (HTTPS-Boot)</td><td>Schalter. Erlaubt <a href="device-window.html#one-click-recovery">HTTPS-Boot</a> über <span class="ui">Boot-Optionen…</span></td><td><span class="lv none">keine</span></td></tr>
+    <tr><td>Remote Platform Erase</td><td>Schalter. Erlaubt <a href="#erase">Laufwerke löschen</a></td><td><span class="lv none">keine</span></td></tr>
+    <tr><td>AMT-Uhr</td><td><span class="ui">Jetzt abgleichen</span> stellt sie auf die Zeit deines Computers</td><td><span class="lv none">keine</span></td></tr>
+    <tr><td>TLS-Zertifikat</td><td><span class="ui">Ändern…</span>: eines der Zertifikate auf dem Gerät wählen</td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>AMT ausschalten</td><td><span class="ui">Ausschalten…</span></td><td><span class="lv red">rot</span>, lässt sich aus der Ferne nicht rückgängig machen</td></tr>
+    <tr><td>Laufwerke löschen</td><td><span class="ui">Löschen…</span></td><td><span class="lv red">rot</span>, lässt sich nicht rückgängig machen</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Manche Geräte erlauben nicht, eine Einstellung aus der Ferne zu ändern, zum Beispiel die Regel für die Benutzerzustimmung im Client Control Mode. Das Bedienelement ist dann deaktiviert, oder das Gerät antwortet „Das Gerät erlaubt nicht, diese Einstellung zu ändern.“</p>
+<p>One Click Recovery und Remote Platform Erase müssen auch im BIOS des Geräts eingeschaltet sein. Sind sie dort aus, schlägt der Schalter mit „Schalte es zuerst im BIOS ein.“ fehl.</p>
+</div>
+
+<h3 id="help">Die ⓘ-Schaltflächen</h3>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="pop" style="position:static">
+    <h5>Intranet-Domänen</h5>
+    <p><span class="k">Was es tut:</span> Intel AMT vergleicht das DNS-Suffix aus DHCP mit diesen Domains. Passt keine, geht AMT davon aus, dass es außerhalb deines Netzwerks steht.</p>
+    <p><span class="k">Wann du es brauchst:</span> Nur für die Verwaltung von außerhalb deines Netzwerks. In einem Heim- oder Labornetz lass es, wie es ist.</p>
+    <p><span class="k">Was schiefgehen kann:</span> Ein falscher Eintrag kann dazu führen, dass AMT dein eigenes Netzwerk als extern behandelt und dort eventuell nicht mehr antwortet.</p>
+    <p style="margin:0"><span class="k">So stellst du es wieder her:</span> Korrigiere die Liste hier. Antwortet das Gerät nicht mehr, nutze das BIOS (MEBx) am Gerät.</p>
+  </div>
+</div></div>
+<figcaption>Die Hilfe zur Zeile Intranet-Domänen.</figcaption>
+</figure>
+<div class="prose">
+<p>Das ⓘ neben einer Einstellung öffnet eine kurze Hilfe: was sie tut und wann du sie brauchst. Wo eine Änderung ein Risiko birgt, steht dort auch, was schiefgehen kann und wie du den alten Zustand wiederherstellst. Ein Klick daneben oder <kbd>Esc</kbd> schließt die Hilfe. Die ⓘ-Schaltflächen gibt es auf der Seite Einstellungen, im Benutzerdialog (Zugriff und Berechtigungen), auf den Seiten Power, WLAN und System Defense und in den Audit-Einstellungen. <a href="amt-settings.html">AMT-Einstellungen erklärt</a> ist die ausführliche Fassung.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w520">
+    <h4>Netzwerkeinstellungen ändern</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div><b>Gefahr der Aussperrung.</b> Eine falsche Adresse macht das Gerät unerreichbar. Nur das BIOS (MEBx) am Gerät kann das beheben.</div></div>
+    <div class="grid2"><div><div class="fl">IP-Adresse</div><div class="fld">192.0.2.10</div></div><div><div class="fl">Subnetzmaske</div><div class="fld">255.255.255.0</div></div>
+    <div><div class="fl">Gateway</div><div class="fld">192.0.2.1</div></div><div><div class="fl">Primärer DNS</div><div class="fld">192.0.2.53</div></div>
+    <div><div class="fl">Sekundärer DNS</div><div class="fld ph">Sekundärer DNS</div></div></div>
+    <div style="margin-top:12px"><label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label></div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Speichern</span></div>
+  </div>
+</div></div>
+<figcaption>Eine rote Bestätigung. Die Schaltfläche bleibt deaktiviert, bis das Kästchen mit dem Gerätenamen angehakt ist.</figcaption>
+</figure>
+
+<h3 id="erase">Laufwerke löschen</h3>
+<div class="prose">
+<p><span class="ui">Löschen…</span> im <span class="ui">Gefahrenbereich</span> lässt das BIOS des Geräts beim nächsten Start dessen Laufwerke löschen, ohne dass jemand am Gerät sein muss. Nutze es, bevor du ein Gerät weitergibst oder entsorgst.</p>
+</div>
+<div class="warn"><b>Das lässt sich nicht rückgängig machen.</b>Das Betriebssystem und alle Dateien auf den Laufwerken gehen verloren. Probiere es zuerst an einem Gerät mit einem leeren Ersatzlaufwerk aus.</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w520">
+    <h4>Laufwerke auf Lab-Server löschen?</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div><b>Das lässt sich nicht rückgängig machen.</b> Lab-Server startet neu und löscht, was du unten auswählst. Das Betriebssystem und alle Dateien auf den Laufwerken gehen verloren.</div></div>
+    <div class="fl">Löschen</div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+          <span class="ck on"><i></i>Alle SSDs sicher löschen</span>
+          <span class="ck on"><i></i>Löschen prüfen</span>
+          <span class="ck"><i></i>TPM zurücksetzen</span>
+          <span class="ck"><i></i>BIOS-Einstellungen zurücksetzen (BIOS-Variablen löschen)</span>
+          <span class="ck dis"><i></i>BIOS-Werkskonfiguration neu laden (nicht unterstützt)</span>
+          <span class="ck"><i></i>Intel AMT entkonfigurieren · Fernzugriff endet</span>
+    </div>
+    <div class="fl">Laufwerkspasswort</div><div class="fld ph">Nur wenn das Laufwerk ein Passwort hat</div>
+    <div class="hint" style="margin-bottom:10px">Wird über TLS gesendet. Ohne TLS warnt OpenLAMT vorher.</div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Laufwerke löschen</span></div>
+  </div>
+  <div class="dlg">
+    <div class="qhead"><div class="qtile blue"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-check"/></svg></div><div>
+    <h4>Löschen gestartet</h4>
+    <p>Lab-Server startet neu und löscht die Laufwerke. Das BIOS meldet Fortschritt und Ergebnis im Ereignisprotokoll.</p></div></div>
+    <div class="foot"><span class="b">Ereignisprotokoll öffnen</span><span class="b pri">OK</span></div>
+  </div>
+</div></div>
+<figcaption>Die rote Bestätigung bei Remote Platform Erase und die Meldung nach dem Start. Das Gerät in diesem Beispiel kann seine BIOS-Werkskonfiguration nicht neu laden.</figcaption>
+</figure>
+<div class="prose">
+<p>Was der Dialog anbietet, hängt vom Gerät ab:</p>
+<ul>
+  <li><b>Remote Platform Erase</b> (neuere Geräte): eine Liste, was gelöscht werden soll. <span class="ui">Alle SSDs sicher löschen</span> und <span class="ui">Löschen prüfen</span> sind angehakt. Du kannst außerdem das TPM zurücksetzen, die BIOS-Einstellungen zurücksetzen, die BIOS-Werkskonfiguration neu laden und Intel AMT entkonfigurieren. Das Entkonfigurieren von AMT beendet den Fernzugriff nach dem Löschen. Was das BIOS nicht kann, ist grau und mit „(nicht unterstützt)“ markiert.</li>
+  <li><b>Remote Secure Erase</b> (ältere Geräte): eine einzige Auswahl, <span class="ui">Boot-Laufwerk sicher löschen</span>.</li>
+</ul>
+<p><span class="ui">Laufwerkspasswort</span> brauchst du nur, wenn das Laufwerk ein Passwort hat; bis zu 32 druckbare ASCII-Zeichen. Über eine Verbindung ohne TLS fragt OpenLAMT vorher <span class="ui">Schlüssel ohne TLS senden?</span>. <span class="ui">Laufwerke löschen</span> funktioniert erst, wenn du etwas auswählst und das Kästchen mit dem Gerätenamen anhakst. Vorher wird nichts gesendet.</p>
+<p>Dann fragt OpenLAMT nach dem <a href="getting-started.html#consent">Consent-Code</a>, falls das Gerät einen verlangt, setzt das Löschen und startet das Gerät neu; ein ausgeschaltetes Gerät wird eingeschaltet. Das Power-Menü ist so lange gesperrt. <span class="ui">Ereignisprotokoll öffnen</span> zeigt den Fortschritt, den das BIOS meldet.</p>
+<ul>
+  <li>Remote Platform Erase muss unter <span class="ui">Fernzugriff</span> eingeschaltet sein. Ist es aus, zeigt <span class="ui">Löschen…</span> die Meldung <span class="ui">Remote Platform Erase ist aus</span> mit dem Weg zum Einschalten. Es muss auch im BIOS eingeschaltet sein.</li>
+  <li>Remote Platform Erase braucht eine TLS-Verbindung: „Remote Platform Erase braucht eine TLS-Verbindung. Verbinde dich mit TLS zum Gerät und versuche es erneut.“</li>
+  <li>Ein Gerät im Schlafmodus lehnt OpenLAMT ab. Wecke es mit <span class="ui">Einschalten</span>, warte, bis es läuft, und versuche es dann erneut.</li>
+  <li>Während eine andere Power-Aktion läuft, bittet OpenLAMT dich zu warten, bis sie endet.</li>
+  <li>Schlägt ein Schritt fehl, nachdem das Löschen gesetzt wurde, setzt OpenLAMT es wieder zurück. Schlägt auch das fehl, meldet es, dass der nächste Neustart die Laufwerke noch löschen kann. Starte das Gerät dann nicht neu. Verbinde dich erneut und starte die <a href="device-window.html#boot-options">Boot-Optionen</a> mit <span class="ui">Festplatte (Standardreihenfolge)</span>: Das setzt das Löschen zurück.</li>
+</ul>
+</div>
+
+<h2 id="users">Benutzer</h2>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:440px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Benutzer</h3><span class="cnt"></span><span class="b out">+ Benutzer hinzufügen</span></div>
+      <div class="mbody"><div class="tcard"><table class="mt"><thead><tr><th>Name</th><th>Status</th><th>Zugriff</th><th>Berechtigungen</th><th></th></tr></thead><tbody>
+        <tr><td>admin</td><td>Aktiviert</td><td>Netzwerk und lokal</td><td>Administrator</td><td class="ra"><span class="b out sm">Bearbeiten</span></td></tr>
+        <tr><td>helpdesk<span style="color:var(--danger)">*</span></td><td>Aktiviert</td><td>Netzwerk</td><td>Ein- und Ausschalten, KVM, Medien, Konsole, Einstellungen</td><td class="ra"><span class="b rtint sm">Bearbeiten</span></td></tr>
+        <tr><td>user1</td><td>Deaktiviert</td><td>Lokal</td><td>Ereignisprotokoll, Audit-Protokoll</td><td class="ra"><span class="b out sm">Bearbeiten</span></td></tr>
+        <tr class="grey"><td>$$OsAdmin</td><td>System</td><td>Lokal</td><td>Systemkonto</td><td class="ra"><span class="b out sm dis">Bearbeiten</span></td></tr>
+      </tbody></table></div>
+      <div class="mfoot"><span style="color:var(--danger)">*</span> Angemeldetes Konto. Wenn du Name, Passwort oder Berechtigungen änderst, kannst du dich von diesem Gerät aussperren.</div></div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seite Benutzer, angemeldet als helpdesk.</figcaption>
+</figure>
+<div class="prose">
+<p>Die Seite Benutzer listet die AMT-Konten des Geräts. Diese Konten sind von den Konten des Betriebssystems getrennt.</p>
+<dl class="terms">
+  <dt>Status</dt><dd>Aktiviert, Deaktiviert oder System. Ein deaktiviertes Konto kann sich nicht anmelden. Systemkonten gehören zu AMT und lassen sich nicht ändern.</dd>
+  <dt>Zugriff</dt><dd>Von wo sich das Konto anmelden darf: <span class="ui">Netzwerk</span> (andere Computer), <span class="ui">Lokal</span> (Software auf dem Gerät selbst) oder beides.</dd>
+  <dt>Berechtigungen</dt><dd>Was das Konto tun darf: <span class="ui">Ein- und Ausschalten</span>, <span class="ui">KVM, Medien, Konsole</span>, <span class="ui">Hardware</span>, <span class="ui">Ereignisprotokoll</span>, <span class="ui">Audit-Protokoll</span>, <span class="ui">Einstellungen</span>. In AMT heißen sie Realms; siehe <a href="amt-settings.html#realms">Konten und Realms</a>.</dd>
+</dl>
+<h3 id="add-user">Konten hinzufügen, bearbeiten und löschen</h3>
+<ul>
+  <li><span class="ui">+ Benutzer hinzufügen</span> öffnet <span class="ui">Benutzer hinzufügen</span>: Benutzername, zweimal das Passwort, <span class="ui">Aktiviert</span>, <span class="ui">Zugriff</span> und <span class="ui">Berechtigungen</span>.</li>
+  <li>Ein Passwort braucht 8 bis 32 ASCII-Zeichen mit Groß- und Kleinbuchstaben, einer Ziffer und einem Sonderzeichen.</li>
+  <li><span class="ui">Bearbeiten</span> öffnet dieselben Felder. Lass das Passwort leer, um es zu behalten.</li>
+  <li><span class="ui">Benutzer löschen …</span> im Bearbeiten-Dialog fragt <span class="lv or">orange</span>: Der Benutzer kann sich nicht mehr anmelden, und das lässt sich nicht rückgängig machen.</li>
+</ul>
+<h3 id="admin-account">Das Admin-Konto</h3>
+<p>Das eingebaute Admin-Konto hat alle Berechtigungen und lässt sich nicht löschen. <span class="ui">Bearbeiten</span> öffnet dafür <span class="ui">Admin-Konto ändern</span> für einen neuen Namen oder ein neues Passwort. Das fragt <span class="lv red">rot</span>: Geht das neue Passwort verloren, kann es nur noch das BIOS (MEBx) am Gerät zurücksetzen. Hake <span class="ui">Passwort im Schlüsselbund aktualisieren</span> an, wenn OpenLAMT sich mit diesem Konto anmeldet.</p>
+<h3 id="own-account">Dein eigenes Konto</h3>
+<p>Das Konto, mit dem OpenLAMT angemeldet ist, trägt ein rotes <span style="color:var(--danger)">*</span>. Sein <span class="ui">Bearbeiten</span> öffnet <span class="ui">Eigenes Konto bearbeiten</span>, ohne <span class="ui">Aktiviert</span> und ohne <span class="ui">Benutzer löschen …</span>, weil AMT beides für das Konto der laufenden Verbindung nicht erlaubt. <span class="ui">Zugriff</span> kann für dieses Konto nicht <span class="ui">Lokal</span> sein, weil AMT das für das Konto der laufenden Verbindung ablehnt. Das Speichern fragt <span class="lv or">orange</span> und listet die Änderungen auf, weil ein falsches Passwort oder eine entfernte Berechtigung dich aussperren kann. Nach einer Passwortänderung aktualisiert OpenLAMT den Schlüsselbund. Schlägt das fehl, zeigt es das neue Passwort einmal an, damit du es kopieren kannst.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>Eigenes Konto ändern?</h4>
+    <div class="wbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div>OpenLAMT meldet sich mit diesem Konto an „Lab-Server“ an. Ein falscher Name oder ein falsches Passwort oder eine entfernte Berechtigung kann dich aussperren, bis ein Administrator das behebt.</div></div>
+    <div class="chg">Passwort: geändert<br>Einstellungen entfernt</div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Konto ändern</span></div>
+  </div>
+  <div class="dlg">
+    <div class="qhead"><div class="qtile or"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-unlock"/></svg></div><div style="flex:1">
+    <h4>Passwort ohne TLS senden?</h4>
+    <p>Die Verbindung zu „Lab-Server“ hat kein TLS. Das Passwort wird als Digest übertragen, der wie das Passwort selbst funktioniert. Wer ihn im Netzwerk mitschneidet, kann sich als helpdesk anmelden.</p>
+    <span class="ck"><i></i>Nicht mehr anzeigen</span></div></div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Trotzdem senden</span></div>
+  </div>
+</div></div>
+<figcaption>Links: die orange Bestätigung für dein eigenes Konto. Rechts: die Warnung, bevor ein Passwort ohne TLS hinausgeht.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="without-tls">Passwörter ohne TLS</h3>
+<p>Über eine Verbindung ohne TLS fragt OpenLAMT <span class="ui">Passwort ohne TLS senden?</span>, bevor es ein Konto hinzufügt, ein Passwort ändert oder das Admin-Konto ändert. AMT schickt das Passwort nicht im Klartext, aber der Digest, den es schickt, wirkt wie das Passwort. Nutze TLS, wo du kannst. <span class="ui">Nicht mehr anzeigen</span> blendet die Frage aus; <a href="settings.html#data">Hinweise zurücksetzen</a> holt sie zurück.</p>
+</div>
+
+<h2 id="power">Power</h2>
+<div class="prose">
+<p>Die Seite Power liegt unter <span class="ui">Mehr</span>. Sie legt fest, wann AMT eingeschaltet bleibt, und schaltet das Gerät zu festen Zeiten ein.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:560px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Power</h3><span class="cnt"></span><span class="b out">Aktualisieren</span></div>
+      <div class="mbody">
+        <div class="sect">Energierichtlinie</div>
+        <div class="card">
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Energiepaket <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="dd">Desktop: on in S0, ME wake in S3, S4-5 <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span></div>
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">Leerlauf-Timeout <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="rt">1 Minute <span class="b out sm">Ändern…</span></span></div>
+          <div class="r"><span class="lw">Schlafmodus und Hibernate</span><span class="rt">Schlafmodus unterstützt · Hibernate nicht unterstützt</span></div>
+        </div>
+        <div class="sect" style="justify-content:space-between;margin-bottom:0">Weckzeiten <span class="b out sm" style="margin-bottom:6px">+ Weckzeit</span></div>
+        <div class="tcard">
+          <table class="mt"><thead><tr><th>Name</th><th>Nächster Start</th><th>Wiederholung</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Nightly backup</td><td>Nov 24, 2026 02:00</td><td>Jeden Tag</td><td class="ra"><span class="b out sm">Löschen…</span></td></tr>
+            <tr><td>Patch day</td><td>Dec 08, 2026 22:00</td><td>Alle 28 Tage</td><td class="ra"><span class="b out sm">Löschen…</span></td></tr>
+            <tr><td>Maintenance window</td><td>Nov 28, 2026 06:30</td><td>Einmal, dann gelöscht</td><td class="ra"><span class="b out sm">Löschen…</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="mfoot">Zeiten in der Zeitzone dieses Computers (CET, UTC+01:00). Intel AMT speichert sie in UTC.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seite Power mit drei Weckzeiten.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="power-policy">Energierichtlinie</h3>
+<dl class="terms">
+  <dt>Energiepaket</dt><dd>Legt fest, wann Intel AMT an bleibt: nur solange der Computer läuft, oder auch im Schlafmodus und im ausgeschalteten Zustand. Die Liste zeigt die Pakete, die das Gerät anbietet, mit ihren eigenen Namen. Siehe <a href="amt-settings.html#power-policy">Energierichtlinien</a>.</dd>
+  <dt>Leerlauf-Timeout</dt><dd>Minuten, nach denen die Management Engine in den Energiesparmodus geht (1 bis 65.535). Der Timer startet neu, sobald AMT eine Anfrage bedient. Manche Energiepakete ignorieren ihn.</dd>
+  <dt>Schlafmodus und Hibernate</dt><dd>Nur zur Anzeige. Zeigt, ob das Gerät diese Zustände unterstützt; das erklärt graue Einträge im Power-Menü.</dd>
+</dl>
+<p>Ein Paket, bei dem das Einschalten aus der Ferne erhalten bleibt, wechselt sofort. Ein Paket, das AMT abschaltet, solange der Computer schläft oder aus ist, fragt <span class="lv or">orange</span>: Du kannst das Gerät dann nicht aus der Ferne einschalten, bis jemand es am Gerät einschaltet.</p>
+
+<h3 id="wake-alarms">Weckzeiten</h3>
+<p>Eine Weckzeit schaltet das Gerät zu einer festen Zeit ein, zum Beispiel für ein nächtliches Backup. Das Gerät speichert höchstens fünf.</p>
+<ul>
+  <li><span class="ui">+ Weckzeit</span> fragt nach einem Namen (bis zu 32 Zeichen), Datum, Uhrzeit und <span class="ui">Wiederholung</span>: <span class="ui">Nie</span>, <span class="ui">Jeden Tag</span>, <span class="ui">Jede Woche</span> oder <span class="ui">Eigene</span> (alle n Tage, Stunden oder Minuten).</li>
+  <li><span class="ui">Nach dem Auslösen löschen</span> entfernt eine Weckzeit ohne Wiederholung, nachdem sie ausgelöst hat.</li>
+  <li>Du gibst Zeiten in der Zeitzone deines Computers ein. AMT speichert sie in UTC. Der Fuß der Seite nennt die Zeitzone.</li>
+  <li>AMT kann eine Weckzeit nicht bearbeiten. Lösche sie (<span class="lv simple">einfach</span>) und lege eine neue an.</li>
+</ul>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>Weckzeit anlegen</h4>
+    <div class="fl" style="margin-top:0">Name</div><div class="fld">Nightly backup</div>
+    <div class="grid2"><div><div class="fl">Datum</div><div class="fld">2026-11-24</div></div><div><div class="fl">Zeit</div><div class="fld">02:00</div></div></div>
+    <div class="fl">Wiederholung</div><span class="dd" style="height:30px">Jeden Tag <svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chev"/></svg></span>
+    <div class="r" style="padding:10px 0 0;border:0;min-height:0"><span class="lw">Nach dem Auslösen löschen</span><span class="sw" style="opacity:.35"></span></div>
+    <div class="hint">Nur für Weckzeiten ohne Wiederholung.</div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Weckzeit anlegen</span></div>
+  </div>
+  <div class="dlg">
+    <h4>Energiepaket wechseln?</h4>
+    <div class="wbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div>Mit diesem Paket ist Intel AMT aus, solange Lab-Server schläft oder ausgeschaltet ist. Du kannst es erst wieder aus der Ferne einschalten, wenn jemand es am Gerät einschaltet.</div></div>
+    <div class="chg">Desktop: on in S0, ME wake in S3, S4-5 → Desktop: on in S0</div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Paket wechseln</span></div>
+  </div>
+</div></div>
+<figcaption>Links: eine neue Weckzeit. Rechts: die orange Rückfrage vor einem Paket ohne Einschalten aus der Ferne.</figcaption>
+</figure>
+
+<h2 id="wifi">WLAN</h2>
+<div class="prose">
+<p>Die Seite WLAN liegt unter <span class="ui">Mehr</span>. Sie legt fest, wann Intel AMT den WLAN-Adapter des Geräts nutzen darf und welche WLANs AMT kennt. Diese Profile gehören zu AMT, nicht zum Betriebssystem.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>WLAN</h3><span class="cnt">· 2 Profile</span><span class="b out">+ Profil hinzufügen</span><span class="b out">Aktualisieren</span></div>
+      <div class="mbody">
+        <div class="card">
+          <div class="r"><span class="lw" style="display:flex;align-items:center;gap:6px">WLAN in Intel AMT <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="seg"><span>Aus</span><span>Wenn an</span><span class="on">Immer</span></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">Profile des Betriebssystems nutzen <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><div class="d">Intel AMT nutzt auch die in Windows gespeicherten WLANs.</div></div><span class="sw on g"></span></div>
+          <div class="r"><div class="lw"><span style="display:flex;align-items:center;gap:6px">Profile mit UEFI teilen <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><div class="d">Damit kann One Click Recovery über WLAN starten.</div></div><span class="sw"></span></div>
+          <div class="r"><span class="lw">Verbindung jetzt</span><span class="rt">192.0.2.61</span></div>
+        </div>
+        <div class="tcard">
+          <table class="mt"><thead><tr><th style="width:70px">Priorität</th><th>Profil</th><th>Netzwerk (SSID)</th><th>Sicherheit</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Office</td><td>ACME-Lab</td><td>WPA2-Personal (AES)</td><td class="ra"><span class="b out sm">Bearbeiten</span></td></tr>
+            <tr><td>2</td><td>Workshop</td><td>ACME-Workshop</td><td>WPA3-Personal</td><td class="ra"><span class="b out sm">Bearbeiten</span></td></tr>
+          </tbody></table>
+        </div>
+        <div class="mfoot">Kleinere Zahl = wird zuerst versucht. Profile des Betriebssystems stehen nicht in der Liste.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seite WLAN mit zwei AMT-Profilen.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>WLAN in Intel AMT</dt><dd><span class="ui">Aus</span>: nie. <span class="ui">Wenn an</span>: nur solange der Computer läuft. <span class="ui">Immer</span>: auch im Schlafmodus und ausgeschaltet am Stromnetz. Wähle Immer, um das Gerät ohne Kabel zu erreichen, während es schläft oder aus ist.</dd>
+  <dt>Profile des Betriebssystems nutzen</dt><dd>Intel AMT verbindet sich über die Intel-Treiber in Windows auch mit den WLANs, die Windows gespeichert hat. Diese Profile erscheinen nicht in der Liste.</dd>
+  <dt>Profile mit UEFI teilen</dt><dd>Gibt die AMT-Profile an die UEFI-Firmware des Geräts weiter, damit One Click Recovery über WLAN starten kann.</dd>
+  <dt>Verbindung jetzt</dt><dd>Die WLAN-Adresse, die AMT gerade nutzt, oder „Nicht verbunden“. AMT meldet weder den Netzwerknamen noch die Signalstärke.</dd>
+</dl>
+<h3 id="wifi-profiles">Profile</h3>
+<ul>
+  <li><span class="ui">+ Profil hinzufügen</span> fragt nach <span class="ui">Profilname</span>, <span class="ui">Netzwerkname (SSID)</span>, Priorität, Sicherheit und zweimal nach dem Passwort (8 bis 63 Zeichen). Eine kleinere Prioritätszahl wird zuerst versucht.</li>
+  <li><span class="ui">Sicherheit</span> bietet an, was das Gerät unterstützt: WPA-Personal (TKIP), WPA2-Personal (AES) oder WPA3-Personal. Ältere AMT-Versionen haben kein WPA3. Enterprise-Profile (802.1X) erscheinen als „Anderes Verfahren“; du kannst sie löschen, aber nicht anlegen.</li>
+  <li><span class="ui">Bearbeiten</span> ändert ein Profil. AMT kann ein Profil nicht umbenennen, deshalb steht der Name fest. Lass das Passwort leer, um es zu behalten.</li>
+  <li><span class="ui">Profil löschen…</span> im Bearbeiten-Dialog fragt <span class="lv simple">einfach</span>.</li>
+  <li>Über eine Verbindung ohne TLS fragt OpenLAMT zuerst <span class="ui">Schlüssel ohne TLS senden?</span>, weil der Schlüssel unverschlüsselt übertragen wird.</li>
+</ul>
+<div class="warn"><b>Wenn OpenLAMT das Gerät über WLAN erreicht</b>Das Löschen eines Profils oder die Wahl von <span class="ui">Aus</span> kann die Verbindung trennen, die du gerade nutzt. OpenLAMT erkennt das und fragt <span class="lv red">rot</span>: Nur ein Kabel oder das Gerät selbst bringt die Verbindung zurück.</div>
+</div>
+
+<h2 id="system-defense">System Defense</h2>
+<div class="prose">
+<p>System Defense ist eine Firewall in Intel AMT. Sie filtert den Netzwerkverkehr des Betriebssystems, nie den eigenen Verkehr von AMT. Nutze sie, um einen infizierten Computer vom Netz zu trennen und trotzdem über AMT aus der Ferne zuzugreifen. Der Agent-Watchdog auf derselben Seite reagiert, wenn Software im Betriebssystem nicht mehr arbeitet.</p>
+<p>Intel AMT bietet diese Funktionen bis Version 11. Auf neueren Geräten zeigt die Seite „Auf diesem Gerät nicht verfügbar“.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:640px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>System Defense</h3><span class="cnt">· Aktive Policy: Allow all</span><span class="b out">Aktualisieren</span></div>
+      <div class="mbody" style="gap:8px">
+        <div class="sect" style="margin-bottom:0">Policies <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span><span class="sp"></span><span class="b out sm" style="margin-bottom:6px">+ Policy</span></div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Policy</th><th>Rang</th><th>Sonst</th><th>Filter</th><th>Zustand</th><th></th></tr></thead><tbody>
+          <tr><td>Allow all</td><td>2</td><td>Zulassen</td><td>0</td><td><span class="pill ok">Aktiv</span></td><td class="ra"><span class="b out sm">Ausschalten…</span> <span class="b out sm">Löschen…</span></td></tr>
+          <tr><td>Isolate</td><td>1</td><td>Verwerfen</td><td>2</td><td><span class="pill">Aus</span></td><td class="ra"><span class="b out sm">Aktivieren…</span> <span class="b out sm">Löschen…</span></td></tr>
+        </tbody></table></div>
+        <div class="sect" style="margin-bottom:0">Filter <span class="sp"></span><span class="b out sm" style="margin-bottom:6px">+ Filter</span></div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Filter</th><th>Typ</th><th>Richtung</th><th>Treffer bei</th><th>Aktion</th><th></th></tr></thead><tbody>
+          <tr><td>allow-dhcp</td><td>IPv4</td><td>Ausgehend</td><td>UDP 67-68</td><td>Zulassen</td><td class="ra"><span class="b out sm">Löschen…</span></td></tr>
+          <tr><td>allow-dns</td><td>IPv4</td><td>Ausgehend</td><td>UDP 53 an 192.0.2.1</td><td>Zulassen</td><td class="ra"><span class="b out sm">Löschen…</span></td></tr>
+        </tbody></table></div>
+        <div class="sect" style="margin-bottom:0">Agent-Watchdog <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span><span class="sp"></span><span class="b out sm" style="margin-bottom:6px">+ Watchdog</span></div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Agent</th><th>Start</th><th>Heartbeat</th><th>Zustand</th><th>Wenn Heartbeats ausbleiben</th><th></th></tr></thead><tbody>
+          <tr><td>backup-agent</td><td>120 s</td><td>30 s</td><td><span class="pill ok">Läuft</span></td><td>Ereignis protokollieren, Isolate aktivieren</td><td class="ra"><span class="b out sm">Löschen…</span></td></tr>
+        </tbody></table></div>
+        <div class="mfoot">Ein Agent im Betriebssystem sendet Heartbeats an Intel AMT. OpenLAMT richtet nur den Watchdog ein; es betreibt keinen Agenten.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seite System Defense im Verwaltungsfenster.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="defense-policies">Policies und Filter</h3>
+<ul>
+  <li>Ein <b>Filter</b> erkennt Verkehr: IPv4, IPv6 oder Ethernet, eingehend oder ausgehend, ein Protokoll (TCP, UDP, ICMP oder alle), Ports und eine Gegenadresse. Seine Aktion ist <span class="ui">Zulassen</span> oder <span class="ui">Verwerfen</span>. Er kann Treffer zählen und bei einem Treffer einen Eintrag ins Ereignisprotokoll schreiben.</li>
+  <li>Eine <b>Policy</b> bündelt Filter und legt fest, was mit dem Verkehr geschieht, auf den kein Filter passt (<span class="ui">Sonst</span>). Gelten mehrere Policies, gewinnt der höhere <span class="ui">Rang</span>.</li>
+  <li>Es ist immer nur eine Policy aktiv. <span class="ui">Aktivieren…</span> wechselt zu einer anderen, <span class="ui">Ausschalten…</span> beendet das Filtern. Solange eine Policy aktiv ist, zeigen die Filter, wie oft sie getroffen haben.</li>
+  <li>AMT kann eine Policy, einen Filter oder einen Watchdog nicht ändern. Lösche den Eintrag (<span class="lv simple">einfach</span>) und lege einen neuen an. Einen Filter, den eine Policy nutzt, oder eine aktive Policy musst du zuerst freigeben; die Seite sagt, was zu tun ist.</li>
+</ul>
+<p>Das Aktivieren einer Policy, die Verkehr verwirft, fragt <span class="lv or">orange</span>: Das Betriebssystem verliert allen Netzwerkverkehr, den die Policy verwirft. Intel AMT bleibt erreichbar, so kannst du die Policy auf dieser Seite wieder ausschalten. Eine Policy, die nichts verwirft, und das Ausschalten einer Policy fragen nichts.</p>
+
+<h3 id="watchdog">Agent-Watchdog</h3>
+<p>Intel AMT überwacht einen Agenten im Betriebssystem, der Heartbeats sendet, zum Beispiel einen Backup- oder Virenschutz-Agenten. OpenLAMT richtet nur den Watchdog ein; du brauchst einen Agenten, der mit AMT spricht.</p>
+<ul>
+  <li><span class="ui">+ Watchdog</span> fragt nach dem Agent-Namen und einer <span class="ui">Agent-ID</span>. <span class="ui">Erzeugen</span> legt eine an; der Agent muss dieselbe ID verwenden.</li>
+  <li><span class="ui">Start-Timeout</span> und <span class="ui">Heartbeat-Timeout</span> legen fest, wie lange AMT auf den ersten und auf den nächsten Heartbeat wartet.</li>
+  <li><span class="ui">Wenn Heartbeats ausbleiben</span>: einen Eintrag ins Ereignisprotokoll schreiben und auf Wunsch eine Policy aktivieren. <span class="ui">Wenn Heartbeats wieder kommen</span>: einen Eintrag schreiben und die Policy wieder ausschalten.</li>
+  <li>Alle Watchdogs schalten dieselbe Policy. Ein Watchdog, der eine verwerfende Policy aktivieren würde, fragt <span class="lv or">orange</span>.</li>
+  <li>Die Spalte <span class="ui">Zustand</span> zeigt Nicht gestartet, Läuft, Abgelaufen, Angehalten oder Pausiert.</li>
+</ul>
+</div>
+
+<h2 id="certificates">Zertifikate</h2>
+<div class="prose">
+<p>Die Seite Zertifikate liegt unter <span class="ui">Mehr</span>; ihr Tab heißt <span class="ui">Zert.</span>. Sie listet die Zertifikate und Schlüsselpaare, die in Intel AMT gespeichert sind: das TLS-Zertifikat des Geräts, vertrauenswürdige Root-Zertifikate und andere Zertifikate. Welches Zertifikat AMT für TLS nutzt, wählst du weiterhin auf der <a href="#settings">Seite Einstellungen</a>.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>Zertifikate</h3><span class="cnt">· 3 Zertifikate</span><span class="b out">Importieren…</span><span class="b out">Aktualisieren</span></div>
+      <div class="mbody" style="gap:8px">
+        <div class="tcard"><table class="mt"><thead><tr><th>Name</th><th>Typ</th><th>Gültig bis</th><th>Verwendet für</th><th></th></tr></thead><tbody>
+          <tr><td>Lab-Server TLS</td><td>Zertifikat mit Schlüssel</td><td>Nov 10, 2036</td><td><span class="pill ok">TLS</span></td><td class="ra"><span style="color:var(--text2);display:inline-flex"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chevr"/></svg></span></td></tr>
+          <tr><td>ACME Lab Root CA</td><td>Root-CA</td><td>Jan 01, 2035</td><td></td><td class="ra"><span style="color:var(--text2);display:inline-flex"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chevr"/></svg></span></td></tr>
+          <tr><td>old.example.com</td><td>Zertifikat</td><td><span class="pill bad">Abgelaufen Mar 2025</span></td><td></td><td class="ra"><span style="color:var(--text2);display:inline-flex"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-chevr"/></svg></span></td></tr>
+        </tbody></table></div>
+        <div class="sect" style="margin-top:8px">Schlüsselpaare</div>
+        <div class="tcard"><table class="mt"><thead><tr><th>Schlüssel</th><th>Zertifikat</th><th></th></tr></thead><tbody>
+          <tr><td class="mono">RSA 2048 · 4F:2A:…:9C</td><td>Lab-Server TLS</td><td class="ra"><span class="b out sm dis">Löschen…</span></td></tr>
+          <tr><td class="mono">RSA 2048 · 7B:E1:…:04</td><td>keines</td><td class="ra"><span class="b out sm">Löschen…</span></td></tr>
+        </tbody></table></div>
+        <div class="mfoot">Klicke auf ein Zertifikat für Details. Das TLS-Zertifikat wählst du in Einstellungen › Uhr und TLS.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Die Seite Zertifikate. Ein abgelaufenes Zertifikat hat ein rotes Datum.</figcaption>
+</figure>
+<div class="prose">
+<dl class="terms">
+  <dt>Typ</dt><dd><span class="ui">Root-CA</span>: eine Zertifizierungsstelle, der das Gerät vertraut, zum Beispiel für HTTPS-Boot. <span class="ui">Zertifikat mit Schlüssel</span>: ein Zertifikat, dessen privater Schlüssel auf dem Gerät liegt, etwa das TLS-Zertifikat. <span class="ui">Zertifikat</span>: eines ohne Schlüssel.</dd>
+  <dt>Verwendet für</dt><dd><span class="ui">TLS</span> markiert das Zertifikat, das AMT auf seinen TLS-Ports vorzeigt.</dd>
+  <dt>Schlüsselpaare</dt><dd>Die privaten Schlüssel auf dem Gerät und das Zertifikat, zu dem jeder gehört. Einen Schlüssel, der zu einem Zertifikat gehört, kannst du nicht löschen; sein graues <span class="ui">Löschen…</span> sagt, welches Zertifikat du zuerst löschen musst. Einen Schlüssel ohne Zertifikat („keines“) kannst du löschen, <span class="lv simple">einfach</span>.</dd>
+</dl>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w560">
+    <h4>Lab-Server TLS</h4>
+    <div class="card">
+      <div class="r"><span class="l">Inhaber</span><span class="v">CN=lab.example.com, O=ACME Lab</span></div>
+      <div class="r"><span class="l">Aussteller</span><span class="v">CN=ACME Lab Root CA</span></div>
+      <div class="r"><span class="l">Gültig</span><span class="v">Nov 10, 2026 bis Nov 10, 2036</span></div>
+      <div class="r"><span class="l">Seriennummer</span><span class="v mono">0A:3F:91:22:5C</span></div>
+      <div class="r"><span class="l">SHA-256</span><span class="v mono" style="font-size:11px;word-break:break-all">4F:2A:8C:11:D0:5B:77:E2:19:AC:3E:60:F4:0B:9D:12:55:C7:81:2E:6A:F9:03:B4:DE:71:28:9A:C5:0F:4E:9C</span></div>
+      <div class="r"><span class="l">Schlüssel</span><span class="v">RSA 2048, privater Schlüssel auf dem Gerät</span></div>
+      <div class="r"><span class="l">Verwendet für</span><span class="v">TLS</span></div>
+    </div>
+    <div class="foot"><span class="b red left">Zertifikat löschen…</span><span class="b">Als Datei speichern…</span><span class="b pri">Schließen</span></div>
+  </div>
+  <div class="dlg">
+    <h4>Zertifikat importieren</h4>
+    <span class="seg"><span class="on">Root-CA</span><span>Zertifikat mit privatem Schlüssel</span></span>
+    <div class="fl">Datei</div><div style="display:flex;gap:8px"><div class="fld mono" style="flex:1;font-size:12px">acme-root.pem</div><span class="b out">Datei wählen…</span></div>
+    <div class="hint">.pem, .cer oder .crt. Für ein Zertifikat mit Schlüssel: .p12 oder .pfx mit Passwort.</div>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b pri">Importieren</span></div>
+  </div>
+</div></div>
+<figcaption>Die Details eines Zertifikats und der Import einer Root-CA.</figcaption>
+</figure>
+<div class="prose">
+<h3 id="certificate-details">Details</h3>
+<p>Ein Klick auf eine Zeile zeigt Inhaber, Aussteller, Gültigkeit, Seriennummer, SHA-256-Fingerprint, Schlüssel und Verwendung. <span class="ui">Als Datei speichern…</span> speichert das öffentliche Zertifikat als <code>.pem</code>-Datei. Der private Schlüssel verlässt das Gerät nie.</p>
+<h3 id="certificate-import">Importieren</h3>
+<ul>
+  <li><span class="ui">Root-CA</span>: eine <code>.pem</code>-, <code>.cer</code>- oder <code>.crt</code>-Datei. Damit vertraut das Gerät deinem eigenen HTTPS-Server für <a href="device-window.html#one-click-recovery">One Click Recovery</a> von einer URL.</li>
+  <li><span class="ui">Zertifikat mit privatem Schlüssel</span>: eine <code>.p12</code>- oder <code>.pfx</code>-Datei und ihr Passwort, zum Beispiel ein TLS-Zertifikat deiner eigenen Zertifizierungsstelle. OpenLAMT wählt das Zertifikat in der Datei, das zum privaten Schlüssel passt. Intel AMT nimmt nur RSA-Schlüssel an. Wähle es nach dem Import auf der Seite Einstellungen als TLS-Zertifikat.</li>
+  <li>OpenLAMT liest die Datei, während der Dialog offen bleibt, so kannst du eine andere Datei wählen oder das Passwort korrigieren. Das Passwort wird nicht gespeichert, und der private Schlüssel bleibt nur im Arbeitsspeicher, bis er gesendet ist.</li>
+  <li>Über eine Verbindung ohne TLS fragt OpenLAMT <span class="ui">Schlüssel ohne TLS senden?</span>, bevor es einen privaten Schlüssel sendet. Eine Root-CA enthält kein Geheimnis und braucht keine Rückfrage.</li>
+  <li>Sonst fragt der Import nichts. Mögliche Meldungen: „Die Datei ist kein Zertifikat.“, „Falsches Passwort für die .p12-Datei.“, „Kein Zertifikat in der Datei passt zum privaten Schlüssel.“, „Der Schlüssel in der Datei ist kein RSA-Schlüssel.“, „Das Gerät hat dieses Zertifikat oder diesen Schlüssel schon.“ und „‚Lab-Server‘ hat keinen Platz für weitere Zertifikate.“</li>
+</ul>
+<h3 id="certificate-delete">Löschen</h3>
+<ul>
+  <li><span class="ui">Zertifikat löschen…</span> in den Details entfernt ein Zertifikat. Für ein Zertifikat oder einen Schlüssel, den nichts nutzt, fragt es <span class="lv simple">einfach</span>.</li>
+  <li>Das Löschen einer Root-CA fragt <span class="lv or">orange</span>: Das Gerät vertraut Servern, die mit dieser Root-CA signiert sind, nicht mehr, und HTTPS-Boot von solchen Servern funktioniert nicht mehr.</li>
+  <li>Das Gerät verweigert das Löschen des Zertifikats, das es für TLS nutzt. OpenLAMT zeigt dann <span class="ui">Zertifikat in Verwendung</span> mit <span class="ui">Einstellungen öffnen</span>: Wähle dort zuerst ein anderes TLS-Zertifikat.</li>
+</ul>
+</div>
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg">
+    <h4>„ACME Lab Root CA“ löschen?</h4>
+    <div class="wbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div>„Lab-Server“ vertraut Servern, die mit dieser Root-CA signiert sind, nicht mehr. HTTPS-Boot von solchen Servern funktioniert dann nicht mehr.</div></div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für Lab-Server (192.0.2.10)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Zertifikat löschen</span></div>
+  </div>
+  <div class="dlg">
+    <div class="qhead"><div class="qtile blue"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></div><div>
+    <h4>Zertifikat in Verwendung</h4><p>„Lab-Server“ verwendet „Lab-Server TLS“ für TLS. Wähle zuerst in den Einstellungen ein anderes TLS-Zertifikat und lösche dann dieses.</p></div></div>
+    <div class="foot"><span class="b">Einstellungen öffnen</span><span class="b pri">OK</span></div>
+  </div>
+</div></div>
+<figcaption>Die orange Rückfrage, bevor eine Root-CA entfernt wird, und die Meldung, wenn du das TLS-Zertifikat löschen willst.</figcaption>
+</figure>
+
+<h2 id="wsman">WSMAN Browser</h2>
+<div class="prose">
+<p>Der WSMAN Browser zeigt die Rohdaten von Intel AMT: die Klassen der WS-Management-Schnittstelle und ihre Werte. Nutze ihn, um eine Einstellung nachzusehen, die OpenLAMT nicht zeigt, oder um Geräte zu vergleichen. Er liest nur.</p>
+<p>Öffne ihn über <span class="ui">Mehr</span> &gt; <span class="ui">WSMAN Browser</span>. Er öffnet sich im Verwaltungsfenster, unter <span class="ui">Diagnose</span>.</p>
+</div>
+<figure class="shot">
+<div class="scr"><div class="win w1120 app">
+  <div class="osbar"><i></i><i></i><i></i><span>Lab-Server · Geräteverwaltung</span></div>
+  <div class="row2" style="height:520px"><div class="mnav"><div class="dev"><span class="dot on" style="margin-top:6px"></span><div><b>Lab-Server</b><small>192.0.2.10 · AMT 16.1 · ACM</small></div></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg>Hardware</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Ereignisprotokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shield"/></svg>Audit-Protokoll</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-sun"/></svg>Einstellungen</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-users"/></svg>Benutzer</div><div class="msep" style="margin:6px 4px"></div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-power"/></svg>Power</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-wifi"/></svg>WLAN</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-shieldok"/></svg>System Defense</div><div class="ni"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-cert"/></svg>Zertifikate</div><div class="ngrp">Diagnose</div><div class="ni sel"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-code"/></svg>WSMAN Browser</div></div>
+    <div class="mpage"><div class="mhead"><h3>WSMAN Browser</h3><span class="pill" style="margin-left:8px">Schreibgeschützt</span><span class="cnt"></span><span class="b out">Als XML kopieren</span><span class="b out">Aktualisieren</span></div>
+      <div class="split" style="flex:1">
+        <div class="clslist">
+          <div class="fld ph" style="height:28px;margin-bottom:6px"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-search"/></svg>&nbsp;Klasse suchen</div>
+          <div class="g">AMT</div>
+          <div class="c">AMT_AuditLog</div><div class="c">AMT_BootCapabilities</div><div class="c sel">AMT_GeneralSettings</div><div class="c">AMT_RedirectionService</div><div class="c">AMT_TLSSettingData</div>
+          <div class="g">CIM</div>
+          <div class="c">CIM_BIOSElement</div><div class="c">CIM_ComputerSystemPackage</div><div class="c">CIM_PowerManagementService</div>
+          <div class="g">IPS</div>
+          <div class="c">IPS_OptInService</div><div class="c">IPS_PowerManagementService</div>
+        </div>
+        <div style="flex:1;min-width:0;padding:16px 20px;overflow:auto">
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px"><b class="mono" style="font-size:13px">AMT_GeneralSettings</b><span style="color:var(--text2)">· 1 Instanz</span></div>
+          <div class="tcard"><table class="mt"><thead><tr><th style="width:240px">Eigenschaft</th><th>Wert</th></tr></thead><tbody>
+            <tr><td class="mono">HostName</td><td class="mono">labserver</td></tr>
+            <tr><td class="mono">DomainName</td><td class="mono">example.com</td></tr>
+            <tr><td class="mono">PingResponseEnabled</td><td class="mono">true</td></tr>
+            <tr><td class="mono">DDNSUpdateEnabled</td><td class="mono">false</td></tr>
+            <tr><td class="mono">AMTNetworkEnabled</td><td class="mono">1 (Enabled)</td></tr>
+            <tr><td class="mono">PowerSource</td><td class="mono">0 (AC)</td></tr>
+          </tbody></table></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>Eine gelesene Klasse im WSMAN Browser.</figcaption>
+</figure>
+<div class="prose">
+<ul>
+  <li>Die Klassenliste gruppiert die Klassen nach AMT, CIM und IPS. <span class="ui">Klasse suchen</span> filtert sie.</li>
+  <li>Ein Klick liest alle Instanzen der Klasse. Mehrere Instanzen bekommen Chips „Instanz 1“, „Instanz 2“ und so weiter.</li>
+  <li>Bekannte Zahlenwerte zeigen ihre Bedeutung, zum Beispiel <code>1 (Enabled)</code>.</li>
+  <li><span class="ui">Als XML kopieren</span> kopiert die Instanzen in die Zwischenablage, mit Werten in voller Länge.</li>
+  <li>Eine Klasse, die das Gerät nicht hat oder die das Konto nicht lesen darf, zeigt stattdessen einen kurzen Grund.</li>
+  <li>Ein Lesevorgang endet bei 200 Instanzen oder 1 MiB Daten und meldet dann „Gekürzt“.</li>
+</ul>
+</div>
+<nav class="pager" aria-label="Seiten"><a href="device-window.html" rel="prev"><small>Zurück</small>Gerätefenster</a><a href="amt-settings.html" rel="next" style="text-align:right"><small>Weiter</small>AMT-Einstellungen erklärt</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fehlerbehebung · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Was die Fehlermeldungen von OpenLAMT bedeuten und was du dagegen tun kannst.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/troubleshooting.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/troubleshooting.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/troubleshooting.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../troubleshooting.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="troubleshooting.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html" aria-current="page">Fehlerbehebung</a><ol class="toc"><li><a href="#start">Die App startet nicht</a></li><li><a href="#connect">Keine Verbindung</a></li><li><a href="#permissions">Meldungen zu Berechtigungen</a></li><li><a href="#consent">Benutzerzustimmung</a></li><li><a href="#kvm">Fernbildschirm (KVM)</a></li><li><a href="#console">Serielle Konsole</a></li><li><a href="#media">Medien</a></li><li><a href="#boot">Boot-Optionen und Löschen</a></li><li><a href="#certificates">Zertifikate und Weiterleitung</a></li><li><a href="#keychain">Passwörter und Schlüsselbund</a></li><li><a href="#updates">Updates</a></li><li><a href="#report">Ein Problem melden</a></li></ol></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Fehlerbehebung</h1>
+<p class="lead">OpenLAMT sagt in klaren Worten, was schiefgegangen ist. Diese Seite listet die häufigsten Meldungen, was sie bedeuten und was du tun kannst.</p>
+
+<h2 id="start">Die App startet nicht</h2>
+<dl class="terms">
+  <dt>macOS: „OpenLAMT“ kann nicht geöffnet werden oder „Apple konnte nicht überprüfen …“</dt>
+  <dd>Die App ist nicht notarisiert. Öffne <b>Systemeinstellungen</b> &gt; <b>Datenschutz &amp; Sicherheit</b> und klicke auf <b>Dennoch öffnen</b>, oder entferne das Quarantäne-Attribut. Siehe <a href="getting-started.html#install-macos">Installation unter macOS</a>.</dd>
+  <dt>Windows: „Der Computer wurde durch Windows geschützt“</dt>
+  <dd>SmartScreen kennt die unsignierte Datei nicht. Klicke auf <b>Weitere Informationen</b> und dann auf <b>Trotzdem ausführen</b>.</dd>
+  <dt>Linux: Das AppImage startet nicht</dt>
+  <dd>Ohne FUSE 2 startest du es mit <code>--appimage-extract-and-run</code>. Es braucht glibc 2.35 oder neuer. Auf älteren Systemen nimm das <code>.deb</code>-Paket oder baue aus dem Quellcode.</dd>
+</dl>
+
+<h2 id="connect">Keine Verbindung</h2>
+<dl class="terms">
+  <dt>„192.0.2.10 ist von diesem Computer aus nicht erreichbar.“</dt>
+  <dd>Prüfe die Adresse und das Netzwerk. Das Gerät muss eingeschaltet sein, per Kabel verbunden (oder per WLAN, wenn AMT-WLAN eingerichtet ist) und in einem Netzwerk hängen, das dein Computer erreicht.</dd>
+  <dt id="macos-network">Unter macOS ist kein Gerät erreichbar</dt>
+  <dd>macOS sperrt Apps das lokale Netzwerk, bis du es erlaubst. Öffne <b>Systemeinstellungen</b> &gt; <b>Datenschutz &amp; Sicherheit</b> &gt; <b>Lokales Netzwerk</b> und schalte OpenLAMT ein.</dd>
+  <dt>„192.0.2.10 hat nicht rechtzeitig geantwortet.“</dt>
+  <dd>Das Gerät ist nicht im Netzwerk, oder eine Firewall verwirft die Pakete. AMT nutzt die Ports 16992 bis 16995.</dd>
+  <dt>„192.0.2.10 hat die Verbindung auf Port 16993 abgelehnt.“</dt>
+  <dd>Unter dieser Adresse antwortet etwas, aber nicht AMT. Prüfe, ob die Adresse zur AMT-Schnittstelle gehört und ob AMT aktiviert ist. Ein <a href="favorites.html#scan">Netzwerkscan</a> zeigt, auf welchen Adressen AMT läuft.</dd>
+  <dt>„… nimmt auf Port 16993 keine TLS-Verbindungen an.“</dt>
+  <dd>TLS ist auf dem Gerät nicht eingerichtet. Schalte <span class="ui">TLS verwenden</span> für diesen Favoriten aus und verbinde erneut.</dd>
+  <dt>„… nimmt auf Port 16992 keine Verbindungen ohne TLS an.“</dt>
+  <dd>Viele Geräte erlauben nur TLS. Schalte <span class="ui">TLS verwenden</span> ein und verbinde erneut.</dd>
+  <dt>„Der TLS-Verbindungsaufbau mit dem Gerät ist fehlgeschlagen.“</dt>
+  <dd>Das Gerät nutzt TLS-Einstellungen, die OpenLAMT nicht unterstützt, zum Beispiel eine sehr alte Protokollversion. Oft hilft ein Firmware-Update des Geräts.</dd>
+  <dt>„Der Name lab.example.com wurde nicht gefunden.“</dt>
+  <dd>DNS kennt den Namen nicht. Prüfe ihn oder verwende die IP-Adresse des Geräts.</dd>
+  <dt>„Anmeldung fehlgeschlagen: Benutzer oder Passwort falsch.“</dt>
+  <dd>Das Gerät hat die Anmeldung abgelehnt. Bei AMT-Benutzernamen und -Passwörtern zählt die Groß- und Kleinschreibung. Das Admin-Passwort ist das bei der Aktivierung gesetzte, zum Beispiel in MEBx.</dd>
+  <dt>„Zertifikat geändert“</dt>
+  <dd>Das Zertifikat des Geräts passt nicht mehr zum vertrauten. Lies <a href="getting-started.html#certificate-changed">Wenn sich das Zertifikat absichtlich ändert</a>, bevor du irgendetwas tust.</dd>
+  <dt>„IPv6-Adressen werden nicht unterstützt.“</dt>
+  <dd>Verwende die IPv4-Adresse oder einen Hostnamen.</dd>
+</dl>
+
+<h2 id="permissions">Meldungen zu Berechtigungen</h2>
+<dl class="terms">
+  <dt>„Dieses Konto darf das auf dem Gerät nicht.“</dt>
+  <dd>Dem Konto fehlt die Berechtigung für diese Aktion. Melde dich mit einem Konto an, das sie hat, oder bitte einen Administrator, sie auf der <a href="management.html#users">Seite Benutzer</a> hinzuzufügen.</dd>
+  <dt>„Für dieses Konto nicht erlaubt“, „Power: nicht erlaubt“, „N/A“</dt>
+  <dd>Das Konto darf diesen Teil nicht lesen. Alles andere funktioniert. Siehe <a href="confirmations.html#limited-accounts">Eingeschränkte Konten</a>.</dd>
+  <dt>„Das Gerät erlaubt nicht, diese Einstellung zu ändern.“</dt>
+  <dd>Das Gerät selbst sperrt die Einstellung, zum Beispiel die Richtlinie für die Benutzerzustimmung im Client Control Mode.</dd>
+</dl>
+
+<h2 id="consent">Benutzerzustimmung</h2>
+<dl class="terms">
+  <dt>OpenLAMT fragt nach einem Consent-Code</dt>
+  <dd>Das Gerät zeigt auf seinem Bildschirm einen sechsstelligen Code. Frag die Person am Gerät danach. Siehe <a href="amt-settings.html#user-consent">Benutzerzustimmung</a>.</dd>
+  <dt>„Das Gerät hat den Consent-Code nicht angenommen.“</dt>
+  <dd>Prüfe die sechs Ziffern am Bildschirm des Geräts und versuche es erneut. Der Code gilt nur eine begrenzte Zeit; bei einem neuen Versuch erscheint ein neuer. Am Gerät wurde nichts geändert.</dd>
+  <dt>Niemand ist am Gerät</dt>
+  <dd>Auf einem Gerät im Admin Control Mode kann ein Administrator <span class="ui">Benutzerzustimmung</span> auf der Seite „Einstellungen“ auf <span class="ui">Keine</span> setzen. Im Client Control Mode ist die Zustimmung immer nötig.</dd>
+</dl>
+
+<h2 id="kvm">Fernbildschirm (KVM)</h2>
+<dl class="terms">
+  <dt>„Das Gerät hat die KVM-Sitzung abgelehnt (Status …). Möglicherweise ist noch eine andere KVM-Sitzung zu diesem Gerät offen.“</dt>
+  <dd>AMT erlaubt eine KVM-Sitzung pro Gerät. Schließe die andere: ein zweites OpenLAMT-Fenster, ein anderes Werkzeug wie MeshCommander oder einen KI-Agenten über <a href="mcp.html">openlamt-mcp</a>.</dd>
+  <dt>„Das Gerät hat das Aktivieren von KVM abgelehnt … Möglicherweise ist KVM in den AMT-Einstellungen des Geräts deaktiviert.“</dt>
+  <dd>Schalte <span class="ui">KVM</span> auf der <a href="management.html#settings">Seite Einstellungen</a> ein. Manche Geräte brauchen KVM zusätzlich in MEBx aktiviert.</dd>
+  <dt>Der Bildschirm bleibt schwarz</dt>
+  <dd>AMT zeigt nur das Bild der Intel-Grafik im Prozessor. Ist eine separate Grafikkarte in Betrieb, bleibt KVM schwarz. Sonst schläft vielleicht nur der Bildschirm: Bewege die Maus oder drücke eine Taste. Ein ausgeschaltetes Gerät zeigt nichts, bis du es einschaltest.</dd>
+  <dt>„KVM wurde nach 30 Minuten ohne Eingabe getrennt.“</dt>
+  <dd>OpenLAMT hat eine Sitzung ohne Eingaben geschlossen. Die Zeit änderst du in den <a href="settings.html#remote-screen">Einstellungen</a>.</dd>
+  <dt>Tastenkombinationen kommen nicht am Gerät an</dt>
+  <dd>Dein Computer behält manche Kombinationen für sich. Nutze die Schaltfläche <span class="ui">Ctrl+Alt+Del</span>. Siehe <a href="device-window.html#keyboard">Tastatur</a>.</dd>
+  <dt>„Zwischenablage tippen“ tippt falsche Zeichen</dt>
+  <dd>Das Layout passt nicht zum Gerät. Wähle das richtige unter <span class="ui">Tastatur</span>.</dd>
+  <dt>Das Bild ist langsam</dt>
+  <dd>Stelle <span class="ui">Qualität</span> auf Niedrige Qualität (256 Farben).</dd>
+</dl>
+
+<h2 id="console">Serielle Konsole</h2>
+<dl class="terms">
+  <dt>„Das Gerät hat die serielle Konsole nicht gestartet.“</dt>
+  <dd>Serial over LAN ist vielleicht aus. Schalte es auf der <a href="management.html#settings">Seite Einstellungen</a> ein und versuche es erneut.</dd>
+  <dt>Die Konsole bleibt leer</dt>
+  <dd>Die Konsole zeigt nur, was das Gerät an seine serielle AMT-Schnittstelle sendet. BIOS oder Betriebssystem müssen diese Schnittstelle als Konsole nutzen. Unter Linux ergänzt du dafür eine Kernel-Option wie <code>console=ttyS1,115200</code> für die richtige Schnittstelle; die Nummer ist von Gerät zu Gerät verschieden.</dd>
+</dl>
+
+<h2 id="media">Medien</h2>
+<dl class="terms">
+  <dt>„Dieses Gerät unterstützt die Medienumleitung (IDE-R) nicht.“</dt>
+  <dd>Das Gerät bietet keine Medienumleitung an, deshalb kann OpenLAMT keine Abbilder darauf einhängen.</dd>
+  <dt>Das Gerät bootet nicht von der ISO</dt>
+  <dd>Nutze <span class="ui">Von ISO neu starten…</span> oder <span class="ui">Beim nächsten Start von ISO booten</span>. Prüfe, ob das Abbild zum Boot-Modus des Geräts passt: Ein eingehängter Ordner bootet nur über UEFI und braucht <code>EFI/BOOT/BOOTX64.EFI</code>. Mit Secure Boot muss der Bootloader auf dem Abbild signiert sein.</dd>
+  <dt>Ordnerfehler wie „Eine Datei im Ordner ist 4 GiB oder größer“</dt>
+  <dd>Ein Ordner wird zuerst zu einem ISO-Abbild, und das hat Grenzen: jede Datei unter 4 GiB, Namen bis 103 Zeichen, Namen, die sich nicht nur in Groß- und Kleinschreibung unterscheiden. Die Meldung nennt die Grenze.</dd>
+  <dt>„Das Gerät hat die Mediensitzung geschlossen.“</dt>
+  <dd>AMT hat die Sitzung beendet. Hänge das Abbild erneut ein.</dd>
+</dl>
+
+<h2 id="boot">Boot-Optionen und Löschen</h2>
+<dl class="terms">
+  <dt>„Das Gerät schläft. Aufwecken startet es nicht neu, deshalb würden die Boot-Optionen nicht greifen.“</dt>
+  <dd>Boot-Optionen, One Click Recovery und „Laufwerke löschen“ lehnen ein schlafendes Gerät ab. Wecke es mit <span class="ui">Einschalten</span>, warte, bis es läuft, und versuche es dann erneut. Es wurde nichts geändert.</dd>
+  <dt>„… Der nächste Neustart des Geräts kann sie noch verwenden.“</dt>
+  <dd>Ein Schritt ist fehlgeschlagen, nachdem die Boot-Optionen geschrieben waren, und OpenLAMT konnte sie nicht wieder löschen. Verbinde erneut und starte <a href="device-window.html#boot-options">Boot-Optionen</a> mit <span class="ui">Festplatte (Standardreihenfolge)</span>.</dd>
+  <dt>„… Der nächste Neustart des Geräts kann die Laufwerke noch löschen.“</dt>
+  <dd>Dasselbe für ein Löschen. Starte das Gerät nicht neu, wenn du das Löschen nicht willst. Verbinde erneut und starte die Boot-Optionen mit <span class="ui">Festplatte (Standardreihenfolge)</span>: Das setzt das Löschen vor dem Neustart zurück.</dd>
+  <dt>„Port 8443 ist belegt. Wähle einen anderen Port.“</dt>
+  <dd>Ein anderes Programm nutzt den Port, den One Click Recovery aus einer Datei braucht. Gib im Dialog einen anderen Port ein.</dd>
+  <dt>„Lab-Server hat das Image nicht geladen. Prüfe die Firewall auf diesem Computer.“</dt>
+  <dd>Das Gerät hat das Abbild nicht innerhalb von 10 Minuten abgeholt. Erlaube eingehende Verbindungen auf dem Port. Prüfe, ob das Gerät die gewählte Adresse erreicht und ob HTTPS-Boot in seinem BIOS eingeschaltet ist.</dd>
+  <dt>„OpenLAMT konnte das temporäre Root-Zertifikat nicht entfernen …“</dt>
+  <dd>Lösche „OpenLAMT recovery (temporary)“ auf der <a href="management.html#certificates">Seite Zertifikate</a>.</dd>
+  <dt>„Schalte es zuerst im BIOS ein.“</dt>
+  <dd>One Click Recovery oder Remote Platform Erase ist im BIOS des Geräts ausgeschaltet. Nur das BIOS am Gerät kann es einschalten.</dd>
+  <dt>„Remote Platform Erase braucht eine TLS-Verbindung.“</dt>
+  <dd>Schalte <span class="ui">TLS verwenden</span> für den Favoriten ein, verbinde erneut und versuche es noch einmal.</dd>
+  <dt>„Remote Platform Erase ist aus“</dt>
+  <dd>Schalte <span class="ui">Remote Platform Erase</span> unter <span class="ui">Fernzugriff</span> auf der <a href="management.html#settings">Seite Einstellungen</a> ein.</dd>
+</dl>
+
+<h2 id="certificates">Zertifikate und Weiterleitung</h2>
+<dl class="terms">
+  <dt>„Die Datei ist kein Zertifikat.“</dt>
+  <dd>Wähle eine <code>.pem</code>-, <code>.cer</code>- oder <code>.crt</code>-Datei für eine vertrauenswürdige Root, oder eine <code>.p12</code>- oder <code>.pfx</code>-Datei für ein Zertifikat mit Schlüssel. Welches von beiden, legt der Schalter oben im Import-Dialog fest.</dd>
+  <dt>„Falsches Passwort für die .p12-Datei.“</dt>
+  <dd>Gib das Passwort ein, mit dem die Datei exportiert wurde. Der Dialog bleibt offen.</dd>
+  <dt>„Kein Zertifikat in der Datei passt zum privaten Schlüssel.“ oder „Der Schlüssel in der Datei ist kein RSA-Schlüssel.“</dt>
+  <dd>Exportiere die Datei erneut, mit dem Zertifikat, das zum Schlüssel gehört. Intel AMT akzeptiert nur RSA-Schlüssel.</dd>
+  <dt>„‚Lab-Server‘ hat keinen Platz für weitere Zertifikate.“</dt>
+  <dd>Lösche Zertifikate oder Schlüssel, die das Gerät nicht mehr braucht, und importiere dann erneut.</dd>
+  <dt>„Zertifikat in Verwendung“</dt>
+  <dd>Das Gerät nutzt dieses Zertifikat für TLS. Wähle zuerst auf der Seite „Einstellungen“ ein anderes TLS-Zertifikat.</dd>
+  <dt>„Lab-Server hat das Ziel abgelehnt: …“</dt>
+  <dd>Das Gerät hat das Weiterleitungsziel nicht angenommen. Den Grund liefert das Gerät; prüfe die Adresse und die Anmeldedaten.</dd>
+  <dt>„Keine Berechtigung für Audit-Einstellungen“</dt>
+  <dd>Melde dich mit einem Konto an, das die Berechtigung <span class="ui">Audit-Protokoll</span> hat.</dd>
+</dl>
+
+<h2 id="keychain">Passwörter und Schlüsselbund</h2>
+<dl class="terms">
+  <dt>„Der Schlüsselbund ist nicht verfügbar: …“</dt>
+  <dd>Unter Linux startest du einen Secret-Service-Anbieter wie GNOME Keyring oder KeePassXC und entsperrst ihn. Unter macOS entsperrst du den Anmeldeschlüsselbund.</dd>
+  <dt>„Das vertraute Zertifikat konnte nicht aus dem Schlüsselbund gelesen werden, deshalb hat OpenLAMT nicht verbunden.“</dt>
+  <dd>Der Schlüsselbund ist gesperrt oder nicht verfügbar. Ohne den vertrauten Fingerprint verbindet OpenLAMT nicht. Entsperre den Schlüsselbund und versuche es erneut.</dd>
+  <dt>„Neues Passwort nicht gespeichert“</dt>
+  <dd>Das Gerät hat ein neues Passwort übernommen, der Schlüsselbund aber nicht. Kopiere das Passwort jetzt aus dem Dialog. Es wird nur einmal angezeigt.</dd>
+</dl>
+
+<h2 id="updates">Updates</h2>
+<dl class="terms">
+  <dt>„Die Update-Prüfung ist fehlgeschlagen: Das Anfrage-Limit von GitHub ist erreicht.“</dt>
+  <dd>GitHub begrenzt die Anfragen pro Adresse. Versuche es später erneut.</dd>
+  <dt>Das Update wurde nicht installiert</dt>
+  <dd>Das Paket bleibt in <code>~/Downloads</code>, und das Fenster sagt, wie du es installierst. Siehe <a href="settings.html#update-window">Das Update-Fenster</a>.</dd>
+</dl>
+
+<h2 id="report">Ein Problem melden</h2>
+<div class="prose">
+<p>Eröffne ein Issue auf <a href="https://github.com/Srv-02/OpenLAMT/issues">GitHub</a>. Nenne dein System, die OpenLAMT-Version, die AMT-Version des Geräts und den genauen Wortlaut der Meldung. Lass Hostnamen, Adressen, Seriennummern und Passwörter weg: Issues sind öffentlich.</p>
+</div>
+<nav class="pager" aria-label="Seiten"><a href="settings.html" rel="prev"><small>Zurück</small>App-Einstellungen und Updates</a><a href="mcp.html" rel="next" style="text-align:right"><small>Weiter</small>MCP-Server</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

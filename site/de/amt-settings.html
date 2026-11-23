@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AMT-Einstellungen erklärt · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Was die Intel-AMT-Einstellungen bewirken und wann ein Administrator sie ändert.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/amt-settings.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/amt-settings.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/amt-settings.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../amt-settings.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="amt-settings.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html" aria-current="page">AMT-Einstellungen erklärt</a><ol class="toc"><li><a href="#basics">Wie Intel AMT funktioniert</a></li><li><a href="#control-mode">Steuerungsmodus: ACM und CCM</a></li><li><a href="#general">Hostname, Domäne und Ping</a></li><li><a href="#environment-detection">Umgebungserkennung</a></li><li><a href="#network">Netzwerkadresse und IP-Sync</a></li><li><a href="#redirection">Fernzugriff (Umleitung)</a></li><li><a href="#recovery-erase">One Click Recovery und Fernlöschung</a></li><li><a href="#user-consent">Benutzerzustimmung</a></li><li><a href="#clock">AMT-Uhr</a></li><li><a href="#tls">TLS</a></li><li><a href="#certificates">Zertifikate und vertrauenswürdige Stammzertifikate</a></li><li><a href="#realms">Konten und Realms</a></li><li><a href="#audit-policy">Audit-Richtlinie</a></li><li><a href="#event-forwarding">Ereignisweiterleitung</a></li><li><a href="#power-policy">Energierichtlinien</a></li><li><a href="#turn-off">AMT ausschalten</a></li></ol></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>AMT-Einstellungen erklärt</h1>
+<p class="lead">Diese Seite erklärt die Intel-AMT-Einstellungen, die OpenLAMT zeigt, so wie ein Administrator sie braucht: was jede bewirkt, wann du sie änderst und was schiefgehen kann.</p>
+
+<div class="note"><b>Bevor du etwas änderst</b>Die meisten Einstellungen auf dieser Seite entscheiden, ob du das Gerät noch über das Netzwerk erreichst. Ein falscher Wert erfordert oft einen Besuch am Gerät: Dann ist seine BIOS-Erweiterung (Intel MEBx) der einzige Weg zurück. OpenLAMT fragt vorher nach und nennt das Gerät, kann eine Änderung aber nicht für dich rückgängig machen.</div>
+
+<h2 id="basics">Wie Intel AMT funktioniert</h2>
+<div class="prose">
+<p>Intel AMT ist Teil der Intel Management Engine (ME), eines kleinen Computers im Chipsatz. Sie hat eigene Firmware, eine eigene Uhr und einen eigenen Netzwerk-Stack. Sie teilt sich die Netzwerkkarte mit dem Gerät, antwortet aber auf eigenen Ports. Deshalb funktioniert AMT auch, wenn das Betriebssystem aus ist, hängt oder noch nicht installiert ist.</p>
+<p>AMT muss aktiviert (provisioniert) sein, bevor jemand es über das Netzwerk nutzen kann. Die Aktivierung legt das Admin-Passwort, den Steuerungsmodus und meist TLS fest. Du aktivierst AMT in der BIOS-Erweiterung Intel MEBx (oft <kbd>Ctrl</kbd>+<kbd>P</kbd> beim Start) oder mit den Provisioning-Werkzeugen von Intel. OpenLAMT arbeitet mit Geräten, die bereits aktiviert sind.</p>
+</div>
+
+<h2 id="control-mode">Steuerungsmodus: ACM und CCM</h2>
+<div class="prose">
+<p>Der Steuerungsmodus wird bei der Aktivierung festgelegt. OpenLAMT zeigt ihn in der Statusleiste des Gerätefensters und auf der Seite „Hardware“.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th></th><th>Admin Control Mode (ACM)</th><th>Client Control Mode (CCM)</th></tr></thead>
+  <tbody>
+    <tr><td>Aktivierung</td><td>In MEBx am Gerät oder aus der Ferne mit einem Provisioning-Zertifikat</td><td>Aus dem Betriebssystem des Geräts, ohne Nachweis der Eigentümerschaft</td></tr>
+    <tr><td>Benutzerzustimmung</td><td>Wahlweise: Keine, Nur KVM oder Alle</td><td>Immer nötig für Fernbildschirm, Medien, Konsole und Boot-Änderungen</td></tr>
+    <tr><td>Typischer Einsatz</td><td>Server, Laborrechner, Geräte ohne Person davor</td><td>Desktops, an denen ein Benutzer jede Fernsitzung sehen und erlauben soll</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Manche Funktionen brauchen mehr Rechte, als CCM gewährt. Lehnt ein Gerät eine Änderung ab, prüfe zuerst seinen Steuerungsmodus.</p>
+</div>
+
+<h2 id="general">Hostname, Domäne und Ping</h2>
+<dl class="terms">
+  <dt>Hostname und Domäne</dt>
+  <dd>Der Name, den AMT für sich selbst verwendet, zum Beispiel <code>labserver</code> in <code>example.com</code>. Mit dynamischem DNS trägt AMT diesen Namen im DNS ein. Ändere ihn, wenn du das Gerät umbenennst. Risiko: Favoriten mit dem alten Namen funktionieren erst wieder, wenn du sie bearbeitest. Fragt <span class="lv or">orange</span>.</dd>
+  <dt>Auf Ping antworten</dt>
+  <dd>Lässt AMT auf einen ICMP-Ping antworten. Schalte es ein, um die Erreichbarkeit mit <code>ping</code> oder einem Monitoring-Werkzeug zu prüfen. Sonst ändert es nichts.</dd>
+  <dt>Dynamisches DNS</dt>
+  <dd>AMT trägt seinen Hostnamen selbst im DNS ein. Nutze es, wenn das Gerät seine Adresse per DHCP bekommt und dein DNS-Server dynamische Updates annimmt. Risiko: Das Gerät ist dann eventuell unter einem anderen Namen erreichbar als in deinen Favoriten, und Favoriten mit diesem Namen funktionieren erst wieder, wenn du sie bearbeitest. Fragt <span class="lv or">orange</span>.</dd>
+</dl>
+
+<h2 id="environment-detection">Umgebungserkennung</h2>
+<div class="prose">
+<p><span class="ui">Intranet-Domänen</span> sagen AMT, welche Netzwerke „innen“ sind. AMT vergleicht das DNS-Suffix, das es per DHCP bekommt, mit diesen Domänen. Passt keine, nimmt AMT an, dass es außerhalb deines Netzwerks ist, und schließt dort seinen Netzwerkzugang.</p>
+<p><b>Wann du es brauchst:</b> nur beim Fernzugriff von außen über einen Management-Server (CIRA). OpenLAMT nutzt kein CIRA. In einem Heim- oder Labornetz lässt du die Liste, wie sie ist.</p>
+<p><b>Was schiefgehen kann:</b> Ein falscher oder fehlender Eintrag kann dazu führen, dass AMT in deinem lokalen Netzwerk nicht mehr antwortet. Dann kann nur noch das BIOS (MEBx) am Gerät die Liste korrigieren. Fragt <span class="lv red">rot</span>.</p>
+</div>
+
+<h2 id="network">Netzwerkadresse und IP-Sync</h2>
+<div class="prose">
+<p>Am kabelgebundenen Port teilen sich AMT und das Betriebssystem die Netzwerkkarte. AMT braucht trotzdem eine eigene IPv4-Konfiguration.</p>
+</div>
+<dl class="terms">
+  <dt>DHCP</dt>
+  <dd>AMT fragt den DHCP-Server nach seiner Adresse, wie das Betriebssystem. Meist bekommen beide dieselbe Adresse. Das ist die einfachste Wahl.</dd>
+  <dt>Statisch</dt>
+  <dd>AMT nutzt die Adresse, Subnetzmaske, das Gateway und die DNS-Server, die du eingibst. Nutze es in Netzwerken ohne DHCP. OpenLAMT schaltet IP-Sync aus, wenn es eine statische Adresse setzt.</dd>
+  <dt>IP-Sync</dt>
+  <dd>Hat das Betriebssystem eine statische Adresse, kann AMT diese Adresse über den Intel-Management-Dienst (LMS) des Geräts übernehmen. AMT folgt dann dem Betriebssystem. OpenLAMT zeigt die Adresse, die es ausliest, und die Wahl <span class="ui">Statisch</span> ersetzt IP-Sync durch eine feste Adresse.</dd>
+</dl>
+<div class="prose">
+<p><b>Was schiefgehen kann:</b> Eine falsche Adresse, Maske oder ein falsches Gateway macht das Gerät unerreichbar. Nur das BIOS (MEBx) am Gerät kann das beheben. Fragt <span class="lv red">rot</span>. OpenLAMT ändert nur den kabelgebundenen Port. IPv6 wird nicht unterstützt.</p>
+</div>
+
+<h2 id="redirection">Fernzugriff (Umleitung)</h2>
+<div class="prose">
+<p>AMT „leitet“ den Bildschirm, ein Laufwerk und eine serielle Schnittstelle des Geräts zu deinem Computer „um“. Jede Funktion lässt sich einzeln schalten.</p>
+</div>
+<dl class="terms">
+  <dt>KVM</dt><dd>Tastatur, Bildschirm und Maus: der <a href="device-window.html#kvm">Fernbildschirm</a>.</dd>
+  <dt>Medienumleitung (IDE-R)</dt><dd>Ein virtuelles CD-Laufwerk für <a href="device-window.html#media">ISO-Abbilder und Ordner</a>.</dd>
+  <dt>Serial over LAN (SOL)</dt><dd>Eine virtuelle serielle Schnittstelle für die <a href="device-window.html#console">Textkonsole</a>.</dd>
+</dl>
+<div class="prose">
+<p>Das Einschalten einer Funktion fragt nichts. Das Ausschalten fragt <span class="lv or">orange</span>, weil offene Sitzungen dieser Art sofort enden. Du kannst die Funktion aus OpenLAMT wieder einschalten. Öffnest du Medien oder Konsole an einem Gerät, auf dem IDE-R oder SOL aus ist, bietet OpenLAMT an, es einzuschalten.</p>
+<p>Schalte aus, was du nicht nutzt. Jede Funktion ist ein weiterer Weg ins Gerät für alle mit einem gültigen AMT-Konto.</p>
+</div>
+
+<h2 id="recovery-erase">One Click Recovery und Fernlöschung</h2>
+<div class="prose">
+<p>Neuere Geräte (Intel AMT 16 und neuer) haben einen Boot-Dienst, der mehr kann, als ein Boot-Gerät zu wählen. Jede seiner zwei Funktionen hat einen Schalter unter <span class="ui">Fernzugriff</span> und muss zusätzlich im BIOS eingeschaltet sein. Das Ein- oder Ausschalten fragt nichts. Ist eine Funktion im BIOS aus, lehnt AMT den Schalter ab: „Schalte es zuerst im BIOS ein.“</p>
+</div>
+<dl class="terms">
+  <dt>One Click Recovery (HTTPS-Boot)</dt><dd>Lässt AMT das Gerät einmal von einem Abbild über HTTPS starten: von einer Datei auf deinem Computer oder von einer URL. Du startest es unter <a href="device-window.html#one-click-recovery">Boot-Optionen</a>. Das Gerät prüft den HTTPS-Server gegen seine vertrauenswürdigen Stammzertifikate.</dd>
+  <dt>Remote Platform Erase</dt><dd>Lässt AMT die Laufwerke beim nächsten Start vom BIOS löschen und wahlweise das TPM leeren, die BIOS-Einstellungen zurücksetzen und die AMT-Konfiguration entfernen. Du startest es mit <a href="management.html#erase">Laufwerke löschen</a>. Ältere Geräte bieten stattdessen Remote Secure Erase des Boot-Laufwerks, ohne Schalter.</dd>
+</dl>
+<div class="prose">
+<p><b>Was schiefgehen kann:</b> Solange One Click Recovery eingeschaltet ist, kann jeder mit einem Konto für das Ein- und Ausschalten das Gerät von einem Abbild seiner Wahl starten. Solange Remote Platform Erase eingeschaltet ist, kann jeder mit einem Konto, das Boot-Optionen setzen darf, das Gerät löschen. Schalte sie ein, wenn du sie brauchst, und danach wieder aus.</p>
+</div>
+
+<h2 id="user-consent">Benutzerzustimmung</h2>
+<div class="prose">
+<p>Mit der Benutzerzustimmung fragt AMT vor einer Fernsitzung eine Person am Gerät. AMT zeigt einen sechsstelligen Code auf dem Bildschirm des Geräts, über allem, was dort gerade läuft. Der entfernte Benutzer muss diesen Code eingeben. So ist belegt, dass jemand am Gerät zustimmt.</p>
+</div>
+<dl class="terms">
+  <dt>Keine</dt><dd>Keine Zustimmung. Fernsitzungen starten sofort.</dd>
+  <dt>Nur KVM</dt><dd>Zustimmung für den Fernbildschirm. Medien und Konsole starten ohne sie.</dd>
+  <dt>Alle</dt><dd>Zustimmung für jede Umleitungssitzung und für Boot-Änderungen: Neustart ins BIOS, Boot-Optionen, One Click Recovery und Laufwerke löschen fragen ebenfalls nach dem Code.</dd>
+</dl>
+<div class="prose">
+<p><b>Wann du es brauchst:</b> an Desktops, an denen eine Person arbeitet und jede Fernsitzung sehen soll. An einem Rechner im Serverraum kann niemand den Code ablesen, dort passt <span class="ui">Keine</span>.</p>
+<p>Im Client Control Mode verlangt das Gerät immer eine Zustimmung, und die Einstellung lässt sich nicht herabsetzen. Manche Geräte erlauben gar keine Änderung dieser Einstellung aus der Ferne; die Auswahl ist dann deaktiviert. Einfache Energieaktionen wie Einschalten oder Reset brauchen nie eine Zustimmung.</p>
+</div>
+
+<h2 id="clock">AMT-Uhr</h2>
+<div class="prose">
+<p>AMT hat eine eigene Uhr. Es nutzt sie für Protokolleinträge, Weckzeiten und die Gültigkeit von Zertifikaten. Eine Uhr, die stark abweicht, macht Protokollzeiten irreführend und kann TLS stören. Die Seite „Einstellungen“ zeigt, wie weit die AMT-Uhr deinem Computer voraus ist oder nachgeht. <span class="ui">Jetzt abgleichen</span> stellt sie auf die Zeit deines Computers. Das fragt nichts.</p>
+</div>
+
+<h2 id="tls">TLS</h2>
+<div class="prose">
+<p>Mit TLS verschlüsselt AMT den Verwaltungs- und Umleitungsverkehr (Ports 16993 und 16995). Ohne TLS gehen ein Digest des Passworts und jeder Tastendruck im Klartext über das Netzwerk. Nutze TLS überall, wo es geht.</p>
+<p>TLS wird bei der Aktivierung eingerichtet. Die Seite „Einstellungen“ zeigt den SHA-256-Fingerprint des Zertifikats, das AMT vorlegt. <span class="ui">Ändern…</span> listet die auf dem Gerät gespeicherten Zertifikate mit ihrem Ablaufdatum und lässt dich ein anderes wählen. AMT startet TLS dann damit neu, und OpenLAMT aktualisiert den Fingerprint, dem es für dieses Gerät vertraut. Fragt <span class="lv or">orange</span>, weil ein falsches Zertifikat die Verbindung für andere Werkzeuge stören kann.</p>
+<p>OpenLAMT pinnt das Zertifikat bei der ersten Verbindung. Siehe <a href="getting-started.html#tls">TLS und Zertifikats-Pinning</a>.</p>
+</div>
+
+<h2 id="certificates">Zertifikate und vertrauenswürdige Stammzertifikate</h2>
+<div class="prose">
+<p>Intel AMT führt einen eigenen Zertifikatsspeicher. Er enthält das TLS-Zertifikat mit seinem privaten Schlüssel, weitere Zertifikate und vertrauenswürdige Stammzertifikate: Zertifizierungsstellen, deren Servern das Gerät vertraut, zum Beispiel beim HTTPS-Boot. Die <a href="management.html#certificates">Seite „Zertifikate“</a> listet sie auf, importiert neue und löscht alte.</p>
+<ul>
+  <li><b>Dein eigenes TLS-Zertifikat:</b> Importiere es mit seinem privaten Schlüssel als <code>.p12</code>- oder <code>.pfx</code>-Datei und wähle es dann auf der Seite „Einstellungen“ unter <span class="ui">TLS-Zertifikat</span>. AMT akzeptiert nur RSA-Schlüssel.</li>
+  <li><b>HTTPS-Boot von deinem eigenen Server:</b> Importiere das Stammzertifikat des Server-Zertifikats als vertrauenswürdiges Stammzertifikat.</li>
+  <li><b>Abgelaufene Zertifikate</b> sind rot markiert. Das Gerät verweigert das Löschen des Zertifikats, das es für TLS nutzt; wähle zuerst ein anderes.</li>
+  <li>Der Speicher hat begrenzten Platz. Ein voller Speicher meldet „… hat keinen Platz für weitere Zertifikate.“ Lösche, was du nicht mehr brauchst.</li>
+</ul>
+</div>
+
+<h2 id="realms">Konten und Realms</h2>
+<div class="prose">
+<p>AMT regelt den Zugriff mit Realms: Gruppen von Funktionen, die ein Konto nutzen darf. OpenLAMT fasst sie zu sechs Berechtigungen zusammen. Eine Berechtigung gilt als erteilt, wenn das Konto alle ihre Realms hat. Realms außerhalb dieser Gruppen bleiben unverändert, wenn du ein Konto bearbeitest.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Berechtigung in OpenLAMT</th><th>AMT-Realms</th><th>Was sie erlaubt</th></tr></thead>
+  <tbody>
+    <tr><td class="ui">Ein- und Ausschalten</td><td>Remote Control</td><td>Energieaktionen und Boot-Optionen</td></tr>
+    <tr><td class="ui">KVM, Medien, Konsole</td><td>Redirection</td><td>Sitzungen für Fernbildschirm, IDE-R und SOL</td></tr>
+    <tr><td class="ui">Hardware</td><td>Hardware Asset</td><td>Die Seite „Hardware“</td></tr>
+    <tr><td class="ui">Ereignisprotokoll</td><td>Event Log Reader</td><td>Das Ereignisprotokoll lesen</td></tr>
+    <tr><td class="ui">Audit-Protokoll</td><td>Security Audit Log</td><td>Das Audit-Protokoll lesen und seine Einstellungen ändern</td></tr>
+    <tr><td class="ui">Einstellungen</td><td>PT Administration, General Info, Network Time</td><td>Die Seite „Einstellungen“</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p><span class="ui">Zugriff</span> legt fest, von wo sich ein Konto anmelden darf: <span class="ui">Netzwerk</span>, <span class="ui">Lokal</span> (Software auf dem Gerät) oder <span class="ui">Beides</span>.</p>
+<p>Gib jeder Person und jedem Werkzeug ein eigenes Konto mit nur den Berechtigungen, die es braucht. Ein Helpdesk-Konto mit <span class="ui">Ein- und Ausschalten</span> und <span class="ui">KVM, Medien, Konsole</span> kann Benutzern helfen, ohne AMT zu verändern. OpenLAMT arbeitet mit solchen Konten und zeigt, was sie nicht lesen dürfen; siehe <a href="confirmations.html#limited-accounts">Eingeschränkte Konten</a>.</p>
+</div>
+
+<h2 id="audit-policy">Audit-Richtlinie</h2>
+<div class="prose">
+<p>Das Audit-Protokoll beantwortet für AMT selbst die Frage „wer hat was, von wo und wann getan“. Die Audit-Richtlinie legt fest, welche Ereignisse AMT aufzeichnet und was passiert, wenn das Protokoll voll ist. OpenLAMT ordnet die Ereignisse in zwölf verständlich benannte Gruppen; du stellst sie in den <a href="management.html#audit-settings">Audit-Einstellungen</a> ein.</p>
+<ul>
+  <li>Lass die Aufzeichnung eingeschaltet. Solange sie aus ist, hinterlassen Änderungen am Gerät keine Spur.</li>
+  <li><b>Wenn das Protokoll voll ist:</b> Das Überschreiben der ältesten Einträge hält die Aufzeichnung am Laufen. Ein Mindestalter bewahrt Einträge zuerst eine Anzahl von Tagen auf. Das Anhalten der Aufzeichnung behält jeden Eintrag, aber solange das Protokoll voll ist, blockiert Intel AMT kritische Aktionen, bis jemand das Protokoll leert.</li>
+  <li>Das Leeren des Protokolls lässt sich nicht rückgängig machen. Das Protokoll enthält danach einen Eintrag, der das Leeren meldet, so bleibt das Leeren selbst sichtbar.</li>
+</ul>
+</div>
+
+<h2 id="event-forwarding">Ereignisweiterleitung</h2>
+<div class="prose">
+<p>Neben seinem eigenen Ereignisprotokoll kann Intel AMT Ereignisse sofort an einen Empfänger im Netzwerk senden, zum Beispiel an einen SIEM-Collector. Es nutzt dafür WS-Management-Ereignisse (WS-Eventing): AMT sendet je Ereignis eine HTTP-Anfrage, mit oder ohne Bestätigung durch den Empfänger, wahlweise mit Digest-Anmeldung. Syslog sendet AMT nicht.</p>
+<p>Du brauchst einen Empfänger, der WS-Management-Ereignisse annimmt. OpenLAMT richtet nur das Ziel auf dem Gerät ein; weitergeleitete Ereignisse empfängt oder zeigt es nicht. Ziele legst du mit <a href="management.html#forwarding">Weiterleitung…</a> im Ereignisprotokoll fest. AMT kann ein Ziel nicht ändern: Lösche es und füge ein neues hinzu.</p>
+</div>
+
+<h2 id="power-policy">Energierichtlinien</h2>
+<div class="prose">
+<p>Das Energiepaket legt fest, in welchen Energiezuständen des Geräts AMT eingeschaltet bleibt. Die Zustände haben Kurznamen:</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Zustand</th><th>Bedeutung</th></tr></thead>
+  <tbody>
+    <tr><td>S0</td><td>Das Gerät läuft.</td></tr>
+    <tr><td>S3</td><td>Energiesparmodus (Suspend to RAM).</td></tr>
+    <tr><td>S4</td><td>Ruhezustand (Suspend to Disk).</td></tr>
+    <tr><td>S5</td><td>Soft Off: ausgeschaltet, aber am Strom.</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Ein Paket mit einem Namen wie „Desktop: on in S0, ME wake in S3, S4-5“ hält AMT erreichbar, während das Gerät schläft oder aus ist. Nur dann kannst du das Gerät aus der Ferne einschalten. Ein Paket „on in S0“ spart etwas Strom, schaltet AMT aber mit dem Gerät aus. Dann kann es niemand über das Netzwerk einschalten, bis jemand es am Gerät einschaltet. OpenLAMT fragt deshalb vor einer solchen Änderung <span class="lv or">orange</span>.</p>
+<p>Die Namen und die Liste der Pakete kommen vom Gerät. Manche Geräte lehnen häufige Wechsel des Pakets ab, um ihren Flash-Speicher zu schonen: „Das Schreiblimit seines Flash-Speichers ist erreicht. Versuche es später erneut.“</p>
+<p>Der <span class="ui">Leerlauf-Timeout</span> legt fest, nach wie vielen Minuten ohne Anfragen die Management Engine in den Energiesparmodus geht. Bei der nächsten Anfrage wacht sie wieder auf. Erhöhe den Wert, wenn AMT abschaltet, bevor du fertig bist.</p>
+</div>
+
+<h2 id="turn-off">AMT ausschalten</h2>
+<div class="prose">
+<p><span class="ui">Ausschalten…</span> im <span class="ui">Gefahrenbereich</span> schaltet AMT im Netzwerk aus. Das Gerät antwortet dann sofort nicht mehr: kein Ein- und Ausschalten, kein KVM und keine Medien, weder aus OpenLAMT noch aus einem anderen Werkzeug. <b>Das lässt sich aus der Ferne nicht rückgängig machen.</b> Nur das BIOS (MEBx) am Gerät kann AMT wieder einschalten. Fragt <span class="lv red">rot</span>.</p>
+<p>Nutze es, wenn du ein Gerät außer Betrieb nimmst, es jemand anderem übergibst oder sicher sein willst, dass niemand es über das Netzwerk verwaltet.</p>
+</div>
+<nav class="pager" aria-label="Seiten"><a href="management.html" rel="prev"><small>Zurück</small>Geräteverwaltung</a><a href="confirmations.html" rel="next" style="text-align:right"><small>Weiter</small>Bestätigungen und Berechtigungen</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

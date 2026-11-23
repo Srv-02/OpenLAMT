@@ -1,6 +1,7 @@
 package sitecheck
 
 import (
+	"maps"
 	"net/netip"
 	"net/url"
 	"os"
@@ -157,6 +158,9 @@ func TestNoThirdPartyResources(t *testing.T) {
 		switch {
 		case strings.HasSuffix(name, ".html"):
 			for _, tag := range tagRe.FindAllString(c, -1) {
+				if alternateRe.MatchString(tag) {
+					continue // the page's own language versions, checked by TestLanguageVersions
+				}
 				for _, g := range attrRe.FindAllStringSubmatch(tag, -1) {
 					if isRemote(g[2]) {
 						t.Errorf("%s: %s loads %q from another host", name, tag, g[2])
@@ -199,10 +203,15 @@ func TestPagesHaveTheBasics(t *testing.T) {
 	files := site(t)
 	for _, page := range pages(files) {
 		c := files[page]
+		lang, _ := splitLang(page)
+		assets := "assets/"
+		if lang != "en" {
+			assets = "../assets/"
+		}
 		for _, want := range []string{
-			"<!doctype html>", `<html lang="en">`, `<meta charset="utf-8">`,
+			"<!doctype html>", `<html lang="` + lang + `">`, `<meta charset="utf-8">`,
 			`<meta name="viewport" content="width=device-width, initial-scale=1">`,
-			`<link rel="stylesheet" href="assets/guide.css">`, `<main id="main">`,
+			`<link rel="stylesheet" href="` + assets + `guide.css">`, `<main id="main">`,
 		} {
 			if !strings.Contains(c, want) {
 				t.Errorf("%s: missing %s", page, want)
@@ -252,13 +261,19 @@ var (
 )
 
 // TestSideNavListsEveryPage keeps the guide's side navigation the same on every page: it lists
-// every page in one order, marks the page itself as current, and its table of contents names
-// every section (h2) of that page.
+// every page of its language in one order (the same in every language), marks the page itself
+// as current, and its table of contents names every section (h2) of that page.
 func TestSideNavListsEveryPage(t *testing.T) {
 	files := site(t)
-	all := pages(files)
-	var want []string
-	for _, page := range all {
+	var want []string // the same order in every language
+	for _, page := range pages(files) {
+		lang, name := splitLang(page)
+		var all []string
+		for _, p := range pages(files) {
+			if l, n := splitLang(p); l == lang {
+				all = append(all, n)
+			}
+		}
 		nav := sideNavRe.FindStringSubmatch(files[page])
 		if nav == nil {
 			t.Errorf("%s: no <nav class=\"side\">", page)
@@ -275,7 +290,7 @@ func TestSideNavListsEveryPage(t *testing.T) {
 				current = g[1]
 			}
 		}
-		if current != page {
+		if current != name {
 			t.Errorf("%s: the side navigation marks %q as current", page, current)
 		}
 		if want == nil {
@@ -300,6 +315,164 @@ func TestSideNavListsEveryPage(t *testing.T) {
 		}
 		if !slices.Equal(toc, sections) {
 			t.Errorf("%s: the table of contents lists %v, the sections are %v", page, toc, sections)
+		}
+	}
+}
+
+// siteURL is where GitHub Pages serves the guide; the hreflang alternates name it in full.
+const siteURL = "https://srv-02.github.io/OpenLAMT/"
+
+// languages are the guide's languages: English at the top, every other one in its own folder
+// with the same file names.
+var languages = []string{"en", "de"}
+
+var (
+	alternateRe = regexp.MustCompile(`^<link rel="alternate" hreflang="[a-z-]+" href="` + regexp.QuoteMeta(siteURL) + `[^"]*">$`)
+	hreflangRe  = regexp.MustCompile(`<link rel="alternate" hreflang="([a-z-]+)" href="([^"]*)">`)
+	langNavRe   = regexp.MustCompile(`(?s)<nav class="lang" aria-label="[^"]+">(.*?)</nav>`)
+	langLinkRe  = regexp.MustCompile(`<a href="([^"]+)" hreflang="([a-z]+)" lang="([a-z]+)"( aria-current="page")?>([A-Z]+)</a>`)
+)
+
+// splitLang returns the language of a page and its name within that language.
+func splitLang(page string) (lang, name string) {
+	if l, n, ok := strings.Cut(page, "/"); ok {
+		return l, n
+	}
+	return "en", page
+}
+
+// pagePath is the path of page name in lang, relative to the site.
+func pagePath(lang, name string) string {
+	if lang == "en" {
+		return name
+	}
+	return lang + "/" + name
+}
+
+// pageURL is the published address of page name in lang; index.html is its folder.
+func pageURL(lang, name string) string {
+	p := pagePath(lang, name)
+	if name == "index.html" {
+		p = strings.TrimSuffix(p, "index.html")
+	}
+	return siteURL + p
+}
+
+// TestLanguageVersions keeps the languages in step: every page exists in every language, its
+// language switch leads to the same page in each language and marks its own, its hreflang
+// alternates name every version, and both versions have the same ids, so a link to a section
+// works in each language.
+func TestLanguageVersions(t *testing.T) {
+	files := site(t)
+	byLang := map[string][]string{}
+	for _, page := range pages(files) {
+		lang, name := splitLang(page)
+		if !slices.Contains(languages, lang) || strings.Contains(name, "/") {
+			t.Errorf("%s: pages live at the top (English) or in one of the folders %v", page, languages[1:])
+			continue
+		}
+		byLang[lang] = append(byLang[lang], name)
+	}
+	for _, lang := range languages[1:] {
+		if !slices.Equal(byLang[lang], byLang["en"]) {
+			t.Errorf("the %s pages %v differ from the English pages %v", lang, byLang[lang], byLang["en"])
+		}
+	}
+	for _, page := range pages(files) {
+		lang, name := splitLang(page)
+		c := files[page]
+
+		nav := langNavRe.FindStringSubmatch(c)
+		if nav == nil {
+			t.Errorf("%s: no language switch (<nav class=\"lang\">) in the header", page)
+		} else {
+			links := langLinkRe.FindAllStringSubmatch(nav[1], -1)
+			var got []string
+			for _, l := range links {
+				href, hreflang, attrLang, current, label := l[1], l[2], l[3], l[4] != "", l[5]
+				got = append(got, hreflang)
+				if attrLang != hreflang || label != strings.ToUpper(hreflang) {
+					t.Errorf("%s: language link %q is labelled %s (lang %s, hreflang %s)", page, href, label, attrLang, hreflang)
+				}
+				if target := path.Clean(path.Join(path.Dir(page), href)); target != pagePath(hreflang, name) {
+					t.Errorf("%s: the %s link points to %s, wants %s", page, label, target, pagePath(hreflang, name))
+				}
+				if current != (hreflang == lang) {
+					t.Errorf("%s: the %s link has aria-current=%v", page, label, current)
+				}
+			}
+			if !slices.Equal(got, languages) {
+				t.Errorf("%s: the language switch offers %v, wants %v", page, got, languages)
+			}
+		}
+
+		want := map[string]string{"x-default": pageURL("en", name)}
+		for _, l := range languages {
+			want[l] = pageURL(l, name)
+		}
+		got := map[string]string{}
+		for _, g := range hreflangRe.FindAllStringSubmatch(c, -1) {
+			got[g[1]] = g[2]
+		}
+		if !maps.Equal(got, want) {
+			t.Errorf("%s: hreflang alternates are %v, want %v", page, got, want)
+		}
+
+		if lang != "en" {
+			en, de := ids(files[name]), ids(c)
+			if !maps.Equal(en, de) {
+				var missing, extra []string
+				for id := range en {
+					if !de[id] {
+						missing = append(missing, id)
+					}
+				}
+				for id := range de {
+					if !en[id] {
+						extra = append(extra, id)
+					}
+				}
+				slices.Sort(missing)
+				slices.Sort(extra)
+				t.Errorf("%s: ids differ from %s: missing %v, extra %v", page, name, missing, extra)
+			}
+		}
+	}
+}
+
+// supportURL and issuesURL are the support and bug report links; supportURL is the app's own
+// (internal/ui/about.go).
+const (
+	supportURL = "https://buymeacoffee.com/michaelmayer"
+	issuesURL  = "https://github.com/Srv-02/OpenLAMT/issues"
+)
+
+// TestAboutPage checks that every page links the About page from its side navigation and that
+// the About page in each language has the support, bug report and license links.
+func TestAboutPage(t *testing.T) {
+	files := site(t)
+	for _, page := range pages(files) {
+		nav := sideNavRe.FindStringSubmatch(files[page])
+		if nav == nil || !strings.Contains(nav[1], `<li><a href="about.html"`) {
+			t.Errorf("%s: the side navigation does not link about.html", page)
+		}
+	}
+	for _, lang := range languages {
+		page := pagePath(lang, "about.html")
+		c, ok := files[page]
+		if !ok {
+			t.Errorf("%s is missing", page)
+			continue
+		}
+		for _, want := range []string{
+			`href="` + supportURL + `"`, `href="` + issuesURL + `"`,
+			`href="https://github.com/Srv-02/OpenLAMT/blob/main/LICENSE"`,
+			`href="https://github.com/Srv-02/OpenLAMT/blob/main/NOTICE"`,
+			"Intel Corporation", "Apache License 2.0",
+		} {
+			if !strings.Contains(c, want) {
+				t.Errorf("%s: missing %s", page, want)
+			}
 		}
 	}
 }

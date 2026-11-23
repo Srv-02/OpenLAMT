@@ -36,8 +36,11 @@ const (
 
 // EnableIDER makes the redirection listener available and switches IDE-R on, keeping SOL as it is.
 // It writes only when needed.
-func (d *Device) EnableIDER() error {
-	cur, err := d.ensureListener()
+func (d *Device) EnableIDER() error { return d.enableIDER(context.Background()) }
+
+// enableIDER is EnableIDER; a cancelled ctx stops it before each write (issue #160).
+func (d *Device) enableIDER(ctx context.Context) error {
+	cur, err := d.ensureListener(ctx)
 	if err != nil {
 		return err
 	}
@@ -55,14 +58,17 @@ func (d *Device) EnableIDER() error {
 	if d.cfg.NeverEnable {
 		return &RedirectionOffError{Feature: "IDE-R"}
 	}
-	return d.requestRedirectionState("enable ider", want, func(rv int) error {
+	return d.requestRedirectionState(ctx, "enable ider", want, func(rv int) error {
 		return &IDERError{Step: "RedirectionService.RequestStateChange", ReturnValue: rv}
 	})
 }
 
 // requestRedirectionState sends AMT_RedirectionService.RequestStateChange(want). A ReturnValue
-// != 0 becomes rvErr(rv); op prefixes the other errors.
-func (d *Device) requestRedirectionState(op string, want redirection.RequestedState, rvErr func(rv int) error) error {
+// != 0 becomes rvErr(rv); op prefixes the other errors. A cancelled ctx sends nothing.
+func (d *Device) requestRedirectionState(ctx context.Context, op string, want redirection.RequestedState, rvErr func(rv int) error) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	resp, err := d.msgs.AMT.RedirectionService.RequestStateChange(want)
 	// The library returns its own err for ReturnValue != 0; read the output first to keep the value.
 	if resp.Message != nil && strings.Contains(resp.XMLOutput, "RequestStateChange_OUTPUT") {
@@ -111,7 +117,7 @@ func (d *Device) OpenIDER(ctx context.Context, img ider.Image, start ider.StartM
 	if err := d.iderSupported(); err != nil {
 		return nil, err
 	}
-	if err := d.EnableIDER(); err != nil {
+	if err := d.enableIDER(ctx); err != nil {
 		return nil, err
 	}
 	if err := d.userConsent(ctx, prompt, true); err != nil {

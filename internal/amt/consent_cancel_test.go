@@ -87,6 +87,58 @@ func TestOpen_CancelDuringEnableSendsNoStartOptIn(t *testing.T) {
 	}
 }
 
+// Issue #160: a cancel while the enable step reads sends none of its writes, neither the
+// listener Put nor the RequestStateChange that switches the feature on.
+func TestOpen_CancelDuringEnableSendsNoEnableWrite(t *testing.T) {
+	writes := []string{"Put|AMT_RedirectionService", "RequestStateChange|AMT_RedirectionService",
+		"RequestStateChange|CIM_KVMRedirectionSAP", "StartOptIn|IPS_OptInService"}
+	steps := []struct {
+		name   string
+		routes func(c openCase, r map[string]string) // listener or feature off
+		cancel func(c openCase) string               // the read during which the cancel arrives
+	}{
+		{"listener off", func(_ openCase, r map[string]string) {
+			r["Get|AMT_RedirectionService"] = "redirection_get_nolistener.xml"
+		}, func(openCase) string { return "Get|AMT_RedirectionService" }},
+		{"feature off", func(c openCase, r map[string]string) {
+			if c.name == "kvm" {
+				r["Get|CIM_KVMRedirectionSAP"] = "kvm_get_disabled.xml"
+			} else {
+				r["Get|AMT_RedirectionService"] = "redirection_get_32768.xml"
+			}
+		}, func(c openCase) string { return c.enableKey }},
+	}
+	for _, c := range openCases() {
+		for _, st := range steps {
+			t.Run(c.name+"/"+st.name, func(t *testing.T) {
+				f, d := consentFake(t, c)
+				f.routes["Put|AMT_RedirectionService"] = "redirection_put.xml"
+				f.routes["RequestStateChange|AMT_RedirectionService"] = "kvm_requeststatechange.xml"
+				f.routes["RequestStateChange|CIM_KVMRedirectionSAP"] = "kvm_requeststatechange.xml"
+				st.routes(c, f.routes)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				at := st.cancel(c)
+				f.onPost = func(key string) {
+					if key == at {
+						cancel()
+					}
+				}
+				err := c.open(ctx, d, failPrompt(t))
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("err = %v", err)
+				}
+				keys := routeKeys(f)
+				for _, w := range writes {
+					if slices.Contains(keys, w) {
+						t.Fatalf("requests %v", keys)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestOpen_CancelAfterStartOptInSendsCancelOptIn(t *testing.T) {
 	for _, c := range openCases() {
 		t.Run(c.name, func(t *testing.T) {

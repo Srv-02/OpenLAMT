@@ -53,7 +53,8 @@ func (e *RedirectionOffError) Error() string {
 }
 
 // ensureListener reads AMT_RedirectionService and enables the redirection listener when needed.
-func (d *Device) ensureListener() (redirection.RedirectionResponse, error) {
+// A cancelled ctx stops it before the Put.
+func (d *Device) ensureListener(ctx context.Context) (redirection.RedirectionResponse, error) {
 	rs, err := d.msgs.AMT.RedirectionService.Get()
 	if err != nil {
 		return redirection.RedirectionResponse{}, fmt.Errorf("get redirection service: %w", err)
@@ -65,6 +66,9 @@ func (d *Device) ensureListener() (redirection.RedirectionResponse, error) {
 	if !cur.ListenerEnabled {
 		if d.cfg.NeverEnable {
 			return cur, &RedirectionOffError{Feature: "redirection"}
+		}
+		if err := ctx.Err(); err != nil {
+			return cur, err
 		}
 		_, err := d.msgs.AMT.RedirectionService.Put(&redirection.RedirectionRequest{
 			H:                       redirectionServiceNS,
@@ -84,8 +88,11 @@ func (d *Device) ensureListener() (redirection.RedirectionResponse, error) {
 }
 
 // EnableKVM makes the redirection listener and the KVM SAP available, writing only when needed.
-func (d *Device) EnableKVM() error {
-	if _, err := d.ensureListener(); err != nil {
+func (d *Device) EnableKVM() error { return d.enableKVM(context.Background()) }
+
+// enableKVM is EnableKVM; a cancelled ctx stops it before each write (issue #160).
+func (d *Device) enableKVM(ctx context.Context) error {
+	if _, err := d.ensureListener(ctx); err != nil {
 		return err
 	}
 
@@ -102,6 +109,9 @@ func (d *Device) EnableKVM() error {
 	}
 	if d.cfg.NeverEnable {
 		return &RedirectionOffError{Feature: "KVM"}
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	resp, err := d.msgs.CIM.KVMRedirectionSAP.RequestStateChange(cimkvm.RedirectionSAPEnable)
 	if err != nil {
@@ -208,7 +218,7 @@ func parseConsentCode(s string) (int, error) {
 // OpenKVM runs EnableKVM, UserConsent and kvm.Dial on RedirectionAddress with the pinned TLS config
 // and the AMT version of the last Status (session.Open reads it before any KVM connect).
 func (d *Device) OpenKVM(ctx context.Context, quality kvm.Quality, prompt ConsentPrompt) (*kvm.Client, error) {
-	if err := d.EnableKVM(); err != nil {
+	if err := d.enableKVM(ctx); err != nil {
 		return nil, err
 	}
 	if err := d.userConsent(ctx, prompt, false); err != nil {

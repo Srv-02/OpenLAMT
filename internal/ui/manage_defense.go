@@ -241,6 +241,9 @@ func (p *defensePane) render() {
 
 	err := d.sd.err
 	if err == nil {
+		err = sd.LinkError() // a failed switch left more than one link (issue #167)
+	}
+	if err == nil {
 		err = d.wd.err
 	}
 	p.err.set(err)
@@ -266,8 +269,13 @@ func (p *defensePane) activeText() string {
 	return "· " + lang.L("Active policy: {{.Policy}}", map[string]any{"Policy": activeName(d.sd.val)})
 }
 
-// activeName is the name of the active policy or "None".
+// activeName is the name of the active policy or "None"; with more than one linked policy
+// their names (the page names the problem above the lists).
 func activeName(sd amt.SystemDefense) string {
+	var links *amt.DefenseLinksError
+	if errors.As(sd.LinkError(), &links) {
+		return strings.Join(links.Policies, ", ")
+	}
 	if pol, ok := sd.Policy(sd.Active); ok && sd.Active != "" {
 		return pol.Name
 	}

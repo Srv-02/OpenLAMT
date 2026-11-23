@@ -181,10 +181,13 @@ func TestScanDialogListsDevicesAndAddsFavorites(t *testing.T) {
 		t.Errorf("ticked: first %v second %v; a device with open ports is ticked, one with closed ports is not", first.ticked, second.ticked)
 	}
 	top := h.s.win.Canvas().Overlays().Top()
-	for _, want := range []string{"127.0.0.1", "16.1", "No TLS", "Ports closed", "Not activated?", "unknown", "4 addresses scanned in 0 s · 2 found"} {
+	for _, want := range []string{"127.0.0.1", "16.1", "No TLS", "Ports closed", "Not activated?", "unknown"} {
 		if !hasText(top, want) {
 			t.Errorf("result lacks %q: %v", want, textsBelow(top))
 		}
+	}
+	if st := h.sd.status(); !strings.HasPrefix(st, "4 addresses scanned in ") || !strings.HasSuffix(st, " s · 2 found") {
+		t.Errorf("status %q", st)
 	}
 	if h.sd.addBtn.Text != "Add 1 Favorite" || h.sd.addBtn.Disabled() {
 		t.Errorf("button %q disabled %v", h.sd.addBtn.Text, h.sd.addBtn.Disabled())

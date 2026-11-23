@@ -62,11 +62,7 @@ func (s *server) lookup(name string) (favorites.Favorite, error) {
 
 // password finds the password of fav (see passwords.lookup); not found is a refusal.
 func (s *server) password(ctx context.Context, fav favorites.Favorite) (string, error) {
-	all, err := s.favs.List()
-	if err != nil {
-		return "", fmt.Errorf("read the OpenLAMT favorites: %w", err)
-	}
-	pw, _, err := s.pws.lookup(ctx, fav, all)
+	pw, _, err := s.pws.lookup(ctx, fav)
 	var nf *passwordNotFoundError
 	if errors.As(err, &nf) {
 		return "", &refusal{msg: nf.Error()}

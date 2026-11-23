@@ -318,7 +318,7 @@ func TestUpdateFavoriteAlwaysAsks(t *testing.T) {
 		t.Fatalf("%v", out)
 	}
 	if len(asked) != 1 || !strings.Contains(asked[0], "host: lab.example.com → lab2.example.com") ||
-		!strings.Contains(asked[0], "deletes the saved password and the trusted certificate") {
+		!strings.Contains(asked[0], "stay with the old host") {
 		t.Fatalf("asked %q", asked)
 	}
 	for _, host := range []string{"lab.example.com", "lab2.example.com"} {
@@ -453,5 +453,51 @@ func TestCommandLineQuotesOrOmitsName(t *testing.T) {
 		if got := commandLine("trust", name); got != want {
 			t.Errorf("%q: %s", name, got)
 		}
+	}
+}
+
+// TestUpdateHostNeverCarriesThePassword: after update_favorite points a favorite at another
+// host, no source hands out the old host's password: the keychain entry is gone,
+// passwords.command is asked for the new host, and the environment variable is the new host's.
+func TestUpdateHostNeverCarriesThePassword(t *testing.T) {
+	accept := func(*mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
+	t.Setenv(PasswordEnvVar("192.0.2.10"), "env-old-host")
+
+	// Keychain and command: the command gets the new host and returns its own password.
+	h := newFavHarness(t)
+	h.saved("NUC", "192.0.2.10", false)
+	h.cfg.Passwords = PasswordConfig{Command: helperCommand(t, "print", "{host}"), AllowPlaintext: true, EnvFile: filepath.Join(t.TempDir(), EnvFileName)}
+	var asked []string
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return accept(r)
+	}
+	h.start()
+	h.mustOK("update_favorite", dev("NUC", "host", "192.0.2.11"))
+	if len(asked) != 1 || !strings.Contains(asked[0], "stay with the old host") || !strings.Contains(asked[0], "openlamt-mcp password NUC") {
+		t.Fatalf("asked %q", asked)
+	}
+	h.mustFail("device_status", dev("NUC"), "no route to host") // no fake device at the new host: the attempt is recorded
+	c := h.connectCalls()
+	if len(c) != 1 || c[0].Host != "192.0.2.11" || c[0].Password != "pw-for-192.0.2.11" {
+		t.Fatalf("connect %+v", c)
+	}
+
+	// Keychain and environment only: the old host's variable is not the new host's.
+	h2 := newFavHarness(t)
+	h2.saved("NUC", "192.0.2.10", false)
+	h2.cfg.Passwords = PasswordConfig{AllowPlaintext: true, EnvFile: filepath.Join(t.TempDir(), EnvFileName)}
+	h2.elicit = accept
+	h2.start()
+	h2.mustOK("update_favorite", dev("NUC", "host", "192.0.2.11"))
+	h2.mustFail("device_status", dev("NUC"), `No password found for "NUC"`)
+	if n := len(h2.connectCalls()); n != 0 {
+		t.Fatalf("connected %d times", n)
+	}
+	d := h2.mustOK("list_devices", nil)["devices"].([]any)[0].(map[string]any)
+	if d["password_found"] != false || d["password_variable"] != PasswordEnvVar("192.0.2.11") {
+		t.Fatalf("%v", d)
 	}
 }

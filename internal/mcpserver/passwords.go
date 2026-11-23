@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -26,8 +27,7 @@ const (
 )
 
 // PasswordEnvPrefix starts the environment variables (and .env entries) that hold a device
-// password: PasswordEnvPrefix + the host in capitals, with every character but A-Z and 0-9
-// replaced by "_" (see PasswordEnvVar).
+// password: PasswordEnvPrefix + the encoded host (see PasswordEnvVar).
 const PasswordEnvPrefix = "OPENLAMT_PASSWORD_"
 
 // passwordCommandTimeout bounds one run of passwords.command (a variable for the tests).
@@ -42,17 +42,22 @@ const PlaintextWarning = "Warning: allow_plaintext_passwords is on in the openla
 	"environment variables or a .env file in plain text; any program that can read them can read the passwords. " +
 	"Use the system keychain or passwords.command instead."
 
-// PasswordEnvVar is the environment variable (and .env key) of the password of host: the host in
-// capitals with every other character than A-Z and 0-9 replaced by "_", after PasswordEnvPrefix.
-// Keyed by the host, not the favorite name, so a password reaches only the host it was set for.
+// PasswordEnvVar is the environment variable (and .env key) of the password of host, after
+// PasswordEnvPrefix: each lower-case letter a-z and digit of the host as an upper-case letter or
+// digit, every other byte as "_" and its two upper-case hex digits ("." is "_2E", "-" is "_2D").
+// The encoding is injective, so no two hosts share a variable, and it is keyed by the host, not
+// the favorite name, so a password reaches only the host it was set for.
 func PasswordEnvVar(host string) string {
 	var b strings.Builder
 	b.WriteString(PasswordEnvPrefix)
-	for _, r := range strings.ToUpper(strings.TrimSpace(host)) {
-		if r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' {
-			b.WriteRune(r)
-		} else {
-			b.WriteByte('_')
+	for _, c := range []byte(host) {
+		switch {
+		case c >= 'a' && c <= 'z':
+			b.WriteByte(c - 'a' + 'A')
+		case c >= '0' && c <= '9':
+			b.WriteByte(c)
+		default:
+			fmt.Fprintf(&b, "_%02X", c)
 		}
 	}
 	return b.String()
@@ -154,10 +159,11 @@ func (e *passwordNotFoundError) Error() string {
 		"The MCP server never takes a password from the agent."
 }
 
-// lookup returns the password of fav and its source. all is every favorite, for the check that
-// no other host shares the environment variable of fav. Only *passwordNotFoundError and
-// context errors are returned.
-func (p *passwords) lookup(ctx context.Context, fav favorites.Favorite, all []favorites.Favorite) (pw, source string, err error) {
+// lookup returns the password of fav and its source. Every source is bound to the host of fav
+// (keychain: host and user; passwords.command: {host} is required; environment: the host is the
+// variable name), so a favorite pointed at another host never gets this host's password. Only
+// *passwordNotFoundError and context errors are returned.
+func (p *passwords) lookup(ctx context.Context, fav favorites.Favorite) (pw, source string, err error) {
 	nf := &passwordNotFoundError{name: fav.DisplayName()}
 	pw, err = p.keys.Get(fav.Host, fav.Username)
 	switch {
@@ -178,7 +184,7 @@ func (p *passwords) lookup(ctx context.Context, fav favorites.Favorite, all []fa
 		}
 	}
 	if p.cfg.AllowPlaintext {
-		pw, err := p.fromEnvironment(fav, all)
+		pw, err := p.fromEnvironment(fav)
 		if err != nil {
 			nf.reasons = append(nf.reasons, err.Error())
 		} else if pw != "" {
@@ -206,9 +212,21 @@ func unsafePlaceholderValue(v string) string {
 	return ""
 }
 
+// errCommandWithoutHost: passwords.command has no {host}, so its password would not be bound to
+// the host it goes to (Load refuses such a config; this is the second line of defense).
+var errCommandWithoutHost = errors.New("passwords.command was not run: it must contain {host}, so a password is bound to its host.")
+
+// commandHasHost reports whether an argument of the command holds {host}.
+func commandHasHost(argv []string) bool {
+	return slices.ContainsFunc(argv, func(a string) bool { return strings.Contains(a, "{host}") })
+}
+
 // commandArgs is passwords.command with the placeholders of fav filled in, one argument at a
 // time; no shell is involved.
 func (p *passwords) commandArgs(fav favorites.Favorite) ([]string, error) {
+	if !commandHasHost(p.cfg.Command) {
+		return nil, errCommandWithoutHost
+	}
 	values := map[string]string{"{name}": fav.DisplayName(), "{host}": fav.Host, "{user}": fav.Username}
 	argv := make([]string, len(p.cfg.Command))
 	for i, a := range p.cfg.Command {
@@ -288,15 +306,9 @@ func runPasswordCommand(ctx context.Context, argv []string) ([]byte, error) {
 }
 
 // fromEnvironment reads the password of fav from its environment variable, else from the .env
-// file. Another favorite on a different host that maps to the same variable makes it ambiguous:
-// then nothing is returned, so a password never goes to the wrong host.
-func (p *passwords) fromEnvironment(fav favorites.Favorite, all []favorites.Favorite) (string, error) {
+// file.
+func (p *passwords) fromEnvironment(fav favorites.Favorite) (string, error) {
 	name := PasswordEnvVar(fav.Host)
-	for _, f := range all {
-		if f.Host != fav.Host && PasswordEnvVar(f.Host) == name {
-			return "", fmt.Errorf("The environment variable %s is not used: the favorites of %q and %q both map to it.", name, fav.Host, f.Host)
-		}
-	}
 	if v, ok := p.getenv(name); ok && v != "" {
 		return v, nil
 	}

@@ -48,7 +48,8 @@ func (s *server) registerFavorites(srv *mcp.Server) {
 	destructive := &mcp.ToolAnnotations{DestructiveHint: boolPtr(true), OpenWorldHint: boolPtr(false)}
 	addTool(s, srv, &mcp.Tool{Name: "update_favorite", Annotations: destructive,
 		Description: "Change the name, host, user name or TLS of a favorite. Always asks the person in the MCP client first. " +
-			"A new host or user name deletes the saved password and the trusted certificate of the favorite, as in the app."},
+			"A new host or user name deletes the saved password and the trusted certificate of the favorite, as in the app: " +
+			"a person provides the password of the new host separately."},
 		s.updateFavorite)
 	addTool(s, srv, &mcp.Tool{Name: "delete_favorite", Annotations: destructive,
 		Description: "Delete a favorite together with its password in the system keychain and its trusted certificate. " +
@@ -196,8 +197,7 @@ func (s *server) describe(ctx context.Context, fav favorites.Favorite, fp string
 	if fp != "" {
 		out.Fingerprint = amt.FormatFingerprint(fp)
 	}
-	all, _ := s.favs.List()
-	if _, _, err := s.pws.lookup(ctx, fav, all); err == nil {
+	if _, _, err := s.pws.lookup(ctx, fav); err == nil {
 		out.PasswordFound = true
 	} else {
 		out.NextSteps = append(out.NextSteps, s.passwordHint(name))
@@ -536,7 +536,9 @@ func (s *server) updateFavorite(ctx context.Context, req *mcp.CallToolRequest, i
 	}
 	msg := fmt.Sprintf("The AI agent changes the OpenLAMT favorite %q (also in the app):\n%s", visible(fav.DisplayName()), strings.Join(changes, "\n"))
 	if moved {
-		msg += "\n\nA new host or user name deletes the saved password and the trusted certificate of the favorite."
+		msg += "\n\nSaved passwords and the trusted certificate stay with the old host and user: they are deleted from the keychain " +
+			"and never go to the new host. A person provides the password for the new host separately (" + commandLine("password", next.DisplayName()) +
+			" in a terminal, or the password manager entry for the new host), and trusts its certificate again."
 	}
 	if fav.UseTLS && !next.UseTLS {
 		msg += "\n\n" + noTLSWarning

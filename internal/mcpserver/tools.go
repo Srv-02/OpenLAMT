@@ -34,6 +34,7 @@ type deviceInfo struct {
 	PasswordStored    bool     `json:"password_stored" jsonschema:"a password is in the system keychain"`
 	PasswordFound     bool     `json:"password_found" jsonschema:"the server finds a password for the device (keychain, password command or, if allowed, environment); without one the device cannot be used"`
 	PasswordSource    string   `json:"password_source,omitempty" jsonschema:"where the password comes from: keychain, command or environment"`
+	PasswordVariable  string   `json:"password_variable,omitempty" jsonschema:"with allow_plaintext_passwords: the environment variable or .env key that holds the password of this host"`
 	Warnings          []string `json:"warnings,omitempty"`
 }
 
@@ -57,11 +58,14 @@ func (s *server) listDevices(ctx context.Context, _ *mcp.CallToolRequest, _ stru
 			continue
 		}
 		d := deviceInfo{Name: name, Host: f.Host, Username: f.Username, TLS: f.UseTLS}
-		_, source, err := s.pws.lookup(ctx, f, list)
+		_, source, err := s.pws.lookup(ctx, f)
 		if ctx.Err() != nil {
 			return nil, listDevicesOutput{}, ctx.Err()
 		}
 		d.PasswordFound, d.PasswordSource, d.PasswordStored = err == nil, source, source == sourceKeychain
+		if s.cfg.Passwords.AllowPlaintext {
+			d.PasswordVariable = PasswordEnvVar(f.Host)
+		}
 		var keyErr error
 		var nf *passwordNotFoundError
 		if errors.As(err, &nf) {

@@ -59,7 +59,7 @@ func TestPasswordSourcesOrderAndOptIn(t *testing.T) {
 	ctx := context.Background()
 	keys := keychain.NewMemory()
 	envFile := filepath.Join(t.TempDir(), EnvFileName)
-	if err := os.WriteFile(envFile, []byte("# lab\nexport OPENLAMT_PASSWORD_LAB_EXAMPLE_COM='from-file'\nOTHER=x\n"), 0o600); err != nil {
+	if err := os.WriteFile(envFile, []byte("# lab\nexport OPENLAMT_PASSWORD_LAB_2EEXAMPLE_2ECOM='from-file'\nOTHER=x\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	env := map[string]string{}
@@ -71,8 +71,7 @@ func TestPasswordSourcesOrderAndOptIn(t *testing.T) {
 		ran = append(ran, strings.Join(argv, " "))
 		return []byte(command), nil
 	}
-	all := []favorites.Favorite{labFav}
-	lookup := func() (string, string, error) { return p.lookup(ctx, labFav, all) }
+	lookup := func() (string, string, error) { return p.lookup(ctx, labFav) }
 
 	// Nothing anywhere, no opt-in: not found, and the .env file is not read.
 	if _, _, err := lookup(); !strings.Contains(fmt.Sprint(err), "No password found") {
@@ -83,7 +82,7 @@ func TestPasswordSourcesOrderAndOptIn(t *testing.T) {
 	if pw, src, err := lookup(); pw != "from-file" || src != sourceEnvironment || err != nil {
 		t.Fatalf("file: %q %q %v", pw, src, err)
 	}
-	env["OPENLAMT_PASSWORD_LAB_EXAMPLE_COM"] = "from-env"
+	env["OPENLAMT_PASSWORD_LAB_2EEXAMPLE_2ECOM"] = "from-env"
 	if pw, _, _ := lookup(); pw != "from-env" {
 		t.Fatalf("env: %q", pw)
 	}
@@ -113,22 +112,37 @@ func TestPasswordSourcesOrderAndOptIn(t *testing.T) {
 	}
 }
 
-// TestPasswordEnvCollisionIsRefused: two hosts that map to the same variable get no password
-// from it, so a password never reaches the wrong host.
-func TestPasswordEnvCollisionIsRefused(t *testing.T) {
-	if got := PasswordEnvVar(" 192.0.2.10 "); got != "OPENLAMT_PASSWORD_192_0_2_10" {
-		t.Fatalf("%q", got)
+// TestPasswordEnvVarIsInjective: the variable name encodes the host so that no two hosts share
+// one (hosts that mapped to the same name with a plain "_" for every other character differ now),
+// and each host gets only its own password.
+func TestPasswordEnvVarIsInjective(t *testing.T) {
+	for host, want := range map[string]string{
+		"192.0.2.10":      "OPENLAMT_PASSWORD_192_2E0_2E2_2E10",
+		"lab.example.com": "OPENLAMT_PASSWORD_LAB_2EEXAMPLE_2ECOM",
+		"a-b.example.com": "OPENLAMT_PASSWORD_A_2DB_2EEXAMPLE_2ECOM",
+		"a_b.example.com": "OPENLAMT_PASSWORD_A_5FB_2EEXAMPLE_2ECOM",
+		"a.b.example.com": "OPENLAMT_PASSWORD_A_2EB_2EEXAMPLE_2ECOM",
+		"A.b":             "OPENLAMT_PASSWORD__41_2EB",
+	} {
+		if got := PasswordEnvVar(host); got != want {
+			t.Errorf("%s: %s, want %s", host, got, want)
+		}
+	}
+	seen := map[string]string{}
+	for _, h := range []string{"a.b.example.com", "a-b.example.com", "a_b.example.com", "a.b-example.com", "ab.example.com", "a.b.example.co.m", "a_2Eb.example.com"} {
+		v := PasswordEnvVar(h)
+		if other, ok := seen[v]; ok {
+			t.Fatalf("%s and %s share %s", h, other, v)
+		}
+		seen[v] = h
 	}
 	p := newPasswords(PasswordConfig{AllowPlaintext: true}, keychain.NewMemory())
-	p.getenv = func(k string) (string, bool) { return "pw", k == "OPENLAMT_PASSWORD_A_B_EXAMPLE_COM" }
-	a := favorites.Favorite{Name: "A", Host: "a.b.example.com", Username: "admin"}
-	b := favorites.Favorite{Name: "B", Host: "a-b.example.com", Username: "admin"}
-	if pw, _, err := p.lookup(context.Background(), a, []favorites.Favorite{a}); pw != "pw" || err != nil {
-		t.Fatalf("alone: %q %v", pw, err)
-	}
-	_, _, err := p.lookup(context.Background(), a, []favorites.Favorite{a, b})
-	if !strings.Contains(fmt.Sprint(err), "both map to it") {
-		t.Fatalf("collision: %v", err)
+	env := map[string]string{PasswordEnvVar("a.b.example.com"): "pw-dot", PasswordEnvVar("a-b.example.com"): "pw-dash"}
+	p.getenv = func(k string) (string, bool) { v, ok := env[k]; return v, ok }
+	for host, want := range map[string]string{"a.b.example.com": "pw-dot", "a-b.example.com": "pw-dash"} {
+		if pw, _, err := p.lookup(context.Background(), favorites.Favorite{Name: "X", Host: host, Username: "admin"}); pw != want || err != nil {
+			t.Errorf("%s: %q %v", host, pw, err)
+		}
 	}
 }
 
@@ -137,10 +151,9 @@ func TestPasswordEnvCollisionIsRefused(t *testing.T) {
 func TestPasswordCommandRuns(t *testing.T) {
 	ctx := context.Background()
 	p := newPasswords(PasswordConfig{}, keychain.NewMemory())
-	all := []favorites.Favorite{labFav}
 
 	p.cfg.Command = helperCommand(t, "print", "{name}@{host}")
-	pw, src, err := p.lookup(ctx, labFav, all)
+	pw, src, err := p.lookup(ctx, labFav)
 	if pw != "pw-for-Lab Server@lab.example.com" || src != sourceCommand || err != nil {
 		t.Fatalf("print: %q %q %v", pw, src, err)
 	}
@@ -151,7 +164,7 @@ func TestPasswordCommandRuns(t *testing.T) {
 		{"empty", "No password found"},
 	} {
 		p.cfg.Command = helperCommand(t, c.mode, "{host}")
-		_, _, err := p.lookup(ctx, labFav, all)
+		_, _, err := p.lookup(ctx, labFav)
 		if msg := fmt.Sprint(err); !strings.Contains(msg, c.want) || strings.Contains(msg, "secret stderr") || strings.Contains(msg, "line1") {
 			t.Errorf("%s: %v", c.mode, err)
 		}
@@ -162,15 +175,15 @@ func TestPasswordCommandRuns(t *testing.T) {
 	t.Cleanup(func() { passwordCommandTimeout = old })
 	p.cfg.Command = helperCommand(t, "sleep", "{host}")
 	start := time.Now()
-	if _, _, err := p.lookup(ctx, labFav, all); !strings.Contains(fmt.Sprint(err), "did not finish within") {
+	if _, _, err := p.lookup(ctx, labFav); !strings.Contains(fmt.Sprint(err), "did not finish within") {
 		t.Fatalf("sleep: %v", err)
 	}
 	if d := time.Since(start); d > 10*time.Second {
 		t.Fatalf("the timeout took %v", d)
 	}
 
-	p.cfg.Command = []string{filepath.Join(t.TempDir(), "missing-program")}
-	if _, _, err := p.lookup(ctx, labFav, all); !strings.Contains(fmt.Sprint(err), "could not be started") {
+	p.cfg.Command = []string{filepath.Join(t.TempDir(), "missing-program"), "{host}"}
+	if _, _, err := p.lookup(ctx, labFav); !strings.Contains(fmt.Sprint(err), "could not be started") {
 		t.Fatalf("missing: %v", err)
 	}
 }
@@ -178,23 +191,32 @@ func TestPasswordCommandRuns(t *testing.T) {
 // TestPasswordCommandRefusesUnsafeValues: a name, host or user that could make a path-based
 // password manager read another entry, or pass for an option, never reaches the command.
 func TestPasswordCommandRefusesUnsafeValues(t *testing.T) {
-	p := newPasswords(PasswordConfig{Command: []string{"pass", "show", "openlamt/{name}"}}, keychain.NewMemory())
+	p := newPasswords(PasswordConfig{Command: []string{"pass", "show", "openlamt/{host}/{name}"}}, keychain.NewMemory())
 	p.run = func(context.Context, []string) ([]byte, error) {
 		t.Fatal("the command ran")
 		return nil, nil
 	}
 	for _, name := range []string{"../bank", `a\b`, "-x", "a/b", "tab\there"} {
 		f := favorites.Favorite{Name: name, Host: "lab.example.com", Username: "admin"}
-		if _, _, err := p.lookup(context.Background(), f, nil); !strings.Contains(fmt.Sprint(err), "passwords.command was not run") {
+		if _, _, err := p.lookup(context.Background(), f); !strings.Contains(fmt.Sprint(err), "passwords.command was not run") {
 			t.Errorf("%q: %v", name, err)
 		}
 	}
 	// A placeholder the command does not use is not checked.
 	p.cfg.Command = []string{"pass", "show", "openlamt/{host}"}
 	p.run = func(_ context.Context, argv []string) ([]byte, error) { return []byte("pw"), nil }
-	f := favorites.Favorite{Name: "../odd", Host: "lab.example.com", Username: "admin"}
-	if pw, _, err := p.lookup(context.Background(), f, nil); pw != "pw" || err != nil {
+	f0 := favorites.Favorite{Name: "../odd", Host: "lab.example.com", Username: "admin"}
+	if pw, _, err := p.lookup(context.Background(), f0); pw != "pw" || err != nil {
 		t.Fatalf("%q %v", pw, err)
+	}
+	// A command without {host} never runs (Load refuses it too).
+	p.cfg.Command = []string{"pass", "show", "openlamt/{name}"}
+	p.run = func(context.Context, []string) ([]byte, error) {
+		t.Fatal("a command without {host} ran")
+		return nil, nil
+	}
+	if _, _, err := p.lookup(context.Background(), labFav); !strings.Contains(fmt.Sprint(err), "must contain {host}") {
+		t.Fatalf("%v", err)
 	}
 }
 
@@ -207,7 +229,7 @@ func TestEnvFileMustBePrivate(t *testing.T) {
 	if err := cfg.Check(); err != nil {
 		t.Fatalf("missing file: %v", err)
 	}
-	if err := os.WriteFile(path, []byte("OPENLAMT_PASSWORD_LAB_EXAMPLE_COM=s3cret-value\n"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("OPENLAMT_PASSWORD_LAB_2EEXAMPLE_2ECOM=s3cret-value\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := cfg.Check(); err != nil {
@@ -225,7 +247,7 @@ func TestEnvFileMustBePrivate(t *testing.T) {
 		}
 		p := newPasswords(cfg, keychain.NewMemory())
 		p.getenv = noEnv
-		_, _, err := p.lookup(context.Background(), labFav, nil)
+		_, _, err := p.lookup(context.Background(), labFav)
 		if msg := fmt.Sprint(err); !strings.Contains(msg, "not used") || strings.Contains(msg, "s3cret") {
 			t.Fatalf("lookup: %v", err)
 		}

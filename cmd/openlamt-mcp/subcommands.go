@@ -161,6 +161,10 @@ func storePassword(cfg mcpserver.Config, fav favorites.Favorite, stdout io.Write
 		return errNoTerminal
 	}
 	fmt.Fprintf(stdout, "Password of %q: user %q on %s.\n", fav.DisplayName(), fav.Username, fav.Host)
+	if cfg.Passwords.AllowPlaintext {
+		fmt.Fprintf(stdout, "allow_plaintext_passwords is on: instead of the keychain, the variable %s in the environment or in %s works too.\n",
+			mcpserver.PasswordEnvVar(fav.Host), cfg.Passwords.EnvFile)
+	}
 	pw, err := d.term.readPassword("Password: ")
 	if err != nil {
 		return err

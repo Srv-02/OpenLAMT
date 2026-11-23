@@ -111,6 +111,8 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		`{"passwords": {"command": "pass show x"}}`,
 		`{"passwords": {"command": ["", "show"]}}`,
 		`{"passwords": {"command": ["{name}"]}}`,
+		`{"passwords": {"command": ["pass", "show", "openlamt/{name}"]}}`,
+		`{"passwords": {"command": ["/usr/bin/op", "read", "op://lab/{user}/password"]}}`,
 		`{"passwords": {"allow_plaintext_passwords": "yes"}}`,
 		`{"tool_groups": {"favourites": false}}`,
 	} {

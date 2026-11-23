@@ -278,6 +278,10 @@ func Load(path string, mustExist bool) (Config, error) {
 				return Config{}, fmt.Errorf("parse %s: passwords.command starts with the program to run; it must not be empty or hold a placeholder", path)
 			}
 			c.Passwords.Command = append([]string{prog}, pw.Command[1:]...)
+			if !commandHasHost(c.Passwords.Command) {
+				return Config{}, fmt.Errorf("parse %s: passwords.command must contain {host} in an argument, so each password is bound "+
+					"to the host it goes to ({name} and {user} may be used in addition)", path)
+			}
 		}
 	}
 	c.Source = path

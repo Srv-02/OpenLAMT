@@ -1,0 +1,7 @@
+{
+  "This computer": "Dieser Computer",
+  "Intel ME found, not checked": "Intel ME gefunden, nicht geprüft",
+  "Intel ME found": "Intel ME gefunden",
+  "Not checked yet": "Noch nicht geprüft",
+  "Check reads Intel AMT through the Intel ME driver of this computer. Nothing is changed.": "„Prüfen“ liest Intel AMT über den Intel-ME-Treiber dieses Computers. Dabei wird nichts geändert."
+}

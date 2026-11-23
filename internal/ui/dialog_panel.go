@@ -1,9 +1,12 @@
 package ui
 
 import (
+	"math"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -298,11 +301,133 @@ func (e *dialogEntry) TypedKey(k *fyne.KeyEvent) {
 	e.Entry.TypedKey(k)
 }
 
+// newWrapCheck is newCheck with a text that wraps at the width of the dialog instead of being
+// cut off: the checkbox "I understand the risk for <device>", where a long device name or host
+// must stay readable. A text of one line looks exactly like newCheck.
+func (p *panel) newWrapCheck(text string, checked bool) *dialogCheck {
+	c := p.newCheck(text, checked)
+	c.wrap = true
+	return c
+}
+
 // dialogCheck is a check box that closes its dialog on Esc and confirms it on Enter.
 type dialogCheck struct {
 	widget.Check
 	onKey func(*fyne.KeyEvent) bool
+	wrap  bool // the text wraps (newWrapCheck)
 }
+
+// CreateRenderer draws a wrapping check (newWrapCheck) with wrapCheckRenderer, any other with
+// Fyne's renderer.
+func (c *dialogCheck) CreateRenderer() fyne.WidgetRenderer {
+	r := c.Check.CreateRenderer()
+	if !c.wrap {
+		return r
+	}
+	return newWrapCheckRenderer(c, r)
+}
+
+// widget.Check takes taps and hover only within its minimum size, which is narrow for a
+// wrapping text. A wrapping check takes them on its whole text instead, as widget.Check does on
+// its one line; the position is handed on as one inside (or outside) its minimum size.
+
+func (c *dialogCheck) Tapped(e *fyne.PointEvent) {
+	if c.wrap {
+		if !c.onText(e.Position) {
+			return
+		}
+		e = &fyne.PointEvent{Position: fyne.NewPos(0, c.Size().Height/2)}
+	}
+	c.Check.Tapped(e)
+}
+
+func (c *dialogCheck) MouseIn(e *desktop.MouseEvent) { c.MouseMoved(e) }
+
+func (c *dialogCheck) MouseMoved(e *desktop.MouseEvent) {
+	if c.wrap {
+		m := *e
+		m.Position = fyne.NewPos(0, 0)
+		if !c.onText(e.Position) {
+			m.Position = fyne.NewPos(math.MaxFloat32, math.MaxFloat32)
+		}
+		e = &m
+	}
+	c.Check.MouseMoved(e)
+}
+
+// onText reports whether pos lies on the box or the text of a wrapping check, not right of a
+// short text. Like widget.Check, a check that was never laid out (test code) takes any position.
+func (c *dialogCheck) onText(pos fyne.Position) bool {
+	if c.Size().IsZero() {
+		return true
+	}
+	th := c.Theme()
+	pad := th.Size(theme.SizeNameInnerPadding)
+	end := wrapCheckTextX(th) + fyne.MeasureText(c.Text, th.Size(theme.SizeNameText), fyne.TextStyle{}).Width + 2*pad
+	return pos.X >= 0 && pos.Y >= 0 && pos.X <= min(end, c.Size().Width) && pos.Y <= c.Size().Height
+}
+
+// wrapCheckTextX is where the wrapping text of a check starts: its text (inside the inner
+// padding of the rich text) then begins where widget.Check draws its one line.
+func wrapCheckTextX(th fyne.Theme) float32 {
+	return th.Size(theme.SizeNameInlineIcon) + 2*th.Size(theme.SizeNameInputBorder)
+}
+
+// wrapCheckRenderer draws a wrapping check: widget.Check's box (with its focus and hover circle)
+// centered on the first line, and the text as a wrapping rich text in place of Fyne's single
+// line, which is left out.
+type wrapCheckRenderer struct {
+	check *dialogCheck
+	base  fyne.WidgetRenderer // widget.Check's renderer
+	text  *widget.RichText
+	objs  []fyne.CanvasObject
+}
+
+func newWrapCheckRenderer(c *dialogCheck, base fyne.WidgetRenderer) *wrapCheckRenderer {
+	r := &wrapCheckRenderer{check: c, base: base, text: richLine(textSeg("", theme.ColorNameForeground, false))}
+	for _, o := range base.Objects() {
+		if _, line := o.(*canvas.Text); !line {
+			r.objs = append(r.objs, o)
+		}
+	}
+	r.objs = append(r.objs, r.text)
+	r.update()
+	return r
+}
+
+// update takes the text and the disabled color over from the check.
+func (r *wrapCheckRenderer) update() {
+	seg := r.text.Segments[0].(*widget.TextSegment)
+	seg.Text = r.check.Text
+	seg.Style.ColorName = theme.ColorNameForeground
+	if r.check.Disabled() {
+		seg.Style.ColorName = theme.ColorNameDisabled
+	}
+	r.text.Refresh()
+}
+
+// firstLine is the height of widget.Check with one line of text.
+func (r *wrapCheckRenderer) firstLine() float32 { return r.base.MinSize().Height }
+
+func (r *wrapCheckRenderer) MinSize() fyne.Size {
+	t := r.text.MinSize()
+	return fyne.NewSize(wrapCheckTextX(r.check.Theme())+t.Width, max(r.firstLine(), t.Height))
+}
+
+func (r *wrapCheckRenderer) Layout(size fyne.Size) {
+	r.base.Layout(fyne.NewSize(size.Width, r.firstLine()))
+	x := wrapCheckTextX(r.check.Theme())
+	r.text.Move(fyne.NewPos(x, 0))
+	r.text.Resize(fyne.NewSize(max(0, size.Width-x), size.Height))
+}
+
+func (r *wrapCheckRenderer) Refresh() {
+	r.base.Refresh()
+	r.update()
+}
+
+func (r *wrapCheckRenderer) Objects() []fyne.CanvasObject { return r.objs }
+func (r *wrapCheckRenderer) Destroy()                     { r.base.Destroy() }
 
 func (c *dialogCheck) TypedKey(k *fyne.KeyEvent) {
 	if c.onKey != nil && c.onKey(k) {

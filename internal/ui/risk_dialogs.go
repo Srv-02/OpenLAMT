@@ -156,7 +156,7 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 		if s.extra != nil {
 			body = append(body, s.extra(d)...)
 		}
-		d.check = p.newCheck(riskCheckText(s.device, s.host), false)
+		d.check = p.newWrapCheck(riskCheckText(s.device, s.host), false)
 		d.check.OnChanged = func(bool) { d.Revalidate() }
 		return append(body, d.check)
 	})

@@ -476,3 +476,103 @@ func TestAboutPage(t *testing.T) {
 		}
 	}
 }
+
+var (
+	anchorRe = regexp.MustCompile(`(?s)<a\s([^>]*)>(.*?)</a>`)
+	pagerRe  = regexp.MustCompile(`(?s)<nav class="pager"[^>]*>(.*?)</nav>`)
+	hrefRe   = regexp.MustCompile(`\shref="([^"]*)"`)
+	classRe  = regexp.MustCompile(`\sclass="([^"]*)"`)
+)
+
+// readingPath is the order of the pages that carry a pager. The other pages have none.
+var readingPath = []string{
+	"getting-started.html", "favorites.html", "device-window.html", "management.html",
+	"amt-settings.html", "confirmations.html", "settings.html",
+}
+
+// TestExternalLinksOpenInNewTab requires every link to another site to open in a new tab
+// without opener access, carry the visual marker and tell screen readers about the new tab.
+func TestExternalLinksOpenInNewTab(t *testing.T) {
+	files := site(t)
+	for _, page := range pages(files) {
+		lang, _ := splitLang(page)
+		hint := "(opens in a new tab)"
+		if lang == "de" {
+			hint = "(öffnet in neuem Tab)"
+		}
+		content := commentRe.ReplaceAllString(files[page], "")
+		for _, m := range anchorRe.FindAllStringSubmatch(content, -1) {
+			attrs := " " + m[1]
+			h := hrefRe.FindStringSubmatch(attrs)
+			if h == nil || !isRemote(h[1]) {
+				if strings.Contains(attrs, "_blank") {
+					t.Errorf("%s: internal link %q opens in a new tab", page, h)
+				}
+				continue
+			}
+			if !strings.Contains(attrs, ` target="_blank"`) {
+				t.Errorf("%s: external link %s lacks target=\"_blank\"", page, h[1])
+			}
+			if !strings.Contains(attrs, ` rel="noopener noreferrer"`) {
+				t.Errorf("%s: external link %s lacks rel=\"noopener noreferrer\"", page, h[1])
+			}
+			c := classRe.FindStringSubmatch(attrs)
+			if c == nil || !slices.Contains(strings.Fields(c[1]), "ext") {
+				t.Errorf("%s: external link %s lacks the class ext (the arrow marker)", page, h[1])
+			}
+			if !strings.Contains(m[2], `<span class="sr"> `+hint+`</span>`) {
+				t.Errorf("%s: external link %s lacks the screen reader hint %q", page, h[1], hint)
+			}
+		}
+	}
+}
+
+// TestPagerFollowsReadingPath requires a pager on the reading-path pages only, with previous
+// and next links that follow the path: no previous on the first, no next on the last page.
+func TestPagerFollowsReadingPath(t *testing.T) {
+	files := site(t)
+	for _, lang := range languages {
+		for _, name := range pages(files) {
+			if l, _ := splitLang(name); l != lang {
+				continue
+			}
+			_, base := splitLang(name)
+			c := files[name]
+			i := slices.Index(readingPath, base)
+			if i < 0 {
+				if pagerRe.MatchString(c) {
+					t.Errorf("%s: is not on the reading path and must have no pager", name)
+				}
+				continue
+			}
+			m := pagerRe.FindStringSubmatch(c)
+			if m == nil {
+				t.Errorf("%s: has no pager", name)
+				continue
+			}
+			var prev, next string
+			for _, a := range anchorRe.FindAllStringSubmatch(m[1], -1) {
+				h := hrefRe.FindStringSubmatch(" " + a[1])
+				if h == nil {
+					continue
+				}
+				switch {
+				case strings.Contains(a[1], `rel="prev"`):
+					prev = h[1]
+				case strings.Contains(a[1], `rel="next"`):
+					next = h[1]
+				}
+			}
+			var wantPrev, wantNext string
+			if i > 0 {
+				wantPrev = readingPath[i-1]
+			}
+			if i < len(readingPath)-1 {
+				wantNext = readingPath[i+1]
+			}
+			if prev != wantPrev || next != wantNext {
+				t.Errorf("%s: pager links prev=%q next=%q, want prev=%q next=%q", name, prev, next, wantPrev, wantNext)
+			}
+		}
+	}
+}

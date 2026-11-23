@@ -143,6 +143,27 @@ func TestTypeSendErrorReleasesModifiers(t *testing.T) {
 	}
 }
 
+// TestTypeSendErrorNamesNoCharacter (#118): a send error gives the position of the character,
+// never its key: the text may be a secret.
+func TestTypeSendErrorNamesNoCharacter(t *testing.T) {
+	boom := errors.New("boom")
+	p := mustPrepare(t, "xsY", LayoutUS)
+	for _, tc := range []struct {
+		failAt int
+		want   string
+	}{
+		{3, "typing: character 2: key down: boom"}, // s down
+		{4, "typing: character 2: key up: boom"},   // s up
+		{5, "typing: character 3: key down: boom"}, // Shift down for Y
+	} {
+		f := &fakeSender{failAt: tc.failAt, failErr: boom}
+		err := Type(context.Background(), f, p, 0, nil)
+		if err == nil || err.Error() != tc.want || !errors.Is(err, boom) {
+			t.Errorf("fail at %d: %v, want %q", tc.failAt, err, tc.want)
+		}
+	}
+}
+
 func TestTypeDelay(t *testing.T) {
 	p := mustPrepare(t, "abc", LayoutUS)
 	f := &fakeSender{}

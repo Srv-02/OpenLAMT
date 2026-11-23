@@ -120,15 +120,18 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 		return mediaSource{}, 0, refuse("path must be an absolute path of an .iso file or of a folder on the computer that runs openlamt-mcp.")
 	}
 	p = filepath.Clean(p)
+	// The path as given is the agent's: its errors repeat it shortened, and not again inside the
+	// error of the file system.
+	shown := shortPath(p)
 	resolved, err := filepath.EvalSymlinks(p)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return mediaSource{}, 0, refuse("%s does not exist.", visible(p))
+		return mediaSource{}, 0, refuse("%s does not exist.", shown)
 	case err != nil:
-		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(p), err)
+		return mediaSource{}, 0, refuse("Cannot read %s: %v", shown, withoutPath(err))
 	}
 	if resolved, err = filepath.Abs(resolved); err != nil {
-		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(p), err)
+		return mediaSource{}, 0, refuse("Cannot read %s: %v", shown, withoutPath(err))
 	}
 	if err := refuseWindowsAlias(resolved); err != nil { // a link that leads to such a path
 		return mediaSource{}, 0, err
@@ -153,6 +156,19 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 		return mediaSource{}, 0, err
 	}
 	return src, size, nil
+}
+
+// shortPath shows a path the agent gave in an error text: control and format characters
+// visible, at most maxLogged characters.
+func shortPath(p string) string { return shorten(visible(p), maxLogged) }
+
+// withoutPath is err without the path a *fs.PathError repeats.
+func withoutPath(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Err
+	}
+	return err
 }
 
 // sizeText is a file size for a prompt.

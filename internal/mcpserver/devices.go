@@ -32,7 +32,7 @@ func (s *server) lookup(name string) (favorites.Favorite, error) {
 		return favorites.Favorite{}, refuse("device is required: give the favorite name from list_devices.")
 	}
 	if !s.cfg.DeviceAllowed(name) {
-		return favorites.Favorite{}, refuse("Device %q is not in allowed_devices of the openlamt-mcp config.", name)
+		return favorites.Favorite{}, refuse("Device %s is not in allowed_devices of the openlamt-mcp config.", quoteShort(name))
 	}
 	list, err := s.favs.List()
 	if err != nil {
@@ -46,11 +46,11 @@ func (s *server) lookup(name string) (favorites.Favorite, error) {
 	}
 	switch len(found) {
 	case 0:
-		return favorites.Favorite{}, refuse("No favorite named %q. Call list_devices for the names; devices are added in the OpenLAMT app.", name)
+		return favorites.Favorite{}, refuse("No favorite named %s. Call list_devices for the names; devices are added in the OpenLAMT app.", quoteShort(name))
 	case 1:
 		return found[0], nil
 	}
-	return favorites.Favorite{}, refuse("%d favorites are named %q. Give them distinct names in the OpenLAMT app.", len(found), name)
+	return favorites.Favorite{}, refuse("%d favorites are named %s. Give them distinct names in the OpenLAMT app.", len(found), quoteShort(name))
 }
 
 // favKey is what sessions, mounts and kept images are kept by: the device a favorite reaches

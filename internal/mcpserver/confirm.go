@@ -133,6 +133,29 @@ func visible(s string) string {
 // maxQuoted is how many characters of an agent's value an error message repeats.
 const maxQuoted = 40
 
+// Limits of what the action log and stderr keep of a call: maxLogged characters of the device
+// name the agent sent, maxLoggedMessage of a message or error text (a backstop: the texts
+// quote agent values shortened already).
+const (
+	maxLogged        = 80
+	maxLoggedMessage = 2000
+)
+
+// shorten cuts s after max characters and says how long it was, so a huge value cannot flood
+// the action log or stderr.
+func shorten(s string, max int) string {
+	i, n := 0, 0
+	for i < len(s) && n < max {
+		_, size := utf8.DecodeRuneInString(s[i:])
+		i += size
+		n++
+	}
+	if i == len(s) {
+		return s
+	}
+	return s[:i] + fmt.Sprintf("… (%d characters)", utf8.RuneCountInString(s))
+}
+
 // quoteShort quotes a value the agent sent, for an error message and so for the action log: Go
 // quoting (control and format characters escaped), at most maxQuoted characters, then the
 // length, so a huge or crafted value cannot flood the log or hide in it.

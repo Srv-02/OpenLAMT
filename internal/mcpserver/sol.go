@@ -27,6 +27,7 @@ type solManager struct {
 	closed  bool
 	idle    time.Duration // 0: never
 	open    solOpener
+	now     func() time.Time // clock of the idle timeout; tests replace it
 }
 
 // solEntry is the SOL session of one device.
@@ -44,7 +45,7 @@ type solEntry struct {
 }
 
 func newSOLManager(idle time.Duration, open solOpener) *solManager {
-	return &solManager{entries: map[string]*solEntry{}, idle: idle, open: open}
+	return &solManager{entries: map[string]*solEntry{}, idle: idle, open: open, now: time.Now}
 }
 
 func noSOLSession(device string) error {
@@ -131,9 +132,9 @@ func (m *solManager) connect(ctx context.Context, device string, code consentCod
 				e.timer = time.AfterFunc(m.idle, func() { m.expire(e) })
 			}
 		}
-		e.lastUsed = time.Now()
+		e.lastUsed = m.now()
 		err := fn(e, already)
-		e.lastUsed = time.Now()
+		e.lastUsed = m.now()
 		e.mu.Unlock()
 		return err
 	}
@@ -155,9 +156,9 @@ func (m *solManager) use(device string, fn func(e *solEntry) error) error {
 	if e.removed {
 		return noSOLSession(device)
 	}
-	e.lastUsed = time.Now()
+	e.lastUsed = m.now()
 	err := fn(e)
-	e.lastUsed = time.Now()
+	e.lastUsed = m.now()
 	return err
 }
 
@@ -178,7 +179,7 @@ func (m *solManager) expire(e *solEntry) {
 	if e.removed {
 		return
 	}
-	if left := m.idle - time.Since(e.lastUsed); left > 0 {
+	if left := m.idle - m.now().Sub(e.lastUsed); left > 0 {
 		e.timer.Reset(left)
 		return
 	}

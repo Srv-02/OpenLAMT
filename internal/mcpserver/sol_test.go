@@ -529,15 +529,22 @@ func TestSOLIdleTimeoutAndClose(t *testing.T) {
 	h := newHarness(t)
 	f := h.addDevice("NUC", "192.0.2.10", false)
 	d := addSOL(t, f)
-	h.cfg.SOLIdleTimeout = 50 * time.Millisecond
+	h.cfg.SOLIdleTimeout = time.Hour // the real timer never fires; the clock is moved instead
 	h.start()
+	clock, skew := skewClock()
+	h.srv.s.sol.now = clock
 	d.accept()
 	h.mustOK("sol_connect", dev("NUC"))
 	answerEnd(d.peer())
-	c := h.solEntry("NUC").client
-	eventually(t, "idle close", func() bool { return h.solEntry("NUC") == nil })
+	e := h.solEntry("NUC")
+	c := e.client
+	skew.Store(int64(2 * time.Hour))
+	h.srv.s.sol.expire(e)
+	if h.solEntry("NUC") != nil {
+		t.Fatal("idle session still in the manager")
+	}
 	select {
-	case <-c.Done():
+	case <-c.Done(): // expire closed the client before it returned
 	default:
 		t.Fatal("client still running")
 	}

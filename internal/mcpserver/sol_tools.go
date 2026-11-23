@@ -190,7 +190,7 @@ func (s *server) solRead(ctx context.Context, _ *mcp.CallToolRequest, in solRead
 	}
 	entry.mu.Lock()
 	if !entry.removed {
-		entry.cursor, entry.lastUsed = r.next, time.Now()
+		entry.cursor, entry.lastUsed = r.next, s.sol.now()
 	}
 	entry.mu.Unlock()
 

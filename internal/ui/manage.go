@@ -870,13 +870,18 @@ func newManageError() *manageError {
 }
 
 // set shows describeManage(err), or hides the text for nil.
-func (e *manageError) set(err error) {
+func (e *manageError) set(err error) { e.show(err, describeManage) }
+
+// setWrite is set for the error of a write: a missing permission reads "do this", not "read".
+func (e *manageError) setWrite(err error) { e.show(err, describe) }
+
+func (e *manageError) show(err error, text func(error) string) {
 	if err == nil {
 		e.label.SetText("")
 		e.box.Hide()
 		return
 	}
-	e.label.SetText(describeManage(err))
+	e.label.SetText(text(err))
 	e.box.Show()
 }
 

@@ -240,7 +240,7 @@ func (p *settingsPane) render() {
 	d, src := p.d, p.d.src
 	switch {
 	case d.writeErr != nil:
-		p.err.set(d.writeErr)
+		p.err.setWrite(d.writeErr)
 	default:
 		p.err.set(src.err)
 	}

@@ -151,3 +151,28 @@ func TestSegmentedTabsNaturalCaptionFits(t *testing.T) {
 		t.Errorf("drawn %q", got)
 	}
 }
+
+// The arrow keys step over a disabled segment (#110) and stop at the ends of the row.
+func TestSegmentedKeysSkipDisabledSegment(t *testing.T) {
+	themedApp(t)
+	s := NewSegmented(SegmentedTabs, TextOptions("Network", "Local", "Both"), nil)
+	s.SetSegmentDisabled(1, true)
+	var got []int
+	s.OnChanged = func(i int) { got = append(got, i) }
+	s.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	if s.Selected() != 2 {
+		t.Fatalf("right from Network: selected %d, want 2", s.Selected())
+	}
+	s.TypedKey(&fyne.KeyEvent{Name: fyne.KeyRight})
+	if s.Selected() != 2 {
+		t.Errorf("right at the end: selected %d", s.Selected())
+	}
+	s.TypedKey(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	if s.Selected() != 0 {
+		t.Fatalf("left from Both: selected %d, want 0", s.Selected())
+	}
+	s.TypedKey(&fyne.KeyEvent{Name: fyne.KeyLeft})
+	if len(got) != 2 || s.Selected() != 0 {
+		t.Errorf("changes %v, selected %d", got, s.Selected())
+	}
+}

@@ -200,13 +200,22 @@ func (s *Segmented) TypedRune(r rune) {
 func (s *Segmented) TypedKey(e *fyne.KeyEvent) {
 	switch e.Name {
 	case fyne.KeyLeft:
-		if s.selected > 0 {
-			s.Tap(s.selected - 1)
-		}
+		s.step(-1)
 	case fyne.KeyRight:
-		s.Tap(s.selected + 1)
+		s.step(1)
 	case fyne.KeyReturn, fyne.KeyEnter:
 		s.Tap(s.selected)
+	}
+}
+
+// step selects the next enabled segment in direction dir (-1 or 1), stepping over disabled
+// ones; at the end of the row nothing happens.
+func (s *Segmented) step(dir int) {
+	for i := s.selected + dir; i >= 0 && i < len(s.options); i += dir {
+		if !s.options[i].Disabled {
+			s.Tap(i)
+			return
+		}
 	}
 }
 

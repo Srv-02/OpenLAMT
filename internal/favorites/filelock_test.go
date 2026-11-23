@@ -78,7 +78,7 @@ func TestChangeLoginVersusSetQuality(t *testing.T) {
 	}
 }
 
-// TestReadsWaitForTheFileLock: List and Find do not read while another process holds the
+// TestReadsWaitForTheFileLock: List, Find and ChangeFingerprint do not read while another process holds the
 // lock around a save. On Windows an open reader makes that save's rename fail (#127).
 func TestReadsWaitForTheFileLock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "favorites.json")
@@ -89,8 +89,9 @@ func TestReadsWaitForTheFileLock(t *testing.T) {
 		t.Fatal(err)
 	}
 	reads := map[string]func(){
-		"List": func() { m.List() },
-		"Find": func() { m.Find("device.example.com", "admin") },
+		"List":              func() { m.List() },
+		"Find":              func() { m.Find("device.example.com", "admin") },
+		"ChangeFingerprint": func() { m.ChangeFingerprint("device.example.com", "admin", "aa", "bb") },
 	}
 	for name, read := range reads {
 		done := make(chan struct{})

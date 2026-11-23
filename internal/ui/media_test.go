@@ -1074,3 +1074,22 @@ func TestMediaFeaturesReadError(t *testing.T) {
 		t.Fatalf("err %v starts %v phase %d", err, dev.IDERStarts(), h.m.phase)
 	}
 }
+
+// A failed "Boot from ISO on next start" whose undo failed too keeps the mark, so that Unmount
+// clears the boot option that may still be set (#138).
+func TestMediaBootMayBeSetKeepsTheMark(t *testing.T) {
+	dev := &session.Fake{}
+	h := newMediaDevice(t, dev)
+	h.mountISO(t, writeISO(t, "alpine-standard.iso", 8192))
+	dev.NextBootErr = &amt.BootMayBeSetError{Err: errors.New("boom"), ClearErr: errors.New("undo failed")}
+	h.tapBoot(t)
+	h.openMenu(t)
+	if err := <-h.errs; !errors.Is(err, amt.ErrBootMayBeSet) || !h.m.bootNext || !h.m.items.boot.Checked || h.m.items.boot.Disabled {
+		t.Fatalf("after the failed set: err %v bootNext %v checked %v", err, h.m.bootNext, h.m.items.boot.Checked)
+	}
+	h.tapItem(t, itemUnmount)
+	h.wait(t, "unmounted")
+	if _, cl := dev.ISOCalls(); cl != 1 {
+		t.Fatalf("ClearISOBoot after Unmount: %d, want 1", cl)
+	}
+}

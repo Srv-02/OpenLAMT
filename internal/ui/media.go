@@ -581,7 +581,9 @@ func (m *mediaPanel) bootSet(mt *mediaMount, on bool, err error) {
 	}
 	m.bootBusy = false
 	if err != nil {
-		m.bootNext = !on
+		// A failed "on" whose undo failed too may have left the option set: keep the mark, so
+		// that Unmount clears it (ClearISOBoot writes nothing when the option is off).
+		m.bootNext = !on || errors.Is(err, amt.ErrBootMayBeSet)
 	}
 	m.syncBoot()
 	m.report(err)

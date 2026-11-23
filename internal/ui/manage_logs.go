@@ -170,6 +170,9 @@ type logSpec struct {
 	compact [3]float32 // the same in the sidebar, with the short time: the last column is the widest
 	chips   bool       // filter chips All, Warning, Critical
 	src     *manageSource[[]logRow]
+	// head builds a button of the page head before Refresh ("Forwarding…", "Settings…"); win
+	// returns the window its dialogs open on. nil = none.
+	head func(win func() fyne.Window) *widgets.PrimaryButton
 }
 
 func init() {
@@ -187,6 +190,7 @@ func (m *manager) eventLogPane(compact bool) *managePane {
 		compact: [3]float32{logShortTimeWidth(), 78, 76},
 		chips:   true,
 		src:     m.events,
+		head:    m.forwardingButton,
 	}, compact)
 }
 
@@ -197,6 +201,7 @@ func (m *manager) auditLogPane(compact bool) *managePane {
 		widths:  [3]float32{170, 160, 150},
 		compact: [3]float32{logShortTimeWidth(), 68, 80},
 		src:     m.audit,
+		head:    m.auditSettingsButton,
 	}, compact)
 }
 
@@ -209,6 +214,7 @@ type logPane struct {
 	chips   []*widgets.Chip
 	levels  []int
 	filter  *widgets.FilterField
+	head    *widgets.PrimaryButton // "Forwarding…" or "Settings…"; nil = none
 	refresh *widgets.PrimaryButton
 	count   *canvas.Text
 	note    *canvas.Text
@@ -235,14 +241,16 @@ func (m *manager) logPane(spec logSpec, compact bool) *managePane {
 			}
 		})
 	// A click on a row opens its details (LogDetail.dc.html); the row does not stay selected.
+	window := func() fyne.Window {
+		if !compact && m.win != nil {
+			return m.win.win
+		}
+		return m.parent
+	}
 	p.list.OnSelected = func(id widget.ListItemID) {
 		p.list.Unselect(id)
 		if id >= 0 && id < len(p.shown) {
-			w := m.parent
-			if !compact && m.win != nil {
-				w = m.win.win
-			}
-			p.detail = showLogDetail(w, spec.name, p.rows, slices.Clone(p.shown), id)
+			p.detail = showLogDetail(window(), spec.name, p.rows, slices.Clone(p.shown), id)
 		}
 	}
 
@@ -262,6 +270,11 @@ func (m *manager) logPane(spec logSpec, compact bool) *managePane {
 	}
 	p.filter = widgets.NewFilterField(func(string) { p.apply() })
 	p.refresh = newManageButton(lang.L("Refresh"), spec.src.reload)
+	tools := []fyne.CanvasObject{p.refresh}
+	if spec.head != nil {
+		p.head = spec.head(window)
+		tools = []fyne.CanvasObject{p.head, p.refresh}
+	}
 	p.note = designText("", 12, style.ColorNameTextSecondary, false)
 	note := container.New(layout.NewCustomPaddedLayout(12, 0, 2, 2), p.note)
 
@@ -278,13 +291,13 @@ func (m *manager) logPane(spec logSpec, compact bool) *managePane {
 	if compact {
 		p.count = designText("", 12, style.ColorNameTextSecondary, false)
 		row1 := container.New(&rowLayout{gap: 8, fill: 1}, chips, spacer(), p.count)
-		row2 := container.New(&rowLayout{gap: 8, fill: 0}, p.filter, p.refresh)
+		row2 := container.New(&rowLayout{gap: 8, fill: 0}, append([]fyne.CanvasObject{p.filter}, tools...)...)
 		top := container.New(layout.NewCustomPaddedVBoxLayout(8), row1, row2, p.err.box)
 		pane.body = container.NewBorder(top, note, nil, nil, table)
 	} else {
 		p.count = designText("", 14, style.ColorNameTextSecondary, false)
 		pane.info = p.count
-		pane.tools = container.New(layout.NewCustomPaddedHBoxLayout(12), chips, p.filter, p.refresh)
+		pane.tools = container.New(layout.NewCustomPaddedHBoxLayout(12), append([]fyne.CanvasObject{chips, p.filter}, tools...)...)
 		top := container.New(layout.NewCustomPaddedVBoxLayout(8), p.err.box)
 		pane.body = container.NewBorder(top, note, nil, nil, table)
 	}

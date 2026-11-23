@@ -173,6 +173,7 @@ func errorSamples() map[string]error {
 // errorExceptions are exported errors that never reach the error dialog, each with the reason.
 var errorExceptions = map[string]string{
 	"amt.ErrTrustDeclined":      "the user's own choice; connect.go shows nothing",
+	"amt.ErrTargetAddress":      "the forwarding target dialog enables Add only for an address amt.ValidTargetAddress accepts and shows its own text",
 	"keychain.ErrNotFound":      "control flow; connect.go falls back to asking for the password",
 	"ider.ErrClosed":            "the user's own unmount; media.go skips the report",
 	"sol.ErrClosed":             "the user's own close; console.go skips the report",

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<a:Envelope xmlns:a="http://www.w3.org/2003/05/soap-envelope"
+    xmlns:b="http://schemas.xmlsoap.org/ws/2004/08/addressing"
+    xmlns:c="http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd"
+    xmlns:e="http://schemas.xmlsoap.org/ws/2004/09/enumeration"
+    xmlns:h="http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_FilterCollection">
+    <a:Header>
+        <b:To>http://schemas.xmlsoap.org/ws/2004/08/addressing/role/anonymous</b:To>
+        <b:RelatesTo>1</b:RelatesTo>
+        <b:Action a:mustUnderstand="true">http://schemas.xmlsoap.org/ws/2004/09/enumeration/PullResponse</b:Action>
+        <b:MessageID>uuid:00000000-0000-0000-0000-000000000001</b:MessageID>
+        <c:ResourceURI>http://schemas.dmtf.org/wbem/wscim/1/cim-schema/2/CIM_FilterCollection</c:ResourceURI>
+    </a:Header>
+    <a:Body>
+        <e:PullResponse><e:Items><h:CIM_FilterCollection><h:CollectionName>Intel(r) AMT:All</h:CollectionName><h:ElementName>Intel(r) AMT:All</h:ElementName><h:InstanceID>Intel(r) AMT:All</h:InstanceID></h:CIM_FilterCollection><h:CIM_FilterCollection><h:CollectionName>Intel(r) AMT:FW ProgressEvents</h:CollectionName><h:ElementName>Intel(r) AMT:FW ProgressEvents</h:ElementName><h:InstanceID>Intel(r) AMT:FW ProgressEvents</h:InstanceID></h:CIM_FilterCollection><h:CIM_FilterCollection><h:CollectionName>Intel(r) AMT:User</h:CollectionName><h:ElementName>Intel(r) AMT:User</h:ElementName><h:InstanceID>Intel(r) AMT:User</h:InstanceID></h:CIM_FilterCollection><h:CIM_FilterCollection><h:CollectionName>Intel(r) AMT:Platform</h:CollectionName><h:ElementName>Intel(r) AMT:Platform</h:ElementName><h:InstanceID>Intel(r) AMT:Platform</h:InstanceID></h:CIM_FilterCollection><h:CIM_FilterCollection><h:InstanceID>Intel(r) AMT:Features</h:InstanceID></h:CIM_FilterCollection><h:CIM_FilterCollection><h:CollectionName>broken</h:CollectionName></h:CIM_FilterCollection></e:Items><e:EndOfSequence></e:EndOfSequence></e:PullResponse>
+    </a:Body>
+</a:Envelope>

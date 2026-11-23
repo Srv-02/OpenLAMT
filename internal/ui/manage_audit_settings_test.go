@@ -219,7 +219,7 @@ func TestAuditSettingsPermissionAndErrors(t *testing.T) {
 	}
 	top := h.m.parent.Canvas().Overlays().Top()
 	findLabel(t, top, "No permission for audit settings")
-	findLabel(t, top, "The account admin may read the audit log but not change its settings. Sign in with an account that has the Audit log permission.")
+	findLabel(t, top, "The device does not let admin read the audit log settings. Sign in with an account that has the Audit log permission.")
 
 	other := &session.Fake{FP: fp, Audit: exampleAudit()}
 	other.AuditState().ReadErr = errors.New("boom")
@@ -239,6 +239,7 @@ func TestAuditSettingsPermissionAndErrors(t *testing.T) {
 	if h.m.logDlg.denied == nil {
 		t.Fatal("a refused write shows no permission dialog")
 	}
+	findLabel(t, h.m.parent.Canvas().Overlays().Top(), "The account admin may read the audit log but not change its settings. Sign in with an account that has the Audit log permission.")
 }
 
 // The Audit log head of the window has "Settings…" before Refresh.

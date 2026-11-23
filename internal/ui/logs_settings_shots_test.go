@@ -85,7 +85,7 @@ func TestLogSettingsShots(t *testing.T) {
 	shot("logs-audit-clear.png", w.win)
 	d.confirm.Dismiss()
 	d.Dismiss()
-	h.m.logDlg.denied = showAuditDenied(w.win, "admin")
+	h.m.logDlg.denied = showAuditDenied(w.win, "admin", true)
 	shot("logs-audit-denied.png", w.win)
 	h.m.logDlg.denied.Dismiss()
 

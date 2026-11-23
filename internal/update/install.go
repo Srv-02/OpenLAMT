@@ -28,8 +28,10 @@ import (
 // Every failure is an error, so the caller can fall back to "install it yourself".
 //
 // Check and use: Install works on the verified bytes in memory (Package), never on a file it
-// reads back by path. The DMG and the .deb are written to a new private folder (0700, not
-// Downloads) and opened from there; the zip is never written at all. The exe hash the elevated
+// reads back by path. The DMG is written to a new private folder (0700, not Downloads) and
+// opened from there. The .deb is saved to the Downloads folder under a free name and opened
+// from there: on Ubuntu the handler is the App Center snap, which has its own private /tmp and
+// can read only non-hidden paths of the home folder (issue #89). The zip is never written at all. The exe hash the elevated
 // step checks comes from the verified bytes, and that step re-hashes the bytes it writes, so a
 // file swapped on disk meanwhile is refused instead of being installed as administrator.
 
@@ -69,8 +71,10 @@ type Installer struct {
 	Writable func(dir string) bool
 	// PrivateDir makes a new folder only this user can use (0700 in the temp folder).
 	PrivateDir func() (string, error)
-	Rename     func(oldpath, newpath string) error
-	Remove     func(path string) error
+	// Downloads is the folder the Linux .deb is saved to (a snap installer cannot read /tmp).
+	Downloads func() (string, error)
+	Rename    func(oldpath, newpath string) error
+	Remove    func(path string) error
 	// Elevate replaces exe with newExe as administrator (UAC prompt); sum is the SHA-256 (hex)
 	// newExe must have, from the verified package. A declined prompt is ErrDeclined.
 	Elevate func(newExe, exe, sum string) error
@@ -86,6 +90,7 @@ func NewInstaller() Installer {
 		Executable: executable,
 		Writable:   writable,
 		PrivateDir: func() (string, error) { return os.MkdirTemp("", "openlamt-update-") },
+		Downloads:  DownloadsDir,
 		Rename:     os.Rename,
 		Remove:     os.Remove,
 		Elevate:    elevateReplace,
@@ -109,9 +114,26 @@ func (in Installer) Install(pkg Package) (restart string, err error) {
 // Restart starts the replaced program; the caller quits right after.
 func (in Installer) Restart(path string) error { return in.Start(path) }
 
-// openPackage writes the package to a new private folder and opens it from there. The folder
-// stays: the installer reads the file after OpenLAMT quit.
+// openPackage writes the package and opens it from there. The DMG goes to a new private
+// folder, the .deb to the Downloads folder. The file stays: the installer reads it after
+// OpenLAMT quit.
 func (in Installer) openPackage(pkg Package) error {
+	if in.GOOS == "linux" {
+		dir, err := in.Downloads()
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrOpen, err)
+		}
+		path, err := Save(dir, pkg)
+		if err == nil {
+			if err = in.Open(path); err != nil {
+				os.Remove(path)
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("%w: %w", ErrOpen, err)
+		}
+		return nil
+	}
 	dir, err := in.PrivateDir()
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrOpen, err)

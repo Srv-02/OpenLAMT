@@ -188,6 +188,9 @@ func (f *Fake) OpenKVM(ctx context.Context, quality kvm.Quality, prompt amt.Cons
 	if f.KVMErr != nil {
 		return nil, f.KVMErr
 	}
+	if err := f.enableRedirection("KVM"); err != nil {
+		return nil, err
+	}
 	if err := f.consent(prompt); err != nil {
 		return nil, err
 	}
@@ -258,6 +261,9 @@ func (f *Fake) OpenIDER(ctx context.Context, img ider.Image, start ider.StartMod
 	f.mu.Unlock()
 	if f.IDERErr != nil {
 		return nil, f.IDERErr
+	}
+	if err := f.enableRedirection("IDE-R"); err != nil {
+		return nil, err
 	}
 	if err := f.consent(prompt); err != nil {
 		return nil, err

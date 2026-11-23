@@ -8,8 +8,11 @@ import (
 	"strings"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
+	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/session"
+	"github.com/Srv-02/openlamt/internal/sol"
 )
 
 // refusal is a call the server rejects before anything reaches the device: policy, input or a
@@ -22,7 +25,39 @@ func refuse(format string, args ...any) error { return &refusal{msg: fmt.Sprintf
 
 func isRefusal(err error) bool {
 	var r *refusal
-	return errors.As(err, &r)
+	var off *amt.RedirectionOffError // read_only forbids the write: a policy refusal
+	return errors.As(err, &r) || errors.As(err, &off)
+}
+
+// redirOpenError is an error of opening a SOL ("sol") or IDE-R ("ider") session, so explain
+// names that feature and its tool. An unwrapped redirection error stays a KVM error.
+type redirOpenError struct {
+	kind string
+	err  error
+}
+
+func (e *redirOpenError) Error() string { return e.kind + ": " + e.err.Error() }
+func (e *redirOpenError) Unwrap() error { return e.err }
+
+// redirKinds are the words explain uses for a redirOpenError.
+var redirKinds = map[string]struct{ short, session, where, tool string }{
+	"sol":  {"SOL", "serial console (SOL)", "Console view", "sol_connect"},
+	"ider": {"IDE-R", "media (IDE-R)", "Media menu", "media_mount"},
+}
+
+// explainRedirOpen explains an error of opening a SOL or IDE-R session.
+func explainRedirOpen(e *redirOpenError) string {
+	k, ok := redirKinds[e.kind]
+	var re *kvm.RedirectionError
+	switch {
+	case !ok || !errors.As(e.err, &re):
+		return explain(e.err)
+	case re.Stage == "auth":
+		return k.short + " login failed: the device rejected the user name or password stored for this favorite."
+	}
+	return fmt.Sprintf("The device refused the %s session (redirection status %d). Another %s session to this device is open, "+
+		"most likely: in the OpenLAMT app (%s), MeshCommander or another client. AMT allows only one per device. "+
+		"Close it there and call %s again.", k.session, re.Status, k.short, k.where, k.tool)
 }
 
 // powerReturnValues are the CIM_PowerManagementService.RequestPowerStateChange return values.
@@ -53,10 +88,28 @@ func explain(err error) string {
 		rop *reopenError
 		re  *kvm.RedirectionError
 		ke  *amt.KVMError
+		rof *amt.RedirectionOffError
+		roe *redirOpenError
+		se  *amt.SOLError
+		ie  *amt.IDERError
+		mpe *mkiso.PathError
 	)
 	switch {
+	case errors.As(err, &roe):
+		return explainRedirOpen(roe)
 	case errors.As(err, &ref):
 		return ref.msg
+	case errors.As(err, &rof):
+		const tail = " in the openlamt-mcp config forbids turning it on, because that changes a device setting. " +
+			"Turn it on in the AMT settings (for example in the OpenLAMT app) or switch read_only off."
+		if rof.Feature == "redirection" {
+			return "The redirection port (needed for KVM, Serial over LAN and IDE-R) is turned off on the device, and read_only" + tail
+		}
+		name := map[string]string{"SOL": "Serial over LAN (SOL)", "IDE-R": "Media redirection (IDE-R)"}[rof.Feature]
+		if name == "" {
+			name = rof.Feature
+		}
+		return name + " is turned off on the device, and read_only" + tail
 	case errors.As(err, &cne):
 		msg := "This action needs user consent. "
 		if cne.reopen {
@@ -86,6 +139,42 @@ func explain(err error) string {
 			"most likely: in the OpenLAMT app, MeshCommander or another client. AMT allows only one. Close it there and call kvm_connect again.", re.Status)
 	case errors.As(err, &ke):
 		return fmt.Sprintf("The device refused to enable KVM (AMT ReturnValue %d). KVM may be disabled in the AMT settings of the device.", ke.ReturnValue)
+	case errors.As(err, &se):
+		return fmt.Sprintf("The device refused to enable Serial over LAN (AMT ReturnValue %d). SOL may be disabled in the AMT settings of the device.", se.ReturnValue)
+	case errors.Is(err, sol.ErrStartFailed):
+		return "The device did not start the serial console. Try again; Serial over LAN may be disabled in the AMT settings of the device."
+	case errors.Is(err, sol.ErrClosedByDevice):
+		return "The device closed the serial console session."
+	case errors.Is(err, sol.ErrClosed):
+		return "The serial console session was closed."
+	case errors.As(err, &ie):
+		return fmt.Sprintf("The device refused to enable media redirection (AMT ReturnValue %d). IDE-R may be disabled in the AMT settings of the device.", ie.ReturnValue)
+	case errors.Is(err, amt.ErrIDERUnsupported):
+		return "This device does not support media redirection (IDE-R)."
+	case errors.Is(err, ider.ErrClosedByDevice):
+		return "The device closed the media session."
+	case errors.Is(err, ider.ErrToggleFailed):
+		return "The device did not attach the virtual CD drive. Try media_mount again."
+	case errors.Is(err, ider.ErrClosed):
+		return "The media session was closed."
+	case errors.As(err, &mpe):
+		return mpe.Path + ": " + explain(mpe.Err)
+	case errors.Is(err, mkiso.ErrEmpty):
+		return "The folder contains no files."
+	case errors.Is(err, mkiso.ErrFileTooLarge):
+		return "A file in the folder is 4 GiB or larger and does not fit on the image."
+	case errors.Is(err, mkiso.ErrNameTooLong):
+		return "A file or folder name is longer than 103 characters, which the image cannot hold."
+	case errors.Is(err, mkiso.ErrNameConflict):
+		return "Two names in the folder differ only in upper and lower case or in special characters, which the image cannot tell apart."
+	case errors.Is(err, mkiso.ErrTooManyDirs):
+		return "The folder has more than 65535 subfolders, which the image cannot hold."
+	case errors.Is(err, mkiso.ErrDirTooLarge):
+		return "A folder holds too many entries for the image."
+	case errors.Is(err, mkiso.ErrTooLarge):
+		return "The folder is too large for an image."
+	case errors.Is(err, mkiso.ErrFileChanged):
+		return "A file changed while the image was built. Call media_mount again."
 	case errors.Is(err, kvm.ErrClosed):
 		return "The KVM session was closed."
 	case errors.Is(err, kvm.ErrAuthUnsupported):
@@ -101,6 +190,9 @@ func explain(err error) string {
 		return fmt.Sprintf("The TLS certificate of the device changed (pinned fingerprint %s, device sent %s). "+
 			"The connection was refused. If the change is expected, connect with the OpenLAMT app and accept the new certificate there.",
 			amt.FormatFingerprint(mm.Expected), amt.FormatFingerprint(mm.Actual))
+	case errors.As(err, &pe) && pe.Action == amt.BootToISO:
+		return fmt.Sprintf("The device refused the boot from ISO (AMT ReturnValue %d). "+
+			"The IDE-R boot option may still be set on the device.", pe.ReturnValue)
 	case errors.As(err, &pe) && pe.Action == amt.BootToBIOS:
 		return fmt.Sprintf("The device refused the boot to BIOS (AMT ReturnValue %d). "+
 			"The BIOS setup boot option may still be set on the device.", pe.ReturnValue)

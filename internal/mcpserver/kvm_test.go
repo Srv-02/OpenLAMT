@@ -11,6 +11,7 @@ import (
 	"image/png"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -436,18 +437,39 @@ func TestKVMTypeTextUsesLayout(t *testing.T) {
 	}
 }
 
+// skewClock returns a clock for a session manager that runs ahead of the real one by what
+// the test adds to the returned counter, so idle timeouts expire without waiting in real time.
+func skewClock() (func() time.Time, *atomic.Int64) {
+	var skew atomic.Int64
+	return func() time.Time { return time.Now().Add(time.Duration(skew.Load())) }, &skew
+}
+
 // TestKVMIdleTimeoutClosesSession: a session without calls is closed and needs kvm_connect.
+// The manager's clock is moved past the idle timeout and its expiry runs directly, so the test
+// does not race a real timer (it was flaky on slow CI runners).
 func TestKVMIdleTimeoutClosesSession(t *testing.T) {
 	h := newHarness(t)
 	f := h.addDevice("NUC", "192.0.2.10", false)
 	srv := addKVM(t, f, kvmtest.Options{})
-	h.cfg.KVMIdleTimeout = 100 * time.Millisecond
+	h.cfg.KVMIdleTimeout = time.Hour // the real timer never fires during the test
 	h.start()
+	clock, skew := skewClock()
+	h.srv.s.kvm.now = clock
 	h.mustOK("kvm_connect", dev("NUC"))
-	c := h.kvmEntry("NUC").client
-	eventually(t, "idle close", func() bool { return h.kvmEntry("NUC") == nil })
+	e := h.kvmEntry("NUC")
+	c := e.client
+	skew.Store(int64(30 * time.Minute))
+	h.srv.s.kvm.expire(e) // not idle long enough: the timer is set again, the session stays
+	if h.kvmEntry("NUC") != e || !e.alive() {
+		t.Fatal("session closed before the idle timeout")
+	}
+	skew.Store(int64(2 * time.Hour))
+	h.srv.s.kvm.expire(e)
+	if h.kvmEntry("NUC") != nil {
+		t.Fatal("idle session still in the manager")
+	}
 	select {
-	case <-c.Done():
+	case <-c.Done(): // expire closed the client before it returned
 	default:
 		t.Fatal("client still running")
 	}
@@ -588,9 +610,12 @@ func TestKVMDisconnectAndServerClose(t *testing.T) {
 		t.Fatalf("%v", out)
 	}
 	<-c.Done()
-	eventually(t, "button release", func() bool { return len(pointerEvents(srvNUC)) >= 2 })
-	if p := pointerEvents(srvNUC); p[len(p)-1].mask != 0 {
-		t.Fatalf("button still held: %v", p)
+	// kvm_mouse down sent two pointer events (move, press); disconnect writes the release before
+	// it closes the socket, and the fake server records it a moment later. Wait for that third
+	// event itself: waiting for two events passed at once and raced the release on slow runners.
+	eventually(t, "button release", func() bool { return len(pointerEvents(srvNUC)) >= 3 })
+	if p := pointerEvents(srvNUC); len(p) != 3 || p[1].mask != 1 || p[2].mask != 0 {
+		t.Fatalf("pointer events %v, want move, press, release", p)
 	}
 	if out := h.mustOK("kvm_disconnect", dev("NUC")); out["closed"] != false {
 		t.Fatalf("second disconnect %v", out)
@@ -743,4 +768,72 @@ func TestKVMTypeTextSecretRefusesControlCharacters(t *testing.T) {
 	if logged != "7 characters, 0 Enter, layout us, secret" {
 		t.Fatalf("logged %q", logged)
 	}
+}
+
+// rawKeyMessages counts every RFB key event (type 4) the fake received, the wake key F15 included.
+func rawKeyMessages(srv *kvmtest.Server) int {
+	n := 0
+	for _, m := range srv.ClientMessages() {
+		if m[0] == 4 {
+			n++
+		}
+	}
+	return n
+}
+
+// TestReadOnlyKVMConnectNeverEnablesKVM: read_only never switches KVM on (that is a device
+// write) and sends no wake keys to the host; without read_only kvm_connect enables KVM like the app.
+func TestReadOnlyKVMConnectNeverEnablesKVM(t *testing.T) {
+	// read_only, KVM off: refused, nothing enabled, no redirection connection.
+	h := newHarness(t)
+	h.cfg.ReadOnly = true
+	h.cfg.ActionLog = true
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	srv := addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustFail("kvm_connect", dev("NUC"), "read_only in the openlamt-mcp config forbids turning it on")
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("enabled %v", got)
+	}
+	if srv.Connections() != 0 {
+		t.Fatalf("redirection connections %d", srv.Connections())
+	}
+	var found bool
+	for _, e := range h.logEntries() {
+		if e["tool"] == "kvm_connect" {
+			found = true
+			if e["outcome"] != "refused" {
+				t.Fatalf("log entry %v", e)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no kvm_connect log entry")
+	}
+
+	// read_only, KVM on: connect and screenshot work, and no key event reaches the host.
+	h = newHarness(t)
+	h.cfg.ReadOnly = true
+	f = h.addDevice("NUC", "192.0.2.10", false)
+	srv = addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustOK("kvm_connect", dev("NUC"))
+	h.screenshot(dev("NUC"))
+	time.Sleep(300 * time.Millisecond) // a wake key would have gone out by now
+	if n := rawKeyMessages(srv); n != 0 {
+		t.Fatalf("read_only sent %d key events to the host", n)
+	}
+
+	// No read_only, KVM off: kvm_connect enables KVM, and the wake key goes out (proves the probe above).
+	h = newHarness(t)
+	f = h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	srv = addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustOK("kvm_connect", dev("NUC"))
+	if got := f.RedirectionEnabled(); !reflect.DeepEqual(got, []string{"KVM"}) {
+		t.Fatalf("enabled %v", got)
+	}
+	eventually(t, "the wake key", func() bool { return rawKeyMessages(srv) > 0 })
 }

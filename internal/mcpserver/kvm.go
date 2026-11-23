@@ -24,6 +24,7 @@ type kvmManager struct {
 	closed  bool
 	idle    time.Duration // 0: never
 	open    kvmOpener
+	now     func() time.Time // clock of the idle timeout; tests replace it
 }
 
 // kvmEntry is the KVM session of one device. Its mutex serializes the tool calls on it.
@@ -42,7 +43,7 @@ type kvmEntry struct {
 }
 
 func newKVMManager(idle time.Duration, open kvmOpener) *kvmManager {
-	return &kvmManager{entries: map[string]*kvmEntry{}, idle: idle, open: open}
+	return &kvmManager{entries: map[string]*kvmEntry{}, idle: idle, open: open, now: time.Now}
 }
 
 var errShuttingDown = refuse("The MCP server is shutting down.")
@@ -131,9 +132,9 @@ func (m *kvmManager) connect(ctx context.Context, device string, code consentCod
 				e.timer = time.AfterFunc(m.idle, func() { m.expire(e) })
 			}
 		}
-		e.lastUsed = time.Now()
+		e.lastUsed = m.now()
 		err := fn(e, already)
-		e.lastUsed = time.Now()
+		e.lastUsed = m.now()
 		e.mu.Unlock()
 		return err
 	}
@@ -174,9 +175,9 @@ func (m *kvmManager) use(ctx context.Context, device string, fn func(e *kvmEntry
 		}
 		e.client, e.warnings, e.buttons = c, warnings, 0
 	}
-	e.lastUsed = time.Now()
+	e.lastUsed = m.now()
 	err := fn(e)
-	e.lastUsed = time.Now()
+	e.lastUsed = m.now()
 	return err
 }
 
@@ -197,7 +198,7 @@ func (m *kvmManager) expire(e *kvmEntry) {
 	if e.removed {
 		return
 	}
-	if left := m.idle - time.Since(e.lastUsed); left > 0 {
+	if left := m.idle - m.now().Sub(e.lastUsed); left > 0 {
 		e.timer.Reset(left)
 		return
 	}

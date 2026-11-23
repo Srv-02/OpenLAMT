@@ -26,6 +26,11 @@ type Config struct {
 	UseTLS      bool
 	Fingerprint string // hex SHA-256 of the pinned leaf certificate; empty = not pinned yet
 
+	// NeverEnable forbids switching a redirection feature on: OpenKVM, OpenSOL and OpenIDER
+	// fail with *RedirectionOffError instead of writing when the listener, KVM, SOL or IDE-R is
+	// off. openlamt-mcp sets it in read_only mode; the app never does.
+	NeverEnable bool
+
 	dialContext func(ctx context.Context, network, addr string) (net.Conn, error) // tests only; nil = net.Dialer
 }
 

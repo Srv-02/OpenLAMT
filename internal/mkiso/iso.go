@@ -421,12 +421,13 @@ type copier struct {
 	o        *out
 	buf      []byte
 	progress func(done, total int64)
+	open     func(n *node) (*os.File, error)
 	done     int64
 	total    int64
 }
 
 func (c *copier) file(n *node) error {
-	f, err := os.Open(n.src)
+	f, err := c.open(n)
 	if err != nil {
 		return &PathError{Path: n.rel, Err: err}
 	}
@@ -474,7 +475,7 @@ func (b *builder) write(ctx context.Context, w io.WriteSeeker, progress func(don
 		return err
 	}
 	o := &out{w: w, bw: bufio.NewWriterSize(w, 1<<20), base: base}
-	cp := &copier{ctx: ctx, o: o, buf: make([]byte, 1<<20), progress: progress, total: b.t.total}
+	cp := &copier{ctx: ctx, o: o, buf: make([]byte, 1<<20), progress: progress, open: b.t.open, total: b.t.total}
 
 	if _, err := o.Write(b.metadata()); err != nil {
 		return err

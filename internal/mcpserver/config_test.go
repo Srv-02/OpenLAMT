@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,9 @@ func TestLoadMissingDefaultFileAllowsEverything(t *testing.T) {
 	want := ScreenshotConfig{MaxWidth: 1280, MaxHeight: 1280, Format: "jpeg", JPEGQuality: 80}
 	if c.KVMIdleTimeout != 5*time.Minute || c.Screenshot != want {
 		t.Fatalf("kvm defaults %v %+v", c.KVMIdleTimeout, c.Screenshot)
+	}
+	if c.SOLIdleTimeout != 5*time.Minute {
+		t.Fatalf("sol idle timeout %v", c.SOLIdleTimeout)
 	}
 }
 
@@ -101,6 +105,8 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		`{"kvm": {"screenshot_jpeg_quality": 0}}`,
 		`{"kvm": {"screenshot_max_width": 8}}`,
 		`{"kvm": {"screenshot_max_height": 100000}}`,
+		`{"sol": {"idle_timeout": 5}}`,
+		`{"sol": {"idle_timeout_seconds": -1}}`,
 	} {
 		if _, err := Load(writeConfig(t, body), true); err == nil {
 			t.Errorf("%s: no error", body)
@@ -143,5 +149,41 @@ func TestLoadKVMSettings(t *testing.T) {
 	c, err = Load(writeConfig(t, `{"kvm": {"idle_timeout_seconds": 60, "screenshot_jpeg_quality": 95}}`), true)
 	if err != nil || c.KVMIdleTimeout != time.Minute || c.Screenshot.JPEGQuality != 95 {
 		t.Fatalf("%v %v %+v", err, c.KVMIdleTimeout, c.Screenshot)
+	}
+}
+
+// TestLoadSOLSettings: the SOL idle timeout, 0 = never; other keys keep their defaults.
+func TestLoadSOLSettings(t *testing.T) {
+	c, err := Load(writeConfig(t, `{"sol": {"idle_timeout_seconds": 0}}`), true)
+	if err != nil || c.SOLIdleTimeout != 0 || c.KVMIdleTimeout != DefaultKVMIdleTimeout {
+		t.Fatalf("%v %v %v", err, c.SOLIdleTimeout, c.KVMIdleTimeout)
+	}
+	c, err = Load(writeConfig(t, `{"sol": {"idle_timeout_seconds": 60}}`), true)
+	if err != nil || c.SOLIdleTimeout != time.Minute {
+		t.Fatalf("%v %v", err, c.SOLIdleTimeout)
+	}
+	c, err = Load(writeConfig(t, `{"sol": {}}`), true)
+	if err != nil || c.SOLIdleTimeout != DefaultSOLIdleTimeout {
+		t.Fatalf("%v %v", err, c.SOLIdleTimeout)
+	}
+}
+
+// TestLoadMediaAllowedPaths: media.allowed_paths takes absolute folders; missing or empty means
+// no restriction (everything allowed without a config, Michael's default).
+func TestLoadMediaAllowedPaths(t *testing.T) {
+	c, err := Load(writeConfig(t, `{}`), true)
+	if err != nil || c.MediaAllowedPaths != nil {
+		t.Fatalf("%v %v", err, c.MediaAllowedPaths)
+	}
+	abs := filepath.Join(t.TempDir(), "isos")
+	body := `{"media": {"allowed_paths": [` + strconv.Quote(abs+string(filepath.Separator)) + `]}}`
+	c, err = Load(writeConfig(t, body), true)
+	if err != nil || len(c.MediaAllowedPaths) != 1 || c.MediaAllowedPaths[0] != abs {
+		t.Fatalf("%v %v", err, c.MediaAllowedPaths)
+	}
+	for _, bad := range []string{`{"media": {"allowed_paths": ["isos"]}}`, `{"media": {"allowed_paths": [" "]}}`, `{"media": {"paths": []}}`} {
+		if _, err := Load(writeConfig(t, bad), true); err == nil {
+			t.Errorf("%s: no error", bad)
+		}
 	}
 }

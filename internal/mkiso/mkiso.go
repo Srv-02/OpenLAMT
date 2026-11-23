@@ -37,6 +37,12 @@ type Options struct {
 	// Progress receives the number of file data bytes written so far and the
 	// total. It may be nil and is called from the building goroutine.
 	Progress func(done, total int64)
+	// Root, if set, is the folder opened with os.OpenRoot; every read of the
+	// build goes through it, so no file outside the folder can end up in the
+	// image, even when an entry becomes a symbolic link while the image is
+	// built. The dir argument then only names the volume. Symbolic links and
+	// special files are skipped either way (Info.Skipped).
+	Root *os.Root
 }
 
 // Info describes a finished image.
@@ -76,7 +82,7 @@ func Build(ctx context.Context, dir string, w io.WriteSeeker, opt Options) (Info
 	if err := ctx.Err(); err != nil {
 		return Info{}, err
 	}
-	t, err := scan(ctx, dir)
+	t, err := scan(ctx, dir, opt.Root)
 	if err != nil {
 		return Info{}, err
 	}

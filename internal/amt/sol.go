@@ -37,6 +37,9 @@ func (d *Device) EnableSOL() error {
 	default:
 		return fmt.Errorf("enable sol: unexpected redirection service state %d", int(cur.EnabledState))
 	}
+	if d.cfg.NeverEnable {
+		return &RedirectionOffError{Feature: "SOL"}
+	}
 	return d.requestRedirectionState("enable sol", want, func(rv int) error {
 		return &SOLError{Step: "RedirectionService.RequestStateChange", ReturnValue: rv}
 	})

@@ -117,7 +117,7 @@ func TestIDERConsentRule(t *testing.T) {
 		if c.kvm {
 			err = d.UserConsent(prompt)
 		} else {
-			err = d.userConsent(prompt, true)
+			err = d.userConsent(context.Background(), prompt, true)
 		}
 		if err != nil || asked != c.prompts {
 			t.Fatalf("%s: err=%v asked=%d", c.name, err, asked)

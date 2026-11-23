@@ -1,6 +1,7 @@
 package amt
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -122,7 +123,9 @@ func (d *Device) requestPowerState(action PowerAction, state power.PowerState) e
 // IDE-R and SOL rule (consent only when OptInRequired is All). Call it before Power(BootToBIOS).
 // Without a code to give, the prompt may return an error: the opt-in has been started by then,
 // so the device shows the code for the next attempt.
-func (d *Device) BootConsent(prompt ConsentPrompt) error { return d.userConsent(prompt, true) }
+func (d *Device) BootConsent(prompt ConsentPrompt) error {
+	return d.userConsent(context.Background(), prompt, true)
+}
 
 // bootToBIOS sets the one-shot BIOS setup boot option and then resets (running) or powers on
 // (not running) the machine, following the console's SetBootOptions sequence. A sleeping device

@@ -114,7 +114,7 @@ func (d *Device) OpenIDER(ctx context.Context, img ider.Image, start ider.StartM
 	if err := d.EnableIDER(); err != nil {
 		return nil, err
 	}
-	if err := d.userConsent(prompt, true); err != nil {
+	if err := d.userConsent(ctx, prompt, true); err != nil {
 		return nil, err
 	}
 	if d.cfg.UseTLS && d.tlsCfg == nil {

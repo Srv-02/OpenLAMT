@@ -118,11 +118,18 @@ func (d *Device) EnableKVM() error {
 
 // UserConsent reads IPS_OptInService. With OptInRequired 0 or OptInState 3/4 it returns nil.
 // Otherwise it starts opt-in when needed, asks the prompt and sends the six digit code.
-func (d *Device) UserConsent(prompt ConsentPrompt) error { return d.userConsent(prompt, false) }
+func (d *Device) UserConsent(prompt ConsentPrompt) error {
+	return d.userConsent(context.Background(), prompt, false)
+}
 
 // userConsent is UserConsent for KVM (allOnly false) or IDE-R and SOL (allOnly true), which need
 // consent only when OptInRequired is All (0xFFFFFFFF), not when it is limited to KVM.
-func (d *Device) userConsent(prompt ConsentPrompt, allOnly bool) error {
+//
+// A cancelled ctx stops it before StartOptIn, so no code appears on the host screen. When the
+// cancel arrives after its own StartOptIn went out and the prompt then fails, it withdraws the
+// request with CancelOptIn (best effort). A prompt error without a cancel leaves the opt-in
+// running: the MCP server returns "code needed" and expects the code shown for the next call.
+func (d *Device) userConsent(ctx context.Context, prompt ConsentPrompt, allOnly bool) error {
 	svc, err := d.msgs.IPS.OptInService.Get()
 	if err != nil {
 		return fmt.Errorf("get opt-in service: %w", err)
@@ -139,7 +146,11 @@ func (d *Device) userConsent(prompt ConsentPrompt, allOnly bool) error {
 	if prompt == nil {
 		return ErrConsentRequired
 	}
+	started := false
 	if cur.OptInState == int(optin.NotStarted) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		resp, err := d.msgs.IPS.OptInService.StartOptIn()
 		if err != nil {
 			return fmt.Errorf("start opt-in: %w", err)
@@ -150,9 +161,13 @@ func (d *Device) userConsent(prompt ConsentPrompt, allOnly bool) error {
 		if rv := resp.Body.StartOptInResponse.ReturnValue; rv != 0 {
 			return &ConsentError{Step: "StartOptIn", ReturnValue: rv}
 		}
+		started = true
 	}
 	raw, err := prompt.ConsentCode()
 	if err != nil {
+		if started && ctx.Err() != nil {
+			_, _ = d.msgs.IPS.OptInService.CancelOptIn() // best effort: the cancel is what counts
+		}
 		return fmt.Errorf("read consent code: %w", err)
 	}
 	code, err := parseConsentCode(raw)
@@ -196,7 +211,7 @@ func (d *Device) OpenKVM(ctx context.Context, quality kvm.Quality, prompt Consen
 	if err := d.EnableKVM(); err != nil {
 		return nil, err
 	}
-	if err := d.UserConsent(prompt); err != nil {
+	if err := d.userConsent(ctx, prompt, false); err != nil {
 		return nil, err
 	}
 	if d.cfg.UseTLS && d.tlsCfg == nil {

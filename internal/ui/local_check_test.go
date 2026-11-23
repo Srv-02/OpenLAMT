@@ -117,7 +117,7 @@ func TestLocalCheckStates(t *testing.T) {
 			if f.calls != 1 || s.localChecking || s.checkBtn.Disabled() {
 				t.Fatalf("calls=%d checking=%v disabled=%v", f.calls, s.localChecking, s.checkBtn.Disabled())
 			}
-			if s.localRow.Host() != c.subline || s.checkBtn.Text != "Check Again" {
+			if s.localRow.Host() != c.subline || s.checkBtn.Text != "Check" {
 				t.Fatalf("subline %q, button %q", s.localRow.Host(), s.checkBtn.Text)
 			}
 			texts := cardTexts(s)
@@ -155,7 +155,7 @@ func TestLocalCheckIsStored(t *testing.T) {
 	}
 
 	again := newCheckStart(t, a, &fakeCheck{})
-	if again.localRow.Host() != "AMT 16.1 · not activated" || again.checkBtn.Text != "Check Again" || !hasText(again.localCard, "Not activated") {
+	if again.localRow.Host() != "AMT 16.1 · not activated" || again.checkBtn.Text != "Check" || !hasText(again.localCard, "Not activated") {
 		t.Fatalf("after restart: subline %q, button %q", again.localRow.Host(), again.checkBtn.Text)
 	}
 	// A damaged value counts as not checked.

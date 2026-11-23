@@ -74,7 +74,7 @@ type StartWindow struct {
 	localRow      *widgets.SidebarRow
 	localCard     *fyne.Container                // the card of the last result
 	localActions  fyne.CanvasObject              // header: "Beta", Check, the hints
-	checkBtn      *widgets.PrimaryButton         // Check / Check Again
+	checkBtn      *widgets.PrimaryButton         // always "Check"
 	betaPill      fyne.CanvasObject              // "Beta" next to Check
 	localLast     *localme.Result                // last check result (settings); nil: not checked
 	localChecking bool                           // the helper runs

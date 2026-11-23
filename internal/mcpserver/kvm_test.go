@@ -582,6 +582,8 @@ func TestKVMSessionIsKeptByTheFavoriteDevice(t *testing.T) {
 
 	// The operator points the favorite at another device: no key reaches the old one.
 	h.mustOK("kvm_send_keys", dev("NUC", "keys", []string{"Enter"}))
+	// The key reaches the fake after the call returned: count only once both events are in.
+	eventually(t, "Enter reaches the device", func() bool { return len(inputEvents(srvA)) >= 2 })
 	before := len(inputEvents(srvA))
 	h.favs[0].Host = "192.0.2.11"
 	h.mustFail("kvm_send_keys", dev("NUC", "keys", []string{"Enter"}), "No KVM session is open")

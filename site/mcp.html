@@ -135,7 +135,7 @@
   <li><code>media_boot_next</code> makes the device boot from the image at its next start. <code>boot_from_iso</code> restarts it from the image now; a device that is off is only powered on. <code>media_status</code> shows what is mounted and how fast the device reads it.</li>
   <li>The image stays mounted until <code>media_unmount</code>, until the device ends the session, or until the client stops the server. The boot option set with <code>media_boot_next</code> is cleared then. If a boot from the image fails halfway, <code>media_unmount</code> clears the boot option as well.</li>
   <li>One media session per device: while the agent holds it, the app’s Media menu cannot mount on that device, and the other way round.</li>
-  <li>If media redirection (IDE-R) is off, <code>media_mount</code> turns it on, and it stays on. That needs the group <code>settings</code>.</li>
+  <li>If media redirection (IDE-R) is off, <code>media_mount</code> turns it on, and it stays on. That needs the group <code>settings</code>. With <code>require_client_confirmation</code>, the mount question says that IDE-R will be turned on.</li>
 </ul>
 <div class="warn"><b>A mounted folder can be read on the device.</b>Whoever uses the device, or its remote screen, can read every file of a mounted folder. <code>openlamt-mcp</code> therefore refuses some folders, but the list cannot cover every place with secrets. Set <code>media.allowed_paths</code> to the folders with your images.</div>
 <div class="prose">
@@ -172,7 +172,7 @@
 </div>
 
 <h2 id="config">Limit what the agent may do</h2>
-<div class="warn"><b>Without a config file, everything is allowed.</b>Every favorite and every action; only the orange and red settings and account changes ask. Write a config file before you hand your devices to an agent you do not fully trust.</div>
+<div class="warn"><b>Without a config file, everything is allowed.</b>Every favorite and every action; only the orange and red settings and account changes ask. The action log is written all the same. Write a config file before you hand your devices to an agent you do not fully trust.</div>
 <div class="prose">
 <p>The config file is <code>openlamt-mcp.json</code> next to <code>favorites.json</code> in your configuration folder, or the file given with <code>--config &lt;path&gt;</code>. These are the defaults:</p>
 <pre><code>{

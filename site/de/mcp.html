@@ -135,7 +135,7 @@
   <li><code>media_boot_next</code> lässt das Gerät beim nächsten Start vom Abbild booten. <code>boot_from_iso</code> startet es jetzt vom Abbild neu; ein ausgeschaltetes Gerät wird nur eingeschaltet. <code>media_status</code> zeigt, was eingehängt ist und wie schnell das Gerät es liest.</li>
   <li>Das Abbild bleibt eingehängt bis <code>media_unmount</code>, bis das Gerät die Sitzung beendet oder bis der Client den Server beendet. Die mit <code>media_boot_next</code> gesetzte Boot-Option wird dann gelöscht. Scheitert ein Boot vom Abbild auf halbem Weg, löscht <code>media_unmount</code> die Boot-Option ebenfalls.</li>
   <li>Eine Mediensitzung pro Gerät: Solange der Agent sie hält, kann das Menü „Medien“ der App auf diesem Gerät nichts einhängen, und umgekehrt.</li>
-  <li>Ist die Medienumleitung (IDE-R) ausgeschaltet, schaltet <code>media_mount</code> sie ein, und sie bleibt eingeschaltet. Dafür braucht es die Gruppe <code>settings</code>.</li>
+  <li>Ist die Medienumleitung (IDE-R) ausgeschaltet, schaltet <code>media_mount</code> sie ein, und sie bleibt eingeschaltet. Dafür braucht es die Gruppe <code>settings</code>. Mit <code>require_client_confirmation</code> sagt dir die Rückfrage zum Einhängen, dass IDE-R eingeschaltet wird.</li>
 </ul>
 <div class="warn"><b>Ein eingehängter Ordner ist am Gerät lesbar.</b>Wer das Gerät oder seinen Fernbildschirm nutzt, kann jede Datei eines eingehängten Ordners lesen. <code>openlamt-mcp</code> lehnt deshalb einige Ordner ab, aber die Liste kann nicht jeden Ort mit Geheimnissen abdecken. Setze <code>media.allowed_paths</code> auf die Ordner mit deinen Abbildern.</div>
 <div class="prose">
@@ -172,7 +172,7 @@
 </div>
 
 <h2 id="config">Begrenzen, was der Agent darf</h2>
-<div class="warn"><b>Ohne Konfigurationsdatei ist alles erlaubt.</b>Jeder Favorit und jede Aktion; nur die orangen und roten Änderungen an Einstellungen und Konten fragen nach. Schreib eine Konfigurationsdatei, bevor du deine Geräte einem Agenten überlässt, dem du nicht ganz vertraust.</div>
+<div class="warn"><b>Ohne Konfigurationsdatei ist alles erlaubt.</b>Jeder Favorit und jede Aktion; nur die orangen und roten Änderungen an Einstellungen und Konten fragen nach. Das Aktionsprotokoll wird trotzdem geschrieben. Schreib eine Konfigurationsdatei, bevor du deine Geräte einem Agenten überlässt, dem du nicht ganz vertraust.</div>
 <div class="prose">
 <p>Die Konfigurationsdatei ist <code>openlamt-mcp.json</code> neben <code>favorites.json</code> in deinem Konfigurationsordner, oder die Datei, die du mit <code>--config &lt;path&gt;</code> angibst. Das sind die Standardwerte:</p>
 <pre><code>{

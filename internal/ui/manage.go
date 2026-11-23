@@ -47,10 +47,11 @@ const (
 // sidebar (the page lays out its own controls), otherwise the window (head controls go to
 // managePane.info and tools).
 type managePage struct {
-	tab   string // sidebar tab caption, e.g. "Events"
-	title string // navigation entry and page head of the window, e.g. "Event log"
-	icon  icons.Name
-	build func(compact bool) *managePane
+	section manageSection
+	tab     string // sidebar tab caption, e.g. "Events"
+	title   string // navigation entry and page head of the window, e.g. "Event log"
+	icon    icons.Name
+	build   func(compact bool) *managePane
 }
 
 // managePane is one view of a page.
@@ -194,13 +195,7 @@ func newManager(a fyne.App, parent fyne.Window, sess *session.Session, name stri
 		return auditRows(e, time.Local), err
 	})
 	m.settings = newSettingsData(m)
-	m.pages = []managePage{
-		{tab: lang.L("Hardware"), title: lang.L("Hardware"), icon: icons.Hardware, build: m.hardwarePane},
-		{tab: lang.L("Events"), title: lang.L("Event log"), icon: icons.EventLog, build: m.eventLogPane},
-		{tab: lang.L("Audit"), title: lang.L("Audit log"), icon: icons.AuditLog, build: m.auditLogPane},
-		{tab: lang.L("Settings"), title: lang.L("Settings"), icon: icons.DeviceSettings, build: m.settingsPane},
-		{tab: lang.L("Users"), title: lang.L("Users"), icon: icons.Users, build: m.usersPane},
-	}
+	m.pages = managePages(m)
 	return m
 }
 
@@ -248,6 +243,19 @@ func (m *manager) OpenWindow() {
 	if m.side != nil {
 		page = m.side.view.current
 	}
+	m.openWindowAt(page)
+}
+
+// openWindowAt opens the window on page, or brings the open one to the front on that page.
+func (m *manager) openWindowAt(page int) {
+	if m.closed {
+		return
+	}
+	if m.win != nil {
+		m.win.win.RequestFocus()
+		m.win.showPage(page)
+		return
+	}
 	m.win = newManageWindow(m, page)
 	m.startClock()
 	m.win.win.Show()
@@ -259,6 +267,15 @@ func (m *manager) popOut() {
 		m.onPopOut()
 	}
 	m.OpenWindow()
+}
+
+// popOutTo opens the window on page like the pop-out symbol does (a page the sidebar cannot
+// show): the device window closes its sidebar first.
+func (m *manager) popOutTo(page int) {
+	if m.onPopOut != nil {
+		m.onPopOut()
+	}
+	m.openWindowAt(page)
 }
 
 // Close ends device management with the device window: its own window closes, the clock stops
@@ -276,6 +293,7 @@ func (m *manager) Close() {
 		m.win.win.Close()
 	}
 	if m.side != nil {
+		m.side.dismissMore()
 		m.side.view.close()
 	}
 }
@@ -416,22 +434,40 @@ func setShown(o fyne.CanvasObject, on bool) {
 }
 
 // manageSidebar is the panel of the device window (Main.dc.html): head with title and pop-out
-// symbol, the page tabs and the current page.
+// symbol, the page tabs and the current page. The main pages are the tabs; further pages sit in
+// the menu of the last tab, "More".
 type manageSidebar struct {
 	m      *manager
 	obj    fyne.CanvasObject
 	tabs   *widgets.Segmented
 	popOut *managerButton
 	view   *manageView
+
+	main      int                // number of main pages: the tabs 0..main-1 are pages 0..main-1
+	more      int                // index of the "More" tab, -1 without extra pages
+	morePopup *widgets.MenuPopup // the open More menu (nil = closed)
+	moreMenu  *fyne.Menu         // its items (tests)
 }
 
 func newManageSidebar(m *manager) *manageSidebar {
-	s := &manageSidebar{m: m, view: newManageView(m, true)}
-	labels := make([]string, len(m.pages))
-	for i, p := range m.pages {
-		labels[i] = p.tab
+	s := &manageSidebar{m: m, view: newManageView(m, true), more: -1}
+	var options []widgets.SegmentOption
+	for _, p := range m.pages {
+		if p.section == sectionMain {
+			options = append(options, widgets.SegmentOption{Label: p.tab})
+		}
 	}
-	s.tabs = widgets.NewSegmented(widgets.SegmentedTabs, widgets.TextOptions(labels...), func(i int) { s.view.show(i) })
+	s.main = len(options)
+	if s.main < len(m.pages) {
+		s.more = s.main
+		options = append(options, widgets.SegmentOption{Label: lang.L("More"), Icon: icons.ChevronDown, Natural: true})
+	}
+	s.tabs = widgets.NewSegmented(widgets.SegmentedTabs, options, s.tabChanged)
+	s.tabs.OnReselected = func(i int) {
+		if i == s.more {
+			s.openMore()
+		}
+	}
 	s.popOut = &managerButton{OnTapped: m.popOut, icon: icons.ExternalLink, iconSize: 16, size: fyne.NewSquareSize(28)}
 	s.popOut.ExtendBaseWidget(s.popOut)
 
@@ -446,6 +482,87 @@ func newManageSidebar(m *manager) *manageSidebar {
 	s.obj = container.New(&manageSizeLayout{w: manageSidebarWidth}, container.New(&manageHSplit{fill: 1}, edge, panel))
 	s.view.show(0)
 	return s
+}
+
+// tabIndex is the tab that stands for page: the page's own tab, or "More" for a More page.
+// Diagnostics pages have none (the sidebar never shows them); the selection stays then.
+func (s *manageSidebar) tabIndex(page int) int {
+	if page >= 0 && page < len(s.m.pages) {
+		switch s.m.pages[page].section {
+		case sectionMain:
+			return page
+		case sectionMore:
+			return s.more
+		}
+	}
+	return s.tabs.Selected()
+}
+
+// tabChanged is a tap on another tab: a main page is shown; "More" keeps the page and opens
+// its menu.
+func (s *manageSidebar) tabChanged(i int) {
+	if i == s.more {
+		s.tabs.SetSelected(s.tabIndex(s.view.current))
+		s.openMore()
+		return
+	}
+	s.view.show(i)
+	if s.more >= 0 {
+		s.tabs.SetLabel(s.more, lang.L("More"))
+	}
+}
+
+// openMore shows the More menu below the tabs, its right edge at theirs: the More pages, then,
+// after a separator, the diagnostics pages (they open the window). The items are built anew
+// each time, so their symbols follow the theme.
+func (s *manageSidebar) openMore() {
+	s.dismissMore()
+	c := s.m.parent.Canvas()
+	if c == nil {
+		return
+	}
+	var items, diag []*fyne.MenuItem
+	for i, p := range s.m.pages {
+		switch p.section {
+		case sectionMore:
+			it := fyne.NewMenuItem(p.title, func() {
+				s.view.show(i)
+				s.tabs.SetLabel(s.more, p.tab)
+				s.tabs.SetSelected(s.more)
+			})
+			it.Icon = icons.Get(p.icon, icons.Foreground)
+			items = append(items, it)
+		case sectionDiagnostics:
+			it := fyne.NewMenuItem(p.title, func() { s.m.popOutTo(i) })
+			it.Icon = icons.Get(p.icon, icons.Foreground)
+			diag = append(diag, it)
+		}
+	}
+	if len(items) > 0 && len(diag) > 0 {
+		items = append(items, fyne.NewMenuItemSeparator())
+	}
+	items = append(items, diag...)
+	s.moreMenu = fyne.NewMenu("", items...)
+	popup := widgets.NewMenuPopup(s.moreMenu, c)
+	for _, it := range diag {
+		popup.SetTrailing(it, icons.ExternalLink)
+	}
+	popup.OnDismiss = func() {
+		if s.morePopup == popup {
+			s.morePopup = nil
+		}
+	}
+	s.morePopup = popup
+	abs := fyne.CurrentApp().Driver().AbsolutePositionForObject(s.tabs)
+	size := s.tabs.Size()
+	popup.ShowAtPosition(fyne.NewPos(abs.X+size.Width-popup.PanelSize().Width, abs.Y+size.Height+6))
+}
+
+// dismissMore closes the More menu if it is open.
+func (s *manageSidebar) dismissMore() {
+	if s.morePopup != nil {
+		s.morePopup.Dismiss()
+	}
 }
 
 // manageSizeLayout gives its objects the full size; w and h, if set, are the minimum size
@@ -510,16 +627,19 @@ func (l *manageHSplit) MinSize(objs []fyne.CanvasObject) fyne.Size {
 // manageWindow is the window of its own (WindowB.dc.html): navigation on the left with the
 // device, page head and page on the right.
 type manageWindow struct {
-	m       *manager
-	win     fyne.Window
-	view    *manageView
-	nav     []*manageNavItem
-	dot     *widgets.StatusDot
-	sub     *ellipsisText
-	title   *canvas.Text
-	heading *fyne.Container // title and the pane's info
-	tools   *fyne.Container // the pane's tools
-	headRow *fyne.Container // heading and tools
+	m          *manager
+	win        fyne.Window
+	view       *manageView
+	nav        []*manageNavItem
+	navBox     *fyne.Container   // the navigation's entries (tests)
+	navSep     fyne.CanvasObject // separator before the More pages; nil without them
+	navHeading *canvas.Text      // heading "Diagnostics"; nil without such pages
+	dot        *widgets.StatusDot
+	sub        *ellipsisText
+	title      *canvas.Text
+	heading    *fyne.Container // title and the pane's info
+	tools      *fyne.Container // the pane's tools
+	headRow    *fyne.Container // heading and tools
 }
 
 func newManageWindow(m *manager, page int) *manageWindow {
@@ -540,17 +660,31 @@ func newManageWindow(m *manager, page int) *manageWindow {
 		container.New(&manageHSplit{fill: 1}, container.NewCenter(w.dot),
 			container.New(layout.NewCustomPaddedLayout(0, 0, 10, 0), container.New(layout.NewCustomPaddedVBoxLayout(1), name, w.sub))))
 	items := []fyne.CanvasObject{device}
+	var prev manageSection
 	for i, p := range m.pages {
+		// a separator before the first More page, a heading before the first diagnostics page
+		if p.section != prev {
+			switch p.section {
+			case sectionMore:
+				w.navSep = container.New(layout.NewCustomPaddedLayout(2, 2, 4, 4), hline(style.ColorNameSeparatorDark))
+				items = append(items, w.navSep)
+			case sectionDiagnostics:
+				w.navHeading = designText(lang.L("Diagnostics"), 11, style.ColorNameTextSecondary, true)
+				items = append(items, container.New(layout.NewCustomPaddedLayout(8, 0, navPadH, 0), w.navHeading))
+			}
+			prev = p.section
+		}
 		it := newManageNavItem(p.icon, p.title, func() { w.showPage(i) })
 		w.nav = append(w.nav, it)
 		items = append(items, it)
 	}
+	w.navBox = container.New(layout.NewCustomPaddedVBoxLayout(4), items...)
 	navBg := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSidebar, "")
 	navEdge := style.BindRect(canvas.NewRectangle(nil), style.ColorNameSeparatorDark, "")
 	navEdge.SetMinSize(fyne.NewSize(1, 1))
 	nav := container.New(&manageSizeLayout{w: manageNavWidth}, container.NewStack(navBg,
 		container.New(&manageHSplit{fill: 0}, container.New(layout.NewCustomPaddedLayout(16, 16, 12, 12),
-			container.New(layout.NewCustomPaddedVBoxLayout(4), items...)), navEdge)))
+			w.navBox), navEdge)))
 
 	// page head and page
 	w.title = designText("", 18, "foreground", true)

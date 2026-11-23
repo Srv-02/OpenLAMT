@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
@@ -175,6 +176,11 @@ type hwPane struct {
 	ago     *canvas.Text
 	footer  *fyne.Container
 	refresh *widgets.Link
+}
+
+func init() {
+	registerManagePage(managePageDef{section: sectionMain, order: 10, icon: icons.Hardware, build: (*manager).hardwarePane,
+		names: func() (string, string) { return lang.L("Hardware"), lang.L("Hardware") }})
 }
 
 // hardwarePane builds the Hardware page: the cards, then "Read 12 s ago" and the link Refresh.

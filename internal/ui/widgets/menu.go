@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 )
 
@@ -29,6 +30,8 @@ const (
 	menuSepMarginH float32 = 8
 	menuEdge       float32 = 8   // free space kept at the canvas edge when a menu scrolls
 	menuMinScroll  float32 = 240 // least height a scrolling menu gets before it moves up
+	menuTrailing   float32 = 14  // trailing symbol (SetTrailing)
+	menuTrailGap   float32 = 16  // gap between the text and the trailing symbol
 )
 
 // MenuPopup shows a fyne.Menu as the design's drop-down: own rows instead of Fyne's menu
@@ -45,7 +48,8 @@ type MenuPopup struct {
 	OnDismiss func()
 
 	menu   *fyne.Menu
-	info   *MenuInfo // line above the items; nil for none
+	trail  map[*fyne.MenuItem]icons.Name // trailing symbols (SetTrailing)
+	info   *MenuInfo                     // line above the items; nil for none
 	canvas fyne.Canvas
 	rows   []*menuRow // per menu item; nil for separators
 	panel  fyne.CanvasObject
@@ -100,6 +104,32 @@ func (p *MenuPopup) SetMenu(m *fyne.Menu, info *MenuInfo) {
 		p.Refresh()
 	}
 }
+
+// SetTrailing puts a 14 px symbol at the right end of the row of item it (the external-link
+// symbol of an item that opens a window): secondary, white while the row is highlighted,
+// disabled for a disabled item. An empty name removes it.
+func (p *MenuPopup) SetTrailing(it *fyne.MenuItem, name icons.Name) {
+	if name == "" {
+		delete(p.trail, it)
+	} else {
+		if p.trail == nil {
+			p.trail = map[*fyne.MenuItem]icons.Name{}
+		}
+		p.trail[it] = name
+	}
+	for _, r := range p.rows {
+		if r != nil && r.item == it {
+			r.Refresh()
+		}
+	}
+	if p.shown {
+		p.Refresh()
+	}
+}
+
+// PanelSize returns the size of the menu's panel (its minimum size), to place it by its right
+// or bottom edge.
+func (p *MenuPopup) PanelSize() fyne.Size { return p.panel.MinSize() }
 
 // ShowAtPosition shows the menu with its top left corner at pos (canvas coordinates) and
 // takes the keyboard focus.
@@ -403,21 +433,30 @@ func (r *menuRow) highlighted() bool {
 
 func (r *menuRow) CreateRenderer() fyne.WidgetRenderer {
 	rr := &menuRowRenderer{r: r, bg: &canvas.Rectangle{CornerRadius: menuRowRadius},
-		icon: NewSymbol(nil, 0), text: newText("", style.Size(theme.SizeNameText), nil, false)}
+		icon: NewSymbol(nil, 0), trailing: NewSymbol(nil, menuTrailing), text: newText("", style.Size(theme.SizeNameText), nil, false)}
 	rr.Refresh()
 	return rr
 }
 
 type menuRowRenderer struct {
-	r    *menuRow
-	bg   *canvas.Rectangle
-	icon *Symbol
-	text *canvas.Text
+	r        *menuRow
+	bg       *canvas.Rectangle
+	icon     *Symbol
+	trailing *Symbol
+	text     *canvas.Text
+}
+
+// trailingWidth is the room the trailing symbol takes right of the text, 0 without one.
+func (rr *menuRowRenderer) trailingWidth() float32 {
+	if _, ok := rr.r.p.trail[rr.r.item]; ok {
+		return menuTrailGap + menuTrailing
+	}
+	return 0
 }
 
 func (rr *menuRowRenderer) MinSize() fyne.Size {
 	tw := fyne.MeasureText(rr.r.item.Label, rr.text.TextSize, rr.text.TextStyle).Width
-	return fyne.NewSize(2*menuRowPadH+menuIconSize+menuIconGap+tw, menuRowHeight)
+	return fyne.NewSize(2*menuRowPadH+menuIconSize+menuIconGap+tw+rr.trailingWidth(), menuRowHeight)
 }
 
 func (rr *menuRowRenderer) Layout(size fyne.Size) {
@@ -427,7 +466,9 @@ func (rr *menuRowRenderer) Layout(size fyne.Size) {
 	ts := rr.text.MinSize()
 	x := menuRowPadH + menuIconSize + menuIconGap
 	rr.text.Move(fyne.NewPos(x, (size.Height-ts.Height)/2))
-	rr.text.Resize(fyne.NewSize(max(0, size.Width-x-menuRowPadH), ts.Height))
+	rr.text.Resize(fyne.NewSize(max(0, size.Width-x-menuRowPadH-rr.trailingWidth()), ts.Height))
+	rr.trailing.Move(fyne.NewPos(size.Width-menuRowPadH-menuTrailing, (size.Height-menuTrailing)/2))
+	rr.trailing.Resize(fyne.NewSquareSize(menuTrailing))
 }
 
 func (rr *menuRowRenderer) Refresh() {
@@ -452,6 +493,19 @@ func (rr *menuRowRenderer) Refresh() {
 	}
 	rr.icon.SetResource(res)
 	setVisible(rr.icon, res != nil)
+	if name, ok := rr.r.p.trail[it]; ok {
+		variant := icons.Secondary
+		switch {
+		case it.Disabled:
+			variant = icons.Disabled
+		case hi:
+			variant = icons.White
+		}
+		rr.trailing.SetResource(icons.Get(name, variant))
+		setVisible(rr.trailing, true)
+	} else {
+		setVisible(rr.trailing, false)
+	}
 	rr.text.Text = it.Label
 	rr.text.Color = textColor
 	rr.text.Refresh()
@@ -459,6 +513,6 @@ func (rr *menuRowRenderer) Refresh() {
 }
 
 func (rr *menuRowRenderer) Objects() []fyne.CanvasObject {
-	return []fyne.CanvasObject{rr.bg, rr.icon, rr.text}
+	return []fyne.CanvasObject{rr.bg, rr.icon, rr.trailing, rr.text}
 }
 func (rr *menuRowRenderer) Destroy() {}

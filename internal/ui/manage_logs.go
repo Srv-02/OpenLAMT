@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
@@ -169,6 +170,13 @@ type logSpec struct {
 	compact [3]float32 // the same in the sidebar, with the short time: the last column is the widest
 	chips   bool       // filter chips All, Warning, Critical
 	src     *manageSource[[]logRow]
+}
+
+func init() {
+	registerManagePage(managePageDef{section: sectionMain, order: 20, icon: icons.EventLog, build: (*manager).eventLogPane,
+		names: func() (string, string) { return lang.L("Events"), lang.L("Event log") }})
+	registerManagePage(managePageDef{section: sectionMain, order: 30, icon: icons.AuditLog, build: (*manager).auditLogPane,
+		names: func() (string, string) { return lang.L("Audit"), lang.L("Audit log") }})
 }
 
 func (m *manager) eventLogPane(compact bool) *managePane {

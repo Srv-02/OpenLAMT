@@ -16,6 +16,7 @@ import (
 
 	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/session"
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 )
 
@@ -90,4 +91,126 @@ func TestManageShots(t *testing.T) {
 	shot("manage-window-users-dark.png", w.win)
 	test.Tap(w.nav[1])
 	shot("manage-window-events-dark.png", w.win)
+}
+
+// TestManageMoreShots renders the sidebar with the open More menu and the window navigation
+// with test-only pages (Alpha, Beta: More; Gamma: Diagnostics), light, into $OPENLAMT_SHOTS.
+func TestManageMoreShots(t *testing.T) {
+	dir := os.Getenv("OPENLAMT_SHOTS")
+	if dir == "" {
+		t.Skip("OPENLAMT_SHOTS not set")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	shot := func(name string, w fyne.Window) {
+		t.Helper()
+		f, err := os.Create(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		if err := png.Encode(f, w.Canvas().Capture()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	englishUI(t)
+	restoreDarkVariant(t)
+	withManagePages(t,
+		testPageDef(sectionMore, 910, "Alpha", icons.Settings),
+		testPageDef(sectionMore, 920, "Beta", icons.Server),
+		testPageDef(sectionDiagnostics, 910, "Gamma", icons.Key))
+	h := newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
+	switchVariant(h.a, theme.VariantLight)
+	device := h.m.parent // the More menu opens on the parent window
+
+	device.SetPadded(false)
+	scaleWindow(device)
+	stage := style.BindRect(canvas.NewRectangle(nil), style.ColorNameLetterbox, "")
+	device.SetContent(container.NewBorder(nil, nil, nil, h.m.Sidebar(), stage))
+	device.Resize(fyne.NewSize(1280, 800))
+	h.wait(t)
+	h.m.side.tabs.Tap(5)
+	shot("manage-sidebar-more-menu.png", device)
+	h.m.side.morePopup.Item(1).Tapped(nil)
+	shot("manage-sidebar-more-page.png", device)
+
+	h.m.OpenWindow()
+	w := h.m.win
+	scaleWindow(w.win)
+	w.win.Resize(fyne.NewSize(1280, 800))
+	shot("manage-window-more-nav.png", w.win)
+}
+
+// TestManageListShots renders a test-only list page (empty state, footer, Refresh) in the
+// management window, light, into $OPENLAMT_SHOTS.
+func TestManageListShots(t *testing.T) {
+	dir := os.Getenv("OPENLAMT_SHOTS")
+	if dir == "" {
+		t.Skip("OPENLAMT_SHOTS not set")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	englishUI(t)
+	restoreDarkVariant(t)
+	tl := &testList{}
+	add := newManageButton("+ Add thing", func() {})
+	withManagePages(t, testListDef(tl, true, true, true, add))
+	h := newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
+	switchVariant(h.a, theme.VariantLight)
+	h.m.OpenWindow()
+	w := h.m.win
+	scaleWindow(w.win)
+	w.win.Resize(fyne.NewSize(1280, 800))
+	test.Tap(w.nav[5])
+	h.wait(t)
+	f, err := os.Create(filepath.Join(dir, "manage-window-list-empty.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, w.win.Canvas().Capture()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestManageGermanMoreShots renders the sidebar with the German tab captions and a natural More
+// caption that does not fit ("System Defense", ellipsized), light, into $OPENLAMT_SHOTS. The
+// captions are set on the tabs directly: the shot checks the layout, not the translation.
+func TestManageGermanMoreShots(t *testing.T) {
+	dir := os.Getenv("OPENLAMT_SHOTS")
+	if dir == "" {
+		t.Skip("OPENLAMT_SHOTS not set")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	englishUI(t)
+	restoreDarkVariant(t)
+	withManagePages(t, testPageDef(sectionMore, 910, "System Defense", icons.Settings))
+	h := newManageHarness(t, &session.Fake{FP: certFP, HW: exampleHW()})
+	switchVariant(h.a, theme.VariantLight)
+	device := h.m.parent
+	device.SetPadded(false)
+	scaleWindow(device)
+	stage := style.BindRect(canvas.NewRectangle(nil), style.ColorNameLetterbox, "")
+	device.SetContent(container.NewBorder(nil, nil, nil, h.m.Sidebar(), stage))
+	device.Resize(fyne.NewSize(1280, 800))
+	h.wait(t)
+	h.m.side.tabs.Tap(5)
+	h.m.side.morePopup.Item(0).Tapped(nil) // the natural caption becomes "System Defense"
+	for i, c := range []string{"Hardware", "Ereignisse", "Audit", "Einstellungen", "Benutzer"} {
+		h.m.side.tabs.SetLabel(i, c)
+	}
+	device.Resize(fyne.NewSize(1280, 801))
+	device.Resize(fyne.NewSize(1280, 800))
+	f, err := os.Create(filepath.Join(dir, "manage-sidebar-german-more-ellipsis.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, device.Canvas().Capture()); err != nil {
+		t.Fatal(err)
+	}
 }

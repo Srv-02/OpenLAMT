@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/ui/icons"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 	"github.com/Srv-02/openlamt/internal/ui/widgets"
 )
@@ -120,6 +121,11 @@ type settingsPane struct {
 	envForm                                               *envForm
 	netForm                                               *networkForm
 	tlsForm                                               *tlsForm
+}
+
+func init() {
+	registerManagePage(managePageDef{section: sectionMain, order: 40, icon: icons.DeviceSettings, build: (*manager).settingsPane,
+		names: func() (string, string) { return lang.L("Settings"), lang.L("Settings") }})
 }
 
 // settingsPane builds the Settings page.

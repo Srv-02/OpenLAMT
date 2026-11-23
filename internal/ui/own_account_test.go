@@ -23,13 +23,13 @@ func ownUsers() amt.UserList {
 func TestOwnAccountEditOpensItsDialog(t *testing.T) {
 	h, p := usersHarness(t, ownUsers())
 	own := p.table.lines[1]
-	if own.edit.Disabled() || !own.row.signedIn || !own.row.editable {
+	if own.action.Disabled() || richText(own.cells[0]) != "helpdesk*" {
 		t.Fatal("Edit of the own, non-admin account is disabled")
 	}
-	if !p.table.lines[0].row.editable || !p.table.lines[2].row.editable || p.table.lines[3].row.editable {
+	if p.table.lines[0].action.Disabled() || p.table.lines[2].action.Disabled() || !p.table.lines[3].action.Disabled() {
 		t.Error("admin and other users stay editable, system accounts do not")
 	}
-	test.Tap(own.edit)
+	test.Tap(own.action)
 	d := p.userDlg
 	if d == nil || !open(h.m.parent) {
 		t.Fatal("no dialog")
@@ -53,7 +53,7 @@ func TestOwnAccountEditOpensItsDialog(t *testing.T) {
 // Another user keeps "Enabled" and "Delete User…".
 func TestOtherUserKeepsEnabledAndDelete(t *testing.T) {
 	_, p := usersHarness(t, ownUsers())
-	test.Tap(p.table.lines[2].edit)
+	test.Tap(p.table.lines[2].action)
 	if d := p.userDlg; d.enabled == nil || d.del == nil {
 		t.Error("another account lost Enabled or Delete User…")
 	}
@@ -65,7 +65,7 @@ func TestOwnAccountSaveAsksBeforeWriting(t *testing.T) {
 	h, p := usersHarness(t, ownUsers())
 	store := &countingStore{}
 	h.m.deps.loginStore = store
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -103,7 +103,7 @@ func TestOwnAccountSaveAsksBeforeWriting(t *testing.T) {
 
 func TestOwnAccountCancelWritesNothing(t *testing.T) {
 	h, p := usersHarness(t, ownUsers())
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -119,7 +119,7 @@ func TestOwnAccountCancelWritesNothing(t *testing.T) {
 func TestOwnAccountPasswordNotSavedShowsIt(t *testing.T) {
 	h, p := usersHarness(t, ownUsers())
 	h.m.deps.loginStore = &countingStore{err: errors.New("keychain locked")}
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -139,7 +139,7 @@ func TestOwnAccountPasswordNotSavedShowsIt(t *testing.T) {
 // The own account refuses the access "Local" (the device needs network access for this connection).
 func TestOwnAccountLocalAccessIsAnErrorNotAWrite(t *testing.T) {
 	h, p := usersHarness(t, ownUsers())
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	d.access.SetSelected(1)
 	d.pw.SetText(newPassword)
@@ -267,7 +267,7 @@ func TestTLSWarningDontShowAgainAndReset(t *testing.T) {
 // Issue #37: changing a password asks; an edit without a password (only Enabled) does not.
 func TestEditUserWithoutTLSAsksOnlyForAPassword(t *testing.T) {
 	h, p := usersHarnessTLS(t, exampleUsers(), false)
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	test.Tap(d.enabled)
 	test.Tap(d.action)
@@ -278,7 +278,7 @@ func TestEditUserWithoutTLSAsksOnlyForAPassword(t *testing.T) {
 	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetUserEnabled"}) {
 		t.Fatalf("writes %v", got)
 	}
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d = p.userDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -296,7 +296,7 @@ func TestEditUserWithoutTLSAsksOnlyForAPassword(t *testing.T) {
 // Issue #37, design V18: the admin account's password goes through the same question.
 func TestAdminPasswordWithoutTLSAsksFirst(t *testing.T) {
 	h, p := usersHarnessTLS(t, exampleUsers(), false)
-	test.Tap(p.table.lines[0].edit)
+	test.Tap(p.table.lines[0].action)
 	d := p.adminDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)
@@ -316,7 +316,7 @@ func TestAdminPasswordWithoutTLSAsksFirst(t *testing.T) {
 // The own account over a session without TLS: the TLS question first, then the orange one.
 func TestOwnAccountWithoutTLSAsksTLSBeforeTheConfirmation(t *testing.T) {
 	h, p := usersHarnessTLS(t, ownUsers(), false)
-	test.Tap(p.table.lines[1].edit)
+	test.Tap(p.table.lines[1].action)
 	d := p.userDlg
 	d.pw.SetText(newPassword)
 	d.repeat.SetText(newPassword)

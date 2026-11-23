@@ -11,7 +11,6 @@
   "Saved to {{.File}}: {{.Favorites}}.": "Gespeichert in {{.File}}: {{.Favorites}}.",
   "The settings were saved to {{.File}}.": "Die Einstellungen wurden in {{.File}} gespeichert.",
   "Config exported": "Konfiguration exportiert",
-  "Show in Folder": "Im Ordner zeigen",
   "Import Config": "Konfiguration importieren",
   "“{{.File}}” is not an OpenLAMT configuration. Choose a file made with Export Config.": "„{{.File}}“ ist keine OpenLAMT-Konfiguration. Wähle eine Datei, die mit „Konfiguration exportieren“ erstellt wurde.",
   "This file was made by a newer OpenLAMT. Update OpenLAMT first.": "Diese Datei stammt von einem neueren OpenLAMT. Aktualisiere zuerst OpenLAMT.",

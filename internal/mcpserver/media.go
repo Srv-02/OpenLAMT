@@ -84,6 +84,9 @@ type mediaSource struct {
 	path    string // resolved, clean and absolute
 	folder  bool
 	checked os.FileInfo // what mediaPath checked; the image must be the same file or folder
+	// protected are the protected folders mediaPath checked against; a folder build refuses a
+	// subfolder that is one of them (protectedSubdir).
+	protected []protectedDir
 }
 
 // pendingImage is an image kept for the media_mount call with the consent code.
@@ -254,7 +257,15 @@ func (m *mediaManager) image(ctx context.Context, device string, src mediaSource
 	if fi, err := root.Stat("."); err != nil || !fi.IsDir() || !os.SameFile(fi, src.checked) {
 		return nil, nil, changedSource(src)
 	}
-	t, info, err := buildImage(ctx, src.path, mkiso.Options{Root: root})
+	check := func(rel string) error {
+		sub := filepath.FromSlash(rel)
+		fi, err := root.Stat(sub)
+		if err != nil {
+			return &mkiso.PathError{Path: rel, Err: err}
+		}
+		return protectedSubdir(src, sub, fi)
+	}
+	t, info, err := buildImage(ctx, src.path, mkiso.Options{Root: root, CheckDir: check})
 	if err != nil {
 		return nil, nil, err
 	}

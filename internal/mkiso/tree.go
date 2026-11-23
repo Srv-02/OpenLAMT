@@ -61,8 +61,9 @@ type scanResult struct {
 	allDirs  []*node // depth first pre-order, root first
 	allFiles []*node // depth first pre-order
 
-	readDir func(n *node) ([]fs.DirEntry, error) // the entries of a folder, sorted by name
-	open    func(n *node) (*os.File, error)      // a file to copy
+	readDir  func(n *node) ([]fs.DirEntry, error) // the entries of a folder, sorted by name
+	open     func(n *node) (*os.File, error)      // a file to copy
+	checkDir func(rel string) error               // Options.CheckDir, may be nil
 }
 
 // sanitizeName normalizes a file name to NFC and replaces characters that are
@@ -95,8 +96,8 @@ func utf16Len(s string) int {
 
 func toUTF16(s string) []uint16 { return utf16.Encode([]rune(s)) }
 
-func scan(ctx context.Context, dir string, root *os.Root) (*scanResult, error) {
-	s := &scanResult{}
+func scan(ctx context.Context, dir string, root *os.Root, checkDir func(rel string) error) (*scanResult, error) {
+	s := &scanResult{checkDir: checkDir}
 	var fi fs.FileInfo
 	var src string
 	if root != nil {
@@ -197,6 +198,11 @@ func (s *scanResult) walk(ctx context.Context, n *node) error {
 		seen[key] = struct{}{}
 		n.kids = append(n.kids, k)
 		if k.dir {
+			if s.checkDir != nil {
+				if err := s.checkDir(rel); err != nil {
+					return err
+				}
+			}
 			s.dirs++
 			s.allDirs = append(s.allDirs, k)
 			if err := s.walk(ctx, k); err != nil {

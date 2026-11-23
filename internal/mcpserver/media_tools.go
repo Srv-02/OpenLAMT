@@ -109,6 +109,9 @@ type mediaMountOutput struct {
 // path, so a link cannot point elsewhere than what was checked and shown.
 func (s *server) mediaPath(given string) (src mediaSource, size int64, err error) {
 	p := strings.TrimSpace(given)
+	if err := refuseWindowsAlias(p); err != nil {
+		return mediaSource{}, 0, err
+	}
 	if p == "" || !filepath.IsAbs(p) {
 		return mediaSource{}, 0, refuse("path must be an absolute path of an .iso file or of a folder on the computer that runs openlamt-mcp.")
 	}
@@ -122,6 +125,9 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 	}
 	if resolved, err = filepath.Abs(resolved); err != nil {
 		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(p), err)
+	}
+	if err := refuseWindowsAlias(resolved); err != nil { // a link that leads to such a path
+		return mediaSource{}, 0, err
 	}
 	fi, err := os.Stat(resolved)
 	if err != nil {
@@ -138,6 +144,7 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 	default:
 		return mediaSource{}, 0, refuse("path must be an .iso file or a folder.")
 	}
+	src.protected = s.protectedDirs()
 	if err := s.mediaAllowed(src); err != nil {
 		return mediaSource{}, 0, err
 	}

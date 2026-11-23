@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -215,10 +216,11 @@ func TestRemoteFeaturesOffIsOrangeOnIsNot(t *testing.T) {
 	f := h.addDevice("NUC", "192.0.2.10", false)
 	st := deviceSettings()
 	st.Features.KVM = false
+	st.Consent.Policy = amt.ConsentNone
 	f.Cfg.Settings = st
 	h.start()
-	h.mustOK("set_remote_features", dev("NUC", "kvm", true, "user_consent", "none"))
-	if !f.Cfg.Settings.Features.KVM || f.Cfg.Settings.Consent.Policy != amt.ConsentNone ||
+	h.mustOK("set_remote_features", dev("NUC", "kvm", true, "user_consent", "kvm"))
+	if !f.Cfg.Settings.Features.KVM || f.Cfg.Settings.Consent.Policy != amt.ConsentKVM ||
 		!reflect.DeepEqual(f.ConfigWrites(), []string{"SetFeatures", "SetConsent"}) {
 		t.Fatalf("features %+v consent %v writes %v", f.Cfg.Settings.Features, f.Cfg.Settings.Consent.Policy, f.ConfigWrites())
 	}
@@ -227,6 +229,73 @@ func TestRemoteFeaturesOffIsOrangeOnIsNot(t *testing.T) {
 		t.Fatal("SOL switched off without a question")
 	}
 	h.mustFail("set_remote_features", dev("NUC", "user_consent", "some"), "user_consent")
+}
+
+// TestRemoteFeaturesLoweringConsentAsks: lowering the user consent policy is orange and always
+// asks; raising or keeping it is written at once. An unreadable policy counts as lowered.
+func TestRemoteFeaturesLoweringConsentAsks(t *testing.T) {
+	policies := map[string]amt.ConsentPolicy{"none": amt.ConsentNone, "kvm": amt.ConsentKVM, "all": amt.ConsentAll}
+	cases := []struct {
+		from, to string
+		asks     bool
+	}{
+		{"all", "kvm", true}, {"all", "none", true}, {"kvm", "none", true},
+		{"none", "kvm", false}, {"none", "all", false}, {"kvm", "all", false},
+		{"all", "all", false}, {"none", "none", false},
+	}
+	for _, c := range cases {
+		t.Run(c.from+"->"+c.to, func(t *testing.T) {
+			h := newHarness(t)
+			f := h.addDevice("NUC", "192.0.2.10", false)
+			st := deviceSettings()
+			st.Consent.Policy = policies[c.from]
+			f.Cfg.Settings = st
+			h.start()
+			args := dev("NUC", "user_consent", c.to)
+			if !c.asks {
+				h.mustOK("set_remote_features", args)
+				if f.Cfg.Settings.Consent.Policy != policies[c.to] {
+					t.Fatalf("policy %v, want %s", f.Cfg.Settings.Consent.Policy, c.to)
+				}
+				return
+			}
+			h.mustFail("set_remote_features", args, "cannot ask for confirmation")
+			if f.Cfg.Settings.Consent.Policy != policies[c.from] {
+				t.Fatal("policy lowered without a question")
+			}
+			var question string
+			h2 := newHarness(t)
+			f2 := h2.addDevice("NUC", "192.0.2.10", false)
+			f2.Cfg.Settings = st
+			h2.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+				question = r.Params.Message
+				return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+			}
+			h2.start()
+			h2.mustOK("set_remote_features", args)
+			if !strings.Contains(question, "Lowering user consent lets KVM, SOL, IDE-R and boot changes run without a person") {
+				t.Fatalf("question without the warning: %q", question)
+			}
+			if f2.Cfg.Settings.Consent.Policy != policies[c.to] {
+				t.Fatalf("policy %v, want %s", f2.Cfg.Settings.Consent.Policy, c.to)
+			}
+		})
+	}
+}
+
+// TestRemoteFeaturesConsentUnreadableFailsClosed: when the current policy cannot be read, the
+// change asks as if it lowered the policy.
+func TestRemoteFeaturesConsentUnreadableFailsClosed(t *testing.T) {
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.Cfg.Settings = deviceSettings()
+	f.Cfg.Settings.Consent.Policy = amt.ConsentNone
+	f.Cfg.SettingsErr = errors.New("read failed")
+	h.start()
+	h.mustFail("set_remote_features", dev("NUC", "user_consent", "all"), "cannot ask for confirmation")
+	if len(f.ConfigWrites()) != 0 {
+		t.Fatalf("writes %v", f.ConfigWrites())
+	}
 }
 
 // TestRemoteFeaturesOffWarnsAboutSessions: the result says that open sessions ended and that
@@ -334,6 +403,9 @@ func TestSettingsWriteErrorsAreExplained(t *testing.T) {
 	st := deviceSettings()
 	st.Consent.CanModify = false
 	f.Cfg.Settings = st
+	h.elicit = func(*mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
 	h.start()
 	h.mustFail("set_remote_features", dev("NUC", "user_consent", "none"), "does not allow this change")
 	f.Cfg.WriteErr = amt.ErrAccessDenied

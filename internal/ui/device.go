@@ -85,7 +85,7 @@ type DeviceWindow struct {
 	autoOverride              string             // favorites.AutoConnectOn, AutoConnectOff or empty (global)
 	adoptPending              bool               // the form changed the quality while a connect was pending
 	resumeKVM                 bool               // the window closed KVM for a power action and connects again (resumeCheck)
-	powerAfterConnect         *amt.PowerAction   // sent once the cancelled connect has reported (kvmOpened), see execute
+	powerAfterConnect         func()             // runs once the cancelled connect has reported (kvmOpened), see closeKVMThen
 	biosCancel                context.CancelFunc // ends the consent prompt of a running Reboot to BIOS, or nil (sendPower)
 	resumeAt                  time.Time          // earliest resume attempt, set when a power action ends
 	resumeNeedOff             bool               // after Power Off or Shutdown an On read counts only after an Off read
@@ -428,11 +428,24 @@ func (d *DeviceWindow) execute(action amt.PowerAction) {
 	if d.claimPower(lang.L("Wait until the running power action ends, then try again.")) != nil {
 		return
 	}
-	if !endsKVM(action) || (d.kvmClient == nil && d.kvmCancel == nil) {
-		d.sendPower(action)
+	send := func() { d.sendPower(action) }
+	if endsKVM(action) {
+		d.closeKVMThen(send)
 		return
 	}
-	d.resumeKVM = true // the app closes the session, not the user: it comes back (resumeCheck)
+	send()
+}
+
+// closeKVMThen runs send once an open KVM session is closed, for a power request that AMT
+// refuses while one is open (endsKVM, and the power cycle of Remote Platform Erase, issue #136).
+// Without a session or a pending connect send runs at once. The app closes the session, not the
+// user, so it comes back after the action (resumeKVM, resumeCheck).
+func (d *DeviceWindow) closeKVMThen(send func()) {
+	if d.kvmClient == nil && d.kvmCancel == nil {
+		send()
+		return
+	}
+	d.resumeKVM = true
 	var closed <-chan struct{}
 	if c := d.kvmClient; c != nil {
 		closed = c.Done()
@@ -440,10 +453,8 @@ func (d *DeviceWindow) execute(action amt.PowerAction) {
 	d.disconnectKVM()
 	if closed == nil {
 		// Only a pending connect, cancelled. Its dial may have got through just before: kvmOpened
-		// then closes that session and sends the action; the timer covers a connect that never
-		// reports.
-		a := action
-		d.powerAfterConnect = &a
+		// then closes that session and runs send; the timer covers a connect that never reports.
+		d.powerAfterConnect = send
 		time.AfterFunc(kvmCloseWait, func() { fyne.Do(d.flushPowerAfterConnect) })
 		return
 	}
@@ -454,15 +465,15 @@ func (d *DeviceWindow) execute(action amt.PowerAction) {
 		case <-closed:
 		case <-t.C: // send anyway; AMT reports the failure if the session is still open
 		}
-		fyne.Do(func() { d.sendPower(action) })
+		fyne.Do(send)
 	}()
 }
 
-// flushPowerAfterConnect sends the action execute held back for a cancelled connect, once.
+// flushPowerAfterConnect runs the action closeKVMThen held back for a cancelled connect, once.
 func (d *DeviceWindow) flushPowerAfterConnect() {
-	if p := d.powerAfterConnect; p != nil {
+	if send := d.powerAfterConnect; send != nil {
 		d.powerAfterConnect = nil
-		d.sendPower(*p)
+		send()
 	}
 }
 

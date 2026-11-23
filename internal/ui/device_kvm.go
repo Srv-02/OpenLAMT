@@ -204,11 +204,11 @@ func (d *DeviceWindow) autoConnect() {
 	}
 }
 
-// Resume after a power action: Power Off, Power Cycle and Shutdown close KVM first (execute),
-// because AMT refuses them while a session is open. Because the app closed the session, not the
-// user, the window connects again once the device is on, regardless of the auto-connect
-// setting. kvmResumeWait gives AMT time to accept redirection again; a failed attempt is
-// repeated once (kvmResumeTries). Variables for tests.
+// Resume after a power action: Power Off, Power Cycle, Shutdown and Remote Platform Erase close
+// KVM first (closeKVMThen), because AMT refuses them while a session is open. Because the app
+// closed the session, not the user, the window connects again once the device is on, regardless
+// of the auto-connect setting. kvmResumeWait gives AMT time to accept redirection again; a
+// failed attempt is repeated once (kvmResumeTries). Variables for tests.
 var (
 	kvmResumeWait  = 5 * time.Second
 	kvmResumeTries = 2
@@ -308,7 +308,7 @@ func (d *DeviceWindow) kvmOpened(c *kvm.Client, err error) {
 	d.kvmBusy = false
 	d.kvmCancel() // the context only bounded dial and consent (kvm.Dial keeps no reference)
 	d.kvmCancel = nil
-	if d.powerAfterConnect != nil { // execute cancelled this connect for Power Off, Cycle or Shutdown
+	if d.powerAfterConnect != nil { // closeKVMThen cancelled this connect for a power request
 		if err == nil { // too late: AMT refuses the action while this session is open
 			done := c.Done()
 			go c.Close()

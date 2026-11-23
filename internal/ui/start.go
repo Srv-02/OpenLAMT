@@ -1154,7 +1154,7 @@ func (s *StartWindow) saveFromForm() {
 	f := favorites.Favorite{Name: strings.TrimSpace(s.name.Text), Host: host, Username: user, UseTLS: s.useTLS.Checked()}
 	createOnly := s.dupOf != nil
 	if createOnly {
-		f.Layout, f.Quality, f.AutoConnect = s.dupOf.Layout, s.dupOf.Quality, s.dupOf.AutoConnect
+		f.Layout, f.Quality, f.AutoConnect, f.ReverseWheel = s.dupOf.Layout, s.dupOf.Quality, s.dupOf.AutoConnect, s.dupOf.ReverseWheel
 	}
 	password := s.password.Text // the form has no switch: an entered password is saved
 	s.async(func() error {
@@ -1206,7 +1206,8 @@ func (s *StartWindow) saveEdit() {
 		host, user = f.Host, f.Username
 	}
 	edited := favorites.Favorite{Name: s.name.Text, Host: host, Username: user, UseTLS: s.useTLS.Checked(),
-		Layout: selectedLayout(s.layoutSel), Quality: selectedQuality(s.qualitySel), AutoConnect: selectedAutoConnect(s.autoSel)}
+		Layout: selectedLayout(s.layoutSel), Quality: selectedQuality(s.qualitySel), AutoConnect: selectedAutoConnect(s.autoSel),
+		ReverseWheel: f.ReverseWheel} // set in the device window's Scale menu, not in the form
 	pw := passwordChange{keep: true}
 	switch {
 	case s.savePassword.Checked() && s.password.Text != "":

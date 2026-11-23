@@ -42,8 +42,8 @@ func newOnDevice(t *testing.T) *DeviceWindow {
 	return newDevice(t, a, dev, true).d
 }
 
-// TestToolbarOrder: Power | [KVM | Console] · Media · Quality | Ctrl+Alt+Del · Type Clipboard ·
-// Keyboard | Manage · Full Screen (Main.dc.html).
+// TestToolbarOrder: Power | [KVM | Console] · Media · Quality · Scale | Ctrl+Alt+Del · Type
+// Clipboard · Keyboard · Screenshot · Record | Manage · Full Screen (Main.dc.html, gesamtdesign V23).
 func TestToolbarOrder(t *testing.T) {
 	d := newOnDevice(t)
 	objs := d.toolbarItems.Objects
@@ -51,8 +51,8 @@ func TestToolbarOrder(t *testing.T) {
 		_, ok := o.(*fyne.Container)
 		return ok
 	}
-	want := []fyne.CanvasObject{d.powerBtn, nil, d.viewSwitch, d.mediaBtn, d.quality, nil,
-		d.cadBtn, d.clipBtn, d.keyboard, nil, d.manageBtn, d.fullBtn}
+	want := []fyne.CanvasObject{d.powerBtn, nil, d.viewSwitch, d.mediaBtn, d.quality, d.scale.btn, nil,
+		d.cadBtn, d.clipBtn, d.keyboard, d.shotBtn, d.recBtn, nil, d.manageBtn, d.fullBtn}
 	if len(objs) != len(want) {
 		t.Fatalf("%d toolbar items, want %d", len(objs), len(want))
 	}
@@ -239,7 +239,7 @@ func TestStatusBarExtras(t *testing.T) {
 	if d.mediaLine.color != style.ColorNameAccentText {
 		t.Fatalf("media status color %s", d.mediaLine.color)
 	}
-	tls := d.statusRow.Objects[2]
+	tls := d.statusRow.Objects[4]
 	x := func(o fyne.CanvasObject) float32 { return o.Position().X }
 	if !(x(d.version) < x(d.mediaLine) && x(d.mediaLine) < x(tls) && x(tls) < x(d.kvmLine) && x(d.kvmLine) < x(d.consoleLine)) {
 		t.Fatalf("order: media %v tls %v kvm %v console %v", x(d.mediaLine), x(tls), x(d.kvmLine), x(d.consoleLine))

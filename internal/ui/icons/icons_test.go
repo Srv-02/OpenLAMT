@@ -23,8 +23,8 @@ func TestAllSymbolsEmbedded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(entries) != 37 || len(All) != 35 || len(Filled) != 2 {
-		t.Fatalf("%d files, %d stroked, %d filled; want 37, 35, 2", len(entries), len(All), len(Filled))
+	if len(entries) != 42 || len(All) != 40 || len(Filled) != 2 {
+		t.Fatalf("%d files, %d stroked, %d filled; want 42, 40, 2", len(entries), len(All), len(Filled))
 	}
 	for _, n := range Filled {
 		b, err := files.ReadFile("svg/" + string(n) + ".svg")
@@ -212,5 +212,24 @@ func TestDeviceManagementSymbols(t *testing.T) {
 		if lightColors[v] != light || variantColors[v] == "" || !slices.Contains(Variants, v) {
 			t.Errorf("%s: light %s dark %s, want light %s", v, lightColors[v], variantColors[v], light)
 		}
+	}
+}
+
+// TestCaptureSymbols: the symbols of Screenshot, Record, Stop, Scale and the folder "×" render,
+// and the filled centre of Record takes the stroke color.
+func TestCaptureSymbols(t *testing.T) {
+	for _, n := range []Name{Camera, Record, Stop, Zoom, Close} {
+		if !slices.Contains(All, n) {
+			t.Errorf("%s missing in All", n)
+		}
+		if img := Render(Spec{n, Foreground, DefaultStroke}, 24, 24); img == nil {
+			t.Errorf("%s does not render", n)
+		}
+	}
+	if svg := string(Get(Record, Danger).Content()); strings.Contains(svg, "#000000") || !strings.Contains(svg, `fill="`+variantColors[Danger]+`"`) {
+		t.Fatalf("record centre not recolored: %s", svg)
+	}
+	if c := Render(Spec{Record, Danger, DefaultStroke}, 24, 24).RGBAAt(12, 12); c.A == 0 {
+		t.Fatal("record centre not filled")
 	}
 }

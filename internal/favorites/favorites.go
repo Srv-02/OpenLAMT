@@ -28,6 +28,10 @@ type Favorite struct {
 	// (AutoConnectOn or AutoConnectOff); empty means the global setting applies. Files written
 	// before the field existed load as empty.
 	AutoConnect string `json:"kvm_auto_connect,omitempty"`
+	// ReverseWheel turns the mouse wheel around for the KVM session of this device ("Reverse
+	// Mouse Wheel" of the Scale menu, as in MeshCommander). Files written before the field
+	// existed load as false.
+	ReverseWheel bool `json:"kvm_reverse_wheel,omitempty"`
 }
 
 // Values of Favorite.AutoConnect.

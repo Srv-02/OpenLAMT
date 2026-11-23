@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/test"
 
 	"github.com/Srv-02/openlamt/internal/amt"
@@ -309,8 +310,13 @@ func TestCtrlAltDelAndFullScreen(t *testing.T) {
 	}
 }
 
+// containsObject reports whether o is one of the objects of c, or the content of a scroll
+// container among them (the KVM view sits in kvmScroll).
 func containsObject(c *fyne.Container, o fyne.CanvasObject) bool {
 	for _, x := range c.Objects {
+		if sc, ok := x.(*container.Scroll); ok && sc.Content == o {
+			return true
+		}
 		if x == o {
 			return true
 		}

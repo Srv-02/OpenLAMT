@@ -120,11 +120,11 @@ func TestFitRectAndToFramebuffer(t *testing.T) {
 		{fyne.NewPos(0, 50), 0, 0}, {fyne.NewPos(200, 150), 64, 32}, {fyne.NewPos(399, 249), 127, 63},
 		{fyne.NewPos(0, 0), 0, 0}, {fyne.NewPos(-10, 299), 0, 63}, {fyne.NewPos(1000, 1000), 127, 63},
 	} {
-		if x, y := toFramebuffer(c.p, area, 128, 64); x != c.x || y != c.y {
+		if x, y := toFramebuffer(c.p, area, 128, 64, 0); x != c.x || y != c.y {
 			t.Errorf("%v: got %d,%d want %d,%d", c.p, x, y, c.x, c.y)
 		}
 	}
-	if x, y := toFramebuffer(fyne.NewPos(5, 5), area, 0, 0); x != 0 || y != 0 {
+	if x, y := toFramebuffer(fyne.NewPos(5, 5), area, 0, 0, 0); x != 0 || y != 0 {
 		t.Fatalf("no screen: %d,%d", x, y)
 	}
 }
@@ -163,7 +163,7 @@ func TestViewForwardsKeysMouseAndWheel(t *testing.T) {
 	h.v.KeyDown(ev(86, ""))            // KEY_102ND: no kvm.Key, nothing sent
 	h.v.KeyDown(ev(0, fyne.KeyEscape)) // unknown scan code: nothing sent, the name is no fallback
 	centre := fyne.NewPos(h.v.Size().Width/2, h.v.Size().Height/2)
-	x, y := toFramebuffer(centre, h.v.Size(), 128, 64)
+	x, y := toFramebuffer(centre, h.v.Size(), 128, 64, 0)
 	h.v.MouseMoved(&desktop.MouseEvent{PointEvent: fyne.PointEvent{Position: centre}})
 	h.v.MouseDown(&desktop.MouseEvent{PointEvent: fyne.PointEvent{Position: centre}, Button: desktop.MouseButtonPrimary})
 	h.v.MouseUp(&desktop.MouseEvent{PointEvent: fyne.PointEvent{Position: centre}, Button: desktop.MouseButtonPrimary})
@@ -217,7 +217,7 @@ func TestViewClickFocusesAndFocusGatesMouse(t *testing.T) {
 		t.Fatal("click did not focus the view")
 	}
 	h.v.MouseUp(&desktop.MouseEvent{PointEvent: fyne.PointEvent{Position: centre}, Button: desktop.MouseButtonPrimary})
-	x, y := toFramebuffer(centre, h.v.Size(), 128, 64)
+	x, y := toFramebuffer(centre, h.v.Size(), 128, 64, 0)
 	got := waitInput(t, srv, 2)
 	if !bytes.Equal(got[0], pointerMsg(x, y, 1)) || !bytes.Equal(got[1], pointerMsg(x, y, 0)) {
 		t.Fatalf("messages %x", got)
@@ -238,7 +238,7 @@ func TestViewMouseOutReleasesButtons(t *testing.T) {
 	h.v.MouseDown(&desktop.MouseEvent{PointEvent: fyne.PointEvent{Position: pos}, Button: desktop.MouseButtonSecondary})
 	h.v.MouseOut()
 	h.v.MouseOut() // nothing held any more: no second release
-	x, y := toFramebuffer(pos, h.v.Size(), 128, 64)
+	x, y := toFramebuffer(pos, h.v.Size(), 128, 64, 0)
 	got := waitInput(t, srv, 2)
 	if !bytes.Equal(got[0], pointerMsg(x, y, byte(kvm.ButtonRight))) || !bytes.Equal(got[1], pointerMsg(x, y, 0)) {
 		t.Fatalf("messages %x", got)
@@ -287,7 +287,7 @@ func TestViewFocusLostReleasesHeldKeysAndButtons(t *testing.T) {
 	waitInput(t, srv, 2)
 	h.w.Canvas().Unfocus()
 	got := waitInput(t, srv, 4)
-	x, y := toFramebuffer(pos, h.v.Size(), 128, 64)
+	x, y := toFramebuffer(pos, h.v.Size(), 128, 64, 0)
 	if !bytes.Equal(got[2], keyMsg(0xffe1, false)) || !bytes.Equal(got[3], pointerMsg(x, y, 0)) {
 		t.Fatalf("release messages %x", got[2:])
 	}

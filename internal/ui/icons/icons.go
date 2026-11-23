@@ -1,5 +1,5 @@
 // Package icons holds OpenLAMT's UI symbols (24 px grid, 1.7 stroke, issue #44) as Fyne
-// resources: 35 stroked ones and the two filled ones (heart, star) of the About dialog.
+// resources: 40 stroked ones and the two filled ones (heart, star) of the About dialog.
 //
 // Fyne recolors only the fill of themed SVGs, not the stroke these symbols are drawn with, so
 // each symbol is served as a static resource with the stroke color already set: one per
@@ -81,6 +81,16 @@ const (
 	Unmount        Name = "unmount"         // arrow up onto a line: "Unmount" of the Media menu (Extras.dc.html)
 )
 
+// Stroked symbols of the KVM capture (gesamtdesign, device window and settings, issues #4 and
+// #26). Record and Stop have a filled centre: its fill is recolored with the stroke.
+const (
+	Camera Name = "camera" // toolbar Screenshot
+	Record Name = "record" // toolbar Record, the REC status
+	Stop   Name = "stop"   // toolbar Stop while recording
+	Zoom   Name = "zoom"   // toolbar Scale menu
+	Close  Name = "close"  // the "×" that clears the folder setting
+)
+
 // Filled symbols (no stroke): the file's fill is recolored like the stroke of the others.
 // Their color is fixed, see HeartPink and StarYellow; Get and Render ignore the stroke width.
 const (
@@ -92,7 +102,8 @@ const (
 var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, Fullscreen, Settings,
 	Server, Search, Lock, Eye, Edit, Duplicate, Delete, Add, Connect, Key, ChevronDown,
 	Coffee, ExternalLink, Info, Clear,
-	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings, Unmount}
+	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings, Unmount,
+	Camera, Record, Stop, Zoom, Close}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}

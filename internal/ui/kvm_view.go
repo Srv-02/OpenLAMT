@@ -3,12 +3,14 @@ package ui
 import (
 	"context"
 	"image"
+	"sync/atomic"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/Srv-02/openlamt/internal/capture"
 	"github.com/Srv-02/openlamt/internal/kvm"
 	"github.com/Srv-02/openlamt/internal/ui/style"
 )
@@ -19,9 +21,10 @@ const (
 	wheelDown kvm.Button = 1 << 4
 )
 
-// kvmView shows the remote screen letterboxed into its area and, while it has the focus,
+// kvmView shows the remote screen letterboxed into its area ("Fit to Window") or at a fixed
+// scale (Scale menu, issue #26; it sits in a scroll container then) and, while it has the focus,
 // forwards every key (by physical scan code) and the mouse to the kvm.Client. All methods run
-// on the Fyne thread; only the frame loop goroutine touches back and calls fyne.DoAndWait.
+// on the Fyne thread; only the frame loop goroutine touches back, rec and calls fyne.DoAndWait.
 type kvmView struct {
 	widget.BaseWidget
 	img         *canvas.Image
@@ -35,6 +38,15 @@ type kvmView struct {
 	wheel       float32 // accumulated scroll delta, one wheel click per wheelStep
 	onFrame     func()  // test hook, called after a frame was shown
 	onInput     func()  // called for every key, button, pointer and wheel event sent
+	// scale is the zoom of the Scale menu: 0 fits the image into the view, otherwise one
+	// framebuffer pixel is scale device pixels (Actual Size is 1).
+	scale        float32
+	hasFrame     bool                             // a frame of the current session arrived (Screenshot, Record)
+	onFirstFrame func()                           // the first frame of a session arrived; nil = nothing
+	onSize       func()                           // the size the view needs changed (scale or resolution); nil = nothing
+	onScroll     func(*fyne.ScrollEvent)          // wheel that does not go to the remote (view not focused); nil = dropped
+	reverseWheel bool                             // "Reverse Mouse Wheel": wheel up scrolls down on the remote
+	rec          atomic.Pointer[capture.Recorder] // running recording; the frame loop offers it every frame
 	// paused drops live key events and key releases while "Type clipboard" sends: the
 	// sender holds Shift or AltGr of its current stroke, and a live key or a release (focus
 	// moving to the "Stop typing" button) would change them in the middle of a character.
@@ -45,6 +57,7 @@ var (
 	_ fyne.Focusable     = (*kvmView)(nil)
 	_ fyne.Tabbable      = (*kvmView)(nil)
 	_ fyne.Scrollable    = (*kvmView)(nil)
+	_ fyne.Shortcutable  = (*kvmView)(nil)
 	_ desktop.Keyable    = (*kvmView)(nil)
 	_ desktop.Mouseable  = (*kvmView)(nil)
 	_ desktop.Hoverable  = (*kvmView)(nil)
@@ -89,10 +102,12 @@ func (v *kvmView) bind(c *kvm.Client, show bool) {
 	v.buttons = 0
 	v.wheel = 0
 	if show {
+		v.hasFrame = false
 		v.front = c.SnapshotInto(v.front)
 		v.img.Image = v.front
 		v.Refresh()
 		canvas.Refresh(v) // frees the cached textures of the whole widget, the image included
+		v.sizeChanged()
 	}
 }
 
@@ -115,8 +130,10 @@ func (v *kvmView) detach() {
 	}
 	v.client = nil
 	v.img.Image = nil
+	v.hasFrame = false
 	v.Refresh()
 	canvas.Refresh(v)
+	v.sizeChanged()
 }
 
 // free drops the client and the image buffers once the window is closed and no frame loop
@@ -144,6 +161,9 @@ func (v *kvmView) loop(c *kvm.Client, ended func(error)) {
 		}
 		seq = next
 		v.back = c.SnapshotInto(v.back)
+		if r := v.rec.Load(); r != nil {
+			r.Offer(v.back) // copies; the image stays the loop's
+		}
 		fyne.DoAndWait(func() { v.show(c, v.back) })
 	}
 }
@@ -159,12 +179,60 @@ func (v *kvmView) show(c *kvm.Client, img *image.RGBA) {
 	if resized {
 		v.Refresh()
 		canvas.Refresh(v)
+		v.sizeChanged()
 	} else {
 		v.img.Refresh()
+	}
+	if !v.hasFrame {
+		v.hasFrame = true
+		if v.onFirstFrame != nil {
+			v.onFirstFrame()
+		}
 	}
 	if v.onFrame != nil {
 		v.onFrame()
 	}
+}
+
+// sizeChanged tells the scroll container that the size the view needs may have changed.
+func (v *kvmView) sizeChanged() {
+	if v.onSize != nil {
+		v.onSize()
+	}
+}
+
+// setScale shows the image at scale (0: fit to the view).
+func (v *kvmView) setScale(scale float32) {
+	if v.scale == scale {
+		return
+	}
+	v.scale = scale
+	v.Refresh()
+	canvas.Refresh(v)
+	v.sizeChanged()
+}
+
+// frame returns a copy of the shown image for a screenshot or the start of a recording, nil
+// before the first frame of the session.
+func (v *kvmView) frame() *image.RGBA {
+	if !v.hasFrame || v.front == nil {
+		return nil
+	}
+	img := image.NewRGBA(v.front.Rect)
+	copy(img.Pix, v.front.Pix)
+	return img
+}
+
+// unitScale is the size of one framebuffer pixel in Fyne units at the fixed scale: scale device
+// pixels, so Actual Size shows every remote pixel as one screen pixel also on a HiDPI screen.
+func (v *kvmView) unitScale() float32 {
+	if v.scale <= 0 {
+		return 0
+	}
+	if c := fyne.CurrentApp().Driver().CanvasForObject(v); c != nil && c.Scale() > 0 {
+		return v.scale / c.Scale()
+	}
+	return v.scale
 }
 
 func (v *kvmView) screenSize() (w, h int) {
@@ -172,6 +240,20 @@ func (v *kvmView) screenSize() (w, h int) {
 		return 0, 0
 	}
 	return v.front.Rect.Dx(), v.front.Rect.Dy()
+}
+
+// imageRect returns position and size of a w x h image in area: fitted (unit 0) or at unit Fyne
+// units per pixel, centred while smaller than area and at the top left corner otherwise (the
+// scroll container shows the rest).
+func imageRect(area fyne.Size, w, h int, unit float32) (fyne.Position, fyne.Size) {
+	if unit <= 0 {
+		return fitRect(area, w, h)
+	}
+	if w <= 0 || h <= 0 {
+		return fyne.Position{}, fyne.Size{}
+	}
+	size := fyne.NewSize(float32(w)*unit, float32(h)*unit)
+	return fyne.NewPos(max(0, (area.Width-size.Width)/2), max(0, (area.Height-size.Height)/2)), size
 }
 
 // fitRect returns position and size of a w x h image scaled to fit area, centred (letterbox).
@@ -184,9 +266,10 @@ func fitRect(area fyne.Size, w, h int) (fyne.Position, fyne.Size) {
 	return fyne.NewPos((area.Width-size.Width)/2, (area.Height-size.Height)/2), size
 }
 
-// toFramebuffer maps a point in the view to framebuffer pixels, clamped to the screen.
-func toFramebuffer(p fyne.Position, area fyne.Size, w, h int) (x, y int) {
-	pos, size := fitRect(area, w, h)
+// toFramebuffer maps a point in the view to framebuffer pixels, clamped to the screen; unit is
+// that of imageRect.
+func toFramebuffer(p fyne.Position, area fyne.Size, w, h int, unit float32) (x, y int) {
+	pos, size := imageRect(area, w, h, unit)
 	if size.Width <= 0 || size.Height <= 0 {
 		return 0, 0
 	}
@@ -208,11 +291,21 @@ type kvmRenderer struct {
 func (r *kvmRenderer) Layout(size fyne.Size) {
 	r.bg.Resize(size)
 	w, h := r.v.screenSize()
-	pos, sz := fitRect(size, w, h)
+	pos, sz := imageRect(size, w, h, r.v.unitScale())
 	r.v.img.Move(pos)
 	r.v.img.Resize(sz)
 }
-func (r *kvmRenderer) MinSize() fyne.Size           { return fyne.NewSize(320, 180) }
+
+// MinSize is the scaled image at a fixed scale, so the scroll container around the view
+// scrolls; fitted the view takes any size (the container keeps kvmMinSize).
+func (r *kvmRenderer) MinSize() fyne.Size {
+	unit := r.v.unitScale()
+	w, h := r.v.screenSize()
+	if unit <= 0 || w <= 0 || h <= 0 {
+		return fyne.Size{}
+	}
+	return fyne.NewSize(float32(w)*unit, float32(h)*unit)
+}
 func (r *kvmRenderer) Refresh()                     { r.Layout(r.v.Size()); canvas.Refresh(r.bg); r.v.img.Refresh() }
 func (r *kvmRenderer) Objects() []fyne.CanvasObject { return []fyne.CanvasObject{r.bg, r.v.img} }
 func (r *kvmRenderer) Destroy()                     {}
@@ -227,6 +320,10 @@ func (v *kvmView) AcceptsTab() bool         { return v.client != nil }
 func (v *kvmView) Cursor() desktop.Cursor   { return desktop.CrosshairCursor }
 func (v *kvmView) KeyDown(e *fyne.KeyEvent) { v.key(e, true) }
 func (v *kvmView) KeyUp(e *fyne.KeyEvent)   { v.key(e, false) }
+
+// TypedShortcut swallows shortcuts: their keys already went to the remote (KeyDown), and the
+// window's shortcuts (Scale menu) must not fire while the focus is in the remote image.
+func (v *kvmView) TypedShortcut(fyne.Shortcut) {}
 
 func (v *kvmView) key(e *fyne.KeyEvent, down bool) {
 	if v.client == nil || v.paused {
@@ -312,15 +409,27 @@ func (v *kvmView) MouseOut() { v.releaseButtons() }
 
 // Scrolled sums the scroll delta and sends one wheel click (RFB buttons 4 up, 5 down, pressed
 // and released) per wheelStep, so a trackpad does not scroll one click per tiny delta.
+// Without a session or the focus the wheel scrolls a zoomed image instead (onScroll). "Reverse
+// Mouse Wheel" turns the direction around.
 func (v *kvmView) Scrolled(e *fyne.ScrollEvent) {
-	if v.client == nil || !v.focused || e.Scrolled.DY == 0 {
+	if v.client == nil || !v.focused {
+		if v.onScroll != nil {
+			v.onScroll(e)
+		}
+		return
+	}
+	dy := e.Scrolled.DY
+	if v.reverseWheel {
+		dy = -dy
+	}
+	if dy == 0 {
 		return
 	}
 	step := wheelStep(v.mapper.goos)
-	if (v.wheel > 0) != (e.Scrolled.DY > 0) {
+	if (v.wheel > 0) != (dy > 0) {
 		v.wheel = 0 // direction changed: drop the remainder
 	}
-	v.wheel += e.Scrolled.DY
+	v.wheel += dy
 	v.input()
 	x, y := v.toScreen(e.Position)
 	for ; v.wheel >= step; v.wheel -= step {
@@ -335,7 +444,7 @@ func (v *kvmView) Scrolled(e *fyne.ScrollEvent) {
 
 func (v *kvmView) toScreen(p fyne.Position) (int, int) {
 	w, h := v.screenSize()
-	v.lastX, v.lastY = toFramebuffer(p, v.Size(), w, h)
+	v.lastX, v.lastY = toFramebuffer(p, v.Size(), w, h, v.unitScale())
 	return v.lastX, v.lastY
 }
 

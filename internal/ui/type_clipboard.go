@@ -25,6 +25,7 @@ type favoriteStore interface {
 	Find(host, username string) (favorites.Favorite, bool, error)
 	SetQuality(host, username, quality string) error
 	SetLayout(host, username, layout string) error
+	SetReverseWheel(host, username string, on bool) error
 }
 
 // layoutLabel is the spelled-out name of a layout in the UI language, e.g. "German (Switzerland)".

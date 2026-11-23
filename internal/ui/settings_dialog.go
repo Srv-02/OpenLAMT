@@ -37,7 +37,8 @@ const (
 
 // settingsForm holds the fields of the global settings: poll interval (also the interval of
 // the sidebar's status dots), the layout of "Type clipboard", the KVM idle timeout, the KVM quality that favorites without a choice use, whether KVM
-// connects automatically, the UI language, the appearance and the update check at start.
+// connects automatically, the folder for screenshots and recordings, the UI language, the
+// appearance and the update check at start.
 type settingsForm struct {
 	interval   *escEntry
 	layout     *widgets.Dropdown
@@ -48,6 +49,9 @@ type settingsForm struct {
 	appearance *widgets.Dropdown
 	colorBlind *widgets.Switch
 	updates    *widgets.Switch
+	// captureFolder is the folder for screenshots and recordings as chosen in the dialog; empty
+	// asks for a file name each time.
+	captureFolder string
 }
 
 func newSettingsForm(s *Settings) *settingsForm {
@@ -65,6 +69,7 @@ func newSettingsForm(s *Settings) *settingsForm {
 	f.colorBlind.SetChecked(s.ColorBlind())
 	f.updates = widgets.NewSwitch(nil)
 	f.updates.SetChecked(s.UpdateCheck())
+	f.captureFolder = s.CaptureFolder()
 	return f
 }
 
@@ -170,6 +175,7 @@ func (f *settingsForm) apply(s *Settings) error {
 	s.SetUpdateCheck(f.updates.Checked())
 	s.SetKVMQuality(qualityOptions()[max(0, f.quality.SelectedIndex())])
 	s.SetKVMIdleTimeout(KVMIdleChoices[max(0, f.idle.SelectedIndex())])
+	s.SetCaptureFolder(f.captureFolder)
 	sec, _ := strconv.Atoi(f.interval.Text)
 	return s.SetPollInterval(time.Duration(sec) * time.Second)
 }
@@ -309,6 +315,57 @@ func wrapWords(s string, size, width float32) []string {
 	return lines
 }
 
+// pickCaptureFolder opens the folder dialog of the row "Screenshots and recordings"; tests
+// replace it.
+var pickCaptureFolder = func(win fyne.Window, chosen func(path string), failed func(error)) {
+	defaultPickers().folder(win, chosen, failed)
+}
+
+// folderRow is the row "Screenshots and recordings" (gesamtdesign V9, issues #4 and #26): the
+// label with the folder in monospace below it, or "Not set: …" while empty, the button
+// "Choose…" and, while a folder is set, "×" to clear it again. The value is stored on Save.
+type folderRow struct {
+	obj    fyne.CanvasObject
+	desc   *ellipsisText
+	choose *widgets.PrimaryButton
+	clear  *widgets.PrimaryButton
+	f      *settingsForm
+}
+
+func newFolderRow(f *settingsForm, pick func(chosen func(path string)), onEscape func()) *folderRow {
+	r := &folderRow{f: f}
+	r.choose = dialogButton(lang.L("Choose…"), false, 12, func() { pick(r.set) })
+	r.choose.SetIcon(icons.Get(icons.Folder, icons.Foreground))
+	r.clear = dialogButton("", false, 8, func() { r.set("") })
+	r.clear.SetIcon(icons.Get(icons.Close, icons.Foreground))
+	r.choose.OnEscape, r.clear.OnEscape = onEscape, onEscape
+	r.desc = newEllipsisText("", style.Size(style.SizeNameSecondaryText), style.ColorNameTextSecondary, false)
+	r.desc.shrink = true
+	label := container.New(layout.NewCustomPaddedVBoxLayout(2),
+		designText(lang.L("Screenshots and recordings"), style.Size("text"), "foreground", false), r.desc)
+	r.obj = container.New(layout.NewCustomPaddedLayout(colorBlindPadV, colorBlindPadV, rowPadH, rowPadH),
+		container.New(&rowLayout{gap: 8, fill: 0}, label, r.choose, r.clear))
+	r.set(f.captureFolder)
+	return r
+}
+
+// set shows dir (empty: not set) and keeps it for Save.
+func (r *folderRow) set(dir string) {
+	r.f.captureFolder = dir
+	r.desc.mono = dir != ""
+	if dir == "" {
+		r.desc.SetText(lang.L("Not set: OpenLAMT asks for a file name each time."))
+		r.clear.Hide()
+	} else {
+		r.desc.SetText(dir)
+		r.clear.Show()
+	}
+	r.desc.Refresh()
+	if c, ok := r.obj.(*fyne.Container); ok {
+		c.Refresh()
+	}
+}
+
 // footerLink is a flat 28 px link button of the footer.
 func footerLink(text string, icon fyne.Resource, iconSize float32, tapped func()) *widgets.Link {
 	l := widgets.NewLink(text, nil)
@@ -407,6 +464,7 @@ type settingsDialog struct {
 	checkNow func(report func(updateCheckResult))
 	relayout func()
 	update   *updateRow
+	folder   *folderRow
 }
 
 // section is a heading (12 px semibold, secondary) above a card of rows, like the pages of the
@@ -440,11 +498,15 @@ func (c *settingsDialog) devicesSection() fyne.CanvasObject {
 }
 
 func (c *settingsDialog) remoteScreenSection() fyne.CanvasObject {
+	c.folder = newFolderRow(c.f, func(chosen func(path string)) {
+		pickCaptureFolder(c.parent, chosen, func(err error) { showError(c.parent, err) })
+	}, c.d.Close)
 	return c.section(lang.L("Remote screen"),
 		settingsRow(lang.L("KVM quality"), c.f.quality),
 		settingsRow(lang.L("KVM auto-connect"), c.f.autoKVM),
 		settingsRow(lang.L("Disconnect KVM without input after"), c.f.idle),
-		settingsRow(lang.L("Type clipboard layout"), c.f.layout))
+		settingsRow(lang.L("Type clipboard layout"), c.f.layout),
+		c.folder.obj)
 }
 
 func (c *settingsDialog) dataSection() fyne.CanvasObject {

@@ -62,7 +62,7 @@ func TestSettingsDialogSections(t *testing.T) {
 	if !slices.Equal(titles, want) {
 		t.Fatalf("sections %q, want %q", titles, want)
 	}
-	if wantRows := []int{3, 1, 1, 4, 1}; !slices.Equal(rowCounts, wantRows) {
+	if wantRows := []int{3, 1, 1, 5, 1}; !slices.Equal(rowCounts, wantRows) {
 		t.Fatalf("rows per section %v, want %v", rowCounts, wantRows)
 	}
 

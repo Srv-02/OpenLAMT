@@ -2,6 +2,7 @@ package widgets
 
 import (
 	"image/color"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -28,6 +29,7 @@ const (
 	menuIconGap    float32 = 10
 	menuSepMarginV float32 = 4
 	menuSepMarginH float32 = 8
+	menuKeyGap     float32 = 16  // between the text and the shortcut
 	menuEdge       float32 = 8   // free space kept at the canvas edge when a menu scrolls
 	menuMinScroll  float32 = 240 // least height a scrolling menu gets before it moves up
 	menuTrailing   float32 = 14  // trailing symbol (SetTrailing)
@@ -37,7 +39,8 @@ const (
 // MenuPopup shows a fyne.Menu as the design's drop-down: own rows instead of Fyne's menu
 // widget, whose row height and symbol size follow theme sizes shared with other widgets.
 // Item fields used: Label, Icon (16 px symbol, drawn as is), Disabled, Checked (a check mark in
-// the symbol column), IsSeparator and Action. An optional MenuInfo line sits above the items
+// the symbol column), Shortcut (its keys as text at the right, e.g. "Ctrl+0", for a
+// fyne.KeyboardShortcut; the menu does not trigger it), IsSeparator and Action. An optional MenuInfo line sits above the items
 // (SetMenu). A tap outside or Escape dismisses it; Up, Down, Return and Space work as in Fyne's
 // menu.
 type MenuPopup struct {
@@ -433,7 +436,8 @@ func (r *menuRow) highlighted() bool {
 
 func (r *menuRow) CreateRenderer() fyne.WidgetRenderer {
 	rr := &menuRowRenderer{r: r, bg: &canvas.Rectangle{CornerRadius: menuRowRadius},
-		icon: NewSymbol(nil, 0), trailing: NewSymbol(nil, menuTrailing), text: newText("", style.Size(theme.SizeNameText), nil, false)}
+		icon: NewSymbol(nil, 0), trailing: NewSymbol(nil, menuTrailing), text: newText("", style.Size(theme.SizeNameText), nil, false),
+		key: newText("", style.Size(style.SizeNameSecondaryText), nil, false)}
 	rr.Refresh()
 	return rr
 }
@@ -444,6 +448,35 @@ type menuRowRenderer struct {
 	icon     *Symbol
 	trailing *Symbol
 	text     *canvas.Text
+	key      *canvas.Text // shortcut right of the text; empty without one
+}
+
+// ShortcutText is the shortcut s as the menus show it: modifiers, then the key, joined by "+"
+// ("Ctrl+0", "Ctrl++"); empty for a shortcut that is not a fyne.KeyboardShortcut.
+func ShortcutText(s fyne.Shortcut) string {
+	ks, ok := s.(fyne.KeyboardShortcut)
+	if !ok {
+		return ""
+	}
+	var parts []string
+	m := ks.Mod()
+	for _, p := range []struct {
+		mod  fyne.KeyModifier
+		name string
+	}{{fyne.KeyModifierControl, "Ctrl"}, {fyne.KeyModifierAlt, "Alt"}, {fyne.KeyModifierShift, "Shift"}, {fyne.KeyModifierSuper, "Super"}} {
+		if m&p.mod != 0 {
+			parts = append(parts, p.name)
+		}
+	}
+	return strings.Join(append(parts, string(ks.Key())), "+")
+}
+
+// keyWidth is the room the shortcut takes right of the text, 0 without one.
+func (rr *menuRowRenderer) keyWidth() float32 {
+	if k := ShortcutText(rr.r.item.Shortcut); k != "" {
+		return menuKeyGap + fyne.MeasureText(k, rr.key.TextSize, rr.key.TextStyle).Width
+	}
+	return 0
 }
 
 // trailingWidth is the room the trailing symbol takes right of the text, 0 without one.
@@ -456,7 +489,7 @@ func (rr *menuRowRenderer) trailingWidth() float32 {
 
 func (rr *menuRowRenderer) MinSize() fyne.Size {
 	tw := fyne.MeasureText(rr.r.item.Label, rr.text.TextSize, rr.text.TextStyle).Width
-	return fyne.NewSize(2*menuRowPadH+menuIconSize+menuIconGap+tw+rr.trailingWidth(), menuRowHeight)
+	return fyne.NewSize(2*menuRowPadH+menuIconSize+menuIconGap+tw+rr.keyWidth()+rr.trailingWidth(), menuRowHeight)
 }
 
 func (rr *menuRowRenderer) Layout(size fyne.Size) {
@@ -466,9 +499,12 @@ func (rr *menuRowRenderer) Layout(size fyne.Size) {
 	ts := rr.text.MinSize()
 	x := menuRowPadH + menuIconSize + menuIconGap
 	rr.text.Move(fyne.NewPos(x, (size.Height-ts.Height)/2))
-	rr.text.Resize(fyne.NewSize(max(0, size.Width-x-menuRowPadH-rr.trailingWidth()), ts.Height))
+	rr.text.Resize(fyne.NewSize(max(0, size.Width-x-menuRowPadH-rr.keyWidth()-rr.trailingWidth()), ts.Height))
 	rr.trailing.Move(fyne.NewPos(size.Width-menuRowPadH-menuTrailing, (size.Height-menuTrailing)/2))
 	rr.trailing.Resize(fyne.NewSquareSize(menuTrailing))
+	ks := rr.key.MinSize()
+	rr.key.Move(fyne.NewPos(size.Width-menuRowPadH-rr.trailingWidth()-ks.Width, (size.Height-ks.Height)/2))
+	rr.key.Resize(ks)
 }
 
 func (rr *menuRowRenderer) Refresh() {
@@ -509,10 +545,16 @@ func (rr *menuRowRenderer) Refresh() {
 	rr.text.Text = it.Label
 	rr.text.Color = textColor
 	rr.text.Refresh()
+	rr.key.Text = ShortcutText(it.Shortcut)
+	rr.key.Color = style.Color(style.ColorNameTextSecondary)
+	if hi || it.Disabled {
+		rr.key.Color = textColor
+	}
+	rr.key.Refresh()
 	rr.Layout(rr.r.Size())
 }
 
 func (rr *menuRowRenderer) Objects() []fyne.CanvasObject {
-	return []fyne.CanvasObject{rr.bg, rr.icon, rr.trailing, rr.text}
+	return []fyne.CanvasObject{rr.bg, rr.icon, rr.trailing, rr.text, rr.key}
 }
 func (rr *menuRowRenderer) Destroy() {}

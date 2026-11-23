@@ -12,14 +12,22 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
+	"github.com/Srv-02/openlamt/internal/ui/icons"
+	"github.com/Srv-02/openlamt/internal/ui/style"
+	"github.com/Srv-02/openlamt/internal/ui/widgets"
 	"github.com/Srv-02/openlamt/internal/update"
 )
 
 // The update check: once per start, a few seconds after the main window opened, OpenLAMT asks
-// GitHub for the latest release and offers a newer one for download. It installs nothing.
+// GitHub for the latest release and offers a newer one. Update downloads it and hands it to the
+// platform (issue #61); OpenLAMT then quits, on Windows it starts the new version.
 const (
 	updateDelay     = 5 * time.Second
 	updateNoteLines = 6
@@ -39,7 +47,22 @@ var (
 	updateAsync = func(f func()) { go f() }
 	// updateAppImage is true when OpenLAMT runs as an AppImage: the AppImage runtime sets APPIMAGE.
 	updateAppImage = os.Getenv("APPIMAGE") != ""
+	// updateInstaller hands the package to the platform (its GOOS is updateGOOS); tests fake
+	// its seams.
+	updateInstaller = update.NewInstaller()
+	// updateProgressEvery throttles the download progress posted to the Fyne thread.
+	updateProgressEvery = 100 * time.Millisecond
 )
+
+// updateInstall hands the downloaded package to the platform; it may block (opener, UAC).
+func updateInstall(path string) (restart string, err error) {
+	in := updateInstaller
+	in.GOOS = updateGOOS
+	return in.Install(path)
+}
+
+// updateRestart starts the new version right before OpenLAMT quits (Windows).
+func updateRestart(path string) error { return updateInstaller.Restart(path) }
 
 type updateNotice struct {
 	timer  *time.Timer
@@ -260,28 +283,70 @@ func (s *StartWindow) quiet() bool {
 	return len(s.open) == 0 && len(s.busy) == 0 && s.win.Canvas().Overlays().Top() == nil
 }
 
-// updateIntro is the text of the dialog without the release notes.
-func updateIntro(current string) string {
-	return lang.L("You are using {{.Current}}. The new version is saved to your Downloads folder; you install it yourself.",
-		map[string]any{"Current": current})
+// updateMode is what Update does after the download (issue #61).
+type updateMode int
+
+const (
+	updateSaveOnly updateMode = iota // save to Downloads and offer the folder (AppImage, no package)
+	updateMac                        // open the DMG in the Finder and quit
+	updateWindows                    // replace the exe, quit and start the new one
+	updateDeb                        // open the .deb in the software installer and quit
+)
+
+// currentUpdateMode is the handover of this platform. An AppImage keeps the download and
+// "Show in Folder": the .deb would not replace the file the user runs.
+func currentUpdateMode() updateMode {
+	switch {
+	case updateGOOS == "darwin":
+		return updateMac
+	case updateGOOS == "windows":
+		return updateWindows
+	case updateGOOS == "linux" && !updateAppImage:
+		return updateDeb
+	}
+	return updateSaveOnly
 }
 
-// showUpdateAvailable is the dialog "OpenLAMT x is available": what it does, the first lines of
-// the release notes, "Don't check for updates" and Later / Download. Download stays open while
-// the package loads, then the dialog "downloaded" replaces it; without a package for this
-// platform it opens the release page instead.
+// updateIntro is the text of the dialog without the release notes: what Update does here.
+func updateIntro(mode updateMode, current string) string {
+	args := map[string]any{"Current": current}
+	switch mode {
+	case updateMac:
+		return lang.L("You are using {{.Current}}. Update downloads the new version, opens it in the Finder and quits OpenLAMT. Drag the new app onto the old one.", args)
+	case updateWindows:
+		return lang.L("You are using {{.Current}}. Update downloads the new version, replaces OpenLAMT and starts it again.", args)
+	case updateDeb:
+		return lang.L("You are using {{.Current}}. Update downloads the new version, opens it in your software installer and quits OpenLAMT.", args)
+	}
+	return lang.L("You are using {{.Current}}. The new version is saved to your Downloads folder; you install it yourself.", args)
+}
+
+// showUpdateAvailable is the dialog "OpenLAMT x is available": what Update does on this
+// platform, the first lines of the release notes and Later / Update. Update stays open while
+// the package loads, with a progress bar, and Later cancels the download. Then the package goes
+// to the platform (update.Installer) and OpenLAMT quits through the quit path of the main
+// window; if the handover fails, the fallback dialog names the file in Downloads. An AppImage
+// keeps "Download" and the dialog "downloaded"; without a package for this platform the button
+// opens the release page.
 func (s *StartWindow) showUpdateAvailable(n *updateNotice, rel update.Release) *panel {
-	var stop *dialogCheck
-	applyStop := func() {
-		if stop.Checked {
-			s.settings.SetUpdateCheck(false)
-		}
+	asset, ok := update.AssetForRunning(rel, updateGOOS, updateGOARCH, updateAppImage)
+	mode := updateSaveOnly
+	if ok {
+		mode = currentUpdateMode()
+	}
+	action := lang.L("Update")
+	if mode == updateSaveOnly {
+		action = lang.L("Download")
 	}
 	var p *panel
 	var dl context.CancelFunc = func() {}
+	bar := widgets.NewProgressBar()
+	hint := designText("", style.Size(style.SizeNameSmallText), style.ColorNameTextSecondary, false)
+	// in line with the text of the labels above, which have an inner padding
+	pad := theme.InnerPadding()
+	progress := container.New(layout.NewCustomPaddedLayout(0, 0, pad, pad), container.NewVBox(bar, hint))
+	progress.Hide()
 	download := func() {
-		applyStop()
-		asset, ok := update.AssetForRunning(rel, updateGOOS, updateGOARCH, updateAppImage)
 		if !ok {
 			p.close()
 			if rel.HTMLURL != "" {
@@ -291,32 +356,54 @@ func (s *StartWindow) showUpdateAvailable(n *updateNotice, rel update.Release) *
 		}
 		p.action.SetText(lang.L("Downloading…"))
 		p.action.Disable()
-		p.frame.Refresh() // the button row makes room for the longer text
+		setUpdateProgress(bar, hint, 0, asset.Size)
+		progress.Show()
+		p.frame.Refresh() // the button row makes room for the longer text, the body for the bar
 		var ctx context.Context
 		ctx, dl = context.WithCancel(n.ctx)
+		report := updateProgressFunc(ctx, bar, hint)
 		n.async(func() {
-			path, err := s.downloadUpdate(ctx, asset)
+			path, err := s.downloadUpdate(ctx, asset, report)
+			var restart string
+			var handover error
+			if err == nil && mode != updateSaveOnly && ctx.Err() == nil {
+				restart, handover = updateInstall(path)
+			}
 			fyne.Do(func() {
 				if errors.Is(ctx.Err(), context.Canceled) || !p.close() {
 					return // Later, Esc or the window closed while it loaded
 				}
-				if err != nil {
-					s.onError(err)
-					return
+				switch {
+				case err != nil:
+					updateLog("update download failed", err)
+					s.showUpdateFailed(n, rel, err)
+				case mode == updateSaveOnly:
+					showUpdateDownloaded(s.win, rel.Version(), path)
+				case handover != nil:
+					updateLog("update handover failed", handover)
+					showUpdateFallback(s.win, rel.Version(), path, updateFallbackText(mode, handover))
+				default:
+					s.quitWith(func() {
+						if restart == "" {
+							return
+						}
+						if err := updateRestart(restart); err != nil {
+							updateLog("starting the new version failed", err)
+						}
+					})
 				}
-				showUpdateDownloaded(s.win, rel.Version(), path)
 			})
 		})
 	}
 	p = showPanel(s.win, panelSpec{
 		title:    lang.L("OpenLAMT {{.Version}} is available", map[string]any{"Version": rel.Version()}),
-		action:   lang.L("Download"),
+		action:   action,
 		cancel:   lang.L("Later"),
 		keep:     true,
 		onAction: download,
-		onCancel: func() { applyStop(); dl() },
+		onCancel: func() { dl() },
 	}, func(p *panel) []fyne.CanvasObject {
-		intro := widget.NewLabel(updateIntro(appVersion(s.app)))
+		intro := widget.NewLabel(updateIntro(mode, appVersion(s.app)))
 		intro.Wrapping = fyne.TextWrapWord
 		body := []fyne.CanvasObject{intro}
 		if notes := update.Notes(rel.Body, updateNoteLines); len(notes) > 0 {
@@ -324,33 +411,139 @@ func (s *StartWindow) showUpdateAvailable(n *updateNotice, rel update.Release) *
 			news.Wrapping = fyne.TextWrapWord
 			body = append(body, news)
 		}
-		stop = p.newCheck(lang.L("Don't check for updates"), false)
-		return append(body, stop)
+		return append(body, progress)
 	})
 	return p
 }
 
-// downloadUpdate saves the package in the Downloads folder; a checksum mismatch becomes a
-// message for the user.
-func (s *StartWindow) downloadUpdate(ctx context.Context, a update.Asset) (string, error) {
+// updateProgressFunc is the Progress of the download: it posts at most every
+// updateProgressEvery, and always the last call, to the Fyne thread.
+func updateProgressFunc(ctx context.Context, bar *widgets.ProgressBar, hint *canvas.Text) func(done, total int64) {
+	var last time.Time
+	return func(done, total int64) {
+		now := time.Now()
+		if done < total && now.Sub(last) < updateProgressEvery {
+			return
+		}
+		last = now
+		fyne.Do(func() {
+			if ctx.Err() == nil {
+				setUpdateProgress(bar, hint, done, total)
+			}
+		})
+	}
+}
+
+// setUpdateProgress fills the bar and says "Downloading… 12.4 of 31.0 MB"; without a known
+// size only "Downloading…".
+func setUpdateProgress(bar *widgets.ProgressBar, hint *canvas.Text, done, total int64) {
+	if total <= 0 {
+		bar.SetValue(0)
+		hint.Text = lang.L("Downloading…")
+		hint.Refresh()
+		return
+	}
+	bar.SetValue(float32(float64(done) / float64(total)))
+	d, t := (done+50_000)/100_000, (total+50_000)/100_000 // tenths of a MB
+	hint.Text = lang.L("Downloading… {{.DoneInt}}.{{.DoneFrac}} of {{.TotalInt}}.{{.TotalFrac}} MB",
+		map[string]any{"DoneInt": d / 10, "DoneFrac": d % 10, "TotalInt": t / 10, "TotalFrac": t % 10})
+	hint.Refresh()
+}
+
+// downloadUpdate saves the package in the Downloads folder.
+func (s *StartWindow) downloadUpdate(ctx context.Context, a update.Asset, progress func(done, total int64)) (string, error) {
 	dir, err := downloadsDir()
 	if err != nil {
 		return "", err
 	}
-	path, err := s.updateChecker().Download(ctx, a, dir)
-	if errors.Is(err, update.ErrDigest) {
-		return "", userError(lang.L("The downloaded file does not match its checksum and was deleted. Try again later."))
-	}
-	return path, err
+	c := s.updateChecker()
+	c.Progress = progress
+	return c.Download(ctx, a, dir)
 }
 
-// showUpdateDownloaded names the saved file and offers to show its folder.
+// showUpdateFailed is the dialog "Update failed" after a download that did not work: the
+// checksum did not match, or the download broke off. Try Again starts over.
+func (s *StartWindow) showUpdateFailed(n *updateNotice, rel update.Release, err error) *panel {
+	text := lang.L("The download did not finish. Nothing was installed. Try again later.")
+	if errors.Is(err, update.ErrDigest) {
+		text = lang.L("The download does not match its checksum. Nothing was installed. Try again later.")
+	}
+	return showPanel(s.win, panelSpec{
+		icon:     icons.Warning,
+		tone:     toneDanger,
+		title:    lang.L("Update failed"),
+		action:   lang.L("Try Again"),
+		cancel:   lang.L("Close"),
+		onAction: func() { s.showUpdateAvailable(n, rel).act() },
+	}, func(p *panel) []fyne.CanvasObject {
+		msg := widget.NewLabel(text)
+		msg.Wrapping = fyne.TextWrapWord
+		return []fyne.CanvasObject{msg}
+	})
+}
+
+// updateFallbackText says why the handover did not work and that the user installs the file.
+func updateFallbackText(mode updateMode, err error) string {
+	switch {
+	case mode == updateDeb:
+		return lang.L("OpenLAMT could not open the installer: no app is set up for .deb files. Install the file yourself:")
+	case mode == updateMac:
+		return lang.L("OpenLAMT could not open the disk image. Install the file yourself:")
+	case errors.Is(err, update.ErrDeclined):
+		return lang.L("OpenLAMT could not replace itself: the administrator permission was declined. Install the file yourself:")
+	}
+	return lang.L("OpenLAMT could not replace itself. Install the file yourself:")
+}
+
+// showUpdateFallback is the dialog after a handover that did not work: the reason, the path of
+// the package in Downloads, and Show in Folder. The update never fails silently.
+func showUpdateFallback(parent fyne.Window, version, path, reason string) *panel {
+	dir := filepath.Dir(path)
+	return showPanel(parent, panelSpec{
+		title:    lang.L("OpenLAMT {{.Version}} downloaded", map[string]any{"Version": version}),
+		action:   lang.L("Show in Folder"),
+		cancel:   lang.L("Close"),
+		onAction: func() { openURL(fileURL(dir)) },
+	}, func(p *panel) []fyne.CanvasObject {
+		msg := widget.NewLabel(reason)
+		msg.Wrapping = fyne.TextWrapWord
+		return []fyne.CanvasObject{msg, pathBox(homePath(path))}
+	})
+}
+
+// pathBox shows a path in monospace on a card with a thin border (design .chg).
+func pathBox(text string) fyne.CanvasObject {
+	bg := style.BindRect(&canvas.Rectangle{CornerRadius: 6, StrokeWidth: 1}, style.ColorNameDialogCard, style.ColorNameDialogBorder)
+	l := widget.NewLabelWithStyle(text, fyne.TextAlignLeading, fyne.TextStyle{Monospace: true})
+	l.SizeName = style.SizeNameSmallText // 12 px, as in the design
+	l.Wrapping = fyne.TextWrapBreak
+	// the card's edge lines up with the text of the label above, which has an inner padding
+	pad := theme.InnerPadding()
+	return container.New(layout.NewCustomPaddedLayout(0, 0, pad, pad), container.NewStack(bg, l))
+}
+
+// homePath is path with the home folder as "~" (not on Windows, where "~" means nothing).
+func homePath(path string) string {
+	if updateGOOS == "windows" {
+		return path
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if rel, err := filepath.Rel(home, path); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		return "~/" + filepath.ToSlash(rel)
+	}
+	return path
+}
+
+// showUpdateDownloaded names the saved file and offers to show its folder (AppImage).
 func showUpdateDownloaded(parent fyne.Window, version, path string) *panel {
 	dir := filepath.Dir(path)
 	shown := filepath.Join(filepath.Base(dir), filepath.Base(path))
 	return showPanel(parent, panelSpec{
 		title:    lang.L("OpenLAMT {{.Version}} downloaded", map[string]any{"Version": version}),
-		action:   lang.L("Show in folder"),
+		action:   lang.L("Show in Folder"),
 		cancel:   lang.L("Close"),
 		onAction: func() { openURL(fileURL(dir)) },
 	}, func(p *panel) []fyne.CanvasObject {

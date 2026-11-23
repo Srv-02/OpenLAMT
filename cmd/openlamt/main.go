@@ -17,6 +17,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/ui"
 	"github.com/Srv-02/openlamt/internal/ui/i18n"
 	"github.com/Srv-02/openlamt/internal/ui/style"
+	"github.com/Srv-02/openlamt/internal/update"
 )
 
 const appID = "io.github.srv02.openlamt"
@@ -46,6 +47,7 @@ func main() {
 	start.EnableUpdateCheck()
 	start.EnableCoffeeNudge()
 	go cleanMediaCache()
+	go removeUpdateLeftover()
 	start.Window().ShowAndRun()
 	// The device windows unmount their ISOs on goroutines: deleting a folder ISO and clearing
 	// the next-start boot option must not be cut off by the process exit.
@@ -61,6 +63,14 @@ func main() {
 func cleanMediaCache() {
 	if err := mkiso.CleanCache(); err != nil {
 		fyne.LogError("cleaning the ISO cache", err)
+	}
+}
+
+// removeUpdateLeftover deletes the OpenLAMT.exe.old a Windows update left next to the exe
+// (issue #61); it waits while the old instance is still quitting. Elsewhere it does nothing.
+func removeUpdateLeftover() {
+	if err := update.RemoveLeftover(); err != nil {
+		fyne.LogError("removing the replaced program", err)
 	}
 }
 

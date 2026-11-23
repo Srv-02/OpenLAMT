@@ -1,6 +1,6 @@
 // Package update asks GitHub for the latest release of OpenLAMT, compares it with the running
-// version and downloads the package of this platform into a folder. It has no UI and installs
-// nothing: the user replaces the app by hand.
+// version, downloads the package of this platform into a folder and hands it to the platform's
+// installer (install.go). It has no UI.
 package update
 
 import (
@@ -65,6 +65,9 @@ type Checker struct {
 	URL       string       // the API endpoint; LatestURL when empty (tests point it at httptest)
 	Client    *http.Client // nil: a client with a 10 s timeout
 	UserAgent string       // "OpenLAMT/<version>"
+	// Progress, when set, is called by Download after each chunk with the bytes so far and the
+	// size (the asset's, else the answer's Content-Length; 0 when unknown).
+	Progress func(done, total int64)
 }
 
 func (c Checker) do(ctx context.Context, url string, timeout time.Duration, accept string) (*http.Response, error) {
@@ -324,7 +327,15 @@ func (c Checker) Download(ctx context.Context, a Asset, dir string) (string, err
 		}
 	}()
 	h := sha256.New()
-	n, err := io.Copy(io.MultiWriter(tmp, h), io.LimitReader(resp.Body, maxAssetSize+1))
+	var w io.Writer = io.MultiWriter(tmp, h)
+	if c.Progress != nil {
+		total := a.Size
+		if total <= 0 {
+			total = max(resp.ContentLength, 0)
+		}
+		w = &progressWriter{w: w, total: total, report: c.Progress}
+	}
+	n, err := io.Copy(w, io.LimitReader(resp.Body, maxAssetSize+1))
 	if err != nil {
 		return "", err
 	}
@@ -349,6 +360,21 @@ func (c Checker) Download(ctx context.Context, a Asset, dir string) (string, err
 	}
 	keep = true
 	return dest, nil
+}
+
+// progressWriter reports the bytes written so far after each write.
+type progressWriter struct {
+	w      io.Writer
+	done   int64
+	total  int64
+	report func(done, total int64)
+}
+
+func (p *progressWriter) Write(b []byte) (int, error) {
+	n, err := p.w.Write(b)
+	p.done += int64(n)
+	p.report(p.done, p.total)
+	return n, err
 }
 
 // freeName is dir/name, or the first of "name (1).ext", "name (2).ext" … that does not exist.

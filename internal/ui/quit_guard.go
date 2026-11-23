@@ -82,23 +82,44 @@ func (s *StartWindow) askUnmountThenQuit(ds []*DeviceWindow) {
 	d.askClose(func() {
 		d.win.Close()
 		s.askUnmountThenQuit(ds[1:])
-	}, func() { s.quitAsking = false })
+	}, s.quitCancelled)
 }
 
 // askKVMThenQuit asks before quitting while KVM sessions are open, and quits.
 func (s *StartWindow) askKVMThenQuit() {
 	n := s.kvmSessions()
 	if n == 0 {
-		s.quitAsking = false
-		s.quitApp()
+		s.quitNow()
 		return
 	}
 	s.win.RequestFocus()
 	title, message, button := quitText(n)
-	showConfirm(s.win, icons.Power, title, message, button, func() {
-		s.quitAsking = false
-		s.quitApp()
-	}, func() { s.quitAsking = false })
+	showConfirm(s.win, icons.Power, title, message, button, s.quitNow, s.quitCancelled)
+}
+
+// quitNow ends the questions and quits; a hook of quitWith (the update starting the new
+// version) runs first.
+func (s *StartWindow) quitNow() {
+	s.quitAsking = false
+	if f := s.onQuit; f != nil {
+		s.onQuit = nil
+		f()
+	}
+	s.quitApp()
+}
+
+// quitCancelled ends the questions without quitting; a hook of quitWith is dropped.
+func (s *StartWindow) quitCancelled() {
+	s.quitAsking = false
+	s.onQuit = nil
+}
+
+// quitWith quits through the quit path of the main window (Cmd+Q, closing it): the ISO and
+// KVM questions, then every device window closes. then runs right before the app quits, and
+// not at all when the user keeps it open.
+func (s *StartWindow) quitWith(then func()) {
+	s.onQuit = then
+	s.requestClose(s.win)
 }
 
 // exitWait bounds how long the process waits for unmounting after the last window closed.

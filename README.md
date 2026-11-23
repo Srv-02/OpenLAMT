@@ -156,7 +156,7 @@ Key combinations that the local operating system reserves, such as Ctrl+Alt+Del,
 
 ### What it runs and touches
 
-- **Programs:** none. On macOS, the Media file dialog uses `osascript`. Links open in your browser.
+- **Programs:** none. On macOS, the Media file dialog uses `osascript`. Links open in your browser. **Update** hands the package to `open` (macOS) or `xdg-open` (Linux); on Windows, in a folder only an administrator can write to, it runs Windows PowerShell as administrator to replace `OpenLAMT.exe`, after the UAC prompt.
 - **Files:**
     - `openlamt/favorites.json` in your configuration folder (`~/Library/Application Support`, `%AppData%` or `~/.config`)
     - passwords and certificate fingerprints in the system keychain (services `openlamt` and `openlamt-fingerprint`)
@@ -168,7 +168,13 @@ Key combinations that the local operating system reserves, such as Ctrl+Alt+Del,
 
 ### Updates
 
-At start OpenLAMT asks GitHub for its latest release. If it is newer, a window shows the first lines of its release notes and offers the package for your platform. The download is checked against the SHA-256 checksum GitHub states and saved to `~/Downloads`. Nothing is installed: replace the app by hand. The request carries no account, token or data about your devices, but GitHub sees your IP address.
+At start OpenLAMT asks GitHub for its latest release. If it is newer, a window shows the first lines of its release notes and offers **Update**. The download is checked against the SHA-256 checksum GitHub states and saved to `~/Downloads`. Then OpenLAMT quits the way closing its main window does (open KVM sessions ask first) and:
+
+- **macOS** opens the disk image in the Finder; drag the new app onto the old one.
+- **Windows** replaces `OpenLAMT.exe` and starts the new version. The old file stays as `OpenLAMT.exe.old` until the new version deletes it at start. In a folder only an administrator can write to (such as `Program Files`), Windows asks for permission first.
+- **Linux** opens the `.deb` in your software installer. The AppImage is only downloaded: replace the old file by hand.
+
+If a step does not work, the package stays in `~/Downloads` and OpenLAMT says how to install it yourself. The request carries no account, token or data about your devices, but GitHub sees your IP address.
 
 ### MCP server (openlamt-mcp)
 

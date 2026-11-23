@@ -119,6 +119,7 @@
   "Powered off": "Ausgeschaltet",
   "Powered on": "Eingeschaltet",
   "Quality": "Qualität",
+  "Realms dropped (cannot be assigned): {{.Realms}}": "Realms entfernt (nicht zuweisbar): {{.Realms}}",
   "Reboot to BIOS…": "Neustart ins BIOS …",
   "Received": "Erhalten",
   "Remote screen not connected": "Entfernter Bildschirm nicht verbunden",

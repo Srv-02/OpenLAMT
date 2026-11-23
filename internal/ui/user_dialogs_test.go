@@ -456,3 +456,59 @@ func TestDeviceManagementKnowsTheStartWindow(t *testing.T) {
 		t.Fatal("device management has no start window")
 	}
 }
+
+// A device value outside the known access permissions shows no segment: no crash, and Save needs
+// a choice first.
+func TestEditUserUnknownAccessNeedsAChoice(t *testing.T) {
+	list := exampleUsers()
+	list.Users[1].Access = amt.AccessPermission(3)
+	h, p := usersHarness(t, list)
+	test.Tap(p.table.lines[2].action)
+	d := p.userDlg
+	if d.access.Selected() != -1 || !d.action.Disabled() {
+		t.Fatalf("selected %d, save disabled %v", d.access.Selected(), d.action.Disabled())
+	}
+	d.pw.SetText(newPassword)
+	d.repeat.SetText(newPassword)
+	if !d.action.Disabled() {
+		t.Fatal("Save enabled without a chosen access")
+	}
+	_ = d.changeLines()
+	d.access.SetSelected(0)
+	d.validate()
+	if d.action.Disabled() {
+		t.Fatal("Save still disabled after the choice")
+	}
+	test.Tap(d.action)
+	h.wait(t)
+	h.wait(t)
+	if u := h.dev.Cfg.Users.Users[1]; u.Access != amt.AccessNetwork {
+		t.Fatalf("access %v", u.Access)
+	}
+}
+
+// Realms the device reports but that cannot be assigned are dropped, so Save is not refused.
+func TestEditUserDropsReservedRealms(t *testing.T) {
+	list := exampleUsers()
+	list.Users[1].Realms = append(list.Users[1].Realms, amt.Realm(22))
+	h, p := usersHarness(t, list)
+	test.Tap(p.table.lines[2].action)
+	d := p.userDlg
+	if d.needsUpdate() {
+		t.Fatal("a reserved realm alone counts as a change")
+	}
+	d.pw.SetText(newPassword)
+	d.repeat.SetText(newPassword)
+	if d.action.Disabled() {
+		t.Fatal("Save blocked by a reserved realm")
+	}
+	if got := d.realms(); slices.Contains(got, amt.Realm(22)) {
+		t.Fatalf("realms %v", got)
+	}
+	test.Tap(d.action)
+	h.wait(t)
+	h.wait(t)
+	if !slices.Equal(h.dev.ConfigWrites(), []string{"UpdateUser"}) {
+		t.Fatalf("writes %v", h.dev.ConfigWrites())
+	}
+}

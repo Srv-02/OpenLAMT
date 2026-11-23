@@ -119,6 +119,7 @@
   "Powered off": "Powered off",
   "Powered on": "Powered on",
   "Quality": "Quality",
+  "Realms dropped (cannot be assigned): {{.Realms}}": "Realms dropped (cannot be assigned): {{.Realms}}",
   "Reboot to BIOS…": "Reboot to BIOS…",
   "Received": "Received",
   "Remote screen not connected": "Remote screen not connected",

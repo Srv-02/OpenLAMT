@@ -1,8 +1,10 @@
 package ui
 
 import (
+	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 
 	"fyne.io/fyne/v2/test"
@@ -244,5 +246,64 @@ func TestForwardingEditAndDelete(t *testing.T) {
 	}
 	if h.m.parent.Canvas().Overlays().Top() == nil {
 		t.Error("the list closed")
+	}
+}
+
+// A write error that is no fault of the device does not read as a refused target (#139): a
+// timeout or sign-in failure shows its own text, for Add and for Delete.
+func TestForwardingWriteErrorsGoThroughShowError(t *testing.T) {
+	h, d := openForwardingDialog(t, exampleForwarding(), true)
+	h.dev.Forwarding().AddErr = session.ErrAuth
+	test.Tap(d.add)
+	td := h.m.logDlg.target
+	td.address.SetText("http://example.com/events")
+	test.Tap(td.action)
+	h.wait(t)
+	top := h.m.parent.Canvas().Overlays().Top()
+	findLabel(t, top, "Something went wrong")
+	if !hasText(top, describe(session.ErrAuth)) || hasText(top, refusedText("Lab", session.ErrAuth)) {
+		t.Errorf("Add: want %q", describe(session.ErrAuth))
+	}
+	test.Tap(overlayButton(t, h.m.parent, "OK"))
+
+	h.dev.Forwarding().DeleteErr = context.DeadlineExceeded
+	test.Tap(d.edits[0])
+	test.Tap(h.m.logDlg.target.del)
+	test.Tap(overlayButton(t, h.m.parent, "Delete Target"))
+	h.wait(t)
+	top = h.m.parent.Canvas().Overlays().Top()
+	if !hasText(top, describe(context.DeadlineExceeded)) || hasText(top, refusedText("Lab", context.DeadlineExceeded)) {
+		t.Errorf("Delete: want %q", describe(context.DeadlineExceeded))
+	}
+}
+
+// A changed certificate on a write opens the mismatch dialog (#139).
+func TestForwardingWriteMismatchOpensTheDialog(t *testing.T) {
+	h, d := openForwardingDialog(t, exampleForwarding(), true)
+	h.dev.Forwarding().AddErr = &amt.FingerprintMismatchError{Host: "device.example.com", Expected: fp, Actual: strings.Repeat("cd", 32)}
+	test.Tap(d.add)
+	td := h.m.logDlg.target
+	td.address.SetText("http://example.com/events")
+	test.Tap(td.action)
+	h.wait(t)
+	findLabel(t, h.m.parent.Canvas().Overlays().Top(), "Certificate changed")
+}
+
+// The filter comes from the list the dropdown was built with, not from a list that a reload
+// replaced meanwhile (#139, Q10).
+func TestForwardingAddKeepsTheFiltersOfTheDropdown(t *testing.T) {
+	h, d := openForwardingDialog(t, exampleForwarding(), true)
+	test.Tap(d.add)
+	td := h.m.logDlg.target
+	td.address.SetText("http://example.com/events")
+	td.filter.SetSelectedIndex(2) // Platform
+	f := exampleForwarding()
+	slices.Reverse(f.Filters)
+	d.show(f)
+	test.Tap(td.action)
+	h.wait(t)
+	added := h.dev.Forwarding().Added
+	if len(added) != 1 || added[0].FilterID != "Intel(r) AMT:Platform" {
+		t.Fatalf("added %+v", added)
 	}
 }

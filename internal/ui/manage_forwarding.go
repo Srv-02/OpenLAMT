@@ -126,7 +126,8 @@ func (d *forwardingDialog) show(f amt.Forwarding) {
 	d.relayout()
 }
 
-// write runs write, reads the targets again and shows them; a refused write shows its error.
+// write runs write, reads the targets again and shows them. A fault of the device reads as a
+// refused target; any other error goes through showError (timeout text, mismatch dialog).
 func (d *forwardingDialog) write(write func() error) {
 	m := d.m
 	manageWrite(m, nil, func() forwardingResult {
@@ -139,7 +140,12 @@ func (d *forwardingDialog) write(write func() error) {
 		}
 		switch {
 		case r.writeErr != nil:
-			showMessage(d.w, lang.L("Something went wrong"), refusedText(m.name, r.writeErr), r.writeErr.Error())
+			var ae *amterror.AMTError
+			if errors.As(r.writeErr, &ae) || errors.Is(r.writeErr, amt.ErrAccessDenied) {
+				showMessage(d.w, lang.L("Something went wrong"), refusedText(m.name, r.writeErr), r.writeErr.Error())
+			} else {
+				showError(d.w, r.writeErr) // timeout, sign-in, stopped session, certificate mismatch
+			}
 		case r.err != nil:
 			showError(d.w, r.err)
 		}
@@ -172,6 +178,7 @@ type targetDialog struct {
 	user     *dialogEntry
 	password *widgets.PasswordField
 	del      *escButton
+	filters  []amt.EventFilter // the filters the dropdown was built with
 }
 
 // showTarget shows "Add forwarding target" (t nil) or the target t with "Delete Target…".
@@ -181,6 +188,7 @@ func (m *manager) showTarget(list *forwardingDialog, t *amt.ForwardingTarget) *t
 	}
 	d := &targetDialog{}
 	filters := list.data.Filters
+	d.filters = filters
 	d.panel = showPanel(list.w, panelSpec{
 		title: lang.L("Add forwarding target"), action: lang.L("Add Target"), cancel: lang.L("Cancel"), flush: true, width: 520,
 		onAction: func() { m.addTarget(list, d) },
@@ -275,7 +283,7 @@ func (d *targetDialog) forget() {
 // addTarget subscribes the target of d; a password goes to the device only after the question
 // without TLS (issue #37, the key variant of V18).
 func (m *manager) addTarget(list *forwardingDialog, d *targetDialog) {
-	spec := d.spec(list.data.Filters)
+	spec := d.spec(d.filters) // not list.data: a reload may have replaced it since the dropdown was built
 	d.forget()
 	run := func() { list.write(func() error { return m.sess.AddForwardingTarget(spec) }) }
 	if spec.Password == "" {

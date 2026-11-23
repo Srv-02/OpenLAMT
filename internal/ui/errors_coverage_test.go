@@ -18,6 +18,7 @@ import (
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/kvm"
+	"github.com/Srv-02/openlamt/internal/localme"
 	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/redir"
 	"github.com/Srv-02/openlamt/internal/session"
@@ -133,6 +134,8 @@ func errorSamples() map[string]error {
 		"amt.RiskyChangeError":          &amt.RiskyChangeError{Op: amt.OpNetwork, Fields: []string{"IPv4"}},
 		"amt.SOLError":                  &amt.SOLError{Step: "RequestStateChange", ReturnValue: 1},
 		"amt.ValidationError":           &amt.ValidationError{Field: "HostName", Reason: "must not be empty"},
+		"localme.ErrDeclined":           localme.ErrDeclined,
+		"localme.ErrNoPkexec":           localme.ErrNoPkexec,
 		"favorites.ErrExists":           favorites.ErrExists,
 		"favorites.ErrNotFound":         favorites.ErrNotFound,
 		"favorites.KeychainError":       &favorites.KeychainError{Err: errors.New("x")},

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/kvm"
+	"github.com/Srv-02/openlamt/internal/localme"
 	"github.com/Srv-02/openlamt/internal/typing"
 	"github.com/Srv-02/openlamt/internal/ui/i18n"
 )
@@ -27,6 +28,7 @@ const (
 	prefUpdateCheck     = "update_check"
 	prefColorBlind      = "color_blind"
 	prefCaptureFolder   = "capture_folder"
+	prefLocalCheck      = "local_check" // JSON of the last localme.Result; not part of the config export
 
 	// "Don’t show again" of the hints; every one belongs in hiddenMessagePrefs.
 	prefHideFolderMountHint = "hide_folder_mount_hint"
@@ -225,4 +227,24 @@ func (s Settings) ResetHiddenMessages() {
 	for _, k := range hiddenMessagePrefs {
 		s.prefs.RemoveValue(k)
 	}
+}
+
+// LastLocalCheck is the last result of Check on "This computer" (#11, V15); false before the
+// first check or when the stored value is unreadable.
+func (s Settings) LastLocalCheck() (localme.Result, bool) {
+	v := s.prefs.String(prefLocalCheck)
+	if v == "" {
+		return localme.Result{}, false
+	}
+	r, err := localme.Decode([]byte(v))
+	return r, err == nil
+}
+
+// SetLastLocalCheck stores r. A Result holds nothing secret (no password, no account).
+func (s Settings) SetLastLocalCheck(r localme.Result) {
+	b, err := localme.Encode(r)
+	if err != nil {
+		return
+	}
+	s.prefs.SetString(prefLocalCheck, string(b))
 }

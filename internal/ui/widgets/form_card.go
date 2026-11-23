@@ -19,6 +19,7 @@ const (
 	rowLabelGap float32 = 16
 	rowIconGap  float32 = 12
 	rowIconSize float32 = 17
+	rowHelpGap  float32 = 6 // between a label and its info button (gesamtdesign .r .l)
 )
 
 // FormCard is a rounded card (radius 10, #2A2A2D, hairline border) that stacks its rows with
@@ -163,6 +164,13 @@ func NewFormRow(label string, content fyne.CanvasObject) fyne.CanvasObject {
 	return &rowContainer{lead: l, leadToken: style.ColorNameTextSecondary, leadWidth: style.FormLabelWidth, gap: rowLabelGap, content: content, leadText: label}
 }
 
+// NewFormRowHelp is NewFormRow with an info button (NewInfoButton) right behind the label.
+func NewFormRowHelp(label string, help fyne.CanvasObject, content fyne.CanvasObject) fyne.CanvasObject {
+	r := NewFormRow(label, content).(*rowContainer)
+	r.help = help
+	return r
+}
+
 // NewIconRow returns a card row with a 17 px symbol (secondary color), text filling the rest
 // and an optional trailing object such as a Switch (nil for none).
 func NewIconRow(icon icons.Name, text string, trailing fyne.CanvasObject) fyne.CanvasObject {
@@ -179,6 +187,7 @@ type rowContainer struct {
 	gap       float32
 	content   fyne.CanvasObject
 	trailing  fyne.CanvasObject
+	help      fyne.CanvasObject // info button behind a text lead, inside the lead column
 	// full texts of lead and content when they are *canvas.Text, for ellipsizing
 	leadText, contentText string
 	// color tokens of lead and content when they are *canvas.Text, read on every refresh
@@ -207,10 +216,19 @@ func (r *rowRenderer) Layout(size fyne.Size) {
 	c := r.c
 	x := rowPadH
 	if t, ok := c.lead.(*canvas.Text); ok {
-		fitText(t, c.leadText, c.leadWidth)
+		w := c.leadWidth
+		if c.help != nil {
+			w -= c.help.MinSize().Width + rowHelpGap
+		}
+		fitText(t, c.leadText, w)
 		ts := t.MinSize()
 		t.Move(fyne.NewPos(x, (size.Height-ts.Height)/2))
-		t.Resize(fyne.NewSize(c.leadWidth, ts.Height))
+		t.Resize(fyne.NewSize(w, ts.Height))
+		if c.help != nil {
+			hs := c.help.MinSize()
+			c.help.Move(fyne.NewPos(x+min(ts.Width, w)+rowHelpGap, (size.Height-hs.Height)/2))
+			c.help.Resize(hs)
+		}
 	} else {
 		c.lead.Move(fyne.NewPos(x, (size.Height-c.leadWidth)/2))
 		c.lead.Resize(fyne.NewSquareSize(c.leadWidth))
@@ -248,6 +266,9 @@ func (r *rowRenderer) Refresh() {
 
 func (r *rowRenderer) Objects() []fyne.CanvasObject {
 	objs := []fyne.CanvasObject{r.c.lead, r.c.content}
+	if r.c.help != nil {
+		objs = append(objs, r.c.help)
+	}
 	if r.c.trailing != nil {
 		objs = append(objs, r.c.trailing)
 	}

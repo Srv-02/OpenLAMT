@@ -30,7 +30,7 @@ const (
 	modeNew   detailMode = iota // "Quick Connect": empty form, Connect and Save as favorite; after Duplicate Cancel and Save
 	modeView                    // a favorite, read only, Connect
 	modeEdit                    // a favorite in edit mode, Save and Cancel
-	modeLocal                   // "This computer" (#11): the local Intel ME, not checked yet
+	modeLocal                   // "This computer" (#11): the local Intel ME and its last check
 )
 
 // StartWindow is the manager window (ManagerA.html): the favorites in the sidebar, the
@@ -68,11 +68,18 @@ type StartWindow struct {
 	scanBtn     *managerButton
 
 	// "This computer" (local_me.go)
-	localME      localme.Detector // runs once at start; tests pass localme.Fake
-	meFound      bool
-	localSection *fyne.Container
-	localRow     *widgets.SidebarRow
-	localCard    fyne.CanvasObject
+	localME       localme.Detector // runs once at start; tests pass localme.Fake
+	meFound       bool
+	localSection  *fyne.Container
+	localRow      *widgets.SidebarRow
+	localCard     *fyne.Container                // the card of the last result
+	localActions  fyne.CanvasObject              // header: "Beta", Check, the hints
+	checkBtn      *widgets.PrimaryButton         // Check / Check Again
+	betaPill      fyne.CanvasObject              // "Beta" next to Check
+	localLast     *localme.Result                // last check result (settings); nil: not checked
+	localChecking bool                           // the helper runs
+	localCheck    func() (localme.Result, error) // localme.Check; tests pass a fake
+	localRun      func(func())                   // runs the check off the Fyne thread; tests run it inline
 
 	// Detail pane
 	mode     detailMode
@@ -138,7 +145,8 @@ func NewStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, con
 func newStartWindow(a fyne.App, mgr *favorites.Manager, keys keychain.Store, connect session.ConnectFunc, setup func(*StartWindow)) *StartWindow {
 	s := &StartWindow{later: fyne.Do, exitWork: &pendingWork{}, app: a, win: a.NewWindow("OpenLAMT"), mgr: mgr, keys: keys, settings: NewSettings(a.Preferences()),
 		open: map[string]*DeviceWindow{}, busy: map[string]string{}, probes: map[string]probeResult{}, saved: map[string]bool{}, savedGen: map[string]int{},
-		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}, localME: localme.Present}
+		rows: map[string]*widgets.SidebarRow{}, values: map[string]*widget.Label{}, localME: localme.Present,
+		localCheck: localme.Check, localRun: func(f func()) { go f() }}
 	// User actions go through answerStore: a keychain answer there unblocks the status prober.
 	probeKeys := keys
 	keys = answerStore{Store: keys, answered: func() {
@@ -688,7 +696,7 @@ func (s *StartWindow) buildDetail() {
 	s.card1, s.card2, s.card3 = widgets.NewFormCard(), widgets.NewFormCard(), widgets.NewFormCard()
 	s.advanced = container.New(layout.NewCustomPaddedVBoxLayout(6),
 		container.New(layout.NewCustomPaddedLayout(0, 0, 14, 0), sectionLabel(lang.L("Advanced"))), s.card3)
-	s.localCard = newLocalCard()
+	s.buildLocalActions()
 	s.cards = container.New(&detailLayout{}, header, s.localCard, s.card1, s.card2, s.advanced)
 	s.scroller = container.NewVScroll(s.cards)
 	s.detail = container.New(&columnLayout{fill: 1}, toolbar, s.scroller) // no padding below the toolbar
@@ -1161,6 +1169,8 @@ func (s *StartWindow) refreshActions() {
 		}
 	case modeEdit:
 		objs = append(objs, s.editCancelBtn, s.editSaveBtn)
+	case modeLocal:
+		objs = append(objs, s.localActions)
 	}
 	for _, o := range []fyne.CanvasObject{s.cancelBtn, s.saveBtn, s.connectBtn, s.editCancelBtn, s.editSaveBtn} {
 		o.Hide()

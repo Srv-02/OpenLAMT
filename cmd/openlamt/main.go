@@ -12,6 +12,7 @@ import (
 
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/keychain"
+	"github.com/Srv-02/openlamt/internal/localme"
 	"github.com/Srv-02/openlamt/internal/mkiso"
 	"github.com/Srv-02/openlamt/internal/session"
 	"github.com/Srv-02/openlamt/internal/ui"
@@ -30,6 +31,11 @@ const appID = "io.github.srv02.openlamt"
 var iconPNG []byte
 
 func main() {
+	// The elevated check helper of "This computer" (#11) only reads Intel AMT and exits; it
+	// must not start the app (no window, no settings, no keychain).
+	if localme.IsHelper(os.Args[1:]) {
+		os.Exit(localme.RunHelper(os.Args[1:], os.Stdout))
+	}
 	a := app.NewWithID(appID)
 	a.SetIcon(fyne.NewStaticResource("Icon.png", iconPNG))
 	a.Settings().SetTheme(style.Theme{})

@@ -171,6 +171,7 @@ type manager struct {
 	win      *manageWindow // open window or nil
 	onPopOut func()
 	users    *manageSource[amt.UserList] // created by the first Users pane
+	power    *powerData                  // created by the first Power pane
 	closed   bool
 	tlsAsk   *panel // the last "without TLS" question (tests)
 

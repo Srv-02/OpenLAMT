@@ -18,8 +18,10 @@ const (
 	PowerReset             // hard
 	PowerCycle             // off then on, hard
 	BootToBIOS
-	PowerShutdown // orderly shutdown of the operating system (Off - Soft Graceful)
-	BootToISO     // boot from the mounted IDE-R image (see BootToISO below); keep last, the UI lists actions explicitly
+	PowerShutdown  // orderly shutdown of the operating system (Off - Soft Graceful)
+	BootToISO      // boot from the mounted IDE-R image (see BootToISO below); the UI lists actions explicitly
+	PowerSleep     // Sleep - Deep (S3); only where PowerStates lists it (issue #27)
+	PowerHibernate // Hibernate (S4); only where PowerStates lists it (issue #27)
 )
 
 func (a PowerAction) String() string {
@@ -38,6 +40,10 @@ func (a PowerAction) String() string {
 		return "shutdown"
 	case BootToISO:
 		return "iso"
+	case PowerSleep:
+		return "sleep"
+	case PowerHibernate:
+		return "hibernate"
 	}
 	return fmt.Sprintf("PowerAction(%d)", int(a))
 }
@@ -72,6 +78,10 @@ func (d *Device) Power(action PowerAction) error {
 		return d.requestPowerState(action, power.PowerOffSoftGraceful)
 	case BootToISO:
 		return d.bootToISO()
+	case PowerSleep:
+		return d.requestPowerState(action, power.SleepDeep)
+	case PowerHibernate:
+		return d.requestPowerState(action, power.Hibernate)
 	}
 	return fmt.Errorf("unknown power action %d", int(action))
 }

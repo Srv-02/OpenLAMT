@@ -168,6 +168,14 @@ func confirmText(a amt.PowerAction, name string) (title, message, button string)
 		return lang.L("Shut down {{.Name}}?", args),
 			lang.L("The operating system is shut down in an orderly way, then the machine switches off. Unsaved data in open programs can be lost."),
 			lang.L("Shut Down")
+	case amt.PowerSleep:
+		return lang.L("Sleep {{.Name}}?", args),
+			lang.L("The operating system goes to sleep. The device stays reachable and wakes on request."),
+			lang.L("Sleep")
+	case amt.PowerHibernate:
+		return lang.L("Hibernate {{.Name}}?", args),
+			lang.L("The operating system saves its memory to disk and switches off."),
+			lang.L("Hibernate")
 	case amt.PowerOff:
 		return lang.L("Power off {{.Name}}?", args),
 			lang.L("The machine is switched off immediately, without shutting down the operating system. Unsaved data and running VMs are lost."),

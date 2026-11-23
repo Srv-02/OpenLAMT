@@ -61,6 +61,7 @@ type DeviceWindow struct {
 	powerKnown, powerBusy     bool              // powerBusy: a power action runs
 	powerDenied               bool              // read, but the account may not see the power state; powerKnown is false then
 	canShutdown               bool              // the device lists Off - Soft Graceful (12) in its power states
+	canSleep, canHibernate    bool              // the device lists Sleep - Deep (4) / Hibernate (7), issue #27
 	content                   fyne.CanvasObject // normal window content
 	kvmArea                   *fyne.Container   // holds the view (moved out in full screen)
 	aborted                   bool              // certificate mismatch: session is dead
@@ -196,7 +197,7 @@ func (s *statusText) SetText(t string) {
 }
 
 // powerOrder is the order of the Power menu; separators follow PowerOff and BootToISO.
-var powerOrder = []amt.PowerAction{amt.PowerOn, amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.BootToISO, amt.PowerShutdown}
+var powerOrder = []amt.PowerAction{amt.PowerOn, amt.PowerOff, amt.PowerReset, amt.PowerCycle, amt.BootToBIOS, amt.BootToISO, amt.PowerShutdown, amt.PowerSleep, amt.PowerHibernate}
 
 // powerStateText is the power state in the status bar.
 func powerStateText(ps models.PowerState) string {
@@ -322,6 +323,8 @@ func (d *DeviceWindow) apply(st amt.Status, err error) {
 		d.powerDenied = !d.powerKnown
 		d.powerState = st.PowerState
 		d.canShutdown = slices.Contains(st.PowerStates, power.PowerOffSoftGraceful)
+		d.canSleep = slices.Contains(st.PowerStates, power.SleepDeep)
+		d.canHibernate = slices.Contains(st.PowerStates, power.Hibernate)
 		d.showPower()
 		d.setVersion(st)
 		d.setMessage("")
@@ -482,6 +485,9 @@ func (d *DeviceWindow) powerAllowed(action amt.PowerAction) bool {
 	}
 	if action == amt.PowerShutdown && !d.canShutdown {
 		return false
+	}
+	if action == amt.PowerSleep && !d.canSleep || action == amt.PowerHibernate && !d.canHibernate {
+		return false // greyed: the device does not list the state (issue #27)
 	}
 	if action == amt.BootToISO && !d.media.mounted() {
 		return false

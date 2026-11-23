@@ -43,6 +43,10 @@ type Options struct {
 	// built. The dir argument then only names the volume. Symbolic links and
 	// special files are skipped either way (Info.Skipped).
 	Root *os.Root
+	// CheckDir, if set, is called for every folder below the source folder
+	// before it is read, with its path relative to the source folder (slash
+	// separated). An error stops the build and Build returns it unchanged.
+	CheckDir func(rel string) error
 }
 
 // Info describes a finished image.
@@ -82,7 +86,7 @@ func Build(ctx context.Context, dir string, w io.WriteSeeker, opt Options) (Info
 	if err := ctx.Err(); err != nil {
 		return Info{}, err
 	}
-	t, err := scan(ctx, dir, opt.Root)
+	t, err := scan(ctx, dir, opt.Root, opt.CheckDir)
 	if err != nil {
 		return Info{}, err
 	}

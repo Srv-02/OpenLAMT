@@ -651,7 +651,7 @@ func TestBuildThroughRootStaysInside(t *testing.T) {
 		t.Fatal("the image holds the outside file or lacks the inside one")
 	}
 
-	s, err := scan(context.Background(), dir, root)
+	s, err := scan(context.Background(), dir, root, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

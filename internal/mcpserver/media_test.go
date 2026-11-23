@@ -830,7 +830,9 @@ func TestMediaMountRefusesProtectedPaths(t *testing.T) {
 	refused := []string{home, filepath.Dir(home), filepath.Join(home, ".ssh"), sshISO, filepath.Join(home, ".gnupg"),
 		filepath.Join(home, ".aws"), filepath.Join(home, ".config"), filepath.Join(home, ".config", "gh"),
 		filepath.Dir(favPath), cfgISO, filepath.Dir(h.cfg.ActionLogPath)}
-	for _, rel := range []string{".kube", ".docker", ".password-store", ".mozilla", filepath.Join(".local", "share")} {
+	for _, rel := range []string{".kube", ".docker", ".password-store", ".mozilla", filepath.Join(".local", "share"),
+		filepath.Join(".local", "state"), ".claude", filepath.Join(".var", "app"), "snap", ".thunderbird", ".pki", ".azure",
+		".cargo", ".m2", ".gradle", ".terraform.d"} {
 		refused = append(refused, mustMkdirFile(t, filepath.Join(home, rel), "secret.iso"), filepath.Join(home, rel))
 	}
 	if runtime.GOOS == "darwin" {

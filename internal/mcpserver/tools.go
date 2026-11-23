@@ -30,7 +30,7 @@ type deviceInfo struct {
 	Host              string   `json:"host"`
 	Username          string   `json:"username"`
 	TLS               bool     `json:"tls"`
-	CertificatePinned bool     `json:"certificate_pinned" jsonschema:"TLS only: the certificate is trusted (pinned with openlamt-mcp trust or in the OpenLAMT app); without a pin a TLS device is refused"`
+	CertificatePinned bool     `json:"certificate_pinned" jsonschema:"TLS only: the certificate is trusted (pinned with openlamt-mcp trust or, unless certificates.pin_file is on, in the OpenLAMT app); without a pin a TLS device is refused"`
 	PasswordStored    bool     `json:"password_stored" jsonschema:"a password is in the system keychain"`
 	PasswordFound     bool     `json:"password_found" jsonschema:"the server finds a password for the device (keychain, password command or, if allowed, environment); without one the device cannot be used"`
 	PasswordSource    string   `json:"password_source,omitempty" jsonschema:"where the password comes from: keychain, command or environment"`
@@ -89,7 +89,9 @@ func (s *server) listDevices(ctx context.Context, _ *mcp.CallToolRequest, _ stru
 		trustHint := "Certificate not trusted yet: a person runs " + commandLine("trust", name) + " in a terminal on this computer."
 		if s.cfg.Certificates.PinFile {
 			// The pin file and the keychain are two sources: each one is named when it fails.
-			if pwBroken {
+			// With a password command the keychain is no source: its text speaks of saving
+			// and removing, so the hint stands in for it (the command's reason is above).
+			if pwBroken && len(s.cfg.Passwords.Command) == 0 {
 				d.Warnings = append(d.Warnings, explain(s.keychainError(pwErr)))
 			} else if !d.PasswordFound {
 				d.Warnings = append(d.Warnings, s.passwordHint(name))

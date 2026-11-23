@@ -81,7 +81,7 @@ func (s *Server) Close() {
 
 const instructions = `openlamt-mcp controls Intel AMT devices saved as favorites in the OpenLAMT app.
 Call list_devices first; every other tool takes the favorite name as "device".
-Device passwords are never needed and never asked from you: the server finds them itself (keychain, password command). list_devices shows password_found and certificate_pinned. When one is missing, ask the person to run "openlamt-mcp password <name>" or "openlamt-mcp trust <name>" in a terminal on this computer (or to use the OpenLAMT app).
+Device passwords are never needed and never asked from you: the server finds them itself (keychain, password command). list_devices shows password_found and certificate_pinned. When one is missing, ask the person to run "openlamt-mcp password <name>" or "openlamt-mcp trust <name>" in a terminal on this computer (or, unless certificates.pin_file is on, to use the OpenLAMT app).
 To find devices: scan_network a network or range, then add_favorite; update_favorite and delete_favorite always ask the person first.
 Power actions act on real hardware: check device_status before and after.
 boot_to_bios, kvm_connect, sol_connect and media_mount may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.

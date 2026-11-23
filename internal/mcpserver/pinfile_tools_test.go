@@ -124,6 +124,23 @@ func TestPinFileListDevices(t *testing.T) {
 	}
 }
 
+// TestPinFileListDevicesCommandFindsNoPassword: the command finds no password and the keychain
+// cannot be read. The headless text speaks of saving and removing, so list_devices shows the
+// password hint instead; the command's own reason stays.
+func TestPinFileListDevicesCommandFindsNoPassword(t *testing.T) {
+	h := newPinHarness(t)
+	h.tlsFavorite("Pinned", "lab.example.com", true)
+	h.cfg.Passwords.Command = helperCommand(t, "fail", "{host}")
+	h.keys.Err = errNoKeychain
+	h.start()
+	d := h.mustOK("list_devices", nil)["devices"].([]any)[0].(map[string]any)
+	w, _ := json.Marshal(d["warnings"])
+	if d["password_found"] != false || strings.Contains(string(w), "nothing else is needed") ||
+		!strings.Contains(string(w), "No password found: the person stores it in the password manager that passwords.command reads.") {
+		t.Fatalf("%v", d)
+	}
+}
+
 // TestPinFileDamagedAtRuntimeIsNamed: a pin file that breaks while the server runs refuses the
 // TLS device with the file's name, not with a keychain text, and nothing connects.
 func TestPinFileDamagedAtRuntimeIsNamed(t *testing.T) {

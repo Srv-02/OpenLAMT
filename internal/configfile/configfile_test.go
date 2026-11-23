@@ -211,7 +211,7 @@ func TestImportMerges(t *testing.T) {
 		t.Fatalf("plan: %+v", plan)
 	}
 
-	added, skipped, err := Import(m, file)
+	added, skipped, _, err := Import(m, file)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestImportMerges(t *testing.T) {
 		t.Error("an imported favorite has a password")
 	}
 	// A second import changes nothing.
-	added, skipped, err = Import(m, file)
+	added, skipped, _, err = Import(m, file)
 	if err != nil || len(added) != 0 || len(skipped) != 4 {
 		t.Errorf("second import: %d added, %d skipped, %v", len(added), len(skipped), err)
 	}

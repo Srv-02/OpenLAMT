@@ -6,7 +6,6 @@
   "Address range": "Address range",
   "Scan up to 4,096 addresses at a time, for example 192.0.2.0/20.": "Scan up to 4,096 addresses at a time, for example 192.0.2.0/20.",
   "Enter a network such as 192.0.2.0/24 or a range such as 192.0.2.10-192.0.2.80.": "Enter a network such as 192.0.2.0/24 or a range such as 192.0.2.10-192.0.2.80.",
-  "Stop": "Stop",
   "A network such as 192.0.2.0/24 or a range such as 192.0.2.10-192.0.2.80. Up to 4,096 addresses.": "A network such as 192.0.2.0/24 or a range such as 192.0.2.10-192.0.2.80. Up to 4,096 addresses.",
   "Add 1 Favorite": "Add 1 Favorite",
   "Add {{.Count}} Favorites": "Add {{.Count}} Favorites",

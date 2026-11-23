@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
@@ -185,6 +186,10 @@ func (s *Scanner) ping(ctx context.Context, a netip.Addr) bool {
 	return err == nil && isPong(buf[:n])
 }
 
+// maxHeaderBytes caps what the scan reads from a peer it does not trust: the status line and the
+// headers; the body is never read.
+const maxHeaderBytes = 16 << 10
+
 // serverHeader reads the Server header of "GET /" without signing in. Nothing secret is sent,
 // so the certificate of the device is not checked: the scan has no pin yet and only reads a
 // banner.
@@ -212,7 +217,7 @@ func (s *Scanner) serverHeader(ctx context.Context, a netip.Addr, port int, useT
 	if err := req.Write(c); err != nil {
 		return ""
 	}
-	resp, err := http.ReadResponse(bufio.NewReader(c), req)
+	resp, err := http.ReadResponse(bufio.NewReader(io.LimitReader(c, maxHeaderBytes)), req)
 	if err != nil {
 		return ""
 	}

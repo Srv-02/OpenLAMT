@@ -309,8 +309,9 @@ func Plan(f File, existing []favorites.Favorite) Preview {
 }
 
 // Import merges the favorites of f into mgr (see favorites.Manager.Merge); it returns the
-// added and the skipped ones.
-func Import(mgr *favorites.Manager, f File) (added, skipped []favorites.Favorite, err error) {
+// added and the skipped ones and those whose imported pin was dropped because another pin is
+// already stored.
+func Import(mgr *favorites.Manager, f File) (added, skipped, pinConflicts []favorites.Favorite, err error) {
 	items := make([]favorites.Incoming, 0, len(f.Favorites))
 	for _, fav := range f.Favorites {
 		items = append(items, favorites.Incoming{Favorite: fav.Favorite, Fingerprint: fav.Fingerprint})

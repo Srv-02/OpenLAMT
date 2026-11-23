@@ -37,5 +37,6 @@
   "Import…": "Importieren…",
   "Configuration": "Konfiguration",
   "Favorites and settings as a file. Passwords stay in the keychain.": "Favoriten und Einstellungen als Datei. Passwörter bleiben im Schlüsselbund.",
-  "JSON files": "JSON-Dateien"
+  "JSON files": "JSON-Dateien",
+  "OpenLAMT kept the trusted certificate for: {{.Names}}. The file holds a different one.": "OpenLAMT hat das vertraute Zertifikat behalten für: {{.Names}}. Die Datei enthält ein anderes."
 }

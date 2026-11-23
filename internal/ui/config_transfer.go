@@ -310,7 +310,7 @@ func (c *configTransfer) preview(path string, f configfile.File, plan configfile
 // apply merges the favorites (and, if asked, the settings) of f. Nothing is replaced.
 func (c *configTransfer) apply(f configfile.File, plan configfile.Preview, withSettings bool) {
 	c.run(func() {
-		added, _, err := configfile.Import(c.mgr, f)
+		added, _, conflicts, err := configfile.Import(c.mgr, f)
 		fyne.Do(func() {
 			if withSettings && f.Settings != nil {
 				c.applySettings(*f.Settings)
@@ -318,11 +318,29 @@ func (c *configTransfer) apply(f configfile.File, plan configfile.Preview, withS
 			if len(added) > 0 && c.onImported != nil {
 				c.onImported(added)
 			}
+			if len(conflicts) > 0 {
+				c.pinConflicts(conflicts)
+			}
 			if err != nil {
 				showError(c.parent, err)
 			}
 		})
 	})
+}
+
+// pinConflicts tells that imported pins were not stored because the keychain already trusts
+// another certificate for the device.
+func (c *configTransfer) pinConflicts(conflicts []favorites.Favorite) {
+	var names []string
+	for _, f := range conflicts[:min(len(conflicts), 5)] {
+		names = append(names, f.DisplayName())
+	}
+	list := strings.Join(names, ", ")
+	if len(conflicts) > 5 {
+		list += "…"
+	}
+	showMessage(c.parent, lang.L("Import Config"),
+		lang.L("OpenLAMT kept the trusted certificate for: {{.Names}}. The file holds a different one.", map[string]any{"Names": list}), "")
 }
 
 // applySettings stores the imported settings and lets the app and the open dialog follow.

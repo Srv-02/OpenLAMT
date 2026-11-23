@@ -348,3 +348,19 @@ func TestSettingsSnapshotRoundTripAndValidation(t *testing.T) {
 		}
 	}
 }
+
+// A pin in the file never replaces a trusted one; the import says so.
+func TestImportKeepsTrustedPinAndSaysSo(t *testing.T) {
+	h := newConfigHarness(t)
+	h.keys.SetFingerprint("nas.example.com", "admin", pinOne)
+	h.madeFile(t, incoming(t)) // the file pins nas.example.com to pinTwo
+	h.openSettings(t)
+	test.Tap(overlayPrimary(t, h.s.win, "Import…"))
+	test.Tap(overlayButton(t, h.s.win, "Import"))
+	if fp, _ := h.keys.GetFingerprint("nas.example.com", "admin"); fp != pinOne {
+		t.Errorf("the trusted pin was replaced by %q", fp)
+	}
+	if !hasTextPrefix(h.top(), "OpenLAMT kept the trusted certificate for: NAS.") {
+		t.Errorf("no notice: %v", textsBelow(h.top()))
+	}
+}

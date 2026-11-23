@@ -225,7 +225,7 @@ func (sd *scanDialog) add() {
 	if len(items) == 0 {
 		return
 	}
-	added, _, err := sd.mgr.Merge(items)
+	added, _, _, err := sd.mgr.Merge(items)
 	sd.d.Close()
 	if len(added) > 0 && sd.onAdded != nil {
 		sd.onAdded(added)

@@ -229,3 +229,37 @@ func TestNetworkOf(t *testing.T) {
 		t.Error("an address outside every network found one")
 	}
 }
+
+// A peer that sends endless headers is cut off at maxHeaderBytes instead of being read forever.
+func TestServerHeaderReadIsBounded(t *testing.T) {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Skip("no loopback:", err)
+	}
+	defer l.Close()
+	sent := make(chan int, 1)
+	go func() {
+		c, err := l.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		c.Write([]byte("HTTP/1.1 200 OK\r\n"))
+		n := 0
+		line := []byte("X-Fill: " + string(make([]byte, 1000)) + "\r\n")
+		c.SetWriteDeadline(time.Now().Add(2 * time.Second))
+		for n < 1<<20 {
+			w, err := c.Write(line)
+			n += w
+			if err != nil {
+				break
+			}
+		}
+		sent <- n
+	}()
+	s := &Scanner{Timeout: time.Second}
+	port := l.Addr().(*net.TCPAddr).Port
+	if got := s.serverHeader(context.Background(), netip.MustParseAddr("127.0.0.1"), port, false); got != "" {
+		t.Errorf("Server header %q from an endless response", got)
+	}
+}

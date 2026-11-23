@@ -335,15 +335,17 @@ type Incoming struct {
 
 // Merge adds the favorites of items that are new and leaves the others alone: a favorite whose
 // host already exists (or was added earlier in items) is skipped, whatever its user name. It
-// never replaces or deletes anything. A pin is stored only for an added favorite. The favorites
+// never replaces or deletes anything. A pin is stored only for an added favorite and only where
+// the keychain has none; a different pin that is already there stays and the favorite is
+// returned in pinConflicts. The favorites
 // file is written once; keychain failures afterwards return *KeychainError, the favorites are
 // added anyway. Passwords are not part of it.
-func (m *Manager) Merge(items []Incoming) (added, skipped []Favorite, err error) {
+func (m *Manager) Merge(items []Incoming) (added, skipped, pinConflicts []Favorite, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	list, err := m.store.Load()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	known := map[string]bool{}
 	for _, f := range list {
@@ -364,14 +366,26 @@ func (m *Manager) Merge(items []Incoming) (added, skipped []Favorite, err error)
 		}
 	}
 	if len(added) == 0 {
-		return nil, skipped, nil
+		return nil, skipped, nil, nil
 	}
 	if err := m.store.Save(list); err != nil {
-		return nil, skipped, err
+		return nil, skipped, nil, err
 	}
 	var errs []error
 	for _, p := range pins {
-		errs = append(errs, m.keys.SetFingerprint(p.Favorite.Host, p.Favorite.Username, p.Fingerprint))
+		h, u := p.Favorite.Host, p.Favorite.Username
+		// An imported pin never replaces a trusted one: that would let a file swap the
+		// certificate the device is trusted with. Only an empty slot takes it.
+		have, err := m.keys.GetFingerprint(h, u)
+		switch {
+		case err == nil && have == p.Fingerprint:
+		case err == nil:
+			pinConflicts = append(pinConflicts, p.Favorite)
+		case errors.Is(err, keychain.ErrNotFound):
+			errs = append(errs, m.keys.SetFingerprint(h, u, p.Fingerprint))
+		default:
+			errs = append(errs, err)
+		}
 	}
-	return added, skipped, keychainErr(errs...)
+	return added, skipped, pinConflicts, keychainErr(errs...)
 }

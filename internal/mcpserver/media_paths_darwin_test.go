@@ -46,6 +46,7 @@ func TestMediaMountRefusesFirmlinkAlias(t *testing.T) {
 	f := h.addDevice("NUC", "192.0.2.10", false)
 	addIDER(t, f)
 	h.cfg.RequireClientConfirmation = true
+	h.cfg.MediaAllowedPaths = []string{dataVolume(t, filepath.Dir(downloads))}
 	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
 		asked = append(asked, r.Params.Message)
 		return &mcp.ElicitResult{Action: "decline"}, nil
@@ -58,8 +59,6 @@ func TestMediaMountRefusesFirmlinkAlias(t *testing.T) {
 		t.Fatalf("asked %q", asked)
 	}
 	h.mustFail("media_mount", dev("NUC", "path", filepath.Join(alias, "Downloads", "installer.iso")), "not confirmed")
-
-	h.cfg.MediaAllowedPaths = []string{dataVolume(t, filepath.Dir(downloads))}
 	h.mustFail("media_mount", dev("NUC", "path", files.iso), "outside media.allowed_paths")
 	h.mustFail("media_mount", dev("NUC", "path", downloads), "not confirmed")
 	if len(asked) != 2 || !strings.Contains(asked[1], downloads) {

@@ -36,7 +36,8 @@ func TestMediaMountRefusesWindowsAliases(t *testing.T) {
 		t.Logf("no junction: %v %s", err, out)
 	} else {
 		h.mustFail("media_mount", dev("NUC", "path", junction), "protected folder")
-		h.mustFail("media_mount", dev("NUC", "path", filepath.Join(junction, "keys.iso")), "protected folder")
+		// filepath.EvalSymlinks fails below a junction: refused as missing, nothing is mounted.
+		h.mustFail("media_mount", dev("NUC", "path", filepath.Join(junction, "keys.iso")), "keys.iso")
 	}
 	if n := len(f.IDERStarts()); n != 0 {
 		t.Fatalf("%d mounts", n)

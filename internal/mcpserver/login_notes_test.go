@@ -2,7 +2,6 @@ package mcpserver
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -66,13 +65,22 @@ func newLoginHarness(t *testing.T, user string, tls, savePassword bool) (*harnes
 	return h, keys
 }
 
+// warningText is the warnings of a tool answer as decoded text, one per line.
+func warningText(out map[string]any) string {
+	list, _ := out["warnings"].([]any)
+	var lines []string
+	for _, w := range list {
+		lines = append(lines, w.(string))
+	}
+	return strings.Join(lines, "\n")
+}
+
 // notes runs update_user on the favorite's own account and returns its warnings joined and its
 // result. It fails if a warning or the result holds the password.
 func notes(t *testing.T, h *harness, args ...any) (warnings, result string) {
 	t.Helper()
 	out := mustOKNoPassword(t, h, "update_user", dev("NAS", append([]any{"user", "operator", "password", newPassword}, args...)...))
-	w, _ := json.Marshal(out["warnings"])
-	return string(w), out["result"].(string)
+	return warningText(out), out["result"].(string)
 }
 
 // setCommand sets passwords.command to argv and answers its runs with answer.
@@ -111,7 +119,7 @@ func TestLoginNotesPasswordCommand(t *testing.T) {
 	h, _ := newLoginHarness(t, "operator", true, false)
 	setCommand(h, []string{"pm", "{host}"}, func([]string) ([]byte, error) { return []byte("old-pw\n"), nil })
 	w, res := notes(t, h, "new_name", "ops")
-	wantAll(t, w, `NAS now accepts the user \"ops\" with the new password`, "from your password manager, and that still has the old one",
+	wantAll(t, w, `NAS now accepts the user "ops" with the new password`, "from your password manager, and that still has the old one",
 		"the entry for nas.example.com that `passwords.command` (the password setting in the openlamt-mcp config) reads. Until you do, OpenLAMT cannot connect to NAS.")
 	wantNone(t, w, "openlamt-mcp password")
 	wantNone(t, res, "from now on")
@@ -152,7 +160,7 @@ func TestLoginNotesKeychainLocked(t *testing.T) {
 	h.start()
 	keys.failSet = true
 	w, res := notes(t, h)
-	wantAll(t, w, "could not save that password on this computer (the system keychain is locked). Unlock the keychain, then save the new password for NAS in the OpenLAMT app or with `openlamt-mcp password \\\"NAS\\\"` in a terminal. "+
+	wantAll(t, w, "could not save that password on this computer (the system keychain is locked). Unlock the keychain, then save the new password for NAS in the OpenLAMT app or with `openlamt-mcp password \"NAS\"` in a terminal. "+
 		"Until you do, OpenLAMT tries the old password and cannot connect to NAS.")
 	wantNone(t, res, "from now on")
 }
@@ -194,7 +202,7 @@ func TestLoginNotesNoKeychain(t *testing.T) {
 	w, res := notes(t, h, "new_name", "ops")
 	wantAll(t, w, "because this computer has no system keychain (the safe password storage of the operating system). "+
 		"Store the new password in your password manager and set `passwords.command` in the openlamt-mcp config so OpenLAMT can read it there. "+
-		"Or, less safe and meant for test labs, add the line `"+nasVar+"=\\u003cnew password\\u003e` to the file `"+h.cfg.Passwords.EnvFile+
+		"Or, less safe and meant for test labs, add the line `"+nasVar+"=<new password>` to the file `"+h.cfg.Passwords.EnvFile+
 		"` and set `allow_plaintext_passwords` to true in the config; after either change, restart your AI app. Until you do, OpenLAMT cannot connect to NAS.")
 	wantNone(t, w, "openlamt-mcp password")
 	wantNone(t, res, "from now on")
@@ -220,7 +228,7 @@ func TestLoginNotesUserPlaceholder(t *testing.T) {
 		return nil, errors.New("exited with status 1")
 	})
 	w, _ := notes(t, h, "new_name", "ops")
-	wantAll(t, w, `NAS now uses the user name \"ops\". Your password manager looks up the NAS password under the user name, so copy the entry for \"operator\" to \"ops\". Until you do, OpenLAMT cannot connect to NAS.`)
+	wantAll(t, w, `NAS now uses the user name "ops". Your password manager looks up the NAS password under the user name, so copy the entry for "operator" to "ops". Until you do, OpenLAMT cannot connect to NAS.`)
 }
 
 // TestLoginNotesRenameOnlyHostCommand: only the name changed and the command does not use
@@ -229,7 +237,7 @@ func TestLoginNotesRenameOnlyHostCommand(t *testing.T) {
 	h, _ := newLoginHarness(t, "operator", true, false)
 	setCommand(h, []string{"pm", "{host}"}, func([]string) ([]byte, error) { return []byte(newPassword), nil })
 	w, res := notes(t, h, "new_name", "ops")
-	if w != "null" {
+	if w != "" {
 		t.Errorf("warnings %s", w)
 	}
 	wantAll(t, res, "from now on")
@@ -243,9 +251,9 @@ func TestLoginNotesFavoriteNotRenamed(t *testing.T) {
 	}
 	h.start()
 	w, res := notes(t, h, "new_name", "ops")
-	wantAll(t, w, `NAS now accepts the user \"ops\", but OpenLAMT still signs in to NAS as \"operator\", because another favorite (saved device entry) already uses \"ops\" on nas.example.com. `+
-		"Delete that other favorite, then change the user of NAS to \\\"ops\\\", in the OpenLAMT app or through your AI agent. "+
-		"After that, save the password for NAS again with `openlamt-mcp password \\\"NAS\\\"` and, if NAS uses TLS, trust its certificate with `openlamt-mcp trust \\\"NAS\\\"`; until then, OpenLAMT cannot connect to NAS.")
+	wantAll(t, w, `NAS now accepts the user "ops", but OpenLAMT still signs in to NAS as "operator", because another favorite (saved device entry) already uses "ops" on nas.example.com. `+
+		"Delete that other favorite, then change the user of NAS to \"ops\", in the OpenLAMT app or through your AI agent. "+
+		"After that, save the password for NAS again with `openlamt-mcp password \"NAS\"` and, if NAS uses TLS, trust its certificate with `openlamt-mcp trust \"NAS\"`; until then, OpenLAMT cannot connect to NAS.")
 	wantNone(t, res, "from now on")
 	if list, _ := h.mgr.List(); list[0].Username != "operator" {
 		t.Errorf("favorite %+v", list)
@@ -258,8 +266,8 @@ func TestLoginNotesFavoriteFileNotWritten(t *testing.T) {
 	h.loginStore = &fakeLogins{keys: h.keys, err: errors.New("disk full")}
 	h.start()
 	w, _ := notes(t, h, "new_name", "ops")
-	wantAll(t, w, `NAS now accepts the user \"ops\", but OpenLAMT could not save that in its favorite NAS (your saved entry for this device), so it still signs in as \"operator\". `+
-		"Change the user of NAS to \\\"ops\\\" in the OpenLAMT app or let your AI agent do it, then save the password for NAS again in the app or with `openlamt-mcp password \\\"NAS\\\"` in a terminal. Until then, OpenLAMT cannot connect to NAS.")
+	wantAll(t, w, `NAS now accepts the user "ops", but OpenLAMT could not save that in its favorite NAS (your saved entry for this device), so it still signs in as "operator". `+
+		"Change the user of NAS to \"ops\" in the OpenLAMT app or let your AI agent do it, then save the password for NAS again in the app or with `openlamt-mcp password \"NAS\"` in a terminal. Until then, OpenLAMT cannot connect to NAS.")
 	wantNone(t, w, "uses TLS", "disk full")
 }
 
@@ -270,8 +278,7 @@ func TestLoginNotesOtherAccountWithoutFavorite(t *testing.T) {
 	h.loginStore = &fakeLogins{keys: h.keys, err: &favorites.KeychainError{Err: errLocked}}
 	h.start()
 	out := mustOKNoPassword(t, h, "update_user", dev("NAS", "user", "bob", "new_name", "robert", "password", newPassword))
-	w, _ := json.Marshal(out["warnings"])
-	wantNone(t, string(w), "cannot connect", "saving", "keychain")
+	wantNone(t, warningText(out), "cannot connect", "saving", "keychain")
 }
 
 // TestLoginNotesKeychainSaved: everything saved, no note, and the result says so.
@@ -279,7 +286,7 @@ func TestLoginNotesKeychainSaved(t *testing.T) {
 	h, keys := newLoginHarness(t, "operator", true, true)
 	h.start()
 	w, res := notes(t, h, "new_name", "ops")
-	if w != "null" {
+	if w != "" {
 		t.Errorf("warnings %s", w)
 	}
 	wantAll(t, res, "from now on")
@@ -294,8 +301,7 @@ func TestLoginNotesAdminAccount(t *testing.T) {
 	h, _ := newLoginHarness(t, "admin", true, false)
 	setCommand(h, []string{"pm", "{host}"}, func([]string) ([]byte, error) { return []byte("old-pw"), nil })
 	out := mustOKNoPassword(t, h, "set_admin_account", dev("NAS", "new_name", "boss", "password", newPassword, "confirm", "NAS"))
-	w, _ := json.Marshal(out["warnings"])
-	wantAll(t, string(w), `NAS now accepts the user \"boss\" with the new password, but OpenLAMT gets the NAS password from your password manager`)
+	wantAll(t, warningText(out), `NAS now accepts the user "boss" with the new password, but OpenLAMT gets the NAS password from your password manager`)
 	wantNone(t, out["result"].(string), "from now on")
 }
 

@@ -74,6 +74,7 @@ func TestPinFileRoundTrip(t *testing.T) {
 func TestPinFileKeysLikeTheKeychain(t *testing.T) {
 	pins, _, _ := openPins(t)
 	mem := keychain.NewMemory()
+	// {"b@c","a"} and {"c","a@b"} share the key "a@b@c" on purpose: it mirrors the keychain account format.
 	logins := [][2]string{{"lab.example.com", "admin"}, {"lab.example.com", "ops"}, {"LAB.example.com", "admin"},
 		{"192.0.2.10", "admin"}, {"b@c", "a"}, {"c", "a@b"}}
 	for i, l := range logins {

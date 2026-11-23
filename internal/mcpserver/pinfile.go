@@ -13,7 +13,6 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sync"
 
@@ -129,7 +128,8 @@ func (p *pinFile) modify(change func(map[string]string) error) error {
 
 // read loads the pins under the locks. Like favorites.Manager.lockRead it reads without the file
 // lock if that cannot be taken (a folder the user may not write); the lock protects a read from a
-// rename by another process, which fails on Windows while the file is open.
+// rename by another process, which fails on Windows while the file is open. Taking the lock may
+// create the folder and the .lock file, as in favorites.Manager.lockRead.
 func (p *pinFile) read() (map[string]string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -191,28 +191,8 @@ func (p *pinFile) save(pins map[string]string) error {
 		return pinErr("write %s: %w", p.path, err)
 	}
 	b = append(b, '\n')
-	dir := filepath.Dir(p.path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return pinErr("create %s: %w", dir, err)
-	}
-	tmp, err := os.CreateTemp(dir, ".openlamt-pins-*.tmp")
-	if err != nil {
-		return pinErr("write %s: %w", p.path, err)
-	}
-	defer os.Remove(tmp.Name())
-	if err := tmp.Chmod(0o600); err != nil {
-		tmp.Close()
-		return pinErr("write %s: %w", p.path, err)
-	}
-	if _, err := tmp.Write(b); err != nil {
-		tmp.Close()
-		return pinErr("write %s: %w", p.path, err)
-	}
-	if err := tmp.Close(); err != nil {
-		return pinErr("write %s: %w", p.path, err)
-	}
-	if err := os.Rename(tmp.Name(), p.path); err != nil {
-		return pinErr("write %s: %w", p.path, err)
+	if err := favorites.WriteFileAtomic(p.path, ".openlamt-pins-*.tmp", b); err != nil {
+		return &pinFileError{err: err}
 	}
 	return nil
 }

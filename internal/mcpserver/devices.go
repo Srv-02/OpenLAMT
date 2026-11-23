@@ -85,6 +85,7 @@ func (s *server) openDevice(ctx context.Context, name string) (*session.Session,
 		return nil, amt.Status{}, fav, nil, keychainError(err)
 	}
 	cfg.Password = pw
+	cfg.NeverEnable = s.cfg.ReadOnly // read_only never switches a redirection feature on
 	sess, st, err := session.Open(ctx, cfg, nil, s.connect)
 	if err != nil {
 		return nil, amt.Status{}, fav, nil, err

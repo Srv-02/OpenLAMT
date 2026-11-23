@@ -171,7 +171,8 @@ func (s *server) kvmConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmC
 	}
 	var out kvmConnectOutput
 	err = s.kvm.connect(ctx, in.Device, code, func(e *kvmEntry, already bool) error {
-		if !already {
+		// read_only sends no input to the host, so no wake keys there.
+		if !already && !s.cfg.ReadOnly {
 			go wakeScreen(e.client)
 		}
 		w, h := e.client.Size()

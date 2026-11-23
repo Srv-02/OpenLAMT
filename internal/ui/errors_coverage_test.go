@@ -155,6 +155,7 @@ var errorExceptions = map[string]string{
 	"update.StatusError":        "shown in the row \"Check for updates\" (updateFailReason), not in the error dialog",
 	"typing.ErrNotSendable":     "unreachable: type_clipboard.go only sends plans with typeable characters",
 	"typing.ErrUnknownLayout":   "unreachable: resolveLayout only returns known layouts",
+	"amt.RedirectionOffError":   "only openlamt-mcp sets Config.NeverEnable (read_only); the app never gets it",
 	"session.ErrUnsupported":    "a capability that only a test double lacks; *amt.Device implements every one (compile-time checks)",
 	"amt.ClassUnsupportedError": "shown as the message card of the WSMAN Browser page (manage_wsman.go errorText), not in the error dialog",
 	"capture.ErrNoFolder":       "control flow; device_capture.go opens the save dialog",

@@ -314,3 +314,56 @@ func TestOpenIDER_BootCapabilitiesErrorStops(t *testing.T) {
 		t.Fatalf("err = %v, requests %d", err, len(f.requests))
 	}
 }
+
+func TestNeverEnableRefusesWithoutWriting(t *testing.T) {
+	enableKVM := func(d *Device) error { return d.EnableKVM() }
+	enableSOL := func(d *Device) error { return d.EnableSOL() }
+	enableIDER := func(d *Device) error { return d.EnableIDER() }
+	cases := []struct {
+		name    string
+		redir   string
+		kvm     string
+		enable  func(*Device) error
+		feature string
+	}{
+		{"listener off KVM", "redirection_get_nolistener.xml", "kvm_get_enabled.xml", enableKVM, "redirection"},
+		{"listener off SOL", "redirection_get_nolistener.xml", "", enableSOL, "redirection"},
+		{"listener off IDE-R", "redirection_get_nolistener.xml", "", enableIDER, "redirection"},
+		{"KVM off", "redirection_get.xml", "kvm_get_disabled.xml", enableKVM, "KVM"},
+		{"SOL off", "redirection_get_32769.xml", "", enableSOL, "SOL"},
+		{"IDE-R off", "redirection_get_32770.xml", "", enableIDER, "IDE-R"},
+	}
+	for _, c := range cases {
+		routes := map[string]string{"Get|AMT_RedirectionService": c.redir}
+		if c.kvm != "" {
+			routes["Get|CIM_KVMRedirectionSAP"] = c.kvm
+		}
+		f := &fakeWSMan{routes: routes}
+		d := newDevice(f, "")
+		d.cfg.NeverEnable = true
+		err := c.enable(d)
+		var re *RedirectionOffError
+		if !errors.As(err, &re) || re.Feature != c.feature {
+			t.Fatalf("%s: err = %v", c.name, err)
+		}
+		for _, k := range routeKeys(f) {
+			if !strings.HasPrefix(k, "Get|") {
+				t.Fatalf("%s: wrote to the device: %v", c.name, routeKeys(f))
+			}
+		}
+	}
+	// Everything on: no write needed, so NeverEnable changes nothing.
+	for name, enable := range map[string]func(*Device) error{"KVM": enableKVM, "SOL": enableSOL, "IDE-R": enableIDER} {
+		f := &fakeWSMan{routes: map[string]string{"Get|AMT_RedirectionService": "redirection_get.xml", "Get|CIM_KVMRedirectionSAP": "kvm_get_enabled.xml"}}
+		d := newDevice(f, "")
+		d.cfg.NeverEnable = true
+		if err := enable(d); err != nil {
+			t.Fatalf("%s on: %v", name, err)
+		}
+		for _, k := range routeKeys(f) {
+			if !strings.HasPrefix(k, "Get|") {
+				t.Fatalf("%s on: wrote: %v", name, routeKeys(f))
+			}
+		}
+	}
+}

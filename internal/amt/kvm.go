@@ -43,6 +43,15 @@ func (e *KVMError) Error() string {
 	return fmt.Sprintf("kvm %s failed: device returned ReturnValue %d", e.Step, e.ReturnValue)
 }
 
+// RedirectionOffError: a redirection feature is off on the device and Config.NeverEnable
+// forbids switching it on. Feature is "redirection" (the listener KVM, SOL and IDE-R need),
+// "KVM", "SOL" or "IDE-R". Nothing was written.
+type RedirectionOffError struct{ Feature string }
+
+func (e *RedirectionOffError) Error() string {
+	return fmt.Sprintf("%s is disabled on the device and may not be enabled", e.Feature)
+}
+
 // ensureListener reads AMT_RedirectionService and enables the redirection listener when needed.
 func (d *Device) ensureListener() (redirection.RedirectionResponse, error) {
 	rs, err := d.msgs.AMT.RedirectionService.Get()
@@ -54,6 +63,9 @@ func (d *Device) ensureListener() (redirection.RedirectionResponse, error) {
 		return cur, fmt.Errorf("get redirection service: %w: AMT_RedirectionService", ErrIncompleteResponse)
 	}
 	if !cur.ListenerEnabled {
+		if d.cfg.NeverEnable {
+			return cur, &RedirectionOffError{Feature: "redirection"}
+		}
 		_, err := d.msgs.AMT.RedirectionService.Put(&redirection.RedirectionRequest{
 			H:                       redirectionServiceNS,
 			CreationClassName:       cur.CreationClassName,
@@ -87,6 +99,9 @@ func (d *Device) EnableKVM() error {
 	switch sap.Body.GetResponse.EnabledState {
 	case cimkvm.EnabledStateEnabled, cimkvm.EnabledStateEnabledButOffline:
 		return nil
+	}
+	if d.cfg.NeverEnable {
+		return &RedirectionOffError{Feature: "KVM"}
 	}
 	resp, err := d.msgs.CIM.KVMRedirectionSAP.RequestStateChange(cimkvm.RedirectionSAPEnable)
 	if err != nil {

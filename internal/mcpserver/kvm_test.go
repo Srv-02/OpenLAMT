@@ -744,3 +744,71 @@ func TestKVMTypeTextSecretRefusesControlCharacters(t *testing.T) {
 		t.Fatalf("logged %q", logged)
 	}
 }
+
+// rawKeyMessages counts every RFB key event (type 4) the fake received, the wake key F15 included.
+func rawKeyMessages(srv *kvmtest.Server) int {
+	n := 0
+	for _, m := range srv.ClientMessages() {
+		if m[0] == 4 {
+			n++
+		}
+	}
+	return n
+}
+
+// TestReadOnlyKVMConnectNeverEnablesKVM: read_only never switches KVM on (that is a device
+// write) and sends no wake keys to the host; without read_only kvm_connect enables KVM like the app.
+func TestReadOnlyKVMConnectNeverEnablesKVM(t *testing.T) {
+	// read_only, KVM off: refused, nothing enabled, no redirection connection.
+	h := newHarness(t)
+	h.cfg.ReadOnly = true
+	h.cfg.ActionLog = true
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	srv := addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustFail("kvm_connect", dev("NUC"), "read_only in the openlamt-mcp config forbids turning it on")
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("enabled %v", got)
+	}
+	if srv.Connections() != 0 {
+		t.Fatalf("redirection connections %d", srv.Connections())
+	}
+	var found bool
+	for _, e := range h.logEntries() {
+		if e["tool"] == "kvm_connect" {
+			found = true
+			if e["outcome"] != "refused" {
+				t.Fatalf("log entry %v", e)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("no kvm_connect log entry")
+	}
+
+	// read_only, KVM on: connect and screenshot work, and no key event reaches the host.
+	h = newHarness(t)
+	h.cfg.ReadOnly = true
+	f = h.addDevice("NUC", "192.0.2.10", false)
+	srv = addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustOK("kvm_connect", dev("NUC"))
+	h.screenshot(dev("NUC"))
+	time.Sleep(300 * time.Millisecond) // a wake key would have gone out by now
+	if n := rawKeyMessages(srv); n != 0 {
+		t.Fatalf("read_only sent %d key events to the host", n)
+	}
+
+	// No read_only, KVM off: kvm_connect enables KVM, and the wake key goes out (proves the probe above).
+	h = newHarness(t)
+	f = h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	srv = addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustOK("kvm_connect", dev("NUC"))
+	if got := f.RedirectionEnabled(); !reflect.DeepEqual(got, []string{"KVM"}) {
+		t.Fatalf("enabled %v", got)
+	}
+	eventually(t, "the wake key", func() bool { return rawKeyMessages(srv) > 0 })
+}

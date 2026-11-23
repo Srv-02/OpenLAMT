@@ -22,7 +22,8 @@ func refuse(format string, args ...any) error { return &refusal{msg: fmt.Sprintf
 
 func isRefusal(err error) bool {
 	var r *refusal
-	return errors.As(err, &r)
+	var off *amt.RedirectionOffError // read_only forbids the write: a policy refusal
+	return errors.As(err, &r) || errors.As(err, &off)
 }
 
 // powerReturnValues are the CIM_PowerManagementService.RequestPowerStateChange return values.
@@ -53,10 +54,22 @@ func explain(err error) string {
 		rop *reopenError
 		re  *kvm.RedirectionError
 		ke  *amt.KVMError
+		rof *amt.RedirectionOffError
 	)
 	switch {
 	case errors.As(err, &ref):
 		return ref.msg
+	case errors.As(err, &rof):
+		const tail = " in the openlamt-mcp config forbids turning it on, because that changes a device setting. " +
+			"Turn it on in the AMT settings (for example in the OpenLAMT app) or switch read_only off."
+		if rof.Feature == "redirection" {
+			return "The redirection port (needed for KVM, Serial over LAN and IDE-R) is turned off on the device, and read_only" + tail
+		}
+		name := map[string]string{"SOL": "Serial over LAN (SOL)", "IDE-R": "Media redirection (IDE-R)"}[rof.Feature]
+		if name == "" {
+			name = rof.Feature
+		}
+		return name + " is turned off on the device, and read_only" + tail
 	case errors.As(err, &cne):
 		msg := "This action needs user consent. "
 		if cne.reopen {

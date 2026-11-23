@@ -31,6 +31,9 @@ func (f *Fake) OpenSOL(ctx context.Context, prompt amt.ConsentPrompt) (*sol.Clie
 	if f.SOL.Err != nil {
 		return nil, f.SOL.Err
 	}
+	if err := f.enableRedirection("SOL"); err != nil {
+		return nil, err
+	}
 	if f.Consent {
 		if prompt == nil {
 			return nil, amt.ErrConsentRequired

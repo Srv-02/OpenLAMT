@@ -52,6 +52,9 @@ func (d *Device) EnableIDER() error {
 	default:
 		return fmt.Errorf("enable ider: unexpected redirection service state %d", int(cur.EnabledState))
 	}
+	if d.cfg.NeverEnable {
+		return &RedirectionOffError{Feature: "IDE-R"}
+	}
 	return d.requestRedirectionState("enable ider", want, func(rv int) error {
 		return &IDERError{Step: "RedirectionService.RequestStateChange", ReturnValue: rv}
 	})

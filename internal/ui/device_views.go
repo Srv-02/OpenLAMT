@@ -294,6 +294,7 @@ func (d *DeviceWindow) ensureManager() *manager {
 		loginStore: d.loginStore,
 		onError:    func(err error) { d.onError(err) },
 		mainWin:    d.mainWin,
+		erase:      d.startErase,
 	})
 	// The pop-out symbol: the sidebar closes (Manage inactive), then the window opens.
 	m.SetOnPopOut(func() { d.setManageOpen(false) })

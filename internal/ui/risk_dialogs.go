@@ -102,6 +102,7 @@ type orangeSpec struct {
 	button    string
 	onConfirm func(amt.Confirmation) // runs after the dialog closed through the button
 	onCancel  func()                 // may be nil
+	width     float32                // replaces dialogWidth; 0 keeps it
 }
 
 // showOrangeConfirm shows an orange confirmation (or, with danger, the red one of
@@ -129,7 +130,7 @@ func showOrangeConfirm(parent fyne.Window, s orangeSpec) *riskDialog {
 				s.onConfirm(c)
 			}
 		},
-		onCancel: s.onCancel,
+		onCancel: s.onCancel, width: s.width,
 	}, func(p *panel) []fyne.CanvasObject {
 		d.panel = p
 		var body []fyne.CanvasObject
@@ -182,6 +183,7 @@ type redSpec struct {
 	button    string
 	onConfirm func(amt.Confirmation) // runs after the dialog closed through the button
 	onCancel  func()                 // may be nil
+	width     float32                // replaces dialogWidth (Erase Drives: 520); 0 keeps it
 }
 
 // showRedConfirm shows a red confirmation: the orange dialog with the red warning box. The
@@ -192,6 +194,7 @@ func showRedConfirm(parent fyne.Window, s redSpec) *riskDialog {
 		op: s.op, host: s.host, device: s.device, title: s.title,
 		danger: true, warningBold: s.warningBold, warning: s.warningRest,
 		extra: s.extra, ready: s.ready, button: s.button, onConfirm: s.onConfirm, onCancel: s.onCancel,
+		width: s.width,
 	})
 }
 

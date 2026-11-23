@@ -99,6 +99,9 @@ const (
 	Check    Name = "check"    // tile of the info dialog "Config exported"
 )
 
+// Stroked symbol of the WSMAN Browser page (#24).
+const Code Name = "code" // navigation WSMAN Browser
+
 // Filled symbols (no stroke): the file's fill is recolored like the stroke of the others.
 // Their color is fixed, see HeartPink and StarYellow; Get and Render ignore the stroke width.
 const (
@@ -112,7 +115,7 @@ var All = []Name{Power, Reset, PowerCycle, BIOS, KVM, Keyboard, ClipboardType, F
 	Coffee, ExternalLink, Info, Clear,
 	Console, Media, Folder, Manage, Hardware, EventLog, AuditLog, Users, Warning, DeviceSettings, Unmount,
 	Camera, Record, Stop, Zoom, Close,
-	Radar, Upload, Download, Check}
+	Radar, Upload, Download, Check, Code}
 
 // Filled lists the filled symbols.
 var Filled = []Name{Heart, Star}

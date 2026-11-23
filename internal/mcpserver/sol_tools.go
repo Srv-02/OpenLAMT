@@ -9,6 +9,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/sol"
 )
 
@@ -21,10 +22,10 @@ const (
 	maxSOLKeys     = 50
 )
 
-// openSOL opens a SOL session to device: login check, consent with code. The WS-Man session is
-// closed again; the SOL client has its own socket.
-func (s *server) openSOL(ctx context.Context, device string, code consentCode) (*sol.Client, []string, error) {
-	sess, _, _, warnings, err := s.openDevice(ctx, device)
+// openSOL opens a SOL session to the device of fav: login check, consent with code. The WS-Man
+// session is closed again; the SOL client has its own socket.
+func (s *server) openSOL(ctx context.Context, fav favorites.Favorite, code consentCode) (*sol.Client, []string, error) {
+	sess, _, warnings, err := s.openFav(ctx, fav)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -101,12 +102,13 @@ func (s *server) solConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmC
 	if code != "" {
 		rec.action = "with consent code" // never the code itself
 	}
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, solConnectOutput{}, err
 	}
 	var out solConnectOutput
-	err = s.sol.connect(ctx, in.Device, code, func(e *solEntry, already bool) error {
-		out = solConnectOutput{Device: in.Device, AlreadyOpen: already, NextOffset: e.out.end(),
+	err = s.sol.connect(ctx, fav, code, func(e *solEntry, already bool) error {
+		out = solConnectOutput{Device: fav.DisplayName(), AlreadyOpen: already, NextOffset: e.out.end(),
 			IdleTimeoutSeconds: int(s.cfg.SOLIdleTimeout / time.Second), Warnings: e.warnings}
 		return nil
 	})
@@ -118,10 +120,11 @@ func (s *server) solConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmC
 
 func (s *server) solDisconnect(_ context.Context, _ *mcp.CallToolRequest, in deviceInput, rec *record) (*mcp.CallToolResult, kvmDisconnectOutput, error) {
 	rec.device = in.Device
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, kvmDisconnectOutput{}, err
 	}
-	return nil, kvmDisconnectOutput{Device: in.Device, Closed: s.sol.disconnect(in.Device)}, nil
+	return nil, kvmDisconnectOutput{Device: fav.DisplayName(), Closed: s.sol.disconnect(fav)}, nil
 }
 
 // --- sol_read
@@ -160,7 +163,8 @@ func (s *server) solRead(ctx context.Context, _ *mcp.CallToolRequest, in solRead
 	case in.Offset != nil && *in.Offset < 0:
 		return nil, solReadOutput{}, refuse("offset must be 0 or more.")
 	}
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, solReadOutput{}, err
 	}
 	var (
@@ -168,7 +172,7 @@ func (s *server) solRead(ctx context.Context, _ *mcp.CallToolRequest, in solRead
 		from     int64
 		warnings []string
 	)
-	err := s.sol.use(in.Device, func(e *solEntry) error {
+	err = s.sol.use(fav, func(e *solEntry) error {
 		entry, from, warnings = e, e.cursor, e.warnings
 		if in.Offset != nil {
 			from = *in.Offset
@@ -194,7 +198,7 @@ func (s *server) solRead(ctx context.Context, _ *mcp.CallToolRequest, in solRead
 	}
 	entry.mu.Unlock()
 
-	out := solReadOutput{Device: in.Device, Text: r.text, Offset: r.offset, NextOffset: r.next, SkippedBytes: r.skipped,
+	out := solReadOutput{Device: fav.DisplayName(), Text: r.text, Offset: r.offset, NextOffset: r.next, SkippedBytes: r.skipped,
 		More: r.more, Ended: r.ended, Warnings: warnings}
 	if r.ended {
 		out.EndReason = solEndReason(r.endErr)
@@ -215,12 +219,8 @@ func (s *server) solRead(ctx context.Context, _ *mcp.CallToolRequest, in solRead
 
 // confirmSOL asks the person in the MCP client before SOL input, when the config wants it, and
 // only for a call that can run: the device needs a running session.
-func (s *server) confirmSOL(req *mcp.CallToolRequest, device, what string) (*mcp.CallToolResult, error) {
-	fav, err := s.lookup(device)
-	if err != nil {
-		return nil, err
-	}
-	if err := s.sol.use(device, func(e *solEntry) error {
+func (s *server) confirmSOL(req *mcp.CallToolRequest, fav favorites.Favorite, what string) (*mcp.CallToolResult, error) {
+	if err := s.sol.use(fav, func(e *solEntry) error {
 		if !e.alive() {
 			return e.endedError()
 		}
@@ -228,12 +228,12 @@ func (s *server) confirmSOL(req *mcp.CallToolRequest, device, what string) (*mcp
 	}); err != nil {
 		return nil, err
 	}
-	return s.confirm(req, confirmMessage(what, fav))
+	return s.confirm(req, fav, confirmMessage(what, fav))
 }
 
-// solWrite sends p to the running session of device in one Write.
-func (s *server) solWrite(device string, p []byte) error {
-	return s.sol.use(device, func(e *solEntry) error {
+// solWrite sends p to the running session of the device of fav in one Write.
+func (s *server) solWrite(fav favorites.Favorite, p []byte) error {
+	return s.sol.use(fav, func(e *solEntry) error {
 		if !e.alive() {
 			return e.endedError()
 		}
@@ -301,14 +301,18 @@ func (s *server) solTypeText(_ context.Context, req *mcp.CallToolRequest, in sol
 	if in.Secret {
 		rec.action += ", secret"
 	}
-	if res, err := s.confirmSOL(req, in.Device, solTypePrompt(text, enters, in.Secret)); res != nil || err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
+		return nil, solTypeOutput{}, err
+	}
+	if res, err := s.confirmSOL(req, fav, solTypePrompt(text, enters, in.Secret)); res != nil || err != nil {
 		return res, solTypeOutput{}, err
 	}
 	p := []byte(strings.ReplaceAll(text, "\n", "\r"))
-	if err := s.solWrite(in.Device, p); err != nil {
+	if err := s.solWrite(fav, p); err != nil {
 		return nil, solTypeOutput{}, err
 	}
-	return nil, solTypeOutput{Device: in.Device, SentBytes: len(p), EnterPresses: enters}, nil
+	return nil, solTypeOutput{Device: fav.DisplayName(), SentBytes: len(p), EnterPresses: enters}, nil
 }
 
 type solKeysInput struct {
@@ -336,11 +340,15 @@ func (s *server) solSendKeys(_ context.Context, req *mcp.CallToolRequest, in sol
 	// The canonical names, never the agent's spelling: bounded by maxSOLKeys known names.
 	list := strings.Join(names, ", ")
 	rec.action = list
-	if res, err := s.confirmSOL(req, in.Device, "press "+list+" on the serial console"); res != nil || err != nil {
-		return res, sendKeysOutput{}, err
-	}
-	if err := s.solWrite(in.Device, p); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, sendKeysOutput{}, err
 	}
-	return nil, sendKeysOutput{Device: in.Device, Sent: len(names)}, nil
+	if res, err := s.confirmSOL(req, fav, "press "+list+" on the serial console"); res != nil || err != nil {
+		return res, sendKeysOutput{}, err
+	}
+	if err := s.solWrite(fav, p); err != nil {
+		return nil, sendKeysOutput{}, err
+	}
+	return nil, sendKeysOutput{Device: fav.DisplayName(), Sent: len(names)}, nil
 }

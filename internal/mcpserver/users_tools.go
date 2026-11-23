@@ -197,8 +197,8 @@ func findUser(l amt.UserList, user string) (amt.User, error) {
 }
 
 // userWrite opens the device and runs write with the session's host.
-func (s *server) userWrite(ctx context.Context, device string, write func(sess *session.Session, host string) (string, []string, error)) (writeOutput, error) {
-	return s.settingsWrite(ctx, device, write)
+func (s *server) userWrite(ctx context.Context, fav favorites.Favorite, write func(sess *session.Session, host string) (string, []string, error)) (writeOutput, error) {
+	return s.settingsWrite(ctx, fav, write)
 }
 
 // loginSaved turns a *session.NotSavedError of an accepted account change into a warning; any
@@ -256,7 +256,7 @@ func (s *server) addUser(ctx context.Context, req *mcp.CallToolRequest, in addUs
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.userWrite(ctx, in.Device, func(sess *session.Session, _ string) (string, []string, error) {
+	out, err := s.userWrite(ctx, fav, func(sess *session.Session, _ string) (string, []string, error) {
 		h, err := sess.AddUser(spec)
 		if err != nil {
 			return "", nil, err
@@ -336,7 +336,7 @@ func (s *server) updateUser(ctx context.Context, req *mcp.CallToolRequest, in up
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.userWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.userWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		l, err := sess.Users()
 		if err != nil {
 			return "", nil, err
@@ -431,7 +431,7 @@ func (s *server) setUserEnabled(ctx context.Context, req *mcp.CallToolRequest, i
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.userWrite(ctx, in.Device, func(sess *session.Session, _ string) (string, []string, error) {
+	out, err := s.userWrite(ctx, fav, func(sess *session.Session, _ string) (string, []string, error) {
 		l, err := sess.Users()
 		if err != nil {
 			return "", nil, err
@@ -462,7 +462,7 @@ func (s *server) deleteUser(ctx context.Context, req *mcp.CallToolRequest, in us
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.userWrite(ctx, in.Device, func(sess *session.Session, _ string) (string, []string, error) {
+	out, err := s.userWrite(ctx, fav, func(sess *session.Session, _ string) (string, []string, error) {
 		l, err := sess.Users()
 		if err != nil {
 			return "", nil, err
@@ -515,7 +515,7 @@ func (s *server) setAdminAccount(ctx context.Context, req *mcp.CallToolRequest, 
 	if res, err := s.confirmChange(req, ch, fav, in.Confirm); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.userWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.userWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		warnings, err := loginSaved(sess.SetAdminAccount(c, confirmation(amt.OpAdminAccount, host), s.logins), shown)
 		if err != nil {
 			return "", nil, err

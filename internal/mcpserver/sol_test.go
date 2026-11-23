@@ -78,7 +78,7 @@ func expectData(t *testing.T, p *soltest.Peer) string {
 func (h *harness) solEntry(name string) *solEntry {
 	h.srv.s.sol.mu.Lock()
 	defer h.srv.s.sol.mu.Unlock()
-	return h.srv.s.sol.entries[name]
+	return h.srv.s.sol.entries[h.key(name)]
 }
 
 // solRead runs sol_read and returns its text content and structured output.

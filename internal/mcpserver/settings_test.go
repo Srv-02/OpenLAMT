@@ -383,16 +383,28 @@ func TestChangedArgumentsAfterQuestionAreRefused(t *testing.T) {
 	req := func(state string) *mcp.CallToolRequest {
 		return &mcp.CallToolRequest{Params: &mcp.CallToolParamsRaw{InputResponses: accepted, RequestState: state}}
 	}
-	state := s.callState("set_general", asked)
+	state := s.callState("set_general", asked, fav)
 	if res, err := s.confirmChange(req(state), change{tool: "set_general", in: asked, level: amt.LevelOrange, what: "x"}, fav, ""); res != nil || err != nil {
 		t.Fatalf("same arguments: %v %v", res, err)
 	}
 	_, err := s.confirmChange(req(state), change{tool: "set_general", in: other, level: amt.LevelOrange, what: "x"}, fav, "")
-	if err == nil || !strings.Contains(err.Error(), "arguments of the call changed") {
+	if err == nil || !strings.Contains(err.Error(), "arguments of the call or the favorite changed") {
 		t.Fatalf("other arguments: %v", err)
 	}
 	if _, err := s.confirmChange(req(""), change{tool: "set_general", in: asked, level: amt.LevelOrange, what: "x"}, fav, ""); err == nil {
 		t.Fatal("an answer without request state was taken")
+	}
+	// The favorite of the same name now reaches another host, or signs in as another user, or
+	// the question was about another favorite: the answer does not hold (#116).
+	for _, changed := range []favorites.Favorite{
+		{Name: "NUC", Host: "192.0.2.11", Username: "admin"},
+		{Name: "NUC", Host: "192.0.2.10", Username: "other"},
+		{Name: "NUC2", Host: "192.0.2.10", Username: "admin"},
+	} {
+		_, err := s.confirmChange(req(state), change{tool: "set_general", in: asked, level: amt.LevelOrange, what: "x"}, changed, "")
+		if err == nil || !strings.Contains(err.Error(), "the favorite changed") {
+			t.Fatalf("answer for %+v: %v", changed, err)
+		}
 	}
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/session"
 )
 
@@ -266,10 +267,10 @@ func (s *server) getSettings(ctx context.Context, _ *mcp.CallToolRequest, in dev
 
 // --- the writes
 
-// settingsWrite opens the device and runs write with the session's host (the host a
-// confirmation is bound to).
-func (s *server) settingsWrite(ctx context.Context, device string, write func(sess *session.Session, host string) (string, []string, error)) (writeOutput, error) {
-	sess, _, _, warnings, err := s.openDevice(ctx, device)
+// settingsWrite opens the device of fav, the favorite the confirmation was asked for, and runs
+// write with the session's host (the host a confirmation is bound to).
+func (s *server) settingsWrite(ctx context.Context, fav favorites.Favorite, write func(sess *session.Session, host string) (string, []string, error)) (writeOutput, error) {
+	sess, _, warnings, err := s.openFav(ctx, fav)
 	if err != nil {
 		return writeOutput{}, err
 	}
@@ -278,7 +279,7 @@ func (s *server) settingsWrite(ctx context.Context, device string, write func(se
 	if err != nil {
 		return writeOutput{}, err
 	}
-	return writeOutput{Device: device, Result: result, Warnings: append(warnings, more...)}, nil
+	return writeOutput{Device: fav.DisplayName(), Result: result, Warnings: append(warnings, more...)}, nil
 }
 
 const acceptedReadAgain = "The device accepted the change. Call get_settings to see the values it uses now."
@@ -357,7 +358,7 @@ func (s *server) setGeneral(ctx context.Context, req *mcp.CallToolRequest, in se
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.settingsWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.settingsWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		var conf amt.Confirmation
 		if ch.level != 0 {
 			conf = confirmation(amt.OpHostName, host)
@@ -440,7 +441,7 @@ func (s *server) setRemoteFeatures(ctx context.Context, req *mcp.CallToolRequest
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.settingsWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.settingsWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		if fc != (amt.FeatureChange{}) {
 			var conf amt.Confirmation
 			if off {
@@ -500,7 +501,7 @@ func (s *server) syncClock(ctx context.Context, req *mcp.CallToolRequest, in dev
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.settingsWrite(ctx, in.Device, func(sess *session.Session, _ string) (string, []string, error) {
+	out, err := s.settingsWrite(ctx, fav, func(sess *session.Session, _ string) (string, []string, error) {
 		if err := sess.SyncClock(); err != nil {
 			return "", nil, err
 		}
@@ -531,7 +532,7 @@ func (s *server) setTLSCertificate(ctx context.Context, req *mcp.CallToolRequest
 	if res, err := s.confirmChange(req, ch, fav, ""); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.settingsWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.settingsWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		certs, err := sess.TLSCertificates()
 		if err != nil {
 			return "", nil, err
@@ -630,7 +631,7 @@ func (s *server) setNetwork(ctx context.Context, req *mcp.CallToolRequest, in se
 	if res, err := s.confirmChange(req, ch, fav, in.Confirm); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.settingsWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.settingsWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		if err := sess.SetNetwork(c, confirmation(amt.OpNetwork, host)); err != nil {
 			return "", nil, err
 		}
@@ -668,7 +669,7 @@ func (s *server) setEnvironmentDetection(ctx context.Context, req *mcp.CallToolR
 	if res, err := s.confirmChange(req, ch, fav, in.Confirm); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.settingsWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.settingsWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		if err := sess.SetEnvironmentDetection(domains, confirmation(amt.OpEnvironment, host)); err != nil {
 			return "", nil, err
 		}
@@ -693,7 +694,7 @@ func (s *server) disableAMTNetwork(ctx context.Context, req *mcp.CallToolRequest
 	if res, err := s.confirmChange(req, ch, fav, in.Confirm); res != nil || err != nil {
 		return res, writeOutput{}, err
 	}
-	out, err := s.settingsWrite(ctx, in.Device, func(sess *session.Session, host string) (string, []string, error) {
+	out, err := s.settingsWrite(ctx, fav, func(sess *session.Session, host string) (string, []string, error) {
 		if err := sess.DisableAMTNetwork(confirmation(amt.OpDisableNetwork, host)); err != nil {
 			return "", nil, err
 		}

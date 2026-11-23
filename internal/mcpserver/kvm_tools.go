@@ -30,11 +30,11 @@ const (
 	maxScrollClick = 50
 )
 
-// openKVM opens a KVM session to device: login check, the favorite's quality (high unless the
-// favorite says low), consent with code. The WS-Man session is closed again; the KVM client
-// has its own socket.
-func (s *server) openKVM(ctx context.Context, device string, code consentCode) (*kvm.Client, []string, error) {
-	sess, _, fav, warnings, err := s.openDevice(ctx, device)
+// openKVM opens a KVM session to the device of fav: login check, the favorite's quality (high
+// unless the favorite says low), consent with code. The WS-Man session is closed again; the KVM
+// client has its own socket.
+func (s *server) openKVM(ctx context.Context, fav favorites.Favorite, code consentCode) (*kvm.Client, []string, error) {
+	sess, _, warnings, err := s.openFav(ctx, fav)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -167,17 +167,18 @@ func (s *server) kvmConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmC
 	if code != "" {
 		rec.action = "with consent code" // never the code itself
 	}
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, kvmConnectOutput{}, err
 	}
 	var out kvmConnectOutput
-	err = s.kvm.connect(ctx, in.Device, code, func(e *kvmEntry, already bool) error {
+	err = s.kvm.connect(ctx, fav, code, func(e *kvmEntry, already bool) error {
 		// read_only sends no input to the host, so no wake keys there.
 		if !already && !s.cfg.ReadOnly {
 			go wakeScreen(e.client)
 		}
 		w, h := e.client.Size()
-		out = kvmConnectOutput{Device: in.Device, AlreadyOpen: already, ScreenWidth: w, ScreenHeight: h,
+		out = kvmConnectOutput{Device: fav.DisplayName(), AlreadyOpen: already, ScreenWidth: w, ScreenHeight: h,
 			Quality: e.client.Quality().String(), IdleTimeoutSeconds: int(s.cfg.KVMIdleTimeout / time.Second), Warnings: e.warnings}
 		return nil
 	})
@@ -194,10 +195,11 @@ type kvmDisconnectOutput struct {
 
 func (s *server) kvmDisconnect(_ context.Context, _ *mcp.CallToolRequest, in deviceInput, rec *record) (*mcp.CallToolResult, kvmDisconnectOutput, error) {
 	rec.device = in.Device
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, kvmDisconnectOutput{}, err
 	}
-	return nil, kvmDisconnectOutput{Device: in.Device, Closed: s.kvm.disconnect(in.Device)}, nil
+	return nil, kvmDisconnectOutput{Device: fav.DisplayName(), Closed: s.kvm.disconnect(fav)}, nil
 }
 
 // --- kvm_screenshot
@@ -253,7 +255,8 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 	if in.WaitMS < 0 || in.WaitMS > maxWaitMS {
 		return nil, screenshotOutput{}, refuse("wait_ms must be between 0 and %d.", maxWaitMS)
 	}
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, screenshotOutput{}, err
 	}
 	var (
@@ -261,7 +264,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		data []byte
 		mime string
 	)
-	err = s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		c := e.client
 		out.Warnings = append(out.Warnings, e.warnings...)
 		wait := func(d time.Duration, after uint64) error {
@@ -295,7 +298,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		}
 		sw, sh := c.Size()
 		e.imgW, e.imgH = w, h
-		out = screenshotOutput{Device: in.Device, Width: w, Height: h, ScreenWidth: sw, ScreenHeight: sh, Format: sc.Format,
+		out = screenshotOutput{Device: fav.DisplayName(), Width: w, Height: h, ScreenWidth: sw, ScreenHeight: sh, Format: sc.Format,
 			Bytes: len(data), Frame: c.Frame(), Warnings: out.Warnings}
 		return nil
 	})
@@ -303,7 +306,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		return nil, screenshotOutput{}, err
 	}
 	text := fmt.Sprintf("Screen of %s: %dx%d pixels, shown as a %dx%d %s image. kvm_mouse takes x and y in this image's pixels.",
-		in.Device, out.ScreenWidth, out.ScreenHeight, out.Width, out.Height, strings.ToUpper(out.Format))
+		fav.DisplayName(), out.ScreenWidth, out.ScreenHeight, out.Width, out.Height, strings.ToUpper(out.Format))
 	for _, w := range out.Warnings {
 		text += "\nWarning: " + w
 	}
@@ -323,15 +326,11 @@ type sendKeysOutput struct {
 }
 
 // confirmInput asks the person in the MCP client before an input call, when the config wants it.
-func (s *server) confirmInput(req *mcp.CallToolRequest, device, what string) (*mcp.CallToolResult, error) {
-	fav, err := s.lookup(device)
-	if err != nil {
-		return nil, err
+func (s *server) confirmInput(req *mcp.CallToolRequest, fav favorites.Favorite, what string) (*mcp.CallToolResult, error) {
+	if !s.kvm.has(fav) {
+		return nil, noSession(fav) // do not ask a person for a call that cannot run
 	}
-	if !s.kvm.has(device) {
-		return nil, noSession(device) // do not ask a person for a call that cannot run
-	}
-	return s.confirm(req, confirmMessage(what, fav))
+	return s.confirm(req, fav, confirmMessage(what, fav))
 }
 
 // sleepCtx waits d unless ctx ends first.
@@ -365,10 +364,14 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 	// bounded by maxKeyCombos combos of at most maxComboKeys known key names.
 	list := strings.Join(names, ", ")
 	rec.action = list
-	if res, err := s.confirmInput(req, in.Device, "press "+list); res != nil || err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
+		return nil, sendKeysOutput{}, err
+	}
+	if res, err := s.confirmInput(req, fav, "press "+list); res != nil || err != nil {
 		return res, sendKeysOutput{}, err
 	}
-	err := s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		c := e.client
 		for i, keys := range combos {
 			if i > 0 {
@@ -394,7 +397,7 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 	if err != nil {
 		return nil, sendKeysOutput{}, err
 	}
-	return nil, sendKeysOutput{Device: in.Device, Sent: len(combos)}, nil
+	return nil, sendKeysOutput{Device: fav.DisplayName(), Sent: len(combos)}, nil
 }
 
 // comboText is a valid combo as written, without the spaces around "+" (so its length is
@@ -462,11 +465,15 @@ func (s *server) kvmMouse(ctx context.Context, req *mcp.CallToolRequest, in mous
 		what += fmt.Sprintf(" (%d)", in.Amount)
 	}
 	rec.action = what
-	if res, err := s.confirmInput(req, in.Device, "use the mouse: "+what); res != nil || err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
+		return nil, mouseOutput{}, err
+	}
+	if res, err := s.confirmInput(req, fav, "use the mouse: "+what); res != nil || err != nil {
 		return res, mouseOutput{}, err
 	}
 	var out mouseOutput
-	err := s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		c := e.client
 		w, h := c.Size()
 		x, y := screenPoint(in.X, in.Y, e.imgW, e.imgH, w, h)
@@ -502,7 +509,7 @@ func (s *server) kvmMouse(ctx context.Context, req *mcp.CallToolRequest, in mous
 				e.buttons = b
 			}
 		}
-		out = mouseOutput{Device: in.Device, Action: in.Action, ScreenX: x, ScreenY: y}
+		out = mouseOutput{Device: fav.DisplayName(), Action: in.Action, ScreenX: x, ScreenY: y}
 		return nil
 	})
 	if err != nil {
@@ -619,10 +626,10 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 	if in.Secret {
 		rec.action += ", secret"
 	}
-	if res, err := s.confirmInput(req, in.Device, typePrompt(plan, in.Secret)); res != nil || err != nil {
+	if res, err := s.confirmInput(req, fav, typePrompt(plan, in.Secret)); res != nil || err != nil {
 		return res, typeOutput{}, err
 	}
-	err = s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		if err := typing.Type(ctx, e.client, plan, typing.DefaultDelay, nil); err != nil {
 			_ = e.client.ReleaseAll()
 			return err
@@ -632,7 +639,7 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 	if err != nil {
 		return nil, typeOutput{}, err
 	}
-	out := typeOutput{Device: in.Device, Layout: string(layout), Typed: plan.Typeable()}
+	out := typeOutput{Device: fav.DisplayName(), Layout: string(layout), Typed: plan.Typeable()}
 	for _, u := range plan.Unmappable {
 		out.Skipped = append(out.Skipped, skippedChar{Char: string(u.Char), Line: u.Line, Column: u.Column})
 	}

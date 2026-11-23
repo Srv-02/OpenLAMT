@@ -150,7 +150,7 @@ func (h *harness) screenshot(args map[string]any) (image.Image, string, map[stri
 func (h *harness) kvmEntry(name string) *kvmEntry {
 	h.srv.s.kvm.mu.Lock()
 	defer h.srv.s.kvm.mu.Unlock()
-	return h.srv.s.kvm.entries[name]
+	return h.srv.s.kvm.entries[h.key(name)]
 }
 
 // TestKVMConnectKeepsOneSessionAcrossCalls: one kvm_connect, several tool calls, one
@@ -556,6 +556,40 @@ func TestPowerOffClosesKVMFirst(t *testing.T) {
 	h.mustFail("power_action", dev("NUC", "action", "on"), "already on")
 	if c := h.kvmEntry("NUC").client; c == nil || c.Err() != nil || srv.Connections() != 2 {
 		t.Fatal("reset or a refused action closed KVM")
+	}
+}
+
+// TestKVMSessionIsKeptByTheFavoriteDevice (#116): sessions are kept by the device the favorite
+// reaches, not by the name text: " NUC " is the session of "NUC", so a power off closes it
+// first; a favorite that now points to another host gets no input meant for the old one.
+func TestKVMSessionIsKeptByTheFavoriteDevice(t *testing.T) {
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	srvA := addKVM(t, f, kvmtest.Options{UpdatesPerConn: true, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	fB := h.addDevice("Other", "192.0.2.11", false)
+	srvB := addKVM(t, fB, kvmtest.Options{Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustOK("kvm_connect", dev(" NUC "))
+	if out := h.mustOK("kvm_connect", dev("NUC")); out["already_open"] != true || out["device"] != "NUC" {
+		t.Fatalf("second connect %v", out)
+	}
+	if srvA.Connections() != 1 {
+		t.Fatalf("connections %d", srvA.Connections())
+	}
+	if text, _, isErr := h.call("power_action", dev("NUC\t", "action", "off")); isErr || !strings.Contains(text, "The KVM session was closed first") {
+		t.Fatalf("power off: %v %s", isErr, text)
+	}
+
+	// The operator points the favorite at another device: no key reaches the old one.
+	h.mustOK("kvm_send_keys", dev("NUC", "keys", []string{"Enter"}))
+	before := len(inputEvents(srvA))
+	h.favs[0].Host = "192.0.2.11"
+	h.mustFail("kvm_send_keys", dev("NUC", "keys", []string{"Enter"}), "No KVM session is open")
+	if n := len(inputEvents(srvA)); n != before {
+		t.Fatalf("%d key events reached the old device", n-before)
+	}
+	if n := len(inputEvents(srvB)); n != 0 {
+		t.Fatalf("%d key events reached the new device", n)
 	}
 }
 

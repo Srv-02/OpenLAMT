@@ -39,6 +39,8 @@ type server struct {
 	kvm     *kvmManager
 	sol     *solManager
 	media   *mediaManager
+	// mountAsks holds what open media_mount questions showed.
+	mountAsks mountAsks
 	// stateKey keys the request state that binds a settings or account question to its call.
 	stateKey []byte
 }

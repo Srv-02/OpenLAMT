@@ -96,6 +96,18 @@ func (h *harness) connect(ctx context.Context, cfg amt.Config, prompt amt.TrustP
 	return session.ConnectFake(f)(ctx, cfg, prompt)
 }
 
+// key is the favKey of the favorite named name, which the managers keep its sessions by.
+func (h *harness) key(name string) string {
+	h.t.Helper()
+	for _, f := range h.favs {
+		if f.DisplayName() == name {
+			return favKey(f)
+		}
+	}
+	h.t.Fatalf("no favorite %q", name)
+	return ""
+}
+
 func (h *harness) connectCalls() []amt.Config {
 	h.mu.Lock()
 	defer h.mu.Unlock()

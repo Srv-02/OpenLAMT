@@ -1,7 +1,10 @@
 package mcpserver
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,31 +13,45 @@ import (
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Srv-02/openlamt/internal/favorites"
 )
 
 // confirmKey names the confirmation in the input requests of a tool call.
 const confirmKey = "openlamt_confirm"
 
-// confirm asks the person in the MCP client before a write tool runs, when the config requires
-// it. It returns (nil, nil) when the call may go ahead and a result carrying the input request
-// when the client has to ask first. The SDK turns that request into an elicitation (on older
-// protocol versions the server sends it itself) and calls the handler again with the answer.
-// A client without elicitation support and every answer but an accepted confirm:true refuse.
-func (s *server) confirm(req *mcp.CallToolRequest, message string) (*mcp.CallToolResult, error) {
-	return s.confirmFor(req, message, "")
+// confirm asks the person in the MCP client before a write tool runs on the device of fav, when
+// the config requires it. It returns (nil, nil) when the call may go ahead and a result carrying
+// the input request when the client has to ask first. The SDK turns that request into an
+// elicitation (on older protocol versions the server sends it itself) and calls the handler
+// again with the answer. A client without elicitation support and every answer but an accepted
+// confirm:true refuse, and so does an answer about another device: the favorite was renamed or
+// now has another host or user.
+func (s *server) confirm(req *mcp.CallToolRequest, fav favorites.Favorite, message string) (*mcp.CallToolResult, error) {
+	return s.confirmFor(req, fav, message, "", "The favorite changed while the question was open (another name, host or user), "+
+		"so the answer was for another device. Nothing was sent to the device; call the tool again.")
 }
 
 // confirmFor is confirm for an action on something that may change while the question is open
-// (the mounted image). state names it; the question carries it as the request state, and an
-// answer whose request state is not the current one is refused: the person agreed to something
-// else.
-func (s *server) confirmFor(req *mcp.CallToolRequest, message, state string) (*mcp.CallToolResult, error) {
+// (the mounted image, the file to mount). state names it; the question carries it, bound to the
+// favorite, as the request state, and an answer whose request state is not the current one is
+// refused with stale: the person agreed to something else.
+func (s *server) confirmFor(req *mcp.CallToolRequest, fav favorites.Favorite, message, state, stale string) (*mcp.CallToolResult, error) {
 	if !s.cfg.RequireClientConfirmation {
 		return nil, nil
 	}
-	return s.ask(req, question{message: message, state: state,
-		stale: "The mounted image changed while the question was open, so the answer was for another image. " +
-			"Nothing was sent to the device; call the tool again."})
+	return s.ask(req, question{message: message, state: s.bindState(fav, state), stale: stale})
+}
+
+// bindState is the request state of a question about state on the device of fav: an HMAC over
+// the favorite's name, host and user and state, with the server's own key.
+func (s *server) bindState(fav favorites.Favorite, state string) string {
+	mac := hmac.New(sha256.New, s.stateKey)
+	for _, p := range []string{fav.DisplayName(), fav.Host, fav.Username, state} {
+		mac.Write([]byte(p))
+		mac.Write([]byte{0})
+	}
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
 }
 
 // question is what ask puts to the person in the MCP client.

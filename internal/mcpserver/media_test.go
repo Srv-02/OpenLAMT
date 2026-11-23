@@ -176,7 +176,7 @@ func readAll(t *testing.T, p *idertest.Peer) {
 func (h *harness) mediaEntry(name string) *mediaEntry {
 	h.srv.s.media.mu.Lock()
 	defer h.srv.s.media.mu.Unlock()
-	return h.srv.s.media.entries[name]
+	return h.srv.s.media.entries[h.key(name)]
 }
 
 // countBuilds counts the folder images built; release, when not nil, holds each build until it
@@ -420,13 +420,13 @@ func TestMediaConsentKeepsImage(t *testing.T) {
 	h.mustFail("media_mount", dev("NUC", "path", files.folder), "consent_code")
 	m := h.srv.s.media
 	m.mu.Lock()
-	p := m.pending["NUC"]
+	p := m.pending[h.key("NUC")]
 	m.mu.Unlock()
-	m.dropPending("NUC", &pendingImage{})
+	m.dropPending(h.key("NUC"), &pendingImage{})
 	if out := h.mustOK("media_status", dev("NUC")); out["pending_consent"] != true {
 		t.Fatalf("another expiry closed the kept image: %v", out)
 	}
-	m.dropPending("NUC", p)
+	m.dropPending(h.key("NUC"), p)
 	if out := h.mustOK("media_status", dev("NUC")); out["pending_consent"] != false || files.cachedImages(t) != 0 {
 		t.Fatalf("expired image not closed: %v", out)
 	}
@@ -573,6 +573,60 @@ func TestBootFromISO(t *testing.T) {
 	}
 	f.PowerErr = &amt.PowerError{Action: amt.BootToISO, ReturnValue: 1}
 	h.mustFail("boot_from_iso", dev("NUC"), "The device refused the boot from ISO (AMT ReturnValue 1). The IDE-R boot option may still be set")
+}
+
+// TestMediaMountConfirmationHoldsForTheShownFile (#116): an answer to a media_mount question
+// mounts only the file the question showed. A file replaced at the same path while the
+// question is open, with the same size and modification time, is refused, and so is one of
+// another size; nothing reaches the device.
+func TestMediaMountConfirmationHoldsForTheShownFile(t *testing.T) {
+	files := newMediaFiles(t)
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	srv := addIDER(t, f)
+	h.cfg.RequireClientConfirmation = true
+	var swap func()
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		if swap != nil {
+			swap()
+		}
+		return &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}, nil
+	}
+	h.start()
+	replace := func(size int) {
+		fi, err := os.Stat(files.iso)
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		tmp := files.iso + ".new"
+		if err := os.WriteFile(tmp, bytes.Repeat([]byte{0x33}, size), 0o600); err != nil {
+			t.Error(err)
+			return
+		}
+		if err := os.Chtimes(tmp, fi.ModTime(), fi.ModTime()); err != nil {
+			t.Error(err)
+		}
+		if err := os.Rename(tmp, files.iso); err != nil {
+			t.Error(err)
+		}
+	}
+	swap = func() { replace(isoSize) }
+	if r := h.await(h.callAsync("media_mount", dev("NUC", "path", files.iso))); !r.isError ||
+		!strings.Contains(r.text, "is not the file or folder the question showed") {
+		t.Fatalf("same size and time: %v %q", r.isError, r.text)
+	}
+	swap = func() { replace(isoSize / 2) }
+	if r := h.await(h.callAsync("media_mount", dev("NUC", "path", files.iso))); !r.isError ||
+		!strings.Contains(r.text, "changed while the question was open") {
+		t.Fatalf("other size: %v %q", r.isError, r.text)
+	}
+	if c := h.connectCalls(); len(c) != 0 {
+		t.Fatalf("%d device connections", len(c))
+	}
+	// Unchanged, the confirmed mount goes ahead.
+	swap = nil
+	h.mount(srv, dev("NUC", "path", files.iso))
 }
 
 // TestMediaConfirmationShowsPath: the prompt shows the full path visibly, what is mounted and

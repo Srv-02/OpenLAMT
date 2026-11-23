@@ -13,13 +13,14 @@ import (
 	"time"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
 	"github.com/Srv-02/openlamt/internal/mkiso"
 )
 
-// iderOpener mounts img on the favorite device with the consent code (may be empty). On error
-// the caller still owns img.
-type iderOpener func(ctx context.Context, device string, img ider.Image, code consentCode) (*ider.Client, []string, error)
+// iderOpener mounts img on the host and user of fav with the consent code (may be empty). On
+// error the caller still owns img.
+type iderOpener func(ctx context.Context, fav favorites.Favorite, img ider.Image, code consentCode) (*ider.Client, []string, error)
 
 var (
 	// buildImage builds the ISO of a folder in the image cache; tests count and hold builds.
@@ -41,8 +42,8 @@ const clearBootTimeout = 15 * time.Second
 // Lock order: an entry's mu may be held while taking m.mu, never the other way round.
 type mediaManager struct {
 	mu       sync.Mutex
-	entries  map[string]*mediaEntry   // mounted or mounting, by favorite name
-	pending  map[string]*pendingImage // image kept for the consent retry, by favorite name
+	entries  map[string]*mediaEntry   // mounted or mounting, by favKey
+	pending  map[string]*pendingImage // image kept for the consent retry, by favKey
 	closed   bool
 	inFlight sync.WaitGroup // mounts between reserve and their end; Add only under mu while !closed
 	watchers sync.WaitGroup // one per mounted session, until it ended
@@ -51,7 +52,7 @@ type mediaManager struct {
 	stop context.CancelFunc
 
 	open      iderOpener
-	clearBoot func(device string) error
+	clearBoot func(fav favorites.Favorite) error
 	logger    *slog.Logger
 	now       func() time.Time // clock of the mount time and the read rate; tests replace it
 	mounts    uint64           // mounts so far, under mu; numbers the entries (gen)
@@ -61,7 +62,8 @@ type mediaManager struct {
 // while the image is prepared and mounted (mounting is set then and other calls refuse).
 type mediaEntry struct {
 	mu        sync.Mutex
-	device    string
+	fav       favorites.Favorite // the favorite the mount was made for; its host and user are the device
+	device    string             // favorite name, for messages
 	mounting  bool
 	removed   bool         // unmounted, ended or shut down: the entry is no longer in the manager
 	client    *ider.Client // nil while mounting
@@ -97,14 +99,14 @@ type pendingImage struct {
 	timer *time.Timer
 }
 
-func newMediaManager(open iderOpener, clearBoot func(string) error, logger *slog.Logger) *mediaManager {
+func newMediaManager(open iderOpener, clearBoot func(favorites.Favorite) error, logger *slog.Logger) *mediaManager {
 	base, stop := context.WithCancel(context.Background())
 	return &mediaManager{entries: map[string]*mediaEntry{}, pending: map[string]*pendingImage{}, base: base, stop: stop,
 		open: open, clearBoot: clearBoot, logger: logger, now: time.Now}
 }
 
-func notMounted(device string) error {
-	return refuse("Nothing is mounted on %q by this server: call media_mount first.", device)
+func notMounted(fav favorites.Favorite) error {
+	return refuse("Nothing is mounted on %q by this server: call media_mount first.", fav.DisplayName())
 }
 
 func mountInProgress(device string) error {
@@ -134,10 +136,10 @@ func (e *mediaEntry) busyError() error {
 	return refuse("%q has «%s» mounted by this server already: call media_unmount first.", e.device, visible(e.name))
 }
 
-// free refuses when device has a mount or one is in progress.
-func (m *mediaManager) free(device string) error {
+// free refuses when the device of fav has a mount or one is in progress.
+func (m *mediaManager) free(fav favorites.Favorite) error {
 	m.mu.Lock()
-	closed, e := m.closed, m.entries[device]
+	closed, e := m.closed, m.entries[favKey(fav)]
 	m.mu.Unlock()
 	switch {
 	case closed:
@@ -148,19 +150,20 @@ func (m *mediaManager) free(device string) error {
 	return nil
 }
 
-// reserve adds a mounting entry for device and counts the mount as in flight.
-func (m *mediaManager) reserve(device string) (*mediaEntry, error) {
+// reserve adds a mounting entry for the device of fav and counts the mount as in flight.
+func (m *mediaManager) reserve(fav favorites.Favorite) (*mediaEntry, error) {
+	key := favKey(fav)
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		return nil, errShuttingDown
 	}
-	if old := m.entries[device]; old != nil {
+	if old := m.entries[key]; old != nil {
 		m.mu.Unlock()
 		return nil, old.busyError()
 	}
-	e := &mediaEntry{device: device, mounting: true}
-	m.entries[device] = e
+	e := &mediaEntry{fav: fav, device: fav.DisplayName(), mounting: true}
+	m.entries[key] = e
 	m.inFlight.Add(1)
 	m.mu.Unlock()
 	return e, nil
@@ -170,17 +173,18 @@ func (m *mediaManager) reserve(device string) (*mediaEntry, error) {
 func (m *mediaManager) remove(e *mediaEntry) {
 	e.removed = true
 	m.mu.Lock()
-	if m.entries[e.device] == e {
-		delete(m.entries, e.device)
+	if key := favKey(e.fav); m.entries[key] == e {
+		delete(m.entries, key)
 	}
 	m.mu.Unlock()
 }
 
-// takePending removes the kept image of device from the manager; the caller owns it then.
-func (m *mediaManager) takePending(device string) *pendingImage {
+// takePending removes the image kept for the device of fav from the manager; the caller owns it then.
+func (m *mediaManager) takePending(fav favorites.Favorite) *pendingImage {
+	key := favKey(fav)
 	m.mu.Lock()
-	p := m.pending[device]
-	delete(m.pending, device)
+	p := m.pending[key]
+	delete(m.pending, key)
 	m.mu.Unlock()
 	if p != nil {
 		p.timer.Stop() // its callback finds another or no image and does nothing
@@ -188,17 +192,18 @@ func (m *mediaManager) takePending(device string) *pendingImage {
 	return p
 }
 
-// keep stores img for the consent retry on device; after Close it closes img instead.
-func (m *mediaManager) keep(device string, p *pendingImage) {
+// keep stores img for the consent retry on the device of fav; after Close it closes img instead.
+func (m *mediaManager) keep(fav favorites.Favorite, p *pendingImage) {
+	key := favKey(fav)
 	m.mu.Lock()
 	if m.closed {
 		m.mu.Unlock()
 		_ = p.img.Close()
 		return
 	}
-	old := m.pending[device]
-	m.pending[device] = p
-	p.timer = time.AfterFunc(pendingKeep, func() { m.dropPending(device, p) })
+	old := m.pending[key]
+	m.pending[key] = p
+	p.timer = time.AfterFunc(pendingKeep, func() { m.dropPending(key, p) })
 	m.mu.Unlock()
 	if old != nil {
 		old.timer.Stop()
@@ -206,14 +211,14 @@ func (m *mediaManager) keep(device string, p *pendingImage) {
 	}
 }
 
-// dropPending closes p when it is still the image kept for device (its expiry).
-func (m *mediaManager) dropPending(device string, p *pendingImage) {
+// dropPending closes p when it is still the image kept under key (its expiry).
+func (m *mediaManager) dropPending(key string, p *pendingImage) {
 	m.mu.Lock()
-	if m.pending[device] != p {
+	if m.pending[key] != p {
 		m.mu.Unlock()
 		return
 	}
-	delete(m.pending, device)
+	delete(m.pending, key)
 	m.mu.Unlock()
 	_ = p.img.Close()
 }
@@ -221,8 +226,8 @@ func (m *mediaManager) dropPending(device string, p *pendingImage) {
 // image returns the image kept for src, or opens the ISO or builds the folder image. What it
 // opens must still be what mediaPath checked: the path resolves to the same place and names the
 // same file or folder (os.SameFile), so a link or file swapped after the check is refused.
-func (m *mediaManager) image(ctx context.Context, device string, src mediaSource) (ider.Image, *mkiso.Info, error) {
-	if p := m.takePending(device); p != nil {
+func (m *mediaManager) image(ctx context.Context, fav favorites.Favorite, src mediaSource) (ider.Image, *mkiso.Info, error) {
+	if p := m.takePending(fav); p != nil {
 		if p.src.path == src.path && p.src.folder == src.folder && os.SameFile(p.src.checked, src.checked) {
 			return p.img, p.info, nil
 		}
@@ -285,10 +290,10 @@ type isoFile struct {
 
 func (f *isoFile) Size() int64 { return f.size }
 
-// mount prepares the image of src and mounts it on device, then runs fn with the entry locked.
-// It runs until ctx or the manager's base context ends (Close); Close waits for it.
-func (m *mediaManager) mount(ctx context.Context, device string, src mediaSource, code consentCode, fn func(e *mediaEntry)) error {
-	e, err := m.reserve(device)
+// mount prepares the image of src and mounts it on the device of fav, then runs fn with the
+// entry locked. It runs until ctx or the manager's base context ends (Close); Close waits for it.
+func (m *mediaManager) mount(ctx context.Context, fav favorites.Favorite, src mediaSource, code consentCode, fn func(e *mediaEntry)) error {
+	e, err := m.reserve(fav)
 	if err != nil {
 		return err
 	}
@@ -309,16 +314,16 @@ func (m *mediaManager) mount(ctx context.Context, device string, src mediaSource
 	if beforeImage != nil {
 		beforeImage()
 	}
-	img, info, err := m.image(ctx, device, src)
+	img, info, err := m.image(ctx, fav, src)
 	if err != nil {
 		return fail(err)
 	}
-	c, warnings, err := m.open(ctx, device, img, code)
+	c, warnings, err := m.open(ctx, fav, img, code)
 	var ce *amt.ConsentError
 	switch {
 	case errors.Is(err, errConsentCodeNeeded) || errors.As(err, &ce):
 		// The device shows a code now, or did not accept it: keep the image for the next call.
-		m.keep(device, &pendingImage{src: src, img: img, info: info})
+		m.keep(fav, &pendingImage{src: src, img: img, info: info})
 		return fail(err)
 	case err != nil:
 		_ = img.Close() // a folder image is deleted
@@ -362,7 +367,7 @@ func (m *mediaManager) watch(e *mediaEntry, c *ider.Client) {
 	e.mu.Unlock()
 	m.logger.Warn("the device ended the media (IDE-R) session", "device", e.device, "image", e.name, "reason", mediaEndReason(c.Err()))
 	if boot {
-		if err := m.clearBoot(e.device); err != nil {
+		if err := m.clearBoot(e.fav); err != nil {
 			m.logger.Warn("clearing the IDE-R boot option", "device", e.device, "err", err)
 		}
 	}
@@ -379,35 +384,37 @@ func mediaEndReason(err error) string {
 	return explain(err)
 }
 
-// mounted runs fn with the entry of device locked, when this server has a running mount there.
-func (m *mediaManager) mounted(device string, fn func(e *mediaEntry) error) error {
+// mounted runs fn with the entry of the device of fav locked, when this server has a running
+// mount there.
+func (m *mediaManager) mounted(fav favorites.Favorite, fn func(e *mediaEntry) error) error {
 	m.mu.Lock()
-	closed, e := m.closed, m.entries[device]
+	closed, e := m.closed, m.entries[favKey(fav)]
 	m.mu.Unlock()
 	switch {
 	case closed:
 		return errShuttingDown
 	case e == nil:
-		return notMounted(device)
+		return notMounted(fav)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	switch {
 	case e.removed:
-		return notMounted(device)
+		return notMounted(fav)
 	case e.mounting:
-		return mountInProgress(device)
+		return mountInProgress(fav.DisplayName())
 	case !e.alive(): // the device ended it; the watcher removes it
-		return notMounted(device)
+		return notMounted(fav)
 	}
 	return fn(e)
 }
 
-// inspect runs fn with the entry of device locked (nil without one) and whether an image is
-// kept for the consent retry.
-func (m *mediaManager) inspect(device string, fn func(e *mediaEntry, pending bool)) error {
+// inspect runs fn with the entry of the device of fav locked (nil without one) and whether an
+// image is kept for the consent retry.
+func (m *mediaManager) inspect(fav favorites.Favorite, fn func(e *mediaEntry, pending bool)) error {
+	key := favKey(fav)
 	m.mu.Lock()
-	closed, e, pending := m.closed, m.entries[device], m.pending[device] != nil
+	closed, e, pending := m.closed, m.entries[key], m.pending[key] != nil
 	m.mu.Unlock()
 	if closed {
 		return errShuttingDown
@@ -431,16 +438,16 @@ type unmountResult struct {
 	warning            string
 }
 
-// unmount closes the mount of device and a kept image, and clears the boot option if
+// unmount closes the mount of the device of fav and a kept image, and clears the boot option if
 // media_boot_next set it.
-func (m *mediaManager) unmount(device string) (unmountResult, error) {
+func (m *mediaManager) unmount(fav favorites.Favorite) (unmountResult, error) {
 	m.mu.Lock()
-	closed, e := m.closed, m.entries[device]
+	closed, e := m.closed, m.entries[favKey(fav)]
 	m.mu.Unlock()
 	if closed {
 		return unmountResult{}, errShuttingDown
 	}
-	if p := m.takePending(device); p != nil {
+	if p := m.takePending(fav); p != nil {
 		_ = p.img.Close()
 	}
 	if e == nil {
@@ -452,13 +459,13 @@ func (m *mediaManager) unmount(device string) (unmountResult, error) {
 	case e.removed:
 		return unmountResult{}, nil
 	case e.mounting:
-		return unmountResult{}, mountInProgress(device)
+		return unmountResult{}, mountInProgress(fav.DisplayName())
 	}
 	m.remove(e)
 	_ = e.client.Close()
 	r := unmountResult{unmounted: true}
 	if e.bootNext {
-		if err := m.clearBoot(device); err != nil {
+		if err := m.clearBoot(e.fav); err != nil {
 			r.warning = "The IDE-R boot option may still be set: " + explain(err)
 		} else {
 			r.cleared = true
@@ -496,7 +503,7 @@ func (m *mediaManager) closeAll() {
 			e.removed = true
 			_ = e.client.Close()
 			if e.bootNext {
-				if err := m.clearBoot(e.device); err != nil {
+				if err := m.clearBoot(e.fav); err != nil {
 					m.logger.Warn("clearing the IDE-R boot option", "device", e.device, "err", err)
 				}
 			}

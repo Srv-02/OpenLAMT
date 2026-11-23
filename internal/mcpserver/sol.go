@@ -9,11 +9,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/sol"
 )
 
-// solOpener opens a SOL session to the favorite device with the consent code (may be empty).
-type solOpener func(ctx context.Context, device string, code consentCode) (*sol.Client, []string, error)
+// solOpener opens a SOL session to the host and user of fav with the consent code (may be empty).
+type solOpener func(ctx context.Context, fav favorites.Favorite, code consentCode) (*sol.Client, []string, error)
 
 // solManager keeps one serial console (SOL) session per device across tool calls, like
 // kvmManager: sol_connect opens it, the other SOL tools use it, an idle session is closed after
@@ -23,7 +24,7 @@ type solOpener func(ctx context.Context, device string, code consentCode) (*sol.
 // Lock order: an entry's mu may be held while taking m.mu, never the other way round.
 type solManager struct {
 	mu      sync.Mutex
-	entries map[string]*solEntry // by favorite name
+	entries map[string]*solEntry // by favKey
 	closed  bool
 	idle    time.Duration // 0: never
 	open    solOpener
@@ -32,8 +33,9 @@ type solManager struct {
 
 // solEntry is the SOL session of one device.
 type solEntry struct {
-	mu       sync.Mutex // serializes connect, writes and the cursor; never held while sol_read waits
-	device   string
+	mu       sync.Mutex  // serializes connect, writes and the cursor; never held while sol_read waits
+	key      string      // favKey of the device
+	device   string      // favorite name, for messages
 	client   *sol.Client // nil only before the first open
 	warnings []string    // of the last open, e.g. no TLS
 	removed  bool        // disconnected, idle or shut down: the entry is no longer in the manager
@@ -48,8 +50,8 @@ func newSOLManager(idle time.Duration, open solOpener) *solManager {
 	return &solManager{entries: map[string]*solEntry{}, idle: idle, open: open, now: time.Now}
 }
 
-func noSOLSession(device string) error {
-	return refuse("No serial console (SOL) session is open for %q: call sol_connect first.", device)
+func noSOLSession(fav favorites.Favorite) error {
+	return refuse("No serial console (SOL) session is open for %q: call sol_connect first.", fav.DisplayName())
 }
 
 // alive reports whether the client runs.
@@ -89,20 +91,21 @@ func (e *solEntry) shut() {
 	}
 }
 
-// connect opens the session of device, or keeps the running one (already true), and runs fn
-// with the entry locked. A session that ended is opened again with code; the buffer and its
-// offsets go on.
-func (m *solManager) connect(ctx context.Context, device string, code consentCode, fn func(e *solEntry, already bool) error) error {
+// connect opens the session of the device of fav, or keeps the running one (already true), and
+// runs fn with the entry locked. A session that ended is opened again with code; the buffer and
+// its offsets go on.
+func (m *solManager) connect(ctx context.Context, fav favorites.Favorite, code consentCode, fn func(e *solEntry, already bool) error) error {
+	key := favKey(fav)
 	for {
 		m.mu.Lock()
 		if m.closed {
 			m.mu.Unlock()
 			return errShuttingDown
 		}
-		e, created := m.entries[device], false
+		e, created := m.entries[key], false
 		if e == nil {
-			e, created = &solEntry{device: device, out: newSOLBuffer(solBufferSize)}, true
-			m.entries[device] = e
+			e, created = &solEntry{key: key, device: fav.DisplayName(), out: newSOLBuffer(solBufferSize)}, true
+			m.entries[key] = e
 		}
 		m.mu.Unlock()
 
@@ -116,7 +119,7 @@ func (m *solManager) connect(ctx context.Context, device string, code consentCod
 			if e.pumpDone != nil {
 				<-e.pumpDone // the old client is done, so its pump returns at once
 			}
-			c, warnings, err := m.open(ctx, device, code)
+			c, warnings, err := m.open(ctx, fav, code)
 			if err != nil {
 				if created {
 					m.remove(e)
@@ -140,21 +143,21 @@ func (m *solManager) connect(ctx context.Context, device string, code consentCod
 	}
 }
 
-// use runs fn on the entry of device with the entry locked; the session may have ended.
-func (m *solManager) use(device string, fn func(e *solEntry) error) error {
+// use runs fn on the entry of the device of fav with the entry locked; the session may have ended.
+func (m *solManager) use(fav favorites.Favorite, fn func(e *solEntry) error) error {
 	m.mu.Lock()
-	closed, e := m.closed, m.entries[device]
+	closed, e := m.closed, m.entries[favKey(fav)]
 	m.mu.Unlock()
 	switch {
 	case closed:
 		return errShuttingDown
 	case e == nil:
-		return noSOLSession(device)
+		return noSOLSession(fav)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.removed {
-		return noSOLSession(device)
+		return noSOLSession(fav)
 	}
 	e.lastUsed = m.now()
 	err := fn(e)
@@ -166,8 +169,8 @@ func (m *solManager) use(device string, fn func(e *solEntry) error) error {
 func (m *solManager) remove(e *solEntry) {
 	e.removed = true
 	m.mu.Lock()
-	if m.entries[e.device] == e {
-		delete(m.entries, e.device)
+	if m.entries[e.key] == e {
+		delete(m.entries, e.key)
 	}
 	m.mu.Unlock()
 }
@@ -187,10 +190,10 @@ func (m *solManager) expire(e *solEntry) {
 	e.shut()
 }
 
-// disconnect closes and removes the session of device; it reports whether there was one.
-func (m *solManager) disconnect(device string) bool {
+// disconnect closes and removes the session of the device of fav; it reports whether there was one.
+func (m *solManager) disconnect(fav favorites.Favorite) bool {
 	m.mu.Lock()
-	e := m.entries[device]
+	e := m.entries[favKey(fav)]
 	m.mu.Unlock()
 	if e == nil {
 		return false

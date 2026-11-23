@@ -231,7 +231,7 @@ func TestBootToISOSetBootConfigRoleFailure(t *testing.T) {
 	f := &fakeWSMan{routes: routes}
 	err := newDevice(f, "").Power(BootToISO)
 	var pe *PowerError
-	if !errors.As(err, &pe) || pe.ReturnValue != 2 || pe.Action != BootToISO || len(f.requests) != 6 {
+	if !errors.As(err, &pe) || pe.ReturnValue != 2 || pe.Action != BootToISO || len(f.requests) != 8 { // with the undo
 		t.Fatalf("err=%v requests=%d", err, len(f.requests))
 	}
 }

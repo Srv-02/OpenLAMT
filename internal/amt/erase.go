@@ -124,7 +124,9 @@ func (d *Device) SetRPE(on bool) error {
 // Remote Platform Erase follows Intel's console: Put PlatformErase with the TLV parameters, set
 // the boot config role, then a hard power cycle (a warm reset does not run the erase) or power
 // on. Remote Secure Erase follows MeshCommander: clear the boot order, Put SecureErase with the
-// password, set the boot config role, clear the boot order, then reset or power on.
+// password, set the boot config role, clear the boot order, then reset or power on. A sleeping
+// device is refused (ErrAsleep). When a step from the Put onward fails, Erase takes the boot
+// settings back; if that fails too, the error is *BootMayBeSetError (ErrEraseMayBeSet).
 func (d *Device) Erase(o EraseOptions, c Confirmation) error {
 	const op = "erase"
 	if err := d.confirmed(c, OpErase, "Erase"); err != nil {
@@ -143,6 +145,9 @@ func (d *Device) Erase(o EraseOptions, c Confirmation) error {
 	state, err := d.powerState()
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
+	}
+	if err := refuseAsleep(op, state); err != nil {
+		return err
 	}
 	cur, err := d.getBootSettings(op)
 	if err != nil {
@@ -165,7 +170,7 @@ func (d *Device) Erase(o EraseOptions, c Confirmation) error {
 		}
 	}
 	if err := d.finishErase(req, o.Platform, state); err != nil {
-		return fmt.Errorf("%s: %w (the erase may still be set for the next start of the device)", op, err)
+		return d.undoBoot(op, cur, true, err)
 	}
 	return nil
 }

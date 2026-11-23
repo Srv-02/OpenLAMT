@@ -129,10 +129,10 @@ func TestBootToBIOSStopsOnFailedStep(t *testing.T) {
 	delete(routes, "Put|AMT_BootSettingData")
 	f := &fakeWSMan{routes: routes}
 	err := newDevice(f, "").Power(BootToBIOS)
-	if err == nil || len(f.requests) != 5 {
+	if err == nil || len(f.requests) != 6 { // the failed Put and the failed undo Put
 		t.Fatalf("err = %v, requests = %d", err, len(f.requests))
 	}
-	if !strings.Contains(err.Error(), "may still be set") {
+	if !errors.Is(err, ErrBootMayBeSet) || !strings.Contains(err.Error(), "may still be set") {
 		t.Fatalf("err lacks warning: %v", err)
 	}
 }
@@ -142,7 +142,7 @@ func TestBootToBIOSSetBootConfigRoleFailure(t *testing.T) {
 	routes["SetBootConfigRole|CIM_BootService"] = "setbootconfigrole_fail.xml"
 	err := newDevice(&fakeWSMan{routes: routes}, "").Power(BootToBIOS)
 	var pe *PowerError
-	if !errors.As(err, &pe) || pe.ReturnValue != 2 || !strings.Contains(err.Error(), "may still be set") {
+	if !errors.As(err, &pe) || pe.ReturnValue != 2 || errors.Is(err, ErrBootMayBeSet) || !strings.Contains(err.Error(), "cleared the boot settings again") {
 		t.Fatalf("err = %v", err)
 	}
 }

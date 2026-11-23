@@ -244,20 +244,20 @@ func TestEraseRefusesWhatTheDeviceLacks(t *testing.T) {
 	}
 }
 
-// A failed step after the Put says that the erase may still be armed for the next start, and
-// no power command follows.
+// A failed step after the Put takes the erase back (issue #123), and no power command follows.
 func TestEraseFailedStepWarns(t *testing.T) {
 	seq := eraseSeq(t, allErase)
 	seq["SetBootConfigRole|CIM_BootService"] = []cfgResp{{file: "setbootconfigrole_fail.xml"}}
 	d, f := eraseDevice(seq, true)
 	err := d.Erase(EraseOptions{Platform: true, Actions: EraseSSDs}, eraseConfirmed(t))
 	var me *MethodError
-	if !errors.As(err, &me) || !strings.Contains(err.Error(), "may still be set") {
+	if !errors.As(err, &me) || errors.Is(err, ErrEraseMayBeSet) || !strings.Contains(err.Error(), "cleared the boot settings again") {
 		t.Fatalf("err %v", err)
 	}
 	if len(f.requestsFor("RequestPowerStateChange|CIM_PowerManagementService")) != 0 {
 		t.Fatal("power command after a failed step")
 	}
+	assertCleared(t, f)
 }
 
 // The Remote Platform Erase switch keeps One Click Recovery as it is (both share

@@ -134,15 +134,9 @@ func (d *Device) OpenIDER(ctx context.Context, img ider.Image, start ider.StartM
 
 // isoBootRequest builds the boot settings Put for IDE-R boot (useIDER) or for clearing it.
 func isoBootRequest(cur amtboot.BootSettingDataResponse, useIDER bool) amtboot.BootSettingDataRequest {
-	req := amtboot.BootSettingDataRequest{
-		BIOSSetup:         false,
-		ElementName:       cur.ElementName,
-		EnforceSecureBoot: cur.EnforceSecureBoot,
-		InstanceID:        cur.InstanceID,
-		OwningEntity:      cur.OwningEntity,
-		UseIDER:           useIDER,
-	}
+	req := clearedBootRequest(cur)
 	if useIDER {
+		req.UseIDER = true
 		req.IDERBootDevice = amtboot.CDBoot
 	}
 	return req
@@ -162,21 +156,23 @@ func (d *Device) getBootSettings(op string) (amtboot.BootSettingDataResponse, er
 
 // setISOBoot runs the sequence of the console's SetBootOptions (IDE-R CD boot): clear the boot
 // order, put UseIDER with IDERBootDevice 1, set the boot config role, clear the boot order again.
-func (d *Device) setISOBoot(op string) error {
+// A failed step from the Put onward takes the option back (undoBoot). It returns the boot
+// settings read before the Put, for the undo after a later failure.
+func (d *Device) setISOBoot(op string) (amtboot.BootSettingDataResponse, error) {
 	cur, err := d.getBootSettings(op)
 	if err != nil {
-		return err
+		return cur, err
 	}
 	if _, err := d.msgs.CIM.BootConfigSetting.ChangeBootOrder(""); err != nil {
-		return fmt.Errorf("%s: clear boot order: %w", op, err)
+		return cur, fmt.Errorf("%s: clear boot order: %w", op, err)
 	}
 	if _, err := d.msgs.AMT.BootSettingData.Put(isoBootRequest(cur, true)); err != nil {
-		return fmt.Errorf("%s: put boot settings: %w (the IDE-R boot option may still be set on the device)", op, err)
+		return cur, d.undoBoot(op, cur, false, fmt.Errorf("put boot settings: %w", err))
 	}
 	if err := d.finishISOBoot(); err != nil {
-		return fmt.Errorf("%s: %w (the IDE-R boot option may still be set on the device)", op, err)
+		return cur, d.undoBoot(op, cur, false, err)
 	}
-	return nil
+	return cur, nil
 }
 
 // finishISOBoot sends SetBootConfigRole and the closing ChangeBootOrder.
@@ -199,26 +195,38 @@ func (d *Device) finishISOBoot() error {
 
 // bootToISO sets the IDE-R boot option and then resets (running) or powers on (not running) the
 // machine. Precondition: an IDE-R session with an image is open (see OpenIDER), otherwise the
-// machine finds no drive to boot from.
+// machine finds no drive to boot from. A sleeping device is refused (ErrAsleep); a refused power
+// request takes the option back (undoBoot).
 func (d *Device) bootToISO() error {
+	const op = "boot to ISO"
 	state, err := d.powerState()
 	if err != nil {
-		return fmt.Errorf("boot to ISO: %w", err)
+		return fmt.Errorf("%s: %w", op, err)
+	}
+	if err := refuseAsleep(op, state); err != nil {
+		return err
 	}
 	target := power.PowerOn
 	if state == models.PowerStateOn {
 		target = power.MasterBusReset
 	}
-	if err := d.setISOBoot("boot to ISO"); err != nil {
+	cur, err := d.setISOBoot(op)
+	if err != nil {
 		return err
 	}
-	return d.requestPowerState(BootToISO, target)
+	if err := d.requestPowerState(BootToISO, target); err != nil {
+		return d.undoBoot(op, cur, false, err)
+	}
+	return nil
 }
 
 // NextBootFromISO sets the IDE-R boot option without any power command: the machine boots from
 // the mounted image at its next start. Precondition: an IDE-R session with an image is open.
 // ClearISOBoot takes the option back if no restart happens.
-func (d *Device) NextBootFromISO() error { return d.setISOBoot("next boot from ISO") }
+func (d *Device) NextBootFromISO() error {
+	_, err := d.setISOBoot("next boot from ISO")
+	return err
+}
 
 // ClearISOBoot switches the IDE-R boot option off when it is set and writes nothing otherwise.
 func (d *Device) ClearISOBoot() error {

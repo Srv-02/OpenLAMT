@@ -700,6 +700,26 @@ func describeBoot(err error) (string, bool) {
 		return lang.L("The device did not download the image. Check the firewall on this computer."), true
 	case errors.Is(err, amt.ErrOCROffInBIOS):
 		return lang.L("Turn it on in the BIOS first."), true
+	case errors.Is(err, amt.ErrAsleep):
+		return lang.L("The device is asleep. Waking it does not restart it, so the boot options would not apply. Wake it with Power On, wait until it runs, then try again. Nothing was changed."), true
 	}
 	return "", false
+}
+
+// describeMayBeSet is the main text of an *amt.BootMayBeSetError (issue #123): the cause, then
+// that the boot options or the erase may still apply at the next restart, and what to do.
+func describeMayBeSet(err error) string {
+	warning := lang.L("OpenLAMT could not clear the boot options again: the next restart of the device may still use them. To clear them, connect again and start Boot Options with Hard disk (default order).")
+	if errors.Is(err, amt.ErrEraseMayBeSet) {
+		warning = lang.L("OpenLAMT could not clear the erase again: the next restart of the device may still erase the drives. If you do not want that, do not restart the device. Connect again and start Boot Options with Hard disk (default order): it clears the erase before the restart.")
+	}
+	var be *amt.BootMayBeSetError
+	if !errors.As(err, &be) || be.Err == nil {
+		return warning
+	}
+	cause := describe(be.Err)
+	if cause == lang.L("Unexpected error: {{.Err}}", map[string]any{"Err": be.Err.Error()}) {
+		return warning // the technical text stays in the details
+	}
+	return cause + " " + warning
 }

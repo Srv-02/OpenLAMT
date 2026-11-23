@@ -143,6 +143,19 @@ func TestClassifyIgnores401InsideOtherErrors(t *testing.T) {
 	}
 }
 
+// Issue #123: the warning that the boot options or an erase may still be set survives classify,
+// also when the failed step was a refused login (401) or a missing permission.
+func TestClassifyKeepsBootMayBeSet(t *testing.T) {
+	unauthorized := errors.New("wsman.Client post received: 401 Unauthorized\n<html/>")
+	for _, cause := range []error{unauthorized, fmt.Errorf("x: %w", amt.ErrAccessDenied)} {
+		err := classify(&amt.BootMayBeSetError{Erase: true, Err: cause, ClearErr: unauthorized})
+		var be *amt.BootMayBeSetError
+		if !errors.As(err, &be) || !errors.Is(err, amt.ErrEraseMayBeSet) || strings.Contains(err.Error(), "<html/>") {
+			t.Fatalf("%v", err)
+		}
+	}
+}
+
 func TestClassifyStripsHTTPBody(t *testing.T) {
 	libErr := fmt.Errorf("%w: %v\n%v", errors.New("wsman.Client post received"), "500 Internal Server Error", "<html>internal detail</html>")
 	dev := &Fake{}

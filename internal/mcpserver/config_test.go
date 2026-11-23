@@ -115,6 +115,10 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		`{"passwords": {"command": ["/usr/bin/op", "read", "op://lab/{user}/password"]}}`,
 		`{"passwords": {"allow_plaintext_passwords": "yes"}}`,
 		`{"tool_groups": {"favourites": false}}`,
+		`{"certificates": {"pin_file": "yes"}}`,
+		`{"certificates": {"pinfile": true}}`,
+		`{"certificates": {"pin_file": true, "path": "pins.json"}}`,
+		`{"certificate": {"pin_file": true}}`,
 	} {
 		if _, err := Load(writeConfig(t, body), true); err == nil {
 			t.Errorf("%s: no error", body)
@@ -212,5 +216,22 @@ func TestLoadPasswordSettings(t *testing.T) {
 	}
 	if c, err = Load(writeConfig(t, `{"passwords": {"command": []}}`), true); err != nil || c.Passwords.Command != nil {
 		t.Fatalf("empty command: %v %v", err, c.Passwords.Command)
+	}
+}
+
+// TestLoadCertificateSettings: certificates.pin_file is an opt-in and off by default.
+func TestLoadCertificateSettings(t *testing.T) {
+	if c := Defaults(t.TempDir()); c.Certificates.PinFile {
+		t.Fatal("on without a config file")
+	}
+	c, err := Load(writeConfig(t, `{}`), true)
+	if err != nil || c.Certificates.PinFile {
+		t.Fatalf("default: %v %+v", err, c.Certificates)
+	}
+	if c, err = Load(writeConfig(t, `{"certificates": {}}`), true); err != nil || c.Certificates.PinFile {
+		t.Fatalf("empty object: %v %+v", err, c.Certificates)
+	}
+	if c, err = Load(writeConfig(t, `{"certificates": {"pin_file": true}}`), true); err != nil || !c.Certificates.PinFile {
+		t.Fatalf("on: %v %+v", err, c.Certificates)
 	}
 }

@@ -150,7 +150,7 @@ func (h *harness) screenshot(args map[string]any) (image.Image, string, map[stri
 func (h *harness) kvmEntry(name string) *kvmEntry {
 	h.srv.s.kvm.mu.Lock()
 	defer h.srv.s.kvm.mu.Unlock()
-	return h.srv.s.kvm.entries[name]
+	return h.srv.s.kvm.entries[h.key(name)]
 }
 
 // TestKVMConnectKeepsOneSessionAcrossCalls: one kvm_connect, several tool calls, one
@@ -559,6 +559,40 @@ func TestPowerOffClosesKVMFirst(t *testing.T) {
 	}
 }
 
+// TestKVMSessionIsKeptByTheFavoriteDevice (#116): sessions are kept by the device the favorite
+// reaches, not by the name text: " NUC " is the session of "NUC", so a power off closes it
+// first; a favorite that now points to another host gets no input meant for the old one.
+func TestKVMSessionIsKeptByTheFavoriteDevice(t *testing.T) {
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	srvA := addKVM(t, f, kvmtest.Options{UpdatesPerConn: true, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	fB := h.addDevice("Other", "192.0.2.11", false)
+	srvB := addKVM(t, fB, kvmtest.Options{Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustOK("kvm_connect", dev(" NUC "))
+	if out := h.mustOK("kvm_connect", dev("NUC")); out["already_open"] != true || out["device"] != "NUC" {
+		t.Fatalf("second connect %v", out)
+	}
+	if srvA.Connections() != 1 {
+		t.Fatalf("connections %d", srvA.Connections())
+	}
+	if text, _, isErr := h.call("power_action", dev("NUC\t", "action", "off")); isErr || !strings.Contains(text, "The KVM session was closed first") {
+		t.Fatalf("power off: %v %s", isErr, text)
+	}
+
+	// The operator points the favorite at another device: no key reaches the old one.
+	h.mustOK("kvm_send_keys", dev("NUC", "keys", []string{"Enter"}))
+	before := len(inputEvents(srvA))
+	h.favs[0].Host = "192.0.2.11"
+	h.mustFail("kvm_send_keys", dev("NUC", "keys", []string{"Enter"}), "No KVM session is open")
+	if n := len(inputEvents(srvA)); n != before {
+		t.Fatalf("%d key events reached the old device", n-before)
+	}
+	if n := len(inputEvents(srvB)); n != 0 {
+		t.Fatalf("%d key events reached the new device", n)
+	}
+}
+
 // TestKVMInputConfirmation: every input call asks the person in the MCP client; connect and
 // screenshot ask nothing.
 func TestKVMInputConfirmation(t *testing.T) {
@@ -767,6 +801,70 @@ func TestKVMTypeTextSecretRefusesControlCharacters(t *testing.T) {
 	}
 	if logged != "7 characters, 0 Enter, layout us, secret" {
 		t.Fatalf("logged %q", logged)
+	}
+}
+
+// TestKVMConnectEnablesKVMOnlyAsASettingsChange (#115): turning KVM on is a settings change.
+// Without the tool group settings kvm_connect refuses and names what to turn on; with
+// require_client_confirmation it asks first, like set_remote_features; the wake keys are input
+// and need kvm_input.
+func TestKVMConnectEnablesKVMOnlyAsASettingsChange(t *testing.T) {
+	// settings and kvm_input off, KVM off: refused, nothing enabled, no redirection connection.
+	h := newHarness(t)
+	h.cfg.Groups[GroupSettings], h.cfg.Groups[GroupKVMInput] = false, false
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		t.Errorf("asked %q", r.Params.Message)
+		return &mcp.ElicitResult{Action: "decline"}, nil
+	}
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	srv := addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustFail("kvm_connect", dev("NUC"), `KVM is turned off on the device. Turning it on changes a device setting, and the tool group "settings" is off`)
+	f.Redirection().ListenerOff, f.Redirection().KVMOff = true, false
+	h.mustFail("kvm_connect", dev("NUC"), `The redirection port (needed for KVM, Serial over LAN and IDE-R) is turned off on the device. Turning it on`)
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("enabled %v", got)
+	}
+	if srv.Connections() != 0 {
+		t.Fatalf("redirection connections %d", srv.Connections())
+	}
+	// KVM on, kvm_input off: the session opens, and no wake key reaches the host.
+	f.Redirection().ListenerOff = false
+	h.mustOK("kvm_connect", dev("NUC"))
+	h.screenshot(dev("NUC"))
+	time.Sleep(300 * time.Millisecond) // a wake key would have gone out by now
+	if n := rawKeyMessages(srv); n != 0 {
+		t.Fatalf("%d key events without kvm_input", n)
+	}
+
+	// settings on, require_client_confirmation, KVM off: asked first; declined writes nothing,
+	// accepted turns KVM on.
+	var asked []string
+	answer := &mcp.ElicitResult{Action: "decline"}
+	h = newHarness(t)
+	h.cfg.RequireClientConfirmation = true
+	h.elicit = func(r *mcp.ElicitRequest) (*mcp.ElicitResult, error) {
+		asked = append(asked, r.Params.Message)
+		return answer, nil
+	}
+	f = h.addDevice("NUC", "192.0.2.10", false)
+	f.Redirection().KVMOff = true
+	addKVM(t, f, kvmtest.Options{Width: 128, Height: 64, Updates: [][]byte{solidUpdate(128, 64, red565)}})
+	h.start()
+	h.mustFail("kvm_connect", dev("NUC"), "not confirmed")
+	if got := f.RedirectionEnabled(); len(got) != 0 {
+		t.Fatalf("declined, enabled %v", got)
+	}
+	answer = &mcp.ElicitResult{Action: "accept", Content: map[string]any{"confirm": true}}
+	h.mustOK("kvm_connect", dev("NUC"))
+	if got := f.RedirectionEnabled(); !reflect.DeepEqual(got, []string{"KVM"}) {
+		t.Fatalf("enabled %v", got)
+	}
+	want := `The AI agent asks OpenLAMT to turn KVM on (it is off on the device; this changes a device setting, and it stays on) on device "NUC"`
+	if len(asked) != 2 || !strings.Contains(asked[0], want) || asked[1] != asked[0] {
+		t.Fatalf("asked %q", asked)
 	}
 }
 

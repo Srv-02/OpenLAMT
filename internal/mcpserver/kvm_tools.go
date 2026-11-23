@@ -11,6 +11,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/Srv-02/openlamt/internal/amt"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/kvm"
 	"github.com/Srv-02/openlamt/internal/typing"
@@ -30,11 +31,11 @@ const (
 	maxScrollClick = 50
 )
 
-// openKVM opens a KVM session to device: login check, the favorite's quality (high unless the
-// favorite says low), consent with code. The WS-Man session is closed again; the KVM client
-// has its own socket.
-func (s *server) openKVM(ctx context.Context, device string, code consentCode) (*kvm.Client, []string, error) {
-	sess, _, fav, warnings, err := s.openDevice(ctx, device)
+// openKVM opens a KVM session to the device of fav: login check, the favorite's quality (high
+// unless the favorite says low), consent with code. The WS-Man session is closed again; the KVM
+// client has its own socket.
+func (s *server) openKVM(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool) (*kvm.Client, []string, error) {
+	sess, warnings, err := s.openRedirection(ctx, fav, agreed)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -45,7 +46,7 @@ func (s *server) openKVM(ctx context.Context, device string, code consentCode) (
 	}
 	c, err := sess.OpenKVM(ctx, q, code)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, s.offError(err, "kvm_connect")
 	}
 	return c, warnings, nil
 }
@@ -88,7 +89,8 @@ func (s *server) registerKVM(srv *mcp.Server) {
 	addTool(s, srv, &mcp.Tool{Name: "kvm_connect", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 		Description: "Open the KVM (remote screen) session of a device and keep it for the other kvm_ tools. " +
 			"AMT allows one KVM session per device: while this server holds it, the OpenLAMT app and other clients cannot connect, and the other way round. " +
-			"KVM is turned on without a question when it is off on the device (not in read_only mode). " +
+			"If KVM is off on the device, it is turned on only with the tool group \"settings\" (a settings change, like set_remote_features), " +
+			"after a question in the MCP client with require_client_confirmation; otherwise the call says what to turn on. " +
 			"Calling it again returns the open session. Devices that require user consent show a six-digit code on their screen: " +
 			"call without consent_code first, ask a person at the device for the code, then call again with it. " +
 			"The session closes after the idle timeout without calls, with kvm_disconnect, or when this server stops."},
@@ -158,7 +160,36 @@ type kvmConnectOutput struct {
 	Warnings           []string `json:"warnings,omitempty"`
 }
 
-func (s *server) kvmConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmConnectInput, rec *record) (*mcp.CallToolResult, kvmConnectOutput, error) {
+// enableAsks reports whether kvm_connect and sol_connect ask before they turn their feature on.
+func (s *server) enableAsks() bool {
+	return s.cfg.Enabled(GroupSettings) && s.cfg.RequireClientConfirmation
+}
+
+// enableAnswered checks the answer to the question of confirmEnable that req carries, if any:
+// agreed true for an accepted one.
+func (s *server) enableAnswered(req *mcp.CallToolRequest, fav favorites.Favorite, tool string, in any) (agreed bool, err error) {
+	if _, ok := req.Params.InputResponses[confirmKey]; !ok || !s.enableAsks() {
+		return false, nil
+	}
+	if _, err := s.confirmEnable(req, fav, tool, in, "", ""); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// confirmEnable asks before kvm_connect or sol_connect turns feature on, which off (the
+// Feature of the *amt.RedirectionOffError of the first try) found off: the question of
+// set_remote_features, bound to the call and the favorite.
+func (s *server) confirmEnable(req *mcp.CallToolRequest, fav favorites.Favorite, tool string, in any, feature, off string) (*mcp.CallToolResult, error) {
+	what := "turn " + feature + " on"
+	if off == "redirection" {
+		what = "turn on the redirection port (needed for KVM, Serial over LAN and IDE-R), and " + feature + " if it is off too"
+	}
+	what += " (it is off on the device; this changes a device setting, and it stays on)"
+	return s.confirmChange(req, change{tool: tool, in: in, what: what}, fav, "")
+}
+
+func (s *server) kvmConnect(ctx context.Context, req *mcp.CallToolRequest, in kvmConnectInput, rec *record) (*mcp.CallToolResult, kvmConnectOutput, error) {
 	rec.device = in.Device
 	code, err := parseConsentCode(in.ConsentCode)
 	if err != nil {
@@ -167,20 +198,31 @@ func (s *server) kvmConnect(ctx context.Context, _ *mcp.CallToolRequest, in kvmC
 	if code != "" {
 		rec.action = "with consent code" // never the code itself
 	}
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
+		return nil, kvmConnectOutput{}, err
+	}
+	agreed, err := s.enableAnswered(req, fav, "kvm_connect", in)
+	if err != nil {
 		return nil, kvmConnectOutput{}, err
 	}
 	var out kvmConnectOutput
-	err = s.kvm.connect(ctx, in.Device, code, func(e *kvmEntry, already bool) error {
-		// read_only sends no input to the host, so no wake keys there.
-		if !already && !s.cfg.ReadOnly {
+	err = s.kvm.connect(ctx, fav, code, agreed, func(e *kvmEntry, already bool) error {
+		// The wake keys are input to the host: only with the tool group kvm_input (never in
+		// read_only).
+		if !already && s.cfg.Enabled(GroupKVMInput) {
 			go wakeScreen(e.client)
 		}
 		w, h := e.client.Size()
-		out = kvmConnectOutput{Device: in.Device, AlreadyOpen: already, ScreenWidth: w, ScreenHeight: h,
+		out = kvmConnectOutput{Device: fav.DisplayName(), AlreadyOpen: already, ScreenWidth: w, ScreenHeight: h,
 			Quality: e.client.Quality().String(), IdleTimeoutSeconds: int(s.cfg.KVMIdleTimeout / time.Second), Warnings: e.warnings}
 		return nil
 	})
+	var off *amt.RedirectionOffError
+	if !agreed && s.enableAsks() && errors.As(err, &off) {
+		res, err := s.confirmEnable(req, fav, "kvm_connect", in, "KVM", off.Feature)
+		return res, kvmConnectOutput{}, err
+	}
 	if err != nil {
 		return nil, kvmConnectOutput{}, err
 	}
@@ -194,10 +236,11 @@ type kvmDisconnectOutput struct {
 
 func (s *server) kvmDisconnect(_ context.Context, _ *mcp.CallToolRequest, in deviceInput, rec *record) (*mcp.CallToolResult, kvmDisconnectOutput, error) {
 	rec.device = in.Device
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, kvmDisconnectOutput{}, err
 	}
-	return nil, kvmDisconnectOutput{Device: in.Device, Closed: s.kvm.disconnect(in.Device)}, nil
+	return nil, kvmDisconnectOutput{Device: fav.DisplayName(), Closed: s.kvm.disconnect(fav)}, nil
 }
 
 // --- kvm_screenshot
@@ -253,7 +296,8 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 	if in.WaitMS < 0 || in.WaitMS > maxWaitMS {
 		return nil, screenshotOutput{}, refuse("wait_ms must be between 0 and %d.", maxWaitMS)
 	}
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, screenshotOutput{}, err
 	}
 	var (
@@ -261,7 +305,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		data []byte
 		mime string
 	)
-	err = s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		c := e.client
 		out.Warnings = append(out.Warnings, e.warnings...)
 		wait := func(d time.Duration, after uint64) error {
@@ -295,7 +339,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		}
 		sw, sh := c.Size()
 		e.imgW, e.imgH = w, h
-		out = screenshotOutput{Device: in.Device, Width: w, Height: h, ScreenWidth: sw, ScreenHeight: sh, Format: sc.Format,
+		out = screenshotOutput{Device: fav.DisplayName(), Width: w, Height: h, ScreenWidth: sw, ScreenHeight: sh, Format: sc.Format,
 			Bytes: len(data), Frame: c.Frame(), Warnings: out.Warnings}
 		return nil
 	})
@@ -303,7 +347,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		return nil, screenshotOutput{}, err
 	}
 	text := fmt.Sprintf("Screen of %s: %dx%d pixels, shown as a %dx%d %s image. kvm_mouse takes x and y in this image's pixels.",
-		in.Device, out.ScreenWidth, out.ScreenHeight, out.Width, out.Height, strings.ToUpper(out.Format))
+		fav.DisplayName(), out.ScreenWidth, out.ScreenHeight, out.Width, out.Height, strings.ToUpper(out.Format))
 	for _, w := range out.Warnings {
 		text += "\nWarning: " + w
 	}
@@ -323,15 +367,11 @@ type sendKeysOutput struct {
 }
 
 // confirmInput asks the person in the MCP client before an input call, when the config wants it.
-func (s *server) confirmInput(req *mcp.CallToolRequest, device, what string) (*mcp.CallToolResult, error) {
-	fav, err := s.lookup(device)
-	if err != nil {
-		return nil, err
+func (s *server) confirmInput(req *mcp.CallToolRequest, fav favorites.Favorite, what string) (*mcp.CallToolResult, error) {
+	if !s.kvm.has(fav) {
+		return nil, noSession(fav) // do not ask a person for a call that cannot run
 	}
-	if !s.kvm.has(device) {
-		return nil, noSession(device) // do not ask a person for a call that cannot run
-	}
-	return s.confirm(req, confirmMessage(what, fav))
+	return s.confirm(req, fav, confirmMessage(what, fav))
 }
 
 // sleepCtx waits d unless ctx ends first.
@@ -365,10 +405,14 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 	// bounded by maxKeyCombos combos of at most maxComboKeys known key names.
 	list := strings.Join(names, ", ")
 	rec.action = list
-	if res, err := s.confirmInput(req, in.Device, "press "+list); res != nil || err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
+		return nil, sendKeysOutput{}, err
+	}
+	if res, err := s.confirmInput(req, fav, "press "+list); res != nil || err != nil {
 		return res, sendKeysOutput{}, err
 	}
-	err := s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		c := e.client
 		for i, keys := range combos {
 			if i > 0 {
@@ -394,7 +438,7 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 	if err != nil {
 		return nil, sendKeysOutput{}, err
 	}
-	return nil, sendKeysOutput{Device: in.Device, Sent: len(combos)}, nil
+	return nil, sendKeysOutput{Device: fav.DisplayName(), Sent: len(combos)}, nil
 }
 
 // comboText is a valid combo as written, without the spaces around "+" (so its length is
@@ -462,11 +506,15 @@ func (s *server) kvmMouse(ctx context.Context, req *mcp.CallToolRequest, in mous
 		what += fmt.Sprintf(" (%d)", in.Amount)
 	}
 	rec.action = what
-	if res, err := s.confirmInput(req, in.Device, "use the mouse: "+what); res != nil || err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
+		return nil, mouseOutput{}, err
+	}
+	if res, err := s.confirmInput(req, fav, "use the mouse: "+what); res != nil || err != nil {
 		return res, mouseOutput{}, err
 	}
 	var out mouseOutput
-	err := s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		c := e.client
 		w, h := c.Size()
 		x, y := screenPoint(in.X, in.Y, e.imgW, e.imgH, w, h)
@@ -502,7 +550,7 @@ func (s *server) kvmMouse(ctx context.Context, req *mcp.CallToolRequest, in mous
 				e.buttons = b
 			}
 		}
-		out = mouseOutput{Device: in.Device, Action: in.Action, ScreenX: x, ScreenY: y}
+		out = mouseOutput{Device: fav.DisplayName(), Action: in.Action, ScreenX: x, ScreenY: y}
 		return nil
 	})
 	if err != nil {
@@ -619,10 +667,10 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 	if in.Secret {
 		rec.action += ", secret"
 	}
-	if res, err := s.confirmInput(req, in.Device, typePrompt(plan, in.Secret)); res != nil || err != nil {
+	if res, err := s.confirmInput(req, fav, typePrompt(plan, in.Secret)); res != nil || err != nil {
 		return res, typeOutput{}, err
 	}
-	err = s.kvm.use(ctx, in.Device, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		if err := typing.Type(ctx, e.client, plan, typing.DefaultDelay, nil); err != nil {
 			_ = e.client.ReleaseAll()
 			return err
@@ -632,7 +680,7 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 	if err != nil {
 		return nil, typeOutput{}, err
 	}
-	out := typeOutput{Device: in.Device, Layout: string(layout), Typed: plan.Typeable()}
+	out := typeOutput{Device: fav.DisplayName(), Layout: string(layout), Typed: plan.Typeable()}
 	for _, u := range plan.Unmappable {
 		out.Skipped = append(out.Skipped, skippedChar{Char: string(u.Char), Line: u.Line, Column: u.Column})
 	}

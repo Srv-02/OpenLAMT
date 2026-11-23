@@ -9,35 +9,38 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/ider"
 )
 
-// openIDER mounts img on device: login check, IDE-R turned on if off, consent with code. The
-// WS-Man session is closed again; the IDE-R client has its own socket.
-func (s *server) openIDER(ctx context.Context, device string, img ider.Image, code consentCode) (*ider.Client, []string, error) {
-	sess, _, _, warnings, err := s.openDevice(ctx, device)
+// openIDER mounts img on the device of fav: login check, IDE-R turned on if off, consent with
+// code. The WS-Man session is closed again; the IDE-R client has its own socket.
+func (s *server) openIDER(ctx context.Context, fav favorites.Favorite, img ider.Image, code consentCode, agreed bool) (*ider.Client, []string, error) {
+	sess, warnings, err := s.openRedirection(ctx, fav, agreed)
 	if err != nil {
 		return nil, nil, err
 	}
 	defer sess.Close()
 	c, err := sess.OpenIDER(ctx, img, ider.StartNow, code)
 	if err != nil {
-		return nil, nil, &redirOpenError{kind: "ider", err: err}
+		return nil, nil, &redirOpenError{kind: "ider", err: s.offError(err, "media_mount")}
 	}
 	return c, warnings, nil
 }
 
-// clearISOBoot switches the IDE-R boot option of device off, bounded by clearBootTimeout. It runs
-// after a request has ended (unmount, end of the session, Close), so it has its own context.
-func (s *server) clearISOBoot(device string) error {
+// clearISOBoot switches the IDE-R boot option of the device of fav (the one the mount was made
+// on) off, bounded by clearBootTimeout. It runs after a request has ended (unmount, end of the
+// session, Close), so it has its own context.
+func (s *server) clearISOBoot(fav favorites.Favorite) error {
 	ctx, cancel := context.WithTimeout(context.Background(), clearBootTimeout)
 	defer cancel()
-	sess, _, _, _, err := s.openDevice(ctx, device)
+	sess, _, _, err := s.openFav(ctx, fav)
 	if err != nil {
 		return err
 	}
@@ -55,7 +58,8 @@ func (s *server) registerMedia(srv *mcp.Server) {
 			"(media redirection, IDE-R), for example to install an operating system or run a tool from it. A folder is built into a temporary ISO " +
 			"image first; a big folder takes a while, and the build runs within this call, so an MCP client with a short tool timeout may abort it. " +
 			"AMT allows one IDE-R session per device: while this server holds it, the Media menu of the OpenLAMT app, MeshCommander and other clients " +
-			"cannot mount, and the other way round. IDE-R is turned on without a question when it is off on the device and stays on. " +
+			"cannot mount, and the other way round. If IDE-R is off on the device, it is turned on and stays on, only with the tool group \"settings\" " +
+			"(a settings change, like set_remote_features); with require_client_confirmation the mount question includes it. " +
 			"Devices that require user consent show a six-digit code on their screen: call without consent_code first, ask a person at the device " +
 			"for the code, then call again with it (the image is kept for that call). The image stays mounted until media_unmount, until the device " +
 			"ends the session, or until this server stops. Then use media_boot_next or boot_from_iso to boot from it. " +
@@ -116,15 +120,18 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 		return mediaSource{}, 0, refuse("path must be an absolute path of an .iso file or of a folder on the computer that runs openlamt-mcp.")
 	}
 	p = filepath.Clean(p)
+	// The path as given is the agent's: its errors repeat it shortened, and not again inside the
+	// error of the file system.
+	shown := shortPath(p)
 	resolved, err := filepath.EvalSymlinks(p)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return mediaSource{}, 0, refuse("%s does not exist.", visible(p))
+		return mediaSource{}, 0, refuse("%s does not exist.", shown)
 	case err != nil:
-		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(p), err)
+		return mediaSource{}, 0, refuse("Cannot read %s: %v", shown, withoutPath(err))
 	}
 	if resolved, err = filepath.Abs(resolved); err != nil {
-		return mediaSource{}, 0, refuse("Cannot read %s: %v", visible(p), err)
+		return mediaSource{}, 0, refuse("Cannot read %s: %v", shown, withoutPath(err))
 	}
 	if err := refuseWindowsAlias(resolved); err != nil { // a link that leads to such a path
 		return mediaSource{}, 0, err
@@ -151,6 +158,27 @@ func (s *server) mediaPath(given string) (src mediaSource, size int64, err error
 	return src, size, nil
 }
 
+// shortPath shows a path the agent gave in an error text: control and format characters
+// visible, at most maxLogged characters. A longer path keeps its start and its end (the file
+// name) and says how long it was.
+func shortPath(p string) string {
+	r := []rune(visible(p))
+	if len(r) <= maxLogged {
+		return string(r)
+	}
+	head := maxLogged / 4
+	return fmt.Sprintf("%s…%s (%d characters)", string(r[:head]), string(r[len(r)-(maxLogged-head):]), len(r))
+}
+
+// withoutPath is err without the path a *fs.PathError repeats.
+func withoutPath(err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) {
+		return pe.Err
+	}
+	return err
+}
+
 // sizeText is a file size for a prompt.
 func sizeText(n int64) string {
 	if n < 100_000 {
@@ -161,8 +189,9 @@ func sizeText(n int64) string {
 
 // mountPrompt is what the person confirming sees before media_mount runs: whether a file or a
 // folder is mounted and its full resolved path (and the path as given when a link led there),
-// so the agent cannot mount another file than the one shown.
-func mountPrompt(src mediaSource, given string, size int64) string {
+// so the agent cannot mount another file than the one shown, and, when the call may do it
+// (enable), that IDE-R is turned on.
+func mountPrompt(src mediaSource, given string, size int64, enable bool) string {
 	shown := "«" + visible(src.path) + "»"
 	if g := filepath.Clean(strings.TrimSpace(given)); g != src.path {
 		shown += " (given as «" + visible(g) + "»)"
@@ -170,6 +199,9 @@ func mountPrompt(src mediaSource, given string, size int64) string {
 	what := fmt.Sprintf("mount the ISO file %s (%s) as a read-only CD drive", shown, sizeText(size))
 	if src.folder {
 		what = fmt.Sprintf("mount the folder %s as a read-only CD drive (OpenLAMT builds an ISO image of it first)", shown)
+	}
+	if !enable {
+		return what
 	}
 	return what + "; media redirection (IDE-R) is turned on on the device if it is off and stays on"
 }
@@ -196,15 +228,16 @@ func (s *server) mediaMount(ctx context.Context, req *mcp.CallToolRequest, in me
 	if err != nil {
 		return nil, mediaMountOutput{}, err
 	}
-	if err := s.media.free(in.Device); err != nil {
+	if err := s.media.free(fav); err != nil {
 		return nil, mediaMountOutput{}, err
 	}
-	if res, err := s.confirm(req, confirmMessage(mountPrompt(src, in.Path, size), fav)); res != nil || err != nil {
+	if res, err := s.confirmMount(req, fav, src, size, mountPrompt(src, in.Path, size, s.mayEnable(true))); res != nil || err != nil {
 		return res, mediaMountOutput{}, err
 	}
+	// The mount question, if any, said that IDE-R is turned on: the answer covers it.
 	var out mediaMountOutput
-	err = s.media.mount(ctx, in.Device, src, code, func(e *mediaEntry) {
-		out = mediaMountOutput{Device: in.Device, Name: e.name, Path: e.path, Kind: mediaKind(e.folder), SizeBytes: e.size, Warnings: e.warnings}
+	err = s.media.mount(ctx, fav, src, code, true, func(e *mediaEntry) {
+		out = mediaMountOutput{Device: fav.DisplayName(), Name: e.name, Path: e.path, Kind: mediaKind(e.folder), SizeBytes: e.size, Warnings: e.warnings}
 		if i := e.info; i != nil {
 			out.Files, out.Skipped, out.UEFIBootable = i.Files, i.Skipped, boolPtr(i.Bootable)
 		}
@@ -217,7 +250,7 @@ func (s *server) mediaMount(ctx context.Context, req *mcp.CallToolRequest, in me
 	}
 	text := fmt.Sprintf("Mounted «%s» on %q as a read-only CD drive. media_boot_next sets it for the next start, boot_from_iso restarts "+
 		"the device from it now. It stays mounted until media_unmount, until the device ends the session, or until this server stops.",
-		visible(out.Name), in.Device)
+		visible(out.Name), fav.DisplayName())
 	if n := len(out.Skipped); n > 0 {
 		text += fmt.Sprintf(" %d symbolic links or special files in the folder were left out (see skipped).", n)
 	}
@@ -231,6 +264,68 @@ func mediaKind(folder bool) string {
 	return "iso"
 }
 
+// mountAsks keeps, per device (favKey), the file or folder a media_mount question showed, so
+// the confirmed call mounts that one: the same resolved path, kind, size and modification time
+// (in the request state) and the same file (os.SameFile), not whatever the path leads to when
+// the answer comes back.
+type mountAsks struct {
+	mu sync.Mutex
+	m  map[string]mountAsk
+}
+
+type mountAsk struct {
+	state   string
+	checked os.FileInfo
+}
+
+func (a *mountAsks) put(key, state string, checked os.FileInfo) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.m == nil {
+		a.m = map[string]mountAsk{}
+	}
+	a.m[key] = mountAsk{state: state, checked: checked}
+}
+
+// take removes the question kept for key and reports whether it showed checked under state.
+func (a *mountAsks) take(key, state string, checked os.FileInfo) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	q, ok := a.m[key]
+	delete(a.m, key)
+	return ok && q.state == state && os.SameFile(q.checked, checked)
+}
+
+// mountSourceState names what a media_mount question shows: the resolved path, the kind, the
+// size and the modification time.
+func mountSourceState(src mediaSource, size int64) string {
+	return fmt.Sprintf("mount %s %d %d %s", mediaKind(src.folder), size, src.checked.ModTime().UnixNano(), src.path)
+}
+
+// confirmMount asks before media_mount, when the config wants it, and holds the answer to the
+// file or folder the question showed.
+func (s *server) confirmMount(req *mcp.CallToolRequest, fav favorites.Favorite, src mediaSource, size int64, what string) (*mcp.CallToolResult, error) {
+	if !s.cfg.RequireClientConfirmation {
+		return nil, nil
+	}
+	state := mountSourceState(src, size)
+	res, err := s.confirmFor(req, fav, confirmMessage(what, fav), state,
+		"The file or folder, or the device, changed while the question was open, so the answer was for something else. "+
+			"Nothing was mounted; call media_mount again.")
+	switch {
+	case err != nil:
+		return nil, err
+	case res != nil:
+		s.mountAsks.put(favKey(fav), state, src.checked)
+		return res, nil
+	}
+	if !s.mountAsks.take(favKey(fav), state, src.checked) {
+		return nil, refuse("%s is not the file or folder the question showed (it was replaced while the question was open). "+
+			"Nothing was mounted; call media_mount again.", visible(src.path))
+	}
+	return nil, nil
+}
+
 // --- media_unmount and media_status
 
 type mediaUnmountOutput struct {
@@ -242,14 +337,15 @@ type mediaUnmountOutput struct {
 
 func (s *server) mediaUnmount(_ context.Context, _ *mcp.CallToolRequest, in deviceInput, rec *record) (*mcp.CallToolResult, mediaUnmountOutput, error) {
 	rec.device = in.Device
-	if _, err := s.lookup(in.Device); err != nil {
-		return nil, mediaUnmountOutput{}, err
-	}
-	r, err := s.media.unmount(in.Device)
+	fav, err := s.lookup(in.Device)
 	if err != nil {
 		return nil, mediaUnmountOutput{}, err
 	}
-	out := mediaUnmountOutput{Device: in.Device, Unmounted: r.unmounted, BootOptionCleared: r.cleared}
+	r, err := s.media.unmount(fav)
+	if err != nil {
+		return nil, mediaUnmountOutput{}, err
+	}
+	out := mediaUnmountOutput{Device: fav.DisplayName(), Unmounted: r.unmounted, BootOptionCleared: r.cleared}
 	if r.warning != "" {
 		out.Warnings = append(out.Warnings, r.warning)
 	}
@@ -274,12 +370,13 @@ type mediaStatusOutput struct {
 
 func (s *server) mediaStatus(_ context.Context, _ *mcp.CallToolRequest, in deviceInput, rec *record) (*mcp.CallToolResult, mediaStatusOutput, error) {
 	rec.device = in.Device
-	if _, err := s.lookup(in.Device); err != nil {
+	fav, err := s.lookup(in.Device)
+	if err != nil {
 		return nil, mediaStatusOutput{}, err
 	}
 	m := s.media
-	out := mediaStatusOutput{Device: in.Device}
-	err := m.inspect(in.Device, func(e *mediaEntry, pending bool) {
+	out := mediaStatusOutput{Device: fav.DisplayName()}
+	err = m.inspect(fav, func(e *mediaEntry, pending bool) {
 		out.PendingConsent = pending
 		switch {
 		case e == nil:
@@ -322,9 +419,10 @@ type mediaBootNextOutput struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// mountedRef is the name and number of the mount on device; it refuses without a running mount.
-func (s *server) mountedRef(device string) (name string, gen uint64, err error) {
-	err = s.media.mounted(device, func(e *mediaEntry) error {
+// mountedRef is the name and number of the mount on the device of fav; it refuses without a
+// running mount.
+func (s *server) mountedRef(fav favorites.Favorite) (name string, gen uint64, err error) {
+	err = s.media.mounted(fav, func(e *mediaEntry) error {
 		name, gen = e.name, e.gen
 		return nil
 	})
@@ -343,6 +441,10 @@ func sameMount(e *mediaEntry, gen uint64) error {
 // mountState is the request state of a confirmation about the mount numbered gen.
 func mountState(gen uint64) string { return fmt.Sprintf("mount %d", gen) }
 
+// staleMount refuses an answer about another mount or device.
+const staleMount = "The mounted image or the device changed while the question was open, so the answer was for another image. " +
+	"Nothing was sent to the device; call the tool again."
+
 func (s *server) mediaBootNext(ctx context.Context, req *mcp.CallToolRequest, in mediaBootNextInput, rec *record) (*mcp.CallToolResult, mediaBootNextOutput, error) {
 	rec.device, rec.action = in.Device, "off"
 	if in.Enabled {
@@ -352,23 +454,23 @@ func (s *server) mediaBootNext(ctx context.Context, req *mcp.CallToolRequest, in
 	if err != nil {
 		return nil, mediaBootNextOutput{}, err
 	}
-	name, gen, err := s.mountedRef(in.Device)
+	name, gen, err := s.mountedRef(fav)
 	if err != nil {
 		return nil, mediaBootNextOutput{}, err
 	}
 	// Clearing takes nothing away the person has to agree to, like the app's check mark.
 	if in.Enabled {
 		what := fmt.Sprintf("set the device to boot from «%s» at its next start (no restart now)", visible(name))
-		if res, err := s.confirmFor(req, confirmMessage(what, fav), mountState(gen)); res != nil || err != nil {
+		if res, err := s.confirmFor(req, fav, confirmMessage(what, fav), mountState(gen), staleMount); res != nil || err != nil {
 			return res, mediaBootNextOutput{}, err
 		}
 	}
-	out := mediaBootNextOutput{Device: in.Device}
-	err = s.media.mounted(in.Device, func(e *mediaEntry) error {
+	out := mediaBootNextOutput{Device: fav.DisplayName()}
+	err = s.media.mounted(fav, func(e *mediaEntry) error {
 		if err := sameMount(e, gen); err != nil {
 			return err
 		}
-		sess, _, _, warnings, err := s.openDevice(ctx, in.Device)
+		sess, _, warnings, err := s.openFav(ctx, fav)
 		if err != nil {
 			return err
 		}
@@ -400,21 +502,21 @@ func (s *server) bootFromISO(ctx context.Context, req *mcp.CallToolRequest, in d
 	if err != nil {
 		return nil, bootOutput{}, err
 	}
-	name, gen, err := s.mountedRef(in.Device)
+	name, gen, err := s.mountedRef(fav)
 	if err != nil {
 		return nil, bootOutput{}, err
 	}
 	rec.action = name
 	what := fmt.Sprintf("restart and boot once from «%s» (a running device is reset; unsaved work is lost)", visible(name))
-	if res, err := s.confirmFor(req, confirmMessage(what, fav), mountState(gen)); res != nil || err != nil {
+	if res, err := s.confirmFor(req, fav, confirmMessage(what, fav), mountState(gen), staleMount); res != nil || err != nil {
 		return res, bootOutput{}, err
 	}
 	var out bootOutput
-	err = s.media.mounted(in.Device, func(e *mediaEntry) error {
+	err = s.media.mounted(fav, func(e *mediaEntry) error {
 		if err := sameMount(e, gen); err != nil {
 			return err
 		}
-		sess, st, _, warnings, err := s.openDevice(ctx, in.Device)
+		sess, st, warnings, err := s.openFav(ctx, fav)
 		if err != nil {
 			return err
 		}
@@ -431,7 +533,7 @@ func (s *server) bootFromISO(ctx context.Context, req *mcp.CallToolRequest, in d
 		if isOff(st) {
 			result = "The device accepted the request: it powers on and boots once from " + visible(e.name) + "."
 		}
-		out = bootOutput{Device: in.Device, PowerStateBefore: powerStateName(st), Result: result, Warnings: warnings}
+		out = bootOutput{Device: fav.DisplayName(), PowerStateBefore: powerStateName(st), Result: result, Warnings: warnings}
 		return nil
 	})
 	if err != nil {

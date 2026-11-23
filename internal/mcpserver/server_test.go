@@ -2,9 +2,12 @@ package mcpserver
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -45,6 +48,7 @@ type harness struct {
 	devices map[string]*session.Fake
 	elicit  func(*mcp.ElicitRequest) (*mcp.ElicitResult, error) // nil: the client has no elicitation
 	logins  *fakeLogins                                         // the LoginStore the server gets
+	logger  *slog.Logger                                        // the server's stderr log; nil discards
 
 	mu       sync.Mutex
 	connects []amt.Config
@@ -96,6 +100,18 @@ func (h *harness) connect(ctx context.Context, cfg amt.Config, prompt amt.TrustP
 	return session.ConnectFake(f)(ctx, cfg, prompt)
 }
 
+// key is the favKey of the favorite named name, which the managers keep its sessions by.
+func (h *harness) key(name string) string {
+	h.t.Helper()
+	for _, f := range h.favs {
+		if f.DisplayName() == name {
+			return favKey(f)
+		}
+	}
+	h.t.Fatalf("no favorite %q", name)
+	return ""
+}
+
 func (h *harness) connectCalls() []amt.Config {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -113,7 +129,8 @@ func (h *harness) start() {
 		}
 		h.logPath = h.cfg.ActionLogPath
 	}
-	srv := New(Options{Config: h.cfg, Favorites: h.favs, Keys: h.keys, Connect: h.connect, Logins: h.logins, Log: log, Version: "test"})
+	srv := New(Options{Config: h.cfg, Favorites: h.favs, Keys: h.keys, Connect: h.connect, Logins: h.logins, Log: log, Logger: h.logger,
+		Version: "test"})
 	h.srv = srv
 	t.Cleanup(srv.Close)
 	ct, st := mcp.NewInMemoryTransports()
@@ -705,6 +722,47 @@ func TestActionLogRecordsCalls(t *testing.T) {
 	}
 	if fi, err := os.Stat(h.logPath); err != nil || (fi.Mode().Perm()&0o077 != 0 && !isWindows()) {
 		t.Fatalf("log mode %v %v", fi.Mode(), err)
+	}
+}
+
+// TestLogsShortenAgentStrings (#118): a huge device name or path from the agent is shortened in
+// the action log, on stderr and in the error text, with its length.
+func TestLogsShortenAgentStrings(t *testing.T) {
+	h := newHarness(t)
+	f := h.addDevice("NUC", "192.0.2.10", false)
+	f.PowerErr = &amt.PowerError{Action: amt.PowerReset, ReturnValue: 4}
+	var stderr bytes.Buffer
+	h.logger = slog.New(slog.NewTextHandler(&stderr, nil))
+	h.start()
+	const n = 100000
+	long := strings.Repeat("x", n)
+	text := h.mustFail("device_status", dev(long), "No favorite named")
+	padded := "NUC" + strings.Repeat(" ", n) // found: the lookup trims it
+	h.mustFail("power_action", dev(padded, "action", "reset"), "ReturnValue 4")
+	path, _, isErr := h.call("media_mount", dev("NUC", "path", filepath.Join(t.TempDir(), long+".iso")))
+	if !isErr || !strings.Contains(path, ".iso (") { // the end of the path, the file name, is kept
+		t.Fatalf("media_mount of a missing path: %v %.200s", isErr, path)
+	}
+	for _, msg := range []string{text, path} {
+		if len(msg) > 1000 || !strings.Contains(msg, "characters)") {
+			t.Errorf("error text of %d bytes: %.200s", len(msg), msg)
+		}
+	}
+	entries := h.logEntries()
+	if len(entries) != 3 {
+		t.Fatalf("%d entries", len(entries))
+	}
+	for i, e := range entries {
+		b, _ := json.Marshal(e)
+		if len(b) > 2000 {
+			t.Errorf("entry %d has %d bytes: %.300s", i, len(b), b)
+		}
+	}
+	if d := entries[0]["device"].(string); !strings.HasPrefix(d, strings.Repeat("x", maxLogged)+"…") || !strings.HasSuffix(d, fmt.Sprintf("(%d characters)", n)) {
+		t.Errorf("device %q", d)
+	}
+	if stderr.Len() == 0 || stderr.Len() > 2000 {
+		t.Errorf("stderr has %d bytes: %.300s", stderr.Len(), stderr.String())
 	}
 }
 

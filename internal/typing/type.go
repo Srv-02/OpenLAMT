@@ -43,7 +43,7 @@ func Type(ctx context.Context, s KeySender, p Plan, delay time.Duration, progres
 			}
 		}
 		if err := sendStroke(s, st); err != nil {
-			return err
+			return strokeError(done, err)
 		}
 		if st.Dead || st.Compose {
 			// not cancellable, so the dead key and the key that completes it (Space, or the
@@ -57,7 +57,7 @@ func Type(ctx context.Context, s KeySender, p Plan, delay time.Duration, progres
 				time.Sleep(delay)
 			}
 			if err := sendStroke(s, next); err != nil {
-				return err
+				return strokeError(done, err)
 			}
 		}
 		done++
@@ -66,6 +66,12 @@ func Type(ctx context.Context, s KeySender, p Plan, delay time.Duration, progres
 		}
 	}
 	return nil
+}
+
+// strokeError names the position of the character whose key failed, never the key: the text
+// may be a secret, and the keysym of a Latin character is its code point.
+func strokeError(done int, err error) error {
+	return fmt.Errorf("typing: character %d: %w", done+1, err)
 }
 
 func sendStroke(s KeySender, st Stroke) (err error) {
@@ -81,7 +87,7 @@ func sendStroke(s KeySender, st Stroke) (err error) {
 		// A failed key down may still have reached the target, so it is released too.
 		held = append(held, k)
 		if err := s.SendKey(k, true); err != nil {
-			return fmt.Errorf("typing: key down %#x: %w", k, err)
+			return fmt.Errorf("key down: %w", err)
 		}
 		return nil
 	}
@@ -101,7 +107,7 @@ func sendStroke(s KeySender, st Stroke) (err error) {
 	// release in reverse order; keep going after an error so modifiers come up
 	for j := len(held) - 1; j >= 0; j-- {
 		if e := s.SendKey(held[j], false); e != nil && err == nil {
-			err = fmt.Errorf("typing: key up %#x: %w", held[j], e)
+			err = fmt.Errorf("key up: %w", e)
 		}
 	}
 	held = nil

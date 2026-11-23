@@ -484,10 +484,10 @@ func (s *server) powerAction(ctx context.Context, req *mcp.CallToolRequest, in p
 	if action.Destructive() && !s.cfg.Enabled(GroupDestructive) {
 		return nil, powerOutput{}, s.destructiveRefused("Power " + in.Action)
 	}
-	if res, err := s.confirm(req, confirmMessage("run power "+in.Action, fav)); res != nil || err != nil {
+	if res, err := s.confirm(req, fav, confirmMessage("run power "+in.Action, fav)); res != nil || err != nil {
 		return res, powerOutput{}, err
 	}
-	sess, st, _, warnings, err := s.openDevice(ctx, in.Device)
+	sess, st, warnings, err := s.openFav(ctx, fav)
 	if err != nil {
 		return nil, powerOutput{}, err
 	}
@@ -508,7 +508,7 @@ func (s *server) powerAction(ctx context.Context, req *mcp.CallToolRequest, in p
 	}
 	// AMT refuses off, cycle and shutdown while KVM is open (ReturnValue 2), like the app's
 	// endsKVM: close the session first. Its entry stays, so the next KVM call opens it again.
-	kvmClosed := endsKVM(action) && s.kvm.closeForPower(in.Device)
+	kvmClosed := endsKVM(action) && s.kvm.closeForPower(fav)
 	if err := sess.Power(action); err != nil {
 		return nil, powerOutput{}, err
 	}
@@ -516,7 +516,7 @@ func (s *server) powerAction(ctx context.Context, req *mcp.CallToolRequest, in p
 	if kvmClosed {
 		result += " The KVM session was closed first, because AMT refuses this action while KVM is open; the next KVM tool call opens it again."
 	}
-	return nil, powerOutput{Device: in.Device, Action: in.Action, PowerStateBefore: powerStateName(st),
+	return nil, powerOutput{Device: fav.DisplayName(), Action: in.Action, PowerStateBefore: powerStateName(st),
 		Result: result, Warnings: warnings}, nil
 }
 
@@ -551,10 +551,10 @@ func (s *server) bootToBIOS(ctx context.Context, req *mcp.CallToolRequest, in bo
 	if err != nil {
 		return nil, bootOutput{}, err
 	}
-	if res, err := s.confirm(req, confirmMessage("boot into BIOS setup (a running device is reset)", fav)); res != nil || err != nil {
+	if res, err := s.confirm(req, fav, confirmMessage("boot into BIOS setup (a running device is reset)", fav)); res != nil || err != nil {
 		return res, bootOutput{}, err
 	}
-	sess, st, _, warnings, err := s.openDevice(ctx, in.Device)
+	sess, st, warnings, err := s.openFav(ctx, fav)
 	if err != nil {
 		return nil, bootOutput{}, err
 	}
@@ -570,5 +570,5 @@ func (s *server) bootToBIOS(ctx context.Context, req *mcp.CallToolRequest, in bo
 	if isOff(st) {
 		result = "The device accepted the request: it powers on into BIOS setup."
 	}
-	return nil, bootOutput{Device: in.Device, PowerStateBefore: powerStateName(st), Result: result, Warnings: warnings}, nil
+	return nil, bootOutput{Device: fav.DisplayName(), PowerStateBefore: powerStateName(st), Result: result, Warnings: warnings}, nil
 }

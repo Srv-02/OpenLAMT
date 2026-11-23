@@ -39,6 +39,8 @@ type server struct {
 	kvm     *kvmManager
 	sol     *solManager
 	media   *mediaManager
+	// mountAsks holds what open media_mount questions showed.
+	mountAsks mountAsks
 	// stateKey keys the request state that binds a settings or account question to its call.
 	stateKey []byte
 }
@@ -107,13 +109,15 @@ func addTool[In, Out any](s *server, srv *mcp.Server, t *mcp.Tool, h handler[In,
 		if errors.Is(err, errConsentCodeNeeded) && !errors.As(err, &cne) {
 			err = &consentNeededError{tool: t.Name} // call this tool again with the code
 		}
-		e := ActionEntry{Time: time.Now().UTC(), Tool: t.Name, Device: rec.device, Action: rec.action, Outcome: "ok"}
+		// The device as the agent sent it, shortened: a huge name must not flood the log.
+		device := shorten(rec.device, maxLogged)
+		e := ActionEntry{Time: time.Now().UTC(), Tool: t.Name, Device: device, Action: rec.action, Outcome: "ok"}
 		switch {
 		case err != nil && isRefusal(err):
-			e.Outcome, e.Message = "refused", explain(err)
+			e.Outcome, e.Message = "refused", shorten(explain(err), maxLoggedMessage)
 		case err != nil:
-			e.Outcome, e.Message = "error", explain(err)
-			s.logger.Warn("tool failed", "tool", t.Name, "device", rec.device, "err", err)
+			e.Outcome, e.Message = "error", shorten(explain(err), maxLoggedMessage)
+			s.logger.Warn("tool failed", "tool", t.Name, "device", device, "err", shorten(err.Error(), maxLoggedMessage))
 		case res != nil && res.InputRequests != nil:
 			e.Outcome = "confirmation_requested"
 		}

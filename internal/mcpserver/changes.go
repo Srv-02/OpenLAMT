@@ -1,9 +1,6 @@
 package mcpserver
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -61,20 +58,17 @@ func levelName(l amt.Level) string {
 	return "orange"
 }
 
-// callState binds a question to the call it asks about: an HMAC over the tool name and the
-// decoded input. An answer that comes back with other arguments (another value, another
-// password) does not match and is refused. The key is the server's own, so the state reveals
-// nothing about the input, the password included.
-func (s *server) callState(tool string, in any) string {
+// callState binds a question to the call it asks about: an HMAC over the tool name, the
+// decoded input and the favorite it resolved to (name, host and user, see bindState). An answer
+// that comes back with other arguments (another value, another password) or for a favorite that
+// was renamed or now points to another host or user does not match and is refused. The key is
+// the server's own, so the state reveals nothing about the input, the password included.
+func (s *server) callState(tool string, in any, fav favorites.Favorite) string {
 	b, err := json.Marshal(in)
 	if err != nil {
 		panic(err) // the inputs are plain structs
 	}
-	mac := hmac.New(sha256.New, s.stateKey)
-	mac.Write([]byte(tool))
-	mac.Write([]byte{0})
-	mac.Write(b)
-	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	return s.bindState(fav, tool+"\x00"+string(b))
 }
 
 // confirmChange asks the person in the MCP client before c, as the app does: orange and red
@@ -99,8 +93,8 @@ func (s *server) confirmChange(req *mcp.CallToolRequest, c change, fav favorites
 		msg += "\n\n" + n
 	}
 	msg += "\n\nAllow it?"
-	q := question{message: msg, state: s.callState(c.tool, c.in), risk: risky,
-		stale: "The arguments of the call changed while the question was open, so the answer was for another change. " +
+	q := question{message: msg, state: s.callState(c.tool, c.in, fav), risk: risky,
+		stale: "The arguments of the call or the favorite changed while the question was open, so the answer was for another change. " +
 			"Nothing was sent to the device; call the tool again."}
 	if risky {
 		q.title = fmt.Sprintf("I understand the risk for %q (%s)", fav.DisplayName(), fav.Host)

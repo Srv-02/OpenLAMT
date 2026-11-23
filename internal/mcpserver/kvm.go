@@ -6,11 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/kvm"
 )
 
-// kvmOpener opens a KVM session to the favorite device with the consent code (may be empty).
-type kvmOpener func(ctx context.Context, device string, code consentCode) (*kvm.Client, []string, error)
+// kvmOpener opens a KVM session to the host and user of fav with the consent code (may be
+// empty). agreed: the person in the MCP client agreed to turn KVM on (see server.mayEnable).
+type kvmOpener func(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool) (*kvm.Client, []string, error)
 
 // kvmManager keeps one KVM session per device across tool calls. AMT allows one KVM session per
 // device, so the manager owns it: kvm_connect opens it, the other KVM tools use it, a session
@@ -20,7 +22,7 @@ type kvmOpener func(ctx context.Context, device string, code consentCode) (*kvm.
 // Lock order: an entry's mu may be held while taking m.mu, never the other way round.
 type kvmManager struct {
 	mu      sync.Mutex
-	entries map[string]*kvmEntry // by favorite name
+	entries map[string]*kvmEntry // by favKey
 	closed  bool
 	idle    time.Duration // 0: never
 	open    kvmOpener
@@ -30,7 +32,7 @@ type kvmManager struct {
 // kvmEntry is the KVM session of one device. Its mutex serializes the tool calls on it.
 type kvmEntry struct {
 	mu       sync.Mutex
-	device   string
+	key      string      // favKey of the device
 	client   *kvm.Client // nil after a power action closed it; opened again on use
 	warnings []string    // of the last open, e.g. no TLS
 	removed  bool        // disconnected, idle or shut down: the entry is no longer in the manager
@@ -48,8 +50,8 @@ func newKVMManager(idle time.Duration, open kvmOpener) *kvmManager {
 
 var errShuttingDown = refuse("The MCP server is shutting down.")
 
-func noSession(device string) error {
-	return refuse("No KVM session is open for %q: call kvm_connect first.", device)
+func noSession(fav favorites.Favorite) error {
+	return refuse("No KVM session is open for %q: call kvm_connect first.", fav.DisplayName())
 }
 
 // alive reports whether the client runs.
@@ -89,26 +91,28 @@ func (e *kvmEntry) shut() {
 	}
 }
 
-// has reports whether device has a session entry (open, or to be opened again on use).
-func (m *kvmManager) has(device string) bool {
+// has reports whether the device of fav has a session entry (open, or to be opened again on use).
+func (m *kvmManager) has(fav favorites.Favorite) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.entries[device] != nil
+	return m.entries[favKey(fav)] != nil
 }
 
-// connect opens the session of device, or keeps the running one (already true), and runs fn
-// with the entry locked. A session that ended is opened again with code.
-func (m *kvmManager) connect(ctx context.Context, device string, code consentCode, fn func(e *kvmEntry, already bool) error) error {
+// connect opens the session of the device of fav, or keeps the running one (already true), and
+// runs fn with the entry locked. A session that ended is opened again with code; agreed goes to
+// the opener.
+func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool, fn func(e *kvmEntry, already bool) error) error {
+	key := favKey(fav)
 	for {
 		m.mu.Lock()
 		if m.closed {
 			m.mu.Unlock()
 			return errShuttingDown
 		}
-		e, created := m.entries[device], false
+		e, created := m.entries[key], false
 		if e == nil {
-			e, created = &kvmEntry{device: device}, true
-			m.entries[device] = e
+			e, created = &kvmEntry{key: key}, true
+			m.entries[key] = e
 		}
 		m.mu.Unlock()
 
@@ -119,7 +123,7 @@ func (m *kvmManager) connect(ctx context.Context, device string, code consentCod
 		}
 		already := e.alive()
 		if !already {
-			c, warnings, err := m.open(ctx, device, code)
+			c, warnings, err := m.open(ctx, fav, code, agreed)
 			if err != nil {
 				if created {
 					m.remove(e)
@@ -146,27 +150,27 @@ type reopenError struct{ err error }
 func (e *reopenError) Error() string { return "reopen the KVM session: " + e.err.Error() }
 func (e *reopenError) Unwrap() error { return e.err }
 
-// use runs fn on the open session of device with the entry locked. A session that ended is
-// opened again first, without a consent code; if consent is needed then, the error asks for
-// kvm_connect with the code.
-func (m *kvmManager) use(ctx context.Context, device string, fn func(e *kvmEntry) error) error {
+// use runs fn on the open session of the device of fav with the entry locked. A session that
+// ended is opened again first, without a consent code; if consent is needed then, the error asks
+// for kvm_connect with the code.
+func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e *kvmEntry) error) error {
 	m.mu.Lock()
-	closed, e := m.closed, m.entries[device]
+	closed, e := m.closed, m.entries[favKey(fav)]
 	m.mu.Unlock()
 	switch {
 	case closed:
 		return errShuttingDown
 	case e == nil:
-		return noSession(device)
+		return noSession(fav)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.removed {
-		return noSession(device)
+		return noSession(fav)
 	}
 	if !e.alive() {
 		e.release()
-		c, warnings, err := m.open(ctx, device, "")
+		c, warnings, err := m.open(ctx, fav, "", false)
 		switch {
 		case errors.Is(err, errConsentCodeNeeded):
 			return &consentNeededError{tool: "kvm_connect", reopen: true}
@@ -185,8 +189,8 @@ func (m *kvmManager) use(ctx context.Context, device string, fn func(e *kvmEntry
 func (m *kvmManager) remove(e *kvmEntry) {
 	e.removed = true
 	m.mu.Lock()
-	if m.entries[e.device] == e {
-		delete(m.entries, e.device)
+	if m.entries[e.key] == e {
+		delete(m.entries, e.key)
 	}
 	m.mu.Unlock()
 }
@@ -206,10 +210,10 @@ func (m *kvmManager) expire(e *kvmEntry) {
 	e.shut()
 }
 
-// disconnect closes and removes the session of device; it reports whether there was one.
-func (m *kvmManager) disconnect(device string) bool {
+// disconnect closes and removes the session of the device of fav; it reports whether there was one.
+func (m *kvmManager) disconnect(fav favorites.Favorite) bool {
 	m.mu.Lock()
-	e := m.entries[device]
+	e := m.entries[favKey(fav)]
 	m.mu.Unlock()
 	if e == nil {
 		return false
@@ -224,12 +228,12 @@ func (m *kvmManager) disconnect(device string) bool {
 	return true
 }
 
-// closeForPower closes a running session of device before a power action that AMT refuses
-// while KVM is open. The entry stays, so the next KVM call opens the session again. It reports
-// whether a running session was closed.
-func (m *kvmManager) closeForPower(device string) bool {
+// closeForPower closes a running session of the device of fav before a power action that AMT
+// refuses while KVM is open. The entry stays, so the next KVM call opens the session again. It
+// reports whether a running session was closed.
+func (m *kvmManager) closeForPower(fav favorites.Favorite) bool {
 	m.mu.Lock()
-	e := m.entries[device]
+	e := m.entries[favKey(fav)]
 	m.mu.Unlock()
 	if e == nil {
 		return false

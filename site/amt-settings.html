@@ -37,6 +37,7 @@
 <li><a href="amt-settings.html" aria-current="page">AMT settings explained</a><ol class="toc"><li><a href="#basics">How Intel AMT works</a></li><li><a href="#control-mode">Control mode: ACM and CCM</a></li><li><a href="#general">Host name, domain and ping</a></li><li><a href="#environment-detection">Environment detection</a></li><li><a href="#network">Network address and IP sync</a></li><li><a href="#redirection">Remote features (redirection)</a></li><li><a href="#recovery-erase">One Click Recovery and remote erase</a></li><li><a href="#user-consent">User consent</a></li><li><a href="#clock">AMT clock</a></li><li><a href="#tls">TLS</a></li><li><a href="#certificates">Certificates and trusted roots</a></li><li><a href="#realms">Accounts and realms</a></li><li><a href="#audit-policy">Audit policy</a></li><li><a href="#event-forwarding">Event forwarding</a></li><li><a href="#power-policy">Power policies</a></li><li><a href="#turn-off">Turn off AMT</a></li></ol></li>
 <li><a href="confirmations.html">Confirmations and permissions</a></li>
 <li><a href="settings.html">App settings and updates</a></li>
+<li><a href="this-computer.html">This computer</a></li>
 <li><a href="troubleshooting.html">Troubleshooting</a></li>
 <li><a href="mcp.html">MCP server</a></li>
 <li><a href="about.html">About</a></li>
@@ -52,7 +53,7 @@
 <h2 id="basics">How Intel AMT works</h2>
 <div class="prose">
 <p>Intel AMT is part of the Intel management engine (ME), a small computer inside the chipset. It has its own firmware, its own clock and its own network stack. It shares the network card of the device but answers on its own ports. That is why AMT works while the operating system is off, hangs or is not installed yet.</p>
-<p>AMT must be activated (provisioned) before anyone can use it over the network. Activation sets the admin password, the control mode and usually TLS. You do it in the BIOS extension Intel MEBx (often <kbd>Ctrl</kbd>+<kbd>P</kbd> at boot) or with Intel's provisioning tools. OpenLAMT works with devices that are already activated.</p>
+<p>AMT must be activated (provisioned) before anyone can use it over the network. Activation sets the admin password, the control mode and usually TLS. You do it in the BIOS extension Intel MEBx (often <kbd>Ctrl</kbd>+<kbd>P</kbd> at boot) or with Intel's provisioning tools. OpenLAMT connects to devices that are already activated. To activate the computer it runs on, see <a href="this-computer.html">This computer</a>.</p>
 </div>
 
 <h2 id="control-mode">Control mode: ACM and CCM</h2>

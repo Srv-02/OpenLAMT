@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dieser Computer · OpenLAMT-Benutzerhandbuch</title>
+<meta name="description" content="Intel AMT auf dem Computer prüfen, auf dem OpenLAMT läuft, es einschalten, im Client Control Mode aktivieren oder deaktivieren.">
+<link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+<link rel="alternate" hreflang="en" href="https://srv-02.github.io/OpenLAMT/this-computer.html">
+<link rel="alternate" hreflang="de" href="https://srv-02.github.io/OpenLAMT/de/this-computer.html">
+<link rel="alternate" hreflang="x-default" href="https://srv-02.github.io/OpenLAMT/this-computer.html">
+<link rel="stylesheet" href="../assets/guide.css">
+<script src="../assets/guide.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Zum Inhalt springen</a>
+<header class="top">
+  <a class="brand" href="index.html"><img class="logo" src="../assets/favicon.svg" width="30" height="30" alt="">OpenLAMT <small>Benutzerhandbuch</small></a>
+  <span class="sp"></span>
+  <nav class="lang" aria-label="Sprache"><a href="../this-computer.html" hreflang="en" lang="en">EN</a><span aria-hidden="true">|</span><a href="this-computer.html" hreflang="de" lang="de" aria-current="page">DE</a></nav>
+  <div class="themebar" role="group" aria-label="Erscheinungsbild" hidden>
+    <button type="button" data-theme-set="system" aria-pressed="true">System</button>
+    <button type="button" data-theme-set="light" aria-pressed="false">Hell</button>
+    <button type="button" data-theme-set="dark" aria-pressed="false">Dunkel</button>
+  </div>
+  <a class="gh ext" href="https://github.com/Srv-02/OpenLAMT" aria-label="OpenLAMT auf GitHub" target="_blank" rel="noopener noreferrer"><svg class="i s20" aria-hidden="true"><use href="../assets/icons.svg#i-github"/></svg><span class="sr"> (öffnet in neuem Tab)</span></a>
+</header>
+<div class="shell">
+<nav class="side" aria-label="Handbuch">
+<h2>Handbuch</h2>
+<ol>
+<li><a href="index.html">Überblick</a></li>
+<li><a href="getting-started.html">Erste Schritte</a></li>
+<li><a href="favorites.html">Favoriten und Scan</a></li>
+<li><a href="device-window.html">Gerätefenster</a></li>
+<li><a href="management.html">Geräteverwaltung</a></li>
+<li><a href="amt-settings.html">AMT-Einstellungen erklärt</a></li>
+<li><a href="confirmations.html">Bestätigungen und Berechtigungen</a></li>
+<li><a href="settings.html">App-Einstellungen und Updates</a></li>
+<li><a href="this-computer.html" aria-current="page">Dieser Computer</a><ol class="toc"><li><a href="#appears">Wann er erscheint</a></li><li><a href="#check">Prüfen</a></li><li><a href="#result">Das Ergebnis</a></li><li><a href="#setup">Intel AMT einrichten</a></li><li><a href="#beta">Beta</a></li><li><a href="#errors">Meldungen</a></li></ol></li>
+<li><a href="troubleshooting.html">Fehlerbehebung</a></li>
+<li><a href="mcp.html">MCP-Server</a></li>
+<li><a href="about.html">Über OpenLAMT</a></li>
+</ol>
+</nav>
+<main id="main">
+<div class="content">
+<h1>Dieser Computer</h1>
+<p class="lead">OpenLAMT kann Intel AMT auf dem Computer lesen, auf dem es läuft. Ist AMT ausgeschaltet oder noch nicht aktiviert, kann OpenLAMT es einschalten und aktivieren. Dann erreichst du diesen Computer von einem anderen aus.</p>
+
+<h2 id="appears">Wann er erscheint</h2>
+<div class="prose">
+<p>Der Abschnitt <span class="ui">Dieser Computer</span> steht in der Seitenleiste über <span class="ui">Favoriten</span>. Er erscheint nur, wenn dieser Computer ein Intel-ME-Gerät hat (die Intel Management Engine, auf der AMT läuft):</p>
+<ul>
+  <li><b>Linux:</b> Der Intel-ME-Treiber stellt <code>/dev/mei0</code> bereit.</li>
+  <li><b>Windows:</b> Der Intel-MEI-Treiber ist installiert und sein Gerät vorhanden.</li>
+  <li><b>macOS:</b> nie. Intel-Macs haben eine Intel ME, aber macOS hat keinen Treiber dafür.</li>
+</ul>
+<p>OpenLAMT sucht das Gerät einmal beim Start, ohne Administratorrechte. Es prüft nur, ob das Gerät existiert. Es öffnet es nicht und schickt nichts dorthin. Installierst du den Treiber später, starte OpenLAMT neu.</p>
+<p>Eine Intel ME allein heißt nicht, dass der Computer Intel AMT hat. Viele Computer haben eine Intel ME ohne AMT. Erst <a href="#check">Prüfen</a> sagt es dir.</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="win w1000 app">
+  <div class="osbar"><i></i><i></i><i></i><span>OpenLAMT</span></div>
+  <div class="row2" style="height:600px">
+    <div class="sb">
+      <div class="search"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-search"/></svg>Suchen</div>
+      <div class="sbh">Dieser Computer</div>
+      <div class="fav sel"><div class="t"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg></div><div class="tx"><div class="n">Dieser Computer</div><div class="h">AMT 16.1 · nicht aktiviert</div></div><span class="dot un"></span></div>
+      <div class="sbh">Favoriten</div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">Lab-Server</div><div class="h">192.0.2.10</div></div><span class="dot on"></span></div>
+      <div class="fav"><div class="t"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-server"/></svg></div><div class="tx"><div class="n">NAS</div><div class="h">nas.example.com</div></div><span class="dot sb"></span></div>
+      <div class="sbfoot"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-plus"/></svg>Schnell verbinden<span class="sp"></span><span class="ib"><svg class="i" aria-hidden="true"><use href="../assets/icons.svg#i-radar"/></svg></span><span class="ib"><svg class="i" aria-hidden="true"><use href="../assets/icons.svg#i-help"/></svg></span><span class="ib"><svg class="i" aria-hidden="true"><use href="../assets/icons.svg#i-sliders"/></svg></span></div>
+    </div>
+    <div class="detail">
+      <div class="dbody" style="padding-top:28px">
+        <div class="dhead" style="align-items:flex-start"><div class="bigtile"><svg class="i s28" aria-hidden="true"><use href="../assets/icons.svg#i-hw"/></svg></div><div style="flex:1;padding-top:8px"><h3>Dieser Computer</h3><div class="meta">desk-01 · Intel ME gefunden</div></div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-top:8px"><div style="display:flex;align-items:center;gap:8px"><span class="pill">Beta</span><span class="b pri" style="height:36px;padding:0 18px"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-log"/></svg>Prüfen</span></div><div class="hint">Fragt nach Administratorrechten.</div><div class="hint" style="margin-top:0">Nutzt eine Vorabversion von Intels rpc-go-Bibliothek.</div></div></div>
+        <div class="card">
+          <div class="r"><span class="l">Intel AMT</span><span class="v"><span class="dot on"></span> Ein</span></div>
+          <div class="r"><span class="l">Version</span><span class="v">16.1.25</span></div>
+          <div class="r"><span class="l">Aktivierung <span class="infoi"><svg class="i s14" aria-hidden="true"><use href="../assets/icons.svg#i-info"/></svg></span></span><span class="v">Nicht aktiviert</span></div>
+          <div class="r"><span class="l">Netzwerk</span><span class="v">Kabel · 192.0.2.50 · DHCP</span></div>
+          <div class="r"><span class="l">Letzte Prüfung</span><span class="v">Nov 23, 2026 10:14</span></div>
+        </div>
+        <div class="sect" style="margin-top:10px">Einrichtung</div>
+        <div class="card"><div class="r" style="padding:14px 16px;align-items:center"><div class="lw"><b>Im Client Control Mode (CCM) aktivieren</b><div class="d" style="font-size:12.5px">Jede KVM-Sitzung und jeder Fernstart fragt danach nach einem Code, der auf diesem Bildschirm erscheint. Für Rechner ohne Bildschirm richte den Admin Control Mode (ACM) im BIOS (MEBx) ein.</div></div><span class="pill">Beta</span><span class="b out">Aktivieren…</span></div></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+<figcaption>„Dieser Computer“ nach einer Prüfung: AMT 16.1 ist eingeschaltet, aber nicht aktiviert. Die Karte „Einrichtung“ bietet deshalb „Aktivieren“ an.</figcaption>
+</figure>
+
+<h2 id="check">Prüfen</h2>
+<div class="prose">
+<p>Wähle <span class="ui">Dieser Computer</span> in der Seitenleiste und klicke auf <span class="ui">Prüfen</span>. Bis zur ersten Prüfung zeigt die Karte <span class="ui">Noch nicht geprüft</span>. Darunter steht, dass „Prüfen“ Intel AMT über den Intel-ME-Treiber dieses Computers liest und dabei nichts ändert.</p>
+<p>Der Intel-ME-Treiber antwortet nur Programmen mit Administratorrechten. OpenLAMT selbst läuft nie mit diesen Rechten. „Prüfen“ startet deshalb einen kurzen Helfer (das OpenLAMT-Programm mit <code>--local-check</code>), und dein System fragt vorher nach den Rechten:</p>
+<ul>
+  <li><b>Linux:</b> pkexec (polkit) fragt nach dem Passwort eines Administrators.</li>
+  <li><b>Windows:</b> Die Benutzerkontensteuerung (UAC) fragt nach.</li>
+</ul>
+<p>OpenLAMT zeigt vor dieser Abfrage keinen eigenen Dialog. Brichst du sie ab, wird nichts gelesen und nichts geändert.</p>
+<p>Der Helfer liest nur: die AMT-Version, ob AMT eingeschaltet ist, die Aktivierung, die Netzwerkschnittstellen von AMT, seine UUID und sein DNS-Suffix. Er liest kein Passwort und kein AMT-Konto. Er startet weder LMS noch einen anderen Netzwerkdienst. Er gibt seine Antwort aus und beendet sich.</p>
+</div>
+
+<h2 id="result">Das Ergebnis</h2>
+<div class="prose">
+<p>OpenLAMT merkt sich das letzte Ergebnis, auch über einen Neustart hinweg. Die Zeile in der Seitenleiste zeigt es als zweite Zeile:</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Zweite Zeile</th><th>Bedeutung</th></tr></thead>
+  <tbody>
+    <tr><td>Intel ME gefunden, nicht geprüft</td><td>Noch keine Prüfung.</td></tr>
+    <tr><td>Kein Intel AMT gefunden</td><td>Die Intel ME hat kein Intel AMT gemeldet. Siehe <a href="#no-amt">unten</a>.</td></tr>
+    <tr><td>AMT 16.1 · ausgeschaltet</td><td>AMT ist vorhanden, aber ausgeschaltet.</td></tr>
+    <tr><td>AMT 16.1 · nicht aktiviert</td><td>AMT ist eingeschaltet, aber nicht aktiviert. Es antwortet noch nicht im Netzwerk.</td></tr>
+    <tr><td>AMT 16.1 · CCM</td><td>Im Client Control Mode aktiviert.</td></tr>
+    <tr><td>AMT 16.1 · ACM</td><td>Im Admin Control Mode aktiviert.</td></tr>
+  </tbody>
+</table></div>
+<dl class="terms">
+  <dt>Intel AMT</dt><dd><span class="ui">Ein</span> oder <span class="ui">Ausgeschaltet</span>. Nur AMT 16.1 und neuer meldet, ob AMT ausgeschaltet ist. Bei älteren Versionen steht hier <span class="ui">Ein</span>, auch wenn AMT im BIOS ausgeschaltet ist. AMT wirkt dann nicht aktiviert.</dd>
+  <dt>Version</dt><dd>Die vollständige AMT-Version, zum Beispiel <code>16.1.25</code>.</dd>
+  <dt>Aktivierung</dt><dd><span class="ui">Nicht aktiviert</span>, <span class="ui">Client Control Mode (CCM)</span>, <span class="ui">Admin Control Mode (ACM)</span> oder <span class="ui">Unbekannt</span>. Das ⓘ erklärt die beiden Modi. <a href="amt-settings.html#control-mode">Steuerungsmodus: ACM und CCM</a> vergleicht sie.</dd>
+  <dt>Netzwerk</dt><dd>Die verbundene Schnittstelle von AMT, Kabel zuerst, mit ihrer Adresse und <span class="ui">DHCP</span> oder <span class="ui">Statisch</span>, zum Beispiel <code>Kabel · 192.0.2.50 · DHCP</code>. Ohne verbundene Schnittstelle: <span class="ui">Keine Verbindung</span>.</dd>
+  <dt>Letzte Prüfung</dt><dd>Wann das Ergebnis gelesen wurde, in der Zeit dieses Computers.</dd>
+</dl>
+
+<h3 id="no-amt">Kein Intel AMT gefunden</h3>
+<div class="prose">
+<p>Die Karte <span class="ui">Kein Intel AMT gefunden</span> sagt: „Die Intel ME hat kein Intel AMT gemeldet. Mögliche Gründe:“</p>
+<ul>
+  <li>Intel AMT ist im BIOS ausgeschaltet.</li>
+  <li>Der Intel-ME-Treiber fehlt oder ist veraltet.</li>
+  <li>Dieser Computer ist keine vPro-Plattform.</li>
+</ul>
+<p>Prüfe zuerst die BIOS-Einstellungen: AMT muss dort eingeschaltet sein. Installiere dann den aktuellen Intel-ME-Treiber des Computerherstellers und klicke noch einmal auf <span class="ui">Prüfen</span>. Ohne vPro-Prozessor und -Chipsatz hat der Computer kein Intel AMT.</p>
+</div>
+
+<h2 id="setup">Intel AMT einrichten</h2>
+<div class="prose">
+<p>Unter dem Ergebnis bietet die Karte <span class="ui">Einrichtung</span> genau einen nächsten Schritt an. Welchen, hängt von der letzten Prüfung ab. Jeder Schritt fragt wie „Prüfen“ nach Administratorrechten, führt die Änderung aus und liest AMT danach neu. Die Karte zeigt dann den neuen Zustand.</p>
+</div>
+<div class="tbl"><table class="ref">
+  <thead><tr><th>Letzte Prüfung</th><th>Karte „Einrichtung“</th><th>Bestätigung</th></tr></thead>
+  <tbody>
+    <tr><td>Ausgeschaltet, die Firmware erlaubt die Änderung</td><td><span class="ui">Intel AMT einschalten</span> mit <span class="ui">Einschalten…</span></td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>Ausgeschaltet, die Firmware erlaubt die Änderung nicht</td><td><span class="ui">Intel AMT einschalten</span> mit dem Hinweis „Schalte Intel AMT im BIOS (MEBx) ein.“</td><td>–</td></tr>
+    <tr><td>Eingeschaltet, nicht aktiviert</td><td><span class="ui">Im Client Control Mode (CCM) aktivieren</span> mit <span class="ui">Aktivieren…</span></td><td><span class="lv or">orange</span></td></tr>
+    <tr><td>Client Control Mode</td><td><span class="ui">Intel AMT deaktivieren</span> mit <span class="ui">Deaktivieren…</span></td><td><span class="lv red">rot</span></td></tr>
+    <tr><td>Admin Control Mode</td><td><span class="ui">Intel AMT deaktivieren</span> mit dem Hinweis auf MEBx</td><td>–</td></tr>
+  </tbody>
+</table></div>
+<div class="prose">
+<p>Das Kontrollkästchen jeder Bestätigung nennt diesen Computer: <span class="ui">Ich verstehe das Risiko für diesen Computer (desk-01)</span>. Ohne Ergebnis, ohne Intel AMT oder bei unbekannter Aktivierung fehlt die Karte „Einrichtung“.</p>
+
+<h3 id="turn-on">Einschalten</h3>
+<p>„Intel AMT antwortet danach im Netzwerk. Das Einschalten von hier aus braucht AMT 16.1 oder neuer.“ <span class="ui">Einschalten…</span> öffnet <span class="ui">Intel AMT auf diesem Computer einschalten?</span> mit der Warnung: „Intel AMT beginnt, im Netzwerk zu antworten (Ports 16992 und 16993). Wer ein AMT-Passwort hat, kann diesen Computer dann steuern, auch wenn er ausgeschaltet ist.“ <span class="ui">AMT einschalten</span> schaltet es ein.</p>
+<p>Erlaubt die Firmware die Änderung aus dem Betriebssystem nicht, gibt es keine Schaltfläche. Schalte AMT dann in der BIOS-Erweiterung (MEBx) ein und prüfe noch einmal.</p>
+
+<h3 id="activate">Im Client Control Mode aktivieren</h3>
+<p><span class="ui">Aktivieren…</span> öffnet <span class="ui">Intel AMT im Client Control Mode aktivieren?</span>. Gib das neue <span class="ui">Admin-Passwort</span> zweimal ein. Der Benutzername ist <code>admin</code>. Das Passwort braucht:</p>
+<ul>
+  <li>8 bis 32 ASCII-Zeichen,</li>
+  <li>einen Großbuchstaben, einen Kleinbuchstaben, eine Ziffer und ein Sonderzeichen,</li>
+  <li>keines der Zeichen <code>"</code> <code>,</code> <code>:</code>.</li>
+</ul>
+<p><span class="ui">Aktivieren</span> funktioniert erst, wenn das Passwort diese Regeln erfüllt, beide Felder übereinstimmen und das Kontrollkästchen angehakt ist. OpenLAMT speichert das Passwort nicht, auch nicht im Schlüsselbund. Notiere es, du brauchst es zum Verbinden.</p>
+<div class="warn"><b>Der Client Control Mode fragt nach einem Code am Bildschirm.</b>Jede KVM-Sitzung und jeder Fernstart fragt nach einem 6-stelligen Code, der auf dem Bildschirm dieses Computers erscheint. Ohne jemanden am Bildschirm funktioniert KVM nicht. Für einen Computer, vor dem niemand sitzt, richte stattdessen den Admin Control Mode (ACM) im BIOS (MEBx) ein.</div>
+<p>Lege diesen Computer nach der Aktivierung auf einem anderen Computer als Favorit an, mit dem Benutzer <code>admin</code> und dem neuen Passwort. Ein <a href="favorites.html#scan">Netzwerkscan</a> von dort hilft dir, ihn zu finden. Den Dialog für den Code zeigt <a href="getting-started.html#consent">Consent-Code für die Benutzerzustimmung</a>.</p>
+<p>Bevor OpenLAMT das Passwort sendet, prüft es die AMT-Ports 16992 und 16993 auf diesem Computer. Dort darf nur Intels Dienst LMS lauschen oder niemand. Lauscht ein anderes Programm, bricht die Aktivierung ab: „Ein anderes Programm belegt den Intel-AMT-Port 16992 auf diesem Computer. Es wurde nichts geändert.“</p>
+</div>
+
+<figure class="shot">
+<div class="scr"><div class="dlg-only app">
+  <div class="dlg w520">
+    <h4>Intel AMT im Client Control Mode aktivieren?</h4>
+    <div class="fl">Admin-Passwort</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="fld">••••••••••••</div><div class="fld">••••••••••••</div></div>
+    <div class="hint">8–32 ASCII-Zeichen mit Groß- und Kleinbuchstaben, einer Ziffer und einem Sonderzeichen. Der Benutzername ist admin.</div>
+    <div class="wbox" style="margin-top:10px"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div>Im Client Control Mode fragt jede KVM-Sitzung und jeder Fernstart nach einem 6-stelligen Code, der auf dem Bildschirm dieses Computers erscheint. Ohne jemanden am Bildschirm funktioniert KVM nicht. Den Admin Control Mode (ACM) ohne Code richtest du im BIOS (MEBx) ein.</div></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="pill">Beta</span><span class="hint" style="margin:0">Nutzt eine Vorabversion von Intels rpc-go-Bibliothek.</span></div>
+    <label class="risk"><input type="checkbox" checked disabled>Ich verstehe das Risiko für diesen Computer (desk-01)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red">Aktivieren</span></div>
+  </div>
+  <div class="dlg">
+    <h4>Intel AMT auf diesem Computer deaktivieren?</h4>
+    <div class="rbox"><svg class="i s16" aria-hidden="true"><use href="../assets/icons.svg#i-warn"/></svg><div><b>Das löscht alle Einstellungen von Intel AMT.</b> Konten, Zertifikate, WLAN-Profile und Netzwerkeinstellungen in AMT werden entfernt. Der Fernzugriff endet, bis AMT wieder aktiviert ist.</div></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px"><span class="pill">Beta</span><span class="hint" style="margin:0">Nutzt eine Vorabversion von Intels rpc-go-Bibliothek.</span></div>
+    <label class="risk"><input type="checkbox" disabled>Ich verstehe das Risiko für diesen Computer (desk-01)</label>
+    <div class="foot"><span class="b">Abbrechen</span><span class="b red dis">Deaktivieren</span></div>
+  </div>
+</div></div>
+<figcaption>Links: Aktivieren im Client Control Mode, bereit zum Bestätigen. Rechts: Deaktivieren, Kontrollkästchen noch nicht angehakt.</figcaption>
+</figure>
+
+<div class="prose">
+<h3 id="deactivate">Deaktivieren</h3>
+<p>Im Client Control Mode zeigt die Karte <span class="ui">Intel AMT deaktivieren</span>: „Löscht alle AMT-Einstellungen und -Konten auf diesem Computer.“ Das rote <span class="ui">Deaktivieren…</span> öffnet <span class="ui">Intel AMT auf diesem Computer deaktivieren?</span>. <span class="ui">Deaktivieren</span> hebt die Aktivierung auf, mit allen Konten, Zertifikaten, WLAN-Profilen und Netzwerkeinstellungen in AMT. Der Fernzugriff endet, bis du AMT wieder aktivierst. Favoriten dieses Computers auf anderen Computern funktionieren dann nicht mehr.</p>
+
+<h3 id="acm">Admin Control Mode</h3>
+<p>Im Admin Control Mode gibt es keine Schaltfläche: „Deaktiviere Intel AMT im BIOS (MEBx). Den Admin Control Mode kann die App nicht deaktivieren.“ Den Admin Control Mode richtet OpenLAMT auch nicht ein. Nutze dafür MEBx.</p>
+</div>
+
+<h2 id="beta">Beta</h2>
+<div class="prose">
+<p>„Prüfen“, die Schaltflächen der Einrichtung und ihre Dialoge tragen eine graue Plakette <span class="ui">Beta</span> mit dem Hinweis „Nutzt eine Vorabversion von Intels rpc-go-Bibliothek.“ OpenLAMT liest und ändert AMT auf diesem Computer über diese Bibliothek, und die genutzte Version ist eine Vorabversion. Alles andere in OpenLAMT hängt nicht davon ab.</p>
+<p>Sieht ein Ergebnis falsch aus oder scheitert ein Schritt, <a href="troubleshooting.html#report">melde es bitte</a> mit deinem System, der AMT-Version und der genauen Meldung.</p>
+</div>
+
+<h2 id="errors">Meldungen</h2>
+<dl class="terms">
+  <dt>„Die Administratorrechte wurden nicht erteilt. Es wurde nichts geändert.“</dt>
+  <dd>Du hast die Abfrage abgebrochen, oder das Passwort darin war falsch. Klicke noch einmal auf die Schaltfläche und bestätige die Abfrage.</dd>
+  <dt>„OpenLAMT braucht pkexec, um nach Administratorrechten zu fragen. Installiere polkit und versuche es erneut.“</dt>
+  <dd>Nur unter Linux. pkexec fragt nach den Administratorrechten. Installiere es aus den Paketen deiner Distribution: Es gehört zu polkit, unter Debian und Ubuntu steckt es im eigenen Paket <code>pkexec</code>.</dd>
+  <dt>„Intel AMT hat die Änderung abgelehnt: …“</dt>
+  <dd>Die Firmware hat den Schritt nicht ausgeführt. Der Grund steht nach dem Doppelpunkt. Die Karte zeigt den Zustand, der danach gelesen wurde.</dd>
+  <dt>„Intel AMT hat die Änderung abgelehnt: Intel AMT ist vielleicht im BIOS (MEBx) ausgeschaltet.“</dt>
+  <dd>Die Aktivierung ist bei AMT vor 16.1 gescheitert. Diese Versionen melden nicht, ob AMT ausgeschaltet ist. Schalte AMT in MEBx ein und versuche es erneut.</dd>
+  <dt>„Ein anderes Programm belegt den Intel-AMT-Port 16992 auf diesem Computer. Es wurde nichts geändert.“</dt>
+  <dd>Ein anderes Programm als Intels LMS lauscht auf dem AMT-Port. OpenLAMT hat das Passwort deshalb nicht gesendet. Beende dieses Programm und aktiviere noch einmal.</dd>
+  <dt>Die Karte zeigt nach einem Schritt „Kein Intel AMT gefunden“</dt>
+  <dd>Die Intel ME meldet kein Intel AMT mehr. Siehe <a href="#no-amt">Kein Intel AMT gefunden</a>.</dd>
+</dl>
+<nav class="pager" aria-label="Seiten"><a href="settings.html" rel="prev"><small>Zurück</small>App-Einstellungen und Updates</a></nav>
+<footer class="site">
+<p>OpenLAMT ist freie Software unter der Apache License 2.0. Es ist ein unabhängiges Projekt und steht in keiner Verbindung zur Intel Corporation, die es weder empfiehlt noch unterstützt. Intel und AMT sind Marken der Intel Corporation. Alle Gerätenamen, Adressen und Werte in diesem Handbuch sind Beispiele.</p>
+</footer>
+</div>
+</main>
+</div>
+</body>
+</html>

@@ -37,7 +37,8 @@
 <li><a href="amt-settings.html">AMT settings explained</a></li>
 <li><a href="confirmations.html">Confirmations and permissions</a></li>
 <li><a href="settings.html">App settings and updates</a></li>
-<li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a><ol class="toc"><li><a href="#start">The app does not start</a></li><li><a href="#connect">Cannot connect</a></li><li><a href="#permissions">Permission messages</a></li><li><a href="#consent">User consent</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console</a></li><li><a href="#media">Media</a></li><li><a href="#boot">Boot options and erase</a></li><li><a href="#certificates">Certificates and forwarding</a></li><li><a href="#keychain">Passwords and keychain</a></li><li><a href="#updates">Updates</a></li><li><a href="#report">Report a problem</a></li></ol></li>
+<li><a href="this-computer.html">This computer</a></li>
+<li><a href="troubleshooting.html" aria-current="page">Troubleshooting</a><ol class="toc"><li><a href="#start">The app does not start</a></li><li><a href="#connect">Cannot connect</a></li><li><a href="#permissions">Permission messages</a></li><li><a href="#consent">User consent</a></li><li><a href="#kvm">Remote screen (KVM)</a></li><li><a href="#console">Serial console</a></li><li><a href="#media">Media</a></li><li><a href="#boot">Boot options and erase</a></li><li><a href="#certificates">Certificates and forwarding</a></li><li><a href="#keychain">Passwords and keychain</a></li><li><a href="#updates">Updates</a></li><li><a href="#this-computer">This computer</a></li><li><a href="#report">Report a problem</a></li></ol></li>
 <li><a href="mcp.html">MCP server</a></li>
 <li><a href="about.html">About</a></li>
 </ol>
@@ -197,6 +198,20 @@
   <dd>GitHub limits requests per address. Try again later.</dd>
   <dt>The update did not install</dt>
   <dd>The package stays in <code>~/Downloads</code>, and the window says how to install it. See <a href="settings.html#update-window">The update window</a>.</dd>
+</dl>
+
+<h2 id="this-computer">This computer</h2>
+<dl class="terms">
+  <dt>“OpenLAMT needs pkexec to ask for administrator rights. Install polkit and try again.”</dt>
+  <dd>Linux only. Check and the setup steps on <a href="this-computer.html">This computer</a> need pkexec for the administrator prompt. Install it from the packages of your distribution: it is part of polkit, on Debian and Ubuntu in its own package <code>pkexec</code>.</dd>
+  <dt>“Administrator rights were not granted. Nothing was changed.”</dt>
+  <dd>The prompt of pkexec or UAC was cancelled, or its password was wrong. Click the button again and confirm the prompt.</dd>
+  <dt>“No Intel AMT found”</dt>
+  <dd>The Intel ME of this computer did not report Intel AMT. AMT may be turned off in the BIOS, the Intel ME driver may be missing or outdated, or the computer is not a vPro platform. See <a href="this-computer.html#no-amt">No Intel AMT found</a>.</dd>
+  <dt>“Intel AMT refused the change: …”</dt>
+  <dd>The firmware did not turn on, activate or deactivate AMT. See <a href="this-computer.html#errors">Messages</a>.</dd>
+  <dt>“Another program uses the Intel AMT port 16992 on this computer. Nothing was changed.”</dt>
+  <dd>A program other than Intel’s LMS listens on that port, so the activation did not start. Stop that program and try again.</dd>
 </dl>
 
 <h2 id="report">Report a problem</h2>

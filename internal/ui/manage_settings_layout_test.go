@@ -120,3 +120,26 @@ func TestSettingsSingleLineRowsStay40(t *testing.T) {
 		}
 	}
 }
+
+// The plain-text values on the right (host name, domain, intranet domains, clock, TLS, forwarding
+// target) shorten with "…" and never leave the row (#200), however narrow the sidebar.
+func TestSettingsTextValuesStayInside(t *testing.T) {
+	long := "a-very-long-value-that-needs-much-more-room-than-the-row-has.example.com"
+	_, p := settingsHarness(t, func(f *session.Fake) {
+		f.Cfg.Settings.General.HostName, f.Cfg.Settings.General.DomainName = long, long
+		f.Cfg.Settings.Environment.Domains = []string{long, "corp.example.com"}
+	})
+	rows := map[string]fyne.CanvasObject{
+		"host": p.general.rows[0], "domain": p.general.rows[1], "env": p.env.rows[0],
+		"clock": p.clockTLS.rows[0], "tls": p.clockTLS.rows[1],
+	}
+	card := targetEditCard(amt.ForwardingTarget{Address: long, FilterName: long, Delivery: amt.DeliveryPush})
+	for i, r := range card.rows {
+		rows["target"+string(rune('0'+i))] = r
+	}
+	for name, row := range rows {
+		for _, w := range narrowWidths {
+			checkRowInside(t, name, row, w)
+		}
+	}
+}

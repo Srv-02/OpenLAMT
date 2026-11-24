@@ -142,6 +142,8 @@ func hasText(o fyne.CanvasObject, text string) bool {
 			found = found || v.Text == text
 		case *canvas.Text:
 			found = found || v.Text == text
+		case *ellipsisText:
+			found = found || v.Text == text
 		}
 	})
 	return found

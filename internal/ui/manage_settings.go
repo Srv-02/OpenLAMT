@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/lang"
 	"fyne.io/fyne/v2/layout"
@@ -116,11 +115,11 @@ type settingsPane struct {
 	err                                                   *manageError
 	general, env, network, features, clockTLS             *settingsCard
 	generalBox, envBox, networkBox, featuresBox, clockBox fyne.CanvasObject
-	hostText, domainText                                  *canvas.Text
+	hostText, domainText                                  *ellipsisText
 	envLines                                              *fyne.Container // the intranet domains, wrapped
 	ping, ddns, kvm, ider, sol                            *widgets.Switch
 	address, consent                                      *widgets.Segmented
-	clockText, tlsText                                    *canvas.Text
+	clockText, tlsText                                    *ellipsisText
 	ipAddr, ipGateway                                     *ellipsisText // the two lines of "IP address"
 	ipLines                                               *fyne.Container
 	changeHost, changeDomain, changeEnv                   *widgets.PrimaryButton
@@ -152,8 +151,8 @@ func init() {
 func (m *manager) settingsPane(compact bool) *managePane {
 	p := &settingsPane{m: m, d: m.settings, compact: compact, err: newManageError()}
 
-	p.hostText = designText("", 13, theme.ColorNameForeground, false)
-	p.domainText = designText("", 13, theme.ColorNameForeground, false)
+	p.hostText = newSettingsValue("", theme.ColorNameForeground)
+	p.domainText = newSettingsValue("", theme.ColorNameForeground)
 	p.changeHost = settingsButton(lang.L("Change…"), func() { p.openName(false) })
 	p.changeDomain = settingsButton(lang.L("Change…"), func() { p.openName(true) })
 	p.ping = p.newSwitch(func(on bool) {
@@ -166,15 +165,15 @@ func (m *manager) settingsPane(compact bool) *managePane {
 		p.confirmDDNS(on)
 	})
 	p.general = newSettingsCard(
-		amtSettingsRowHelp(lang.L("Host name"), helpHostName, container.New(&rowLayout{gap: 12, fill: -1}, p.hostText, p.changeHost)),
-		amtSettingsRowHelp(lang.L("Domain"), helpDomain, container.New(&rowLayout{gap: 12, fill: -1}, p.domainText, p.changeDomain)),
+		amtSettingsRowHelp(lang.L("Host name"), helpHostName, newValueWithButton(p.hostText, p.changeHost)),
+		amtSettingsRowHelp(lang.L("Domain"), helpDomain, newValueWithButton(p.domainText, p.changeDomain)),
 		amtSettingsRowHelp(lang.L("Respond to ping"), helpPing, p.ping),
 		amtSettingsRowHelp(lang.L("Dynamic DNS"), helpDdns, p.ddns))
 
 	p.envLines = container.New(layout.NewCustomPaddedVBoxLayout(0))
 	p.changeEnv = settingsButton(lang.L("Change…"), p.openEnvironment)
 	p.env = newSettingsCard(amtSettingsRowHelp(lang.L("Intranet domains"), helpEnvDomains,
-		container.New(&rowLayout{gap: 12, fill: -1}, p.envLines, p.changeEnv)))
+		newValueWithButton(p.envLines, p.changeEnv)))
 
 	p.address = widgets.NewSegmented(widgets.SegmentedText, widgets.TextOptions(lang.L("DHCP"), lang.L("Static")), nil)
 	p.address.OnChanged = p.openNetwork
@@ -207,15 +206,15 @@ func (m *manager) settingsPane(compact bool) *managePane {
 	p.ocrRow = p.features.ref(4)
 	p.rpeRow = p.features.ref(5)
 
-	p.clockText = designText("", 13, style.ColorNameTextSecondary, false)
+	p.clockText = newSettingsValue("", style.ColorNameTextSecondary)
 	p.sync = settingsButton(lang.L("Sync Now"), func() {
 		p.d.write(m.sess.SyncClock, true)
 	})
-	p.tlsText = designText("", 13, style.ColorNameTextSecondary, false)
+	p.tlsText = newSettingsValue("", style.ColorNameTextSecondary)
 	p.change = settingsButton(lang.L("Change…"), p.openTLS)
 	p.clockTLS = newSettingsCard(
-		amtSettingsRowHelp(lang.L("AMT clock"), helpClock, container.New(&rowLayout{gap: 12, fill: -1}, p.clockText, p.sync)),
-		amtSettingsRowHelp(lang.L("TLS certificate"), helpTls, container.New(&rowLayout{gap: 12, fill: -1}, p.tlsText, p.change)))
+		amtSettingsRowHelp(lang.L("AMT clock"), helpClock, newValueWithButton(p.clockText, p.sync)),
+		amtSettingsRowHelp(lang.L("TLS certificate"), helpTls, newValueWithButton(p.tlsText, p.change)))
 	p.clockRow, p.tlsRow = p.clockTLS.ref(0), p.clockTLS.ref(1)
 
 	p.turnOff = widgets.NewPrimaryButton(lang.L("Turn Off…"), nil, p.confirmTurnOff)
@@ -449,7 +448,49 @@ func (settingsRowLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
 func (settingsRowLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
 	ks, rs := objs[0].MinSize(), objs[1].MinSize()
 	h := max(settingsRowHeight, ks.Height+2*settingsRowVPad, rs.Height+2*settingsRowVPad)
-	return fyne.NewSize(2*settingsRowPad+ks.Width+settingsRowGap+min(rs.Width, 40), h)
+	return fyne.NewSize(2*settingsRowPad+ks.Width+settingsRowGap+min(rs.Width, settingsRightFloor(objs[1])), h)
+}
+
+// settingsRightFloor is the least width of the right side of a row: 40, or the button of a
+// value with a button.
+func settingsRightFloor(right fyne.CanvasObject) float32 {
+	if c, ok := right.(*fyne.Container); ok {
+		if _, ok := c.Layout.(settingsValueLayout); ok {
+			return c.Objects[1].MinSize().Width + settingsRowGap
+		}
+	}
+	return 40
+}
+
+// newSettingsValue is the text value of a row: right-aligned, shortened with "…" if the row is
+// too narrow.
+func newSettingsValue(text string, c fyne.ThemeColorName) *ellipsisText {
+	t := newEllipsisText(text, 13, c, false)
+	t.align = fyne.TextAlignTrailing
+	return t
+}
+
+// newValueWithButton is a text value with its button ("Change…", "Sync Now") on the right.
+func newValueWithButton(value, button fyne.CanvasObject) *fyne.Container {
+	return container.New(settingsValueLayout{}, value, button)
+}
+
+// settingsValueLayout places a text value and a button: the button at its size on the right, the
+// value in the rest of the width (it shortens when the rest is short).
+type settingsValueLayout struct{}
+
+func (settingsValueLayout) Layout(objs []fyne.CanvasObject, size fyne.Size) {
+	vs, bs := objs[0].MinSize(), objs[1].MinSize()
+	tw := max(0, size.Width-bs.Width-settingsRowGap)
+	objs[0].Move(fyne.NewPos(0, (size.Height-vs.Height)/2))
+	objs[0].Resize(fyne.NewSize(tw, vs.Height))
+	objs[1].Move(fyne.NewPos(size.Width-bs.Width, (size.Height-bs.Height)/2))
+	objs[1].Resize(bs)
+}
+
+func (settingsValueLayout) MinSize(objs []fyne.CanvasObject) fyne.Size {
+	vs, bs := objs[0].MinSize(), objs[1].MinSize()
+	return fyne.NewSize(vs.Width+settingsRowGap+bs.Width, max(vs.Height, bs.Height))
 }
 
 // settingsCard is a card of rows with hairlines between the visible ones (Settings.dc.html .card).
@@ -544,7 +585,7 @@ func (p *settingsPane) showDomains(domains []string) {
 		if i < len(domains)-1 {
 			d += ","
 		}
-		lines[i] = designText(d, 13, theme.ColorNameForeground, false)
+		lines[i] = newSettingsValue(d, theme.ColorNameForeground)
 	}
 	p.envLines.Objects = lines
 	p.envLines.Refresh()
@@ -555,7 +596,7 @@ func (p *settingsPane) showDomains(domains []string) {
 func (p *settingsPane) envValue() string {
 	var parts []string
 	for _, o := range p.envLines.Objects {
-		parts = append(parts, o.(*canvas.Text).Text)
+		parts = append(parts, o.(*ellipsisText).Text)
 	}
 	return strings.Join(parts, " ")
 }

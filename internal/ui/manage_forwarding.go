@@ -302,15 +302,7 @@ func (m *manager) showTargetEdit(list *forwardingDialog, t amt.ForwardingTarget)
 			d.del = p.newButton(lang.L("Delete Target…"), func() { m.confirmTargetDelete(list, d) })
 			d.del.Importance = widget.DangerImportance
 			p.extras = []fyne.CanvasObject{container.NewThemeOverride(d.del, dangerButtonTheme{overrideTheme})}
-			value := func(s string, mono bool) fyne.CanvasObject {
-				v := designText(s, 13, theme.ColorNameForeground, false)
-				v.TextStyle.Monospace = mono
-				return v
-			}
-			card := newSettingsCard(
-				amtSettingsRow(lang.L("Address"), value(t.Address, true)),
-				amtSettingsRow(lang.L("Delivery"), value(deliveryText(t.Delivery), false)),
-				amtSettingsRow(lang.L("Events"), value(t.FilterName, false)))
+			card := targetEditCard(t)
 			return []fyne.CanvasObject{card.box, formHint(lang.L("Intel AMT cannot change a target. Delete it and add a new one."))}
 		})
 	return d
@@ -326,4 +318,17 @@ func (m *manager) confirmTargetDelete(list *forwardingDialog, d *targetDialog) {
 			d.Dismiss()
 			list.write(func() error { return m.sess.DeleteForwardingTarget(t) })
 		}, nil)
+}
+
+// targetEditCard is the read-only card of the Edit dialog: address, delivery and events.
+func targetEditCard(t amt.ForwardingTarget) *settingsCard {
+	value := func(s string, mono bool) fyne.CanvasObject {
+		v := newSettingsValue(s, theme.ColorNameForeground)
+		v.mono = mono
+		return v
+	}
+	return newSettingsCard(
+		amtSettingsRow(lang.L("Address"), value(t.Address, true)),
+		amtSettingsRow(lang.L("Delivery"), value(deliveryText(t.Delivery), false)),
+		amtSettingsRow(lang.L("Events"), value(t.FilterName, false)))
 }

@@ -80,8 +80,8 @@ func TestSettingsPageShowsTheValues(t *testing.T) {
 	if !p.envBox.Visible() || p.envValue() != "example.com, corp.example.com" || !hasText(p.envBox, "Intranet domains") {
 		t.Errorf("environment detection: shown %v value %q", p.envBox.Visible(), p.envValue())
 	}
-	if p.address.Selected() != 0 || p.ipText.Text != "192.0.2.10 / 24 · gateway 192.0.2.1" || !p.networkBox.Visible() {
-		t.Errorf("network: %d %q", p.address.Selected(), p.ipText.Text)
+	if p.address.Selected() != 0 || p.ipValue() != "192.0.2.10 / 24\ngateway 192.0.2.1" || !p.networkBox.Visible() {
+		t.Errorf("network: %d %q", p.address.Selected(), p.ipValue())
 	}
 	if !p.kvmRow.visibleRow() || !p.kvm.Checked() || !p.ider.Checked() || p.sol.Checked() || p.consent.Selected() != 1 || p.consent.Disabled() {
 		t.Errorf("features: kvm %v ider %v sol %v consent %d", p.kvm.Checked(), p.ider.Checked(), p.sol.Checked(), p.consent.Selected())
@@ -117,11 +117,11 @@ func TestSettingsFormats(t *testing.T) {
 			t.Errorf("%v: %q, want %q", off, got, want)
 		}
 	}
-	if got := ipSummary(amt.NetworkSettings{IPAddress: "192.0.2.10", SubnetMask: "255.255.240.0"}); got != "192.0.2.10 / 20" {
-		t.Errorf("without gateway: %q", got)
+	if a, g := ipSummary(amt.NetworkSettings{IPAddress: "192.0.2.10", SubnetMask: "255.255.240.0"}); a != "192.0.2.10 / 20" || g != "" {
+		t.Errorf("without gateway: %q %q", a, g)
 	}
-	if got := ipSummary(amt.NetworkSettings{IPAddress: "192.0.2.10", SubnetMask: "255.0.255.0", Gateway: "192.0.2.1"}); got != "192.0.2.10 / 255.0.255.0 · gateway 192.0.2.1" {
-		t.Errorf("mask without prefix: %q", got)
+	if a, g := ipSummary(amt.NetworkSettings{IPAddress: "192.0.2.10", SubnetMask: "255.0.255.0", Gateway: "192.0.2.1"}); a != "192.0.2.10 / 255.0.255.0" || g != "gateway 192.0.2.1" {
+		t.Errorf("mask without prefix: %q %q", a, g)
 	}
 	if got := shortFingerprint(strings.ToUpper(amt.FormatFingerprint(certFPNext))); got != "7B:11:…:E0" {
 		t.Errorf("fingerprint %q", got)
@@ -306,8 +306,8 @@ func TestSettingsNetworkDialog(t *testing.T) {
 	if got := h.dev.ConfigWrites(); !slices.Equal(got, []string{"SetNetwork"}) || n.DHCP || n.IPAddress != "192.0.2.20" || n.Gateway != "192.0.2.1" {
 		t.Fatalf("writes %v network %+v", got, n)
 	}
-	if p.address.Selected() != 1 || p.ipText.Text != "192.0.2.20 / 24 · gateway 192.0.2.1" {
-		t.Errorf("page: %d %q", p.address.Selected(), p.ipText.Text)
+	if p.address.Selected() != 1 || p.ipValue() != "192.0.2.20 / 24\ngateway 192.0.2.1" {
+		t.Errorf("page: %d %q", p.address.Selected(), p.ipValue())
 	}
 }
 
@@ -566,7 +566,7 @@ func checkDisabled(t *testing.T, p *settingsPane, disabled ...string) {
 func TestSettingsAdminAccountShowsNoNA(t *testing.T) {
 	_, p := settingsHarness(t, nil)
 	checkDisabled(t, p)
-	for _, text := range []string{p.hostText.Text, p.domainText.Text, p.ipText.Text, p.clockText.Text, p.envValue()} {
+	for _, text := range []string{p.hostText.Text, p.domainText.Text, p.ipValue(), p.clockText.Text, p.envValue()} {
 		if text == "N/A" {
 			t.Error("N/A shown for an admin account")
 		}
@@ -593,8 +593,8 @@ func TestSettingsPartlyReadableShowsNA(t *testing.T) {
 	if !p.clockBox.Visible() || !p.clockRow.visibleRow() || p.clockText.Text != "N/A" {
 		t.Errorf("clock: shown %v row %v %q", p.clockBox.Visible(), p.clockRow.visibleRow(), p.clockText.Text)
 	}
-	if p.ipText.Text != "192.0.2.10 / 24 · gateway 192.0.2.1" || !p.kvm.Checked() || p.consent.Selected() != 1 {
-		t.Errorf("readable sections: %q kvm %v consent %d", p.ipText.Text, p.kvm.Checked(), p.consent.Selected())
+	if p.ipValue() != "192.0.2.10 / 24\ngateway 192.0.2.1" || !p.kvm.Checked() || p.consent.Selected() != 1 {
+		t.Errorf("readable sections: %q kvm %v consent %d", p.ipValue(), p.kvm.Checked(), p.consent.Selected())
 	}
 	checkDisabled(t, p, "change host", "change domain", "ping", "ddns", "change env", "sync", "turn off")
 
@@ -618,8 +618,8 @@ func TestSettingsUnreadableNetworkAndFeatures(t *testing.T) {
 	if p.err.box.Visible() {
 		t.Errorf("error shown: %q", p.err.Text())
 	}
-	if !p.networkBox.Visible() || p.address.Selected() != widgets.NoSelection || p.ipText.Text != "N/A" || !p.ipRow.visibleRow() {
-		t.Errorf("network: shown %v address %d ip %q row %v", p.networkBox.Visible(), p.address.Selected(), p.ipText.Text, p.ipRow.visibleRow())
+	if !p.networkBox.Visible() || p.address.Selected() != widgets.NoSelection || p.ipValue() != "N/A" || !p.ipRow.visibleRow() {
+		t.Errorf("network: shown %v address %d ip %q row %v", p.networkBox.Visible(), p.address.Selected(), p.ipValue(), p.ipRow.visibleRow())
 	}
 	if !p.kvmRow.visibleRow() || p.kvm.Checked() || p.ider.Checked() || p.sol.Checked() || p.consent.Selected() != widgets.NoSelection {
 		t.Errorf("features: kvm row %v kvm %v ider %v sol %v consent %d", p.kvmRow.visibleRow(),

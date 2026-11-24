@@ -362,7 +362,7 @@
   "Turn off AMT": "Turn off AMT",
   "Only the BIOS (MEBx) at the device can turn it back on.": "Only the BIOS (MEBx) at the device can turn it back on.",
   "{{.Address}} / {{.Prefix}}": "{{.Address}} / {{.Prefix}}",
-  "{{.Address}} / {{.Prefix}} · gateway {{.Gateway}}": "{{.Address}} / {{.Prefix}} · gateway {{.Gateway}}",
+  "gateway {{.Gateway}}": "gateway {{.Gateway}}",
   "{{.Minutes}} min ahead": "{{.Minutes}} min ahead",
   "{{.Minutes}} min behind": "{{.Minutes}} min behind",
   "{{.Seconds}} s ahead": "{{.Seconds}} s ahead",

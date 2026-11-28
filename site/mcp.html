@@ -133,26 +133,51 @@
 </ul>
 
 <h3 id="record">Record and document</h3>
-<p>An agent can document what it does. It records the screen of a device as a video and saves screenshots as files. Both need an open KVM session (<code>kvm_connect</code>) and the group <code>read</code>, like <code>kvm_screenshot</code>.</p>
+<p>An agent can document its work on a device, so you can check later what it did. When you ask, it records the screen as a video or saves screenshots as files. They go to the folder <code>OpenLAMT</code> in your home folder, or to the folder you set as <code>capture.folder</code> in the <a href="#config">config file</a>.</p>
+<p id="record-always"><b>Record every session.</b> For full accountability, the server can record every KVM session itself, whether the agent wants it or not. Turn it on with <code>"capture": {"record_always": true}</code> in the <a href="#config">config file</a>. It is off by default.</p>
 <ul>
-  <li><code>kvm_record_start</code> starts a video (an AVI file, as the app makes it). One recording per device at a time. <code>kvm_record_stop</code> ends it and returns the path, the duration, the size and the number of frames.</li>
-  <li>A recording keeps the KVM session open while it records, so the idle timeout does not close it. If it waits for the agent instead (see below), the idle timeout closes the session as usual.</li>
-  <li>After a power action the recording goes on. AMT refuses to switch a device off or restart it while KVM is open, so the recording waits until the power action has finished and then opens KVM again by itself. Meanwhile the video repeats the last picture.</li>
-  <li>The recording never changes what you decided on the device: it never turns KVM on, and it never asks for user consent by itself, so the device shows no code that nobody asked for. If the device asks for consent again, or KVM is off, the recording waits until the agent calls <code>kvm_connect</code> (with the code from the device screen) and then goes on. The same happens when the password or the trusted certificate is missing or the device rejects the login. If the device is just unreachable for a while, for example during a restart, the recording keeps trying by itself.</li>
-  <li>A recording ends with <code>kvm_record_stop</code>, with <code>kvm_disconnect</code>, when the agent changes the device’s host, user name or TLS with <code>update_favorite</code> or deletes it with <code>delete_favorite</code>, when the server stops, or at 2 GB. The file is always finished properly. <code>kvm_disconnect</code>, <code>update_favorite</code> and <code>delete_favorite</code> list the finished video in their result. If a recording ended by itself (2 GB, a write error), <code>kvm_record_stop</code> still returns its result and says why, also when the KVM session has closed since.</li>
-  <li>The result of a recording lists in <code>warnings</code> each time KVM was closed during it, with the times in UTC and why, for example “KVM was closed from 2026-11-28 14:02:10 UTC to 14:03:40 UTC (power action); the video shows the last picture meanwhile.” So you can see later which parts of the video show a still picture. The list keeps the first 20 such times and counts the rest.</li>
-  <li><code>kvm_screenshot</code> with <code>save</code> also writes a PNG file at the full screen size, not the smaller image the agent sees, and returns <code>saved_path</code>.</li>
-  <li>The agent may pass <code>folder</code> (an absolute path to an existing folder) and <code>name</code> (a file name without folder; the tool sets the extension, <code>.avi</code> or <code>.png</code>). Without a name the file is called like the files of the app, <code>openlamt-&lt;device&gt;-&lt;date&gt;-&lt;time&gt;</code>. A name longer than 100 bytes is shortened, and a Windows device name such as <code>NUL</code>, <code>CON</code> or <code>COM1</code> gets the prefix <code>openlamt-</code> on every system, so the files work everywhere.</li>
-  <li>Without <code>folder</code> the files go to <code>capture.folder</code> of the <a href="#config">config file</a>, and without that to a folder <code>OpenLAMT</code> in your home folder. OpenLAMT creates either folder if it is missing. A folder the agent passes must exist already.</li>
-  <li>OpenLAMT never overwrites a file. If the name is taken, it adds <code>-2</code>, <code>-3</code> and so on.</li>
-</ul>
-<p id="record-always"><b>Record every session.</b> If you want to check later what an agent did on a device, let the server record every KVM session itself, whether the agent wants to or not. Turn it on with <code>"capture": {"record_always": true}</code> in the <a href="#config">config file</a>. Then:</p>
-<ul>
-  <li>Every session that <code>kvm_connect</code> opens is recorded as a video into <code>capture.folder</code> (or the folder <code>OpenLAMT</code> in your home folder), under the usual file name. <code>kvm_connect</code> tells the agent that the session is recorded and names the file.</li>
-  <li>The agent cannot stop this recording, start a second one or choose where it goes. It ends with the session: with <code>kvm_disconnect</code>, after the idle timeout, when the agent changes or deletes the favorite, or when the server stops. <code>kvm_disconnect</code> lists the files.</li>
-  <li>No KVM session without a recording. If the recording cannot start, for example because the folder is not writable, <code>kvm_connect</code> fails and says why. If it fails later, for example because the disk is full, the server closes the session, and the agent has to call <code>kvm_connect</code> again.</li>
+  <li>The agent cannot stop this recording, start a second one or choose where it goes.</li>
+  <li>No recording, no KVM session. If the recording cannot start, for example because the folder is not writable, <code>kvm_connect</code> fails and says why.</li>
+  <li>If the recording fails later, for example because the disk is full, the server closes the session. The agent has to call <code>kvm_connect</code> again.</li>
+  <li>The video goes to the usual folder under the usual file name. <code>kvm_connect</code> tells the agent that the session is recorded and names the file.</li>
+  <li>The recording ends with the session: with <code>kvm_disconnect</code>, after the idle timeout, when the agent changes or deletes the favorite, or when the server stops. <code>kvm_disconnect</code> lists the files.</li>
   <li>At 2 GB the recording goes on in a new file right away.</li>
-  <li>Unlike a recording the agent starts, it does not keep the session open: the idle timeout closes a session nobody uses, and its video ends with it.</li>
+  <li>This recording does not keep the session open. The idle timeout closes a session nobody uses, and its video ends with it.</li>
+</ul>
+<p><b>What to expect.</b></p>
+<ul>
+  <li>The video goes on when the agent restarts the device or switches it off and on. AMT refuses power actions while KVM is open. So the recording waits until the power action has finished and then opens KVM again by itself.</li>
+  <li>While the screen is gone, the video shows the last picture.</li>
+  <li>If the device is unreachable for a while, for example during a restart, the recording keeps trying by itself.</li>
+  <li>The result lists each time the screen was gone, with the times in UTC and the reason. For example: “KVM was closed from 2026-11-28 14:02:10 UTC to 14:03:40 UTC (power action); the video shows the last picture meanwhile.” So you see later which parts of the video show a still picture. The list keeps the first 20 such times and counts the rest.</li>
+  <li>A recording never turns KVM on and never asks for user consent by itself. So the device never shows a code that nobody asked for.</li>
+  <li>If the device asks for consent again, or KVM is off, the recording waits for the agent. It goes on once the agent calls <code>kvm_connect</code> with the code from the device screen.</li>
+  <li>It also waits when the password or the trusted certificate is missing, or when the device rejects the login.</li>
+  <li>OpenLAMT never overwrites a file. If a name is taken, it adds <code>-2</code>, <code>-3</code> and so on.</li>
+  <li>However a recording ends, the file is always finished properly.</li>
+  <li>Videos are AVI files, as the app makes them. VLC and the players of Windows and macOS play them.</li>
+</ul>
+<p><b>Details for the agent.</b></p>
+<ul>
+  <li>Recording and saving need an open KVM session (<code>kvm_connect</code>) and the group <code>read</code>, like <code>kvm_screenshot</code>.</li>
+  <li><code>kvm_record_start</code> starts a video. One recording per device at a time.</li>
+  <li><code>kvm_record_stop</code> ends it. It returns the path, the duration, the size and the number of frames.</li>
+  <li><code>kvm_record_stop</code> lists the times without a screen in <code>warnings</code>.</li>
+  <li><code>kvm_screenshot</code> with <code>save</code> also writes a PNG file and returns <code>saved_path</code>.</li>
+  <li>The PNG file has the full screen size, not the smaller image the agent sees.</li>
+  <li><code>folder</code> sets the folder. It is an absolute path to a folder that exists already.</li>
+  <li>Without <code>folder</code>, the files go to <code>capture.folder</code>, else to the folder <code>OpenLAMT</code> in your home folder. OpenLAMT creates either folder if it is missing.</li>
+  <li><code>name</code> sets the file name, without a folder. The tool sets the extension, <code>.avi</code> or <code>.png</code>.</li>
+  <li>Without <code>name</code>, the file is named like the files of the app: <code>openlamt-&lt;device&gt;-&lt;date&gt;-&lt;time&gt;</code>.</li>
+  <li>A name longer than 100 bytes is shortened.</li>
+  <li>A Windows device name such as <code>NUL</code>, <code>CON</code> or <code>COM1</code> gets the prefix <code>openlamt-</code> on every system, so the files work everywhere.</li>
+  <li>A recording ends with <code>kvm_record_stop</code> or <code>kvm_disconnect</code>.</li>
+  <li>It also ends when the agent changes the host, user name or TLS of the device with <code>update_favorite</code>, or deletes it with <code>delete_favorite</code>.</li>
+  <li>It also ends when the server stops, or at 2 GB.</li>
+  <li><code>kvm_disconnect</code>, <code>update_favorite</code> and <code>delete_favorite</code> list the finished video in their result.</li>
+  <li>If a recording ended by itself (2 GB, a write error), <code>kvm_record_stop</code> still returns its result and says why. This works also after the KVM session has closed.</li>
+  <li>While a recording records, the idle timeout does not close the KVM session.</li>
+  <li>While a recording waits for the agent, the idle timeout closes the session as usual.</li>
 </ul>
 
 <h3 id="serial-console">Serial console</h3>
@@ -279,8 +304,8 @@ openlamt-mcp trust "Lab Server"</code></pre>
   <dt><code>require_client_confirmation</code></dt><dd>Asks you in the MCP client before each power action, each key, mouse or typing call, each mount and <code>media_boot_next</code>, each settings or account change and each new favorite. Orange and red changes ask always. The question shows every key, the text to type and the full path to mount after links are resolved. Each line break (an Enter press) shows as ⏎, and invisible or direction-changing characters as their code point. If the agent marks a single line as <code>secret</code>, the question says that the agent chose to hide it. A client that cannot ask gets a refusal.</dd>
   <dt><code>action_log</code></dt><dd>Writes one line per tool call to <code>openlamt-mcp-actions.log</code> next to the config file, or to <code>path</code>. It holds keys and mouse actions, mounted paths and the settings changed, but never text typed over KVM or the serial console, a consent code or a password.</dd>
   <dt><code>kvm</code></dt><dd>The idle timeout of a KVM session (<code>0</code> keeps it open until the server stops) and the default size, format (<code>jpeg</code> or <code>png</code>) and quality of screenshots. The agent may ask for another size or format per call.</dd>
-  <dt><code>capture.folder</code></dt><dd>The folder for recordings and saved screenshots when the agent names none (an absolute path). Empty means the folder <code>OpenLAMT</code> in your home folder. OpenLAMT creates the folder if it is missing. See <a href="#record">Record and document</a>.</dd>
-  <dt><code>capture.record_always</code></dt><dd>Records every KVM session as a video, so you can check later what the agent did. The agent cannot stop it, and without a working recording there is no KVM session. Off by default. See <a href="#record-always">Record every session</a>.</dd>
+  <dt><code>capture.folder</code></dt><dd>Where recordings and saved screenshots go when the agent names no folder. Give an absolute path. Empty means the folder <code>OpenLAMT</code> in your home folder. OpenLAMT creates the folder if it is missing. See <a href="#record">Record and document</a>.</dd>
+  <dt><code>capture.record_always</code></dt><dd>Records every KVM session as a video, so you can check later what the agent did. The agent cannot stop it. Without a working recording there is no KVM session. Off by default. See <a href="#record-always">Record every session</a>.</dd>
   <dt><code>sol</code></dt><dd>The idle timeout of a serial console session.</dd>
   <dt><code>media.allowed_paths</code></dt><dd>Limits <code>media_mount</code> to the folders you list (absolute paths). Empty means anywhere except the protected folders.</dd>
   <dt><code>passwords.command</code></dt><dd>The program and arguments that print a device password, see <a href="#password-sources">Where passwords come from</a>. Empty means none.</dd>

@@ -59,6 +59,9 @@ type kvmManager struct {
 	// tests: called when a tool call waits (steps "power" and "feed", without the entry's mu)
 	// and right before it runs on the session (step "input", with the entry's mu held).
 	onCall func(step string)
+	// onSent (tests) is called after each event or screen read that passed the gate, with
+	// the gate's read lock held (see kvmInput.pass); new entries take it.
+	onSent func(k *kvmInput)
 }
 
 // powerRun counts the power actions of one device that run now; done is closed when the last
@@ -70,17 +73,21 @@ type powerRun struct {
 
 // kvmEntry is the KVM session of one device. Its mutex serializes the tool calls on it.
 type kvmEntry struct {
-	mu       sync.Mutex
-	key      string      // favKey of the device
-	client   *kvm.Client // nil after a power action closed it; opened again on use
-	warnings []string    // of the last open, e.g. no TLS
-	tls      bool        // the open session uses TLS (the favorite may have changed since)
-	removed  bool        // disconnected, idle or shut down: the entry is no longer in the manager
+	mu  sync.Mutex
+	key string // favKey of the device
+	// client is the session; nil after a power action closed it, opened again on use. Input
+	// and screen reads go through input (the gate), never to client directly.
+	client   *kvm.Client
+	strict   bool // capture.record_always: input passes only the gate of the mandatory recording
+	onSent   func(k *kvmInput)
+	warnings []string // of the last open, e.g. no TLS
+	tls      bool     // the open session uses TLS (the favorite may have changed since)
+	removed  bool     // disconnected, idle or shut down: the entry is no longer in the manager
 	lastUsed time.Time
 	timer    *time.Timer
 	rec      *recording // the recording of this device, running or ended and not yet reported by kvm_record_stop
-	// live is rec, readable without mu: stop, disconnect and Close cancel the recording's feed
-	// before they wait for mu.
+	// live is rec, readable without mu: stop halts the recording, disconnect and Close close its
+	// input (closeInput) before they wait for mu.
 	live atomic.Pointer[recording]
 	// handoff is the client of the last install, readable without mu: the feed of a recording
 	// takes a client that a tool call opened from here (see reopen and awaitFeed).
@@ -231,18 +238,6 @@ func (e *kvmEntry) alive() bool {
 	}
 }
 
-// release lets go of held mouse buttons and keys, so nothing stays pressed on the host.
-func (e *kvmEntry) release() {
-	if !e.alive() {
-		return
-	}
-	if e.buttons != 0 {
-		_ = e.client.PointerEvent(e.lastX, e.lastY, 0)
-	}
-	e.buttons = 0
-	_ = e.client.ReleaseAll()
-}
-
 // install makes c the client of the session; the caller holds e.mu. A recording that waits for
 // the session goes on with it.
 func (e *kvmEntry) install(c *kvm.Client, warnings []string, tls bool) {
@@ -268,11 +263,12 @@ func (e *kvmEntry) setRec(r *recording) {
 	e.live.Store(r)
 }
 
-// cancelFeed stops the feed of a running recording, without e.mu: a reopen of the feed then
-// gives up. The recording itself ends later, under e.mu.
-func (e *kvmEntry) cancelFeed() {
+// closeInput lets no input of tool calls pass the gate of the running recording any more,
+// without e.mu: a call that types now stops at its next event. The recording ends later, under
+// e.mu, after the release of held input (shut).
+func (e *kvmEntry) closeInput() {
 	if r := e.live.Load(); r != nil {
-		r.cancel()
+		r.closeInput()
 	}
 }
 
@@ -342,10 +338,11 @@ func (e *kvmEntry) awaitFeedOpen(ctx context.Context) error {
 // waiting (the feed never needs it for that) and held again on return. again: e.mu was
 // released, so the caller looks at the entry again. late: a recording the agent started got no
 // picture within firstFrameWait; the call goes on and the recording's result says so. A
-// mandatory recording refuses the call then.
+// mandatory recording refuses the call then. It only waits: whether input passes, the gate
+// decides at each event (kvmInput.pass).
 func (m *kvmManager) awaitFeed(ctx context.Context, e *kvmEntry, fav favorites.Favorite) (again, late bool, err error) {
 	r, h := e.rec, e.handoff.Load()
-	if !r.running() || r.ctx.Err() != nil || h == nil || h.isFed() { // no recording, or it ends now
+	if !r.running() || h == nil || h.isFed() || r.inputClosed() { // no recording, or the gate refuses anyway
 		return false, false, nil
 	}
 	e.mu.Unlock()
@@ -356,7 +353,7 @@ func (m *kvmManager) awaitFeed(ctx context.Context, e *kvmEntry, fav favorites.F
 	select {
 	case <-h.fed:
 	case <-h.c.Done(): // closed again: look again
-	case <-r.ctx.Done(): // the recording ends
+	case <-r.gate.inputCtx.Done(): // the session or the recording ends
 	case <-ctx.Done():
 		e.mu.Lock()
 		return false, false, ctx.Err()
@@ -374,16 +371,16 @@ func (m *kvmManager) awaitFeed(ctx context.Context, e *kvmEntry, fav favorites.F
 	return true, true, nil
 }
 
-// recorded refuses a tool call on e that capture.record_always does not allow: its mandatory
-// recording failed (recordingFailed closes the session next), ends now (kvm_disconnect or the
-// server's Close stopped its feed and close the session next), or none runs yet. The caller
-// holds e.mu.
+// recorded refuses a tool call on e that capture.record_always does not allow, before it opens
+// the session again: its mandatory recording failed (recordingFailed closes the session next),
+// ends now (kvm_disconnect or the server's Close closed its input and close the session next),
+// or none runs yet. The caller holds e.mu. The gate checks each event again (kvmInput.pass).
 func (m *kvmManager) recorded(fav favorites.Favorite, e *kvmEntry) error {
 	r := e.rec
 	switch {
-	case r != nil && r.mandatory && !r.running():
+	case r != nil && r.mandatory && (!r.running() || r.failedNow()):
 		return errRecordingFailed(fav, r.end(""))
-	case r != nil && r.mandatory && r.ctx.Err() != nil:
+	case r != nil && r.mandatory && r.inputClosed():
 		return noSession(fav)
 	case m.recordAlways && (r == nil || !r.mandatory):
 		return errNotRecorded(fav)
@@ -391,12 +388,14 @@ func (m *kvmManager) recorded(fav favorites.Favorite, e *kvmEntry) error {
 	return nil
 }
 
-// shut ends a recording (why says why), releases input and closes the client; the caller holds
-// e.mu. It returns the result of the recording, if there was one.
+// shut releases held input, ends a recording (why says why) and closes the client, in this
+// order, so the video shows the release; the caller holds e.mu. It returns the result of the
+// recording, if there was one.
 func (e *kvmEntry) shut(why string) (recordResult, bool) {
 	if e.timer != nil {
 		e.timer.Stop()
 	}
+	e.release()
 	var (
 		res recordResult
 		had = e.rec != nil
@@ -405,7 +404,6 @@ func (e *kvmEntry) shut(why string) (recordResult, bool) {
 		res = e.rec.end(why)
 		e.setRec(nil)
 	}
-	e.release()
 	if e.client != nil {
 		_ = e.client.Close()
 		e.client = nil
@@ -449,7 +447,7 @@ func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code c
 		if e == nil {
 			// Locked before it is in entries, so no tool call runs on the new session before fn
 			// (under capture.record_always: before its recording started).
-			e, created = &kvmEntry{key: key}, true
+			e, created = &kvmEntry{key: key, strict: m.recordAlways, onSent: m.onSent}, true
 			e.mu.Lock()
 			m.entries[key] = e
 		}
@@ -523,11 +521,13 @@ type reopenError struct{ err error }
 func (e *reopenError) Error() string { return "reopen the KVM session: " + e.err.Error() }
 func (e *reopenError) Unwrap() error { return e.err }
 
-// use runs fn on the open session of the device of fav with the entry locked. A session that
-// ended is opened again first, without a consent code; if consent is needed then, the error asks
-// for kvm_connect with the code. A running recording shows the session before fn runs
-// (awaitFeed), and under capture.record_always fn never runs without its recording (recorded).
-func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e *kvmEntry) error) error {
+// use runs fn on the open session of the device of fav with the entry locked; fn sends input
+// and reads the screen only through in (the gate). A session that ended is opened again first,
+// without a consent code; if consent is needed then, the error asks for kvm_connect with the
+// code. A running recording shows the session before fn runs (awaitFeed); under
+// capture.record_always a call without its recording is refused before (recorded), and each
+// event of fn passes the gate.
+func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e *kvmEntry, in *kvmInput) error) error {
 	m.mu.Lock()
 	closed, e := m.closed, m.entries[favKey(fav)]
 	m.mu.Unlock()
@@ -575,14 +575,9 @@ func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e 
 		}
 		late = l
 	}
-	if r := e.rec; r.running() && r.mandatory {
-		// No input after the recording ended: closing the client stops a call that types now.
-		c := e.client
-		defer context.AfterFunc(r.ctx, func() { _ = c.Close() })()
-	}
 	e.lastUsed = m.now()
 	m.callStep("input")
-	err := fn(e)
+	err := fn(e, e.input(ctx, fav))
 	e.lastUsed = m.now()
 	return err
 }
@@ -657,7 +652,7 @@ func (m *kvmManager) disconnect(fav favorites.Favorite, why string) (bool, *reco
 		}
 		return false, nil
 	}
-	e.cancelFeed()
+	e.closeInput()
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.removed {
@@ -687,7 +682,7 @@ func (m *kvmManager) stopRecording(fav favorites.Favorite) (res recordResult, ok
 		case r != nil && r.mandatory:
 			return recordResult{}, false, errMandatoryStop
 		case r != nil:
-			r.cancel()
+			r.halt(false)
 		}
 		e.mu.Lock()
 		if !e.removed && e.rec != nil && !e.rec.mandatory {
@@ -781,7 +776,7 @@ func (m *kvmManager) closeAll() {
 	clear(m.failed)
 	m.mu.Unlock()
 	for _, e := range entries {
-		e.cancelFeed()
+		e.closeInput()
 	}
 	var wg sync.WaitGroup
 	for _, e := range entries {

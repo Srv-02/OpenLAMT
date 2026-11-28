@@ -149,7 +149,7 @@ func TestRecordAlwaysToolCallDuringFirstConnect(t *testing.T) {
 		for range 4 {
 			wg.Go(func() {
 				for range 50 {
-					_ = h.srv.s.kvm.use(t.Context(), fav, func(e *kvmEntry) error {
+					_ = h.srv.s.kvm.use(t.Context(), fav, func(e *kvmEntry, _ *kvmInput) error {
 						if r := e.rec; r == nil || !r.mandatory || !r.running() {
 							unrecorded.Add(1)
 						}

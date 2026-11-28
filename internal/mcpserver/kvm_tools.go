@@ -62,8 +62,9 @@ func (s *server) openKVM(ctx context.Context, fav favorites.Favorite, o kvmOpen)
 
 // wakeScreen wakes a sleeping host screen after a connect the agent asked for, like the app:
 // F15 at the first picture and once more wakeRepeat later. Reopens never do it, so a host that
-// AMT keeps dropping for a black screen can still go to sleep and lock.
-func wakeScreen(c *kvm.Client) {
+// AMT keeps dropping for a black screen can still go to sleep and lock. The keys pass the gate
+// (kvmInput.pass) like every other input.
+func wakeScreen(c *kvmInput) {
 	if _, err := c.WaitFrame(context.Background(), 0); err != nil {
 		return
 	}
@@ -263,7 +264,7 @@ func (s *server) kvmConnect(ctx context.Context, req *mcp.CallToolRequest, in kv
 		// The wake keys are input to the host: only with the tool group kvm_input (never in
 		// read_only).
 		if !already && s.cfg.Enabled(GroupKVMInput) {
-			go wakeScreen(e.client)
+			go wakeScreen(e.input(context.Background(), fav))
 		}
 		w, h := e.client.Size()
 		out = kvmConnectOutput{Device: fav.DisplayName(), AlreadyOpen: already, ScreenWidth: w, ScreenHeight: h,
@@ -384,8 +385,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		mime string
 		snap *image.RGBA
 	)
-	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
-		c := e.client
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry, c *kvmInput) error {
 		out.Warnings = append(out.Warnings, e.warnings...)
 		wait := func(d time.Duration, after uint64) error {
 			wctx, cancel := context.WithTimeout(ctx, d)
@@ -413,7 +413,9 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		}
 		var w, h int
 		var err error
-		snap = c.Snapshot()
+		if snap, err = c.Snapshot(); err != nil {
+			return err
+		}
 		if data, w, h, mime, err = encodeScreenshot(snap, sc); err != nil {
 			return err
 		}
@@ -512,8 +514,7 @@ func (s *server) kvmSendKeys(ctx context.Context, req *mcp.CallToolRequest, in s
 	if res, err := s.confirmInput(req, fav, "press "+list, false); res != nil || err != nil {
 		return res, sendKeysOutput{}, err
 	}
-	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
-		c := e.client
+	err = s.kvm.use(ctx, fav, func(_ *kvmEntry, c *kvmInput) error {
 		for i, keys := range combos {
 			if i > 0 {
 				if err := sleepCtx(ctx, typing.DefaultDelay); err != nil {
@@ -614,8 +615,7 @@ func (s *server) kvmMouse(ctx context.Context, req *mcp.CallToolRequest, in mous
 		return res, mouseOutput{}, err
 	}
 	var out mouseOutput
-	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
-		c := e.client
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry, c *kvmInput) error {
 		w, h := c.Size()
 		x, y := screenPoint(in.X, in.Y, e.imgW, e.imgH, w, h)
 		send := func(b kvm.Button) error { return c.PointerEvent(x, y, b) }
@@ -770,9 +770,9 @@ func (s *server) kvmTypeText(ctx context.Context, req *mcp.CallToolRequest, in t
 	if res, err := s.confirmInput(req, fav, typePrompt(plan, in.Secret), in.Secret); res != nil || err != nil {
 		return res, typeOutput{}, err
 	}
-	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
-		if err := typing.Type(ctx, e.client, plan, typing.DefaultDelay, nil); err != nil {
-			_ = e.client.ReleaseAll()
+	err = s.kvm.use(ctx, fav, func(_ *kvmEntry, c *kvmInput) error {
+		if err := typing.Type(ctx, c, plan, typing.DefaultDelay, nil); err != nil {
+			_ = c.ReleaseAll()
 			return err
 		}
 		return nil

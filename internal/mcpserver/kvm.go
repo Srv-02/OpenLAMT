@@ -136,9 +136,15 @@ func (m *kvmManager) recordingFailed(e *kvmEntry, rec *recording) {
 	if e.removed || e.rec != rec { // ended from outside, or replaced
 		return
 	}
-	m.remove(e)
+	// The entry leaves the map and the failure is kept in one step under m.mu, so a call never
+	// finds neither (it would say "no session" instead of why). A call that already holds the
+	// entry waits for e.mu and then sees removed and the failure.
+	e.removed = true
 	res, _ := e.shut("")
 	m.mu.Lock()
+	if m.entries[e.key] == e {
+		delete(m.entries, e.key)
+	}
 	m.failed[e.key] = res
 	m.mu.Unlock()
 }

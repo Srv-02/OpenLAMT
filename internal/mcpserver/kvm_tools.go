@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"image"
 	"strings"
 	"time"
 	"unicode"
@@ -12,6 +13,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/Srv-02/openlamt/internal/amt"
+	"github.com/Srv-02/openlamt/internal/capture"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/kvm"
 	"github.com/Srv-02/openlamt/internal/typing"
@@ -96,15 +98,29 @@ func (s *server) registerKVM(srv *mcp.Server) {
 			"The session closes after the idle timeout without calls, with kvm_disconnect, or when this server stops."},
 		s.kvmConnect)
 	addTool(s, srv, &mcp.Tool{Name: "kvm_disconnect", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
-		Description: "Close the KVM session of a device (held keys and buttons are released first), so the OpenLAMT app can use KVM again."},
+		Description: "Close the KVM session of a device (held keys and buttons are released first), so the OpenLAMT app can use KVM again. " +
+			"A running recording ends and its file is finished; the result lists it."},
 		s.kvmDisconnect)
 	if view {
 		addTool(s, srv, &mcp.Tool{Name: "kvm_screenshot", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: closed},
 			InputSchema: schemaFor[screenshotInput](map[string][]any{"format": {"jpeg", "png"}}),
 			Description: "Return the current screen of a device as an image sized for vision models (by default the longest side at most 1280 pixels, JPEG). " +
 				"Needs kvm_connect first. kvm_mouse takes x and y in the pixels of the last screenshot. " +
-				"Use wait_ms after input to get a picture that shows its effect."},
+				"Use wait_ms after input to get a picture that shows its effect. " +
+				"With save true it also saves the screen as a PNG file at the full screen size and returns saved_path " +
+				"(folder and name choose where; an existing file is never overwritten)."},
 			s.kvmScreenshot)
+		addTool(s, srv, &mcp.Tool{Name: "kvm_record_start", Annotations: &mcp.ToolAnnotations{OpenWorldHint: closed},
+			InputSchema: schemaFor[recordStartInput](nil),
+			Description: "Record the screen of a device as a video file (AVI, Motion-JPEG). Needs kvm_connect first. " +
+				"The recording keeps the KVM session open and goes on when a power action closes it. " +
+				"One recording per device; it ends with kvm_record_stop, kvm_disconnect or at 2 GB. " +
+				"folder (absolute path) and name choose where the file goes; an existing file is never overwritten."},
+			s.kvmRecordStart)
+		addTool(s, srv, &mcp.Tool{Name: "kvm_record_stop", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
+			Description: "Stop the recording of a device and finish the video file. Returns path, duration, size in bytes and frame count; " +
+				"if the recording ended by itself (size limit, error) it returns that result and the reason."},
+			s.kvmRecordStop)
 	}
 	if !input {
 		return
@@ -232,6 +248,8 @@ func (s *server) kvmConnect(ctx context.Context, req *mcp.CallToolRequest, in kv
 type kvmDisconnectOutput struct {
 	Device string `json:"device"`
 	Closed bool   `json:"closed" jsonschema:"false if no session was open"`
+	// Recording is the result of a recording that this call ended.
+	Recording *recordingResult `json:"recording,omitempty"`
 }
 
 func (s *server) kvmDisconnect(_ context.Context, _ *mcp.CallToolRequest, in deviceInput, rec *record) (*mcp.CallToolResult, kvmDisconnectOutput, error) {
@@ -240,7 +258,13 @@ func (s *server) kvmDisconnect(_ context.Context, _ *mcp.CallToolRequest, in dev
 	if err != nil {
 		return nil, kvmDisconnectOutput{}, err
 	}
-	return nil, kvmDisconnectOutput{Device: fav.DisplayName(), Closed: s.kvm.disconnect(fav)}, nil
+	closed, res := s.kvm.disconnect(fav)
+	out := kvmDisconnectOutput{Device: fav.DisplayName(), Closed: closed}
+	if res != nil {
+		out.Recording = res.output()
+		rec.path = res.Path
+	}
+	return nil, out, nil
 }
 
 // --- kvm_screenshot
@@ -252,6 +276,9 @@ type screenshotInput struct {
 	Format      string `json:"format,omitempty" jsonschema:"jpeg (small, the default) or png (lossless, sharper small text)"`
 	JPEGQuality int    `json:"jpeg_quality,omitempty" jsonschema:"JPEG quality 1 to 100 (default from the server config, 80)"`
 	WaitMS      int    `json:"wait_ms,omitempty" jsonschema:"wait up to this many milliseconds (at most 10000) for a newer picture than the current one, e.g. right after input"`
+	Save        bool   `json:"save,omitempty" jsonschema:"also save the screen as a PNG file at the full screen size and return saved_path; the image returned to you stays as it is"`
+	Folder      string `json:"folder,omitempty" jsonschema:"with save: absolute path of an existing folder for the file; default: capture.folder of the server config, else the folder OpenLAMT in the home folder"`
+	Name        string `json:"name,omitempty" jsonschema:"with save: base name of the file; .png is set by the tool and an extension you give is replaced; default: openlamt-<device>-<date>-<time>. An existing file is never overwritten: -2, -3 is added"`
 }
 
 type screenshotOutput struct {
@@ -263,6 +290,7 @@ type screenshotOutput struct {
 	Format       string   `json:"format"`
 	Bytes        int      `json:"bytes"`
 	Frame        uint64   `json:"frame" jsonschema:"number of screen updates received in this session; a higher number means a newer picture"`
+	SavedPath    string   `json:"saved_path,omitempty" jsonschema:"the PNG file, when save was true"`
 	Warnings     []string `json:"warnings,omitempty"`
 }
 
@@ -296,14 +324,24 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 	if in.WaitMS < 0 || in.WaitMS > maxWaitMS {
 		return nil, screenshotOutput{}, refuse("wait_ms must be between 0 and %d.", maxWaitMS)
 	}
+	if !in.Save && (in.Folder != "" || in.Name != "") {
+		return nil, screenshotOutput{}, refuse("folder and name only apply with save set to true.")
+	}
 	fav, err := s.lookup(in.Device)
 	if err != nil {
 		return nil, screenshotOutput{}, err
+	}
+	var dir string
+	if in.Save {
+		if dir, err = s.captureDir(in.Folder); err != nil {
+			return nil, screenshotOutput{}, err
+		}
 	}
 	var (
 		out  screenshotOutput
 		data []byte
 		mime string
+		snap *image.RGBA
 	)
 	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
 		c := e.client
@@ -334,7 +372,8 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		}
 		var w, h int
 		var err error
-		if data, w, h, mime, err = encodeScreenshot(c.Snapshot(), sc); err != nil {
+		snap = c.Snapshot()
+		if data, w, h, mime, err = encodeScreenshot(snap, sc); err != nil {
 			return err
 		}
 		sw, sh := c.Size()
@@ -346,8 +385,23 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 	if err != nil {
 		return nil, screenshotOutput{}, err
 	}
+	if in.Save {
+		f, err := s.createCapture(dir, in.Name, fav.DisplayName(), "png")
+		if err == nil {
+			path := f.Name()
+			if err = capture.WritePNG(f, snap); err == nil {
+				out.SavedPath, rec.path = path, path
+			}
+		}
+		if err != nil {
+			return nil, screenshotOutput{}, fmt.Errorf("save the screenshot: %w", err)
+		}
+	}
 	text := fmt.Sprintf("Screen of %s: %dx%d pixels, shown as a %dx%d %s image. kvm_mouse takes x and y in this image's pixels.",
 		fav.DisplayName(), out.ScreenWidth, out.ScreenHeight, out.Width, out.Height, strings.ToUpper(out.Format))
+	if out.SavedPath != "" {
+		text += "\nSaved as PNG at " + out.SavedPath + " (" + fmt.Sprintf("%dx%d", out.ScreenWidth, out.ScreenHeight) + " pixels)."
+	}
 	for _, w := range out.Warnings {
 		text += "\nWarning: " + w
 	}

@@ -314,7 +314,7 @@ func TestToolsFollowGroups(t *testing.T) {
 	readTools := []string{"audit_log", "device_status", "event_log", "get_settings", "hardware_info", "list_users"}
 	// Sessions open with read or kvm_input; the screen and the console output are read tools.
 	sessions := []string{"kvm_connect", "kvm_disconnect", "sol_connect", "sol_disconnect"}
-	kvmRead := append([]string{"kvm_screenshot", "sol_read"}, sessions...)
+	kvmRead := append([]string{"kvm_screenshot", "kvm_record_start", "kvm_record_stop", "sol_read"}, sessions...)
 	input := []string{"kvm_mouse", "kvm_send_keys", "kvm_type_text", "sol_send_keys", "sol_type_text"}
 	media := []string{"media_boot_next", "media_mount", "media_status", "media_unmount"}
 	power := []string{"boot_from_iso", "boot_to_bios", "power_action"}

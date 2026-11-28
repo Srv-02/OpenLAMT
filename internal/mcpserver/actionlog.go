@@ -21,7 +21,8 @@ type ActionEntry struct {
 	Tool    string    `json:"tool"`
 	Device  string    `json:"device,omitempty"`
 	Action  string    `json:"action,omitempty"`
-	Outcome string    `json:"outcome"` // ok, refused, error, confirmation_requested
+	Path    string    `json:"path,omitempty"` // file a tool saved (recording, screenshot)
+	Outcome string    `json:"outcome"`        // ok, refused, error, confirmation_requested
 	Message string    `json:"message,omitempty"`
 }
 

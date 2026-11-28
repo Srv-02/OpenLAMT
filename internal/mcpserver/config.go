@@ -55,6 +55,7 @@ type Config struct {
 	SOLIdleTimeout            time.Duration // the same for a serial console (SOL) session
 	MediaAllowedPaths         []string      // folders media_mount may mount from (cleaned, absolute); empty means anywhere
 	Screenshot                ScreenshotConfig
+	CaptureFolder             string // where recordings and saved screenshots go without a folder in the call; empty: OpenLAMT in the home folder
 	Passwords                 PasswordConfig
 	Certificates              CertificateConfig
 	Source                    string // the file read; empty when the defaults apply
@@ -176,6 +177,9 @@ type fileConfig struct {
 	SOL *struct {
 		IdleTimeoutSeconds *int `json:"idle_timeout_seconds"`
 	} `json:"sol"`
+	Capture *struct {
+		Folder *string `json:"folder"`
+	} `json:"capture"`
 	Media *struct {
 		AllowedPaths []string `json:"allowed_paths"`
 	} `json:"media"`
@@ -271,6 +275,14 @@ func Load(path string, mustExist bool) (Config, error) {
 			return Config{}, fmt.Errorf("parse %s: sol.idle_timeout_seconds must be 0 (never) or more", path)
 		}
 		c.SOLIdleTimeout = time.Duration(*sl.IdleTimeoutSeconds) * time.Second
+	}
+	if cp := f.Capture; cp != nil && cp.Folder != nil {
+		if p := strings.TrimSpace(*cp.Folder); p != "" {
+			if !filepath.IsAbs(p) {
+				return Config{}, fmt.Errorf("parse %s: capture.folder takes an absolute folder path, not %q", path, p)
+			}
+			c.CaptureFolder = filepath.Clean(p)
+		}
 	}
 	if md := f.Media; md != nil {
 		for _, p := range md.AllowedPaths {

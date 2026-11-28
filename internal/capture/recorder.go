@@ -58,6 +58,7 @@ type Recorder struct {
 	dirty   bool        // pending holds a frame that was not written yet
 	elapsed time.Duration
 	size    int64
+	frames  int
 	err     error
 }
 
@@ -104,7 +105,7 @@ func StartRecorder(f *os.File, first *image.RGBA, opts RecorderOptions) (*Record
 		os.Remove(path)
 		return nil, err
 	}
-	r.size = a.Size()
+	r.size, r.frames = a.Size(), a.Frames()
 	r.start = opts.now()
 	tick, stopTick := opts.ticker(r.slot)
 	go r.loop(tick, stopTick)
@@ -122,6 +123,13 @@ func (r *Recorder) Stats() (time.Duration, int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.elapsed, r.size
+}
+
+// Frames returns the number of frame slots written so far (repeats included).
+func (r *Recorder) Frames() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.frames
 }
 
 // Offer makes img the newest frame. It copies the pixels, so the caller may reuse img; safe
@@ -223,7 +231,7 @@ func (r *Recorder) write(data []byte) error {
 		err = r.avi.WriteFrame(data)
 	}
 	r.mu.Lock()
-	r.size = r.avi.Size()
+	r.size, r.frames = r.avi.Size(), r.avi.Frames()
 	r.mu.Unlock()
 	return err
 }

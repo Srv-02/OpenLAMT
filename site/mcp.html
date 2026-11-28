@@ -138,9 +138,10 @@
 <ul>
   <li>The agent cannot stop this recording, start a second one or choose where it goes.</li>
   <li>No recording, no KVM session. If the recording cannot start, for example because the folder is not writable, <code>kvm_connect</code> fails and says why.</li>
-  <li>If the recording fails later, for example because the disk is full, the server closes the session. The agent has to call <code>kvm_connect</code> again.</li>
+  <li>No recording, no input. The agent cannot type, click or look at the screen before the recording runs. While <code>kvm_connect</code> is still opening the session, for example after a power action, such a call is refused and nothing is sent.</li>
+  <li>If the recording fails later, for example because the disk is full, the server closes the session. A call that types or clicks right then stops at once. The agent has to call <code>kvm_connect</code> again.</li>
   <li>The video goes to the usual folder under the usual file name. <code>kvm_connect</code> tells the agent that the session is recorded and names the file.</li>
-  <li>The recording ends with the session: with <code>kvm_disconnect</code>, after the idle timeout, when the agent changes or deletes the favorite, or when the server stops. <code>kvm_disconnect</code> lists the files.</li>
+  <li>The recording ends with the session: with <code>kvm_disconnect</code>, after the idle timeout, when the agent changes the host, user name or TLS of the favorite or deletes it, or when the server stops. A new name for the favorite keeps it running. <code>kvm_disconnect</code> lists the files.</li>
   <li>At 2 GB the recording goes on in a new file right away.</li>
   <li>This recording does not keep the session open. The idle timeout closes a session nobody uses, and its video ends with it.</li>
 </ul>
@@ -148,6 +149,8 @@
 <ul>
   <li>The video goes on when the agent restarts the device or switches it off and on. AMT refuses power actions while KVM is open. So the recording waits until the power action has finished and then opens KVM again by itself.</li>
   <li>While the screen is gone, the video shows the last picture.</li>
+  <li>When the agent opens KVM again, for example right after a restart, its call waits until the video shows the screen again. Only then does it type or click. So the video shows what the agent does.</li>
+  <li>If no picture comes within 5 seconds, a recording of every session refuses the call, and nothing is sent. A recording the agent started lets the call go on, and its result says so.</li>
   <li>If the device is unreachable for a while, for example during a restart, the recording keeps trying by itself.</li>
   <li>The result lists each time the screen was gone, with the times in UTC and the reason. For example: “KVM was closed from 2026-11-28 14:02:10 UTC to 14:03:40 UTC (power action); the video shows the last picture meanwhile.” So you see later which parts of the video show a still picture. The list keeps the first 20 such times and counts the rest.</li>
   <li>A recording never turns KVM on and never asks for user consent by itself. So the device never shows a code that nobody asked for.</li>
@@ -176,8 +179,8 @@
   <li>It also ends when the server stops, or at 2 GB.</li>
   <li><code>kvm_disconnect</code>, <code>update_favorite</code> and <code>delete_favorite</code> list the finished video in their result.</li>
   <li>If a recording ended by itself (2 GB, a write error), <code>kvm_record_stop</code> still returns its result and says why. This works also after the KVM session has closed.</li>
-  <li>While a recording records, the idle timeout does not close the KVM session.</li>
-  <li>While a recording waits for the agent, the idle timeout closes the session as usual.</li>
+  <li>While a recording records, the idle timeout does not close the KVM session. This holds also while the recording opens KVM again by itself, after a power action or a network error.</li>
+  <li>While a recording waits for the agent, the idle timeout closes the session as usual. It counts from the start of that wait or the agent’s last call.</li>
 </ul>
 
 <h3 id="serial-console">Serial console</h3>
@@ -305,7 +308,7 @@ openlamt-mcp trust "Lab Server"</code></pre>
   <dt><code>action_log</code></dt><dd>Writes one line per tool call to <code>openlamt-mcp-actions.log</code> next to the config file, or to <code>path</code>. It holds keys and mouse actions, mounted paths and the settings changed, but never text typed over KVM or the serial console, a consent code or a password.</dd>
   <dt><code>kvm</code></dt><dd>The idle timeout of a KVM session (<code>0</code> keeps it open until the server stops) and the default size, format (<code>jpeg</code> or <code>png</code>) and quality of screenshots. The agent may ask for another size or format per call.</dd>
   <dt><code>capture.folder</code></dt><dd>Where recordings and saved screenshots go when the agent names no folder. Give an absolute path. Empty means the folder <code>OpenLAMT</code> in your home folder. OpenLAMT creates the folder if it is missing. See <a href="#record">Record and document</a>.</dd>
-  <dt><code>capture.record_always</code></dt><dd>Records every KVM session as a video, so you can check later what the agent did. The agent cannot stop it. Without a working recording there is no KVM session. Off by default. See <a href="#record-always">Record every session</a>.</dd>
+  <dt><code>capture.record_always</code></dt><dd>Records every KVM session as a video, so you can check later what the agent did. The agent cannot stop it. Without a working recording there is no KVM session and no input. Off by default. See <a href="#record-always">Record every session</a>.</dd>
   <dt><code>sol</code></dt><dd>The idle timeout of a serial console session.</dd>
   <dt><code>media.allowed_paths</code></dt><dd>Limits <code>media_mount</code> to the folders you list (absolute paths). Empty means anywhere except the protected folders.</dd>
   <dt><code>passwords.command</code></dt><dd>The program and arguments that print a device password, see <a href="#password-sources">Where passwords come from</a>. Empty means none.</dd>

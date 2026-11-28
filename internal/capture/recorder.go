@@ -46,6 +46,7 @@ type Recorder struct {
 	slot   time.Duration
 	start  time.Time
 	stop   chan struct{}
+	halted chan struct{} // closed when no frame is written any more, before the file is finished
 	done   chan struct{}
 	once   sync.Once
 	jpeg   bytes.Buffer
@@ -97,7 +98,7 @@ func StartRecorder(f *os.File, first *image.RGBA, opts RecorderOptions) (*Record
 		return nil, err
 	}
 	r := &Recorder{path: path, file: f, avi: a, opts: opts, slot: time.Second / time.Duration(opts.FPS),
-		stop: make(chan struct{}), done: make(chan struct{}), width: b.Dx(), height: b.Dy(),
+		stop: make(chan struct{}), halted: make(chan struct{}), done: make(chan struct{}), width: b.Dx(), height: b.Dy(),
 		pending: image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy())), work: image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))}
 	fitInto(r.work, first)
 	if err := r.encode(r.work); err != nil {
@@ -117,6 +118,11 @@ func (r *Recorder) Path() string { return r.path }
 
 // Done is closed once the recording has ended: after Stop, a write error or the size limit.
 func (r *Recorder) Done() <-chan struct{} { return r.done }
+
+// Halted is closed as soon as the recorder writes no more frames (Stop, a write error, the size
+// limit), before it finishes the file; Done follows once the file is complete. A frame offered
+// after it is in no slot of this file.
+func (r *Recorder) Halted() <-chan struct{} { return r.halted }
 
 // Stats returns the recorded time and the file size so far.
 func (r *Recorder) Stats() (time.Duration, int64) {
@@ -171,12 +177,15 @@ func (r *Recorder) loop(tick <-chan time.Time, stopTick func()) {
 	for {
 		select {
 		case <-r.stop:
-			r.finish(r.step(r.opts.now()))
+			err := r.step(r.opts.now())
+			close(r.halted)
+			r.finish(err)
 			close(r.done)
 			return
 		case <-tick:
 			err := r.step(r.opts.now())
 			if err != nil {
+				close(r.halted)
 				r.finish(err)
 				close(r.done)
 			}

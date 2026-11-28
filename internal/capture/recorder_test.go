@@ -162,6 +162,11 @@ func TestRecorderStopsAtTheLimit(t *testing.T) {
 		select {
 		case <-r.Done():
 		default:
+			select {
+			case <-r.Halted():
+				t.Fatal("Halted is closed while the recording writes frames")
+			default:
+			}
 			r.Offer(solid(32, 16, color.RGBA{G: uint8(i * 40)}))
 			clk.tick(r, 100*time.Millisecond)
 			if i > 100 {
@@ -170,6 +175,11 @@ func TestRecorderStopsAtTheLimit(t *testing.T) {
 			continue
 		}
 		break
+	}
+	select {
+	case <-r.Halted():
+	default:
+		t.Fatal("Halted is open after the recording stopped at the limit")
 	}
 	if err := r.Stop(); !errors.Is(err, ErrLimit) {
 		t.Fatalf("Stop: %v", err)

@@ -136,8 +136,13 @@ func TestKVMRecordDefaultFolders(t *testing.T) {
 	if filepath.Dir(p) != filepath.Join(home, "OpenLAMT") || !strings.HasPrefix(filepath.Base(p), "openlamt-NUC-") || !strings.HasSuffix(p, ".avi") {
 		t.Fatalf("path %s", p)
 	}
-	if fi, err := os.Stat(filepath.Dir(p)); err != nil || fi.Mode().Perm() != 0o700 {
+	fi, err := os.Stat(filepath.Dir(p))
+	if err != nil || !fi.IsDir() {
 		t.Fatalf("folder %v %v", fi, err)
+	}
+	// Windows has no Unix permission bits; Stat reports 0777 there.
+	if !isWindows() && fi.Mode().Perm() != 0o700 {
+		t.Fatalf("folder mode %v", fi.Mode().Perm())
 	}
 	h.mustOK("kvm_record_stop", dev("NUC"))
 	// capture.folder of the config wins over the home folder

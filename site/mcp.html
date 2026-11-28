@@ -165,6 +165,8 @@
 <ul>
   <li>Recording and saving need an open KVM session (<code>kvm_connect</code>) and the group <code>read</code>, like <code>kvm_screenshot</code>.</li>
   <li><code>kvm_record_start</code> starts a video. One recording per device at a time.</li>
+  <li><code>fps</code> sets the pictures per second, 1 to 30 (default 10). <code>quality</code> sets the picture quality, 1 to 100 (default 75). Higher values make larger files.</li>
+  <li>A recording of <code>capture.record_always</code> always uses the defaults.</li>
   <li><code>kvm_record_stop</code> ends it. It returns the path, the duration, the size and the number of frames.</li>
   <li><code>kvm_record_stop</code> lists the times without a screen in <code>warnings</code>.</li>
   <li><code>kvm_screenshot</code> with <code>save</code> also writes a PNG file and returns <code>saved_path</code>.</li>

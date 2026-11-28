@@ -49,11 +49,13 @@ func (s *server) registerFavorites(srv *mcp.Server) {
 	addTool(s, srv, &mcp.Tool{Name: "update_favorite", Annotations: destructive,
 		Description: "Change the name, host, user name or TLS of a favorite. Always asks the person in the MCP client first. " +
 			"A new host or user name deletes the saved password and the trusted certificate of the favorite, as in the app: " +
-			"a person provides the password of the new host separately."},
+			"a person provides the password of the new host separately. A new host, user name or TLS closes the KVM session; " +
+			"a running recording ends and the result lists its video."},
 		s.updateFavorite)
 	addTool(s, srv, &mcp.Tool{Name: "delete_favorite", Annotations: destructive,
 		Description: "Delete a favorite together with its password in the system keychain and its trusted certificate. " +
-			"Always asks the person in the MCP client first. The app loses the favorite too."},
+			"Always asks the person in the MCP client first. The app loses the favorite too. " +
+			"Its KVM session closes; a running recording ends and the result lists its video."},
 		s.deleteFavorite)
 }
 
@@ -194,6 +196,8 @@ type favoriteOutput struct {
 	PasswordFound     bool     `json:"password_found"`
 	NextSteps         []string `json:"next_steps,omitempty" jsonschema:"what a person still has to do before the device can be used"`
 	Warnings          []string `json:"warnings,omitempty"`
+	// Recording is the result of a recording that update_favorite ended with the session.
+	Recording *recordingResult `json:"recording,omitempty" jsonschema:"the recording this change ended, with its finished video file"`
 }
 
 // describe fills the state of fav: pin and password, with the steps a person still has to take.
@@ -490,10 +494,14 @@ func (s *server) mediaBusy(fav favorites.Favorite) error {
 }
 
 // closeSessions ends the KVM and serial console sessions of the device of fav: it is no longer
-// the favorite's device.
-func (s *server) closeSessions(fav favorites.Favorite) {
-	s.kvm.disconnect(fav)
+// the favorite's device. why ends a running recording; its result is returned, if there was one.
+func (s *server) closeSessions(fav favorites.Favorite, why string) *recordingResult {
+	_, res := s.kvm.disconnect(fav, why)
 	s.sol.disconnect(fav)
+	if res == nil {
+		return nil
+	}
+	return res.output()
 }
 
 func (s *server) updateFavorite(ctx context.Context, req *mcp.CallToolRequest, in updateFavoriteInput, rec *record) (*mcp.CallToolResult, favoriteOutput, error) {
@@ -569,10 +577,12 @@ func (s *server) updateFavorite(ctx context.Context, req *mcp.CallToolRequest, i
 	if err != nil {
 		return nil, favoriteOutput{}, err
 	}
+	var recording *recordingResult
 	if moved || next.UseTLS != fav.UseTLS {
-		s.closeSessions(fav)
+		recording = s.closeSessions(fav, "the favorite was changed with update_favorite")
 	}
 	out := s.describe(ctx, saved, "")
+	out.Recording = recording
 	if warning != "" {
 		out.Warnings = append(out.Warnings, warning)
 	}
@@ -584,6 +594,8 @@ func (s *server) updateFavorite(ctx context.Context, req *mcp.CallToolRequest, i
 type deleteFavoriteOutput struct {
 	Deleted  string   `json:"deleted"`
 	Warnings []string `json:"warnings,omitempty"`
+	// Recording is the result of a recording that the deletion ended with the session.
+	Recording *recordingResult `json:"recording,omitempty" jsonschema:"the recording this deletion ended, with its finished video file"`
 }
 
 func (s *server) deleteFavorite(_ context.Context, req *mcp.CallToolRequest, in deviceInput, rec *record) (*mcp.CallToolResult, deleteFavoriteOutput, error) {
@@ -610,8 +622,7 @@ func (s *server) deleteFavorite(_ context.Context, req *mcp.CallToolRequest, in 
 	if err != nil {
 		return nil, deleteFavoriteOutput{}, err
 	}
-	s.closeSessions(fav)
-	out := deleteFavoriteOutput{Deleted: fav.DisplayName()}
+	out := deleteFavoriteOutput{Deleted: fav.DisplayName(), Recording: s.closeSessions(fav, "the favorite was deleted with delete_favorite")}
 	if warning != "" {
 		out.Warnings = append(out.Warnings, warning)
 	}

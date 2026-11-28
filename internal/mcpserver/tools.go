@@ -562,8 +562,17 @@ func (s *server) powerAction(ctx context.Context, req *mcp.CallToolRequest, in p
 		}
 	}
 	// AMT refuses off, cycle and shutdown while KVM is open (ReturnValue 2), like the app's
-	// endsKVM: close the session first. Its entry stays, so the next KVM call opens it again.
-	kvmClosed := endsKVM(action) && s.kvm.closeForPower(fav)
+	// endsKVM: close the session first. Its entry stays, so the next KVM call opens it again; a
+	// recording waits until the action returned.
+	kvmClosed := false
+	if endsKVM(action) {
+		closed, end, err := s.kvm.beginPower(ctx, fav)
+		if err != nil {
+			return nil, powerOutput{}, err
+		}
+		defer end()
+		kvmClosed = closed
+	}
 	if err := sess.Power(action); err != nil {
 		return nil, powerOutput{}, err
 	}

@@ -66,6 +66,7 @@ Each device opens in its own window with remote keyboard, video and mouse (KVM).
 - A config file limits the agent to some devices or actions, or to reading only.
 - Changes that can cut you off from a device always ask you first.
 - An action log records every tool call.
+- A screen recording shows what the agent did. It goes on across power actions, never turns KVM on or asks for user consent by itself, and lists each time the screen was missing.
 
 Setup and every tool: [MCP server](#mcp-server-openlamt-mcp) below and the [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html).
 
@@ -234,7 +235,7 @@ Save the device passwords in the app first, or without the app with `openlamt-mc
 {"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}
 ```
 
-**Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json` (including `capture.folder`, the folder for recordings and saved screenshots; without it they go to a folder `OpenLAMT` in your home folder), user consent, KVM, media, the serial console and the action log.
+**Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json` (including `capture.folder`, the folder for recordings and saved screenshots; without it they go to a folder `OpenLAMT` in your home folder; OpenLAMT creates either folder if it is missing), user consent, KVM, media, the serial console and the action log.
 
 ### Removing
 

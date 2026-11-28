@@ -237,6 +237,8 @@ Save the device passwords in the app first, or without the app with `openlamt-mc
 
 **Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json` (including `capture.folder`, the folder for recordings and saved screenshots; without it they go to a folder `OpenLAMT` in your home folder; OpenLAMT creates either folder if it is missing), user consent, KVM, media, the serial console and the action log.
 
+To check afterwards what an agent did on a device, you can have the server record every KVM session as a video: set `capture.record_always` to `true` in the config file. The agent cannot stop these recordings, and without a working recording it gets no KVM session.
+
 ### Removing
 
 1. Delete the app (`OpenLAMT.app`, the folder with `OpenLAMT.exe`, or `sudo apt remove openlamt`).

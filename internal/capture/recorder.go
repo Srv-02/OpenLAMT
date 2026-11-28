@@ -141,6 +141,21 @@ func (r *Recorder) Offer(img *image.RGBA) {
 	r.dirty = true
 }
 
+// Last returns a copy of the newest frame, at the recording size: the last one offered, or the
+// last one written if none came since. It is the first frame of a file that goes on where this
+// one ended (at the size limit); safe from any goroutine, also after the recording ended.
+func (r *Recorder) Last() *image.RGBA {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	src := r.work
+	if r.dirty {
+		src = r.pending
+	}
+	img := image.NewRGBA(src.Rect)
+	copy(img.Pix, src.Pix)
+	return img
+}
+
 // Stop ends the recording, completes the file and returns why it ended: nil, ErrLimit (the file
 // is complete) or the write error. It waits for the file to be closed; safe to call twice.
 func (r *Recorder) Stop() error {

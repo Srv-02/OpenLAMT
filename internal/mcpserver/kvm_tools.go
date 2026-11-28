@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -101,11 +102,14 @@ func (s *server) registerKVM(srv *mcp.Server) {
 			"after a question in the MCP client with require_client_confirmation; otherwise the call says what to turn on. " +
 			"Calling it again returns the open session. Devices that require user consent show a six-digit code on their screen: " +
 			"call without consent_code first, ask a person at the device for the code, then call again with it. " +
-			"The session closes after the idle timeout without calls, with kvm_disconnect, or when this server stops."},
+			"The session closes after the idle timeout without calls, with kvm_disconnect, or when this server stops. " +
+			"If the server configuration records every session (capture.record_always), the result names the video file in recording: " +
+			"you cannot stop that recording, it ends with the session."},
 		s.kvmConnect)
 	addTool(s, srv, &mcp.Tool{Name: "kvm_disconnect", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 		Description: "Close the KVM session of a device (held keys and buttons are released first), so the OpenLAMT app can use KVM again. " +
-			"A running recording ends and its file is finished; the result lists it with its warnings."},
+			"A running recording ends and its file is finished; the result lists it with its warnings (and earlier_files, " +
+			"if a recording of the server configuration went on in new files at the size limit)."},
 		s.kvmDisconnect)
 	if view {
 		addTool(s, srv, &mcp.Tool{Name: "kvm_screenshot", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: closed},
@@ -119,15 +123,17 @@ func (s *server) registerKVM(srv *mcp.Server) {
 		addTool(s, srv, &mcp.Tool{Name: "kvm_record_start", Annotations: &mcp.ToolAnnotations{OpenWorldHint: closed},
 			InputSchema: schemaFor[recordStartInput](nil),
 			Description: "Record the screen of a device as a video file (AVI, Motion-JPEG). Needs kvm_connect first. " +
-				"The recording keeps the KVM session open. After a power action it goes on and opens KVM again by itself once the action has finished; " +
+				"While it records, it keeps the KVM session open; while it waits for kvm_connect, the idle timeout applies. After a power action it goes on and opens KVM again by itself once the action has finished; " +
 				"it never turns KVM on and never asks for user consent: if the device asks for consent again, it waits until kvm_connect with the code. " +
 				"One recording per device; it ends with kvm_record_stop, kvm_disconnect, update_favorite or delete_favorite of the device, when this server stops, or at 2 GB. " +
-				"folder (absolute path) and name choose where the file goes; an existing file is never overwritten."},
+				"folder (absolute path) and name choose where the file goes; an existing file is never overwritten. " +
+				"If the server configuration records every session (capture.record_always), the session is recorded already and this tool refuses."},
 			s.kvmRecordStart)
 		addTool(s, srv, &mcp.Tool{Name: "kvm_record_stop", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 			Description: "Stop the recording of a device and finish the video file. Returns path, duration, size in bytes and frame count; " +
 				"if the recording ended by itself (size limit, error) it returns that result and the reason, also after the session closed. " +
-				"warnings lists each time KVM was closed during the recording (UTC) and why; the video shows the last picture meanwhile."},
+				"warnings lists each time KVM was closed during the recording (UTC) and why; the video shows the last picture meanwhile. " +
+				"It refuses a recording of the server configuration (capture.record_always): that one ends with kvm_disconnect."},
 			s.kvmRecordStop)
 	}
 	if !input {
@@ -181,6 +187,7 @@ type kvmConnectOutput struct {
 	ScreenHeight       int      `json:"screen_height"`
 	Quality            string   `json:"quality" jsonschema:"high (16 bit colour) or low (8 bit), as chosen for the favorite in the OpenLAMT app"`
 	IdleTimeoutSeconds int      `json:"idle_timeout_seconds" jsonschema:"the session closes after this many seconds without a KVM tool call; 0 means never"`
+	Recording          string   `json:"recording,omitempty" jsonschema:"the video file this session is recorded into by the server configuration (capture.record_always); you cannot stop this recording, it ends with kvm_disconnect"`
 	Warnings           []string `json:"warnings,omitempty"`
 }
 
@@ -230,8 +237,25 @@ func (s *server) kvmConnect(ctx context.Context, req *mcp.CallToolRequest, in kv
 	if err != nil {
 		return nil, kvmConnectOutput{}, err
 	}
+	// capture.record_always: no session without its recording. A folder that cannot hold the
+	// video refuses before KVM is opened.
+	var dir string
+	if s.cfg.RecordAlways {
+		if dir, err = s.captureDir(""); err != nil {
+			return nil, kvmConnectOutput{}, errNoRecording(err, false)
+		}
+	}
 	var out kvmConnectOutput
 	err = s.kvm.connect(ctx, fav, code, agreed, func(e *kvmEntry, already bool) error {
+		if s.cfg.RecordAlways && !e.rec.running() {
+			r, err := s.startMandatory(ctx, e, fav, dir)
+			if err != nil {
+				s.kvm.remove(e)
+				e.shut("")
+				return errNoRecording(err, true)
+			}
+			e.setRec(r) // replaces one that just failed; its session would close anyway
+		}
 		// The wake keys are input to the host: only with the tool group kvm_input (never in
 		// read_only).
 		if !already && s.cfg.Enabled(GroupKVMInput) {
@@ -239,7 +263,13 @@ func (s *server) kvmConnect(ctx context.Context, req *mcp.CallToolRequest, in kv
 		}
 		w, h := e.client.Size()
 		out = kvmConnectOutput{Device: fav.DisplayName(), AlreadyOpen: already, ScreenWidth: w, ScreenHeight: h,
-			Quality: e.client.Quality().String(), IdleTimeoutSeconds: int(s.cfg.KVMIdleTimeout / time.Second), Warnings: e.warnings}
+			Quality: e.client.Quality().String(), IdleTimeoutSeconds: int(s.cfg.KVMIdleTimeout / time.Second), Warnings: slices.Clone(e.warnings)}
+		if r := e.rec; r != nil && r.mandatory {
+			out.Recording = r.current().Path()
+			out.Warnings = append(out.Warnings, "This KVM session is recorded by the server configuration (capture.record_always) into "+out.Recording+
+				". You cannot stop this recording; it ends with kvm_disconnect, the idle timeout or when this server stops. "+
+				"A person can watch the video later.")
+		}
 		return nil
 	})
 	var off *amt.RedirectionOffError
@@ -430,7 +460,7 @@ type sendKeysOutput struct {
 // confirmInput asks the person in the MCP client before an input call, when the config wants it.
 func (s *server) confirmInput(req *mcp.CallToolRequest, fav favorites.Favorite, what string, secret bool) (*mcp.CallToolResult, error) {
 	if !s.kvm.has(fav) {
-		return nil, noSession(fav) // do not ask a person for a call that cannot run
+		return nil, s.kvm.missing(fav) // do not ask a person for a call that cannot run
 	}
 	// The text goes over the open session, whatever the favorite says now.
 	tls := fav.UseTLS

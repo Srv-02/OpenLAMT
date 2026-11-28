@@ -205,3 +205,32 @@ func TestRecorderRemovesFileOnStartError(t *testing.T) {
 		t.Fatalf("file left: %v", err)
 	}
 }
+
+// TestRecorderLast: Last copies the newest frame, offered or written, also after Stop; a file
+// that goes on after the size limit starts with it.
+func TestRecorderLast(t *testing.T) {
+	clk := newFakeClock()
+	r, err := StartRecorder(create(t, filepath.Join(t.TempDir(), "rec.avi")), solid(32, 16, color.RGBA{R: 255}), clk.options(10, 0))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := r.Last().RGBAAt(5, 5); c.R != 255 || c.B != 0 {
+		t.Fatalf("first frame %v", c)
+	}
+	r.Offer(solid(32, 16, color.RGBA{B: 255}))
+	last := r.Last() // offered, not written yet
+	if c := last.RGBAAt(5, 5); c.B != 255 || c.R != 0 || last.Bounds().Size() != (image.Point{32, 16}) {
+		t.Fatalf("offered frame %v %v", c, last.Bounds())
+	}
+	clk.tick(r, 100*time.Millisecond)
+	if err := r.Stop(); err != nil {
+		t.Fatal(err)
+	}
+	if c := r.Last().RGBAAt(5, 5); c.B != 255 {
+		t.Fatalf("after stop %v", c)
+	}
+	last.Pix[0] = 1 // a copy: changing it changes nothing in the recorder
+	if r.Last().Pix[0] == 1 {
+		t.Fatal("Last returned the recorder's own buffer")
+	}
+}

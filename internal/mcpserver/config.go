@@ -56,6 +56,7 @@ type Config struct {
 	MediaAllowedPaths         []string      // folders media_mount may mount from (cleaned, absolute); empty means anywhere
 	Screenshot                ScreenshotConfig
 	CaptureFolder             string // where recordings and saved screenshots go without a folder in the call; empty: OpenLAMT in the home folder
+	RecordAlways              bool   // capture.record_always: every KVM session of kvm_connect is recorded into CaptureFolder; the agent cannot stop it, no session runs without it
 	Passwords                 PasswordConfig
 	Certificates              CertificateConfig
 	Source                    string // the file read; empty when the defaults apply
@@ -178,7 +179,8 @@ type fileConfig struct {
 		IdleTimeoutSeconds *int `json:"idle_timeout_seconds"`
 	} `json:"sol"`
 	Capture *struct {
-		Folder *string `json:"folder"`
+		Folder       *string `json:"folder"`
+		RecordAlways *bool   `json:"record_always"`
 	} `json:"capture"`
 	Media *struct {
 		AllowedPaths []string `json:"allowed_paths"`
@@ -276,13 +278,16 @@ func Load(path string, mustExist bool) (Config, error) {
 		}
 		c.SOLIdleTimeout = time.Duration(*sl.IdleTimeoutSeconds) * time.Second
 	}
-	if cp := f.Capture; cp != nil && cp.Folder != nil {
-		if p := strings.TrimSpace(*cp.Folder); p != "" {
-			if !filepath.IsAbs(p) {
-				return Config{}, fmt.Errorf("parse %s: capture.folder takes an absolute folder path, not %q", path, p)
+	if cp := f.Capture; cp != nil {
+		if cp.Folder != nil {
+			if p := strings.TrimSpace(*cp.Folder); p != "" {
+				if !filepath.IsAbs(p) {
+					return Config{}, fmt.Errorf("parse %s: capture.folder takes an absolute folder path, not %q", path, p)
+				}
+				c.CaptureFolder = filepath.Clean(p)
 			}
-			c.CaptureFolder = filepath.Clean(p)
 		}
+		set(&c.RecordAlways, cp.RecordAlways)
 	}
 	if md := f.Media; md != nil {
 		for _, p := range md.AllowedPaths {

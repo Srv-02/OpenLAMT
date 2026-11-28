@@ -3,10 +3,13 @@ package mcpserver
 import (
 	"context"
 	"errors"
+	"image"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/Srv-02/openlamt/internal/capture"
 	"github.com/Srv-02/openlamt/internal/favorites"
 	"github.com/Srv-02/openlamt/internal/kvm"
 )
@@ -40,8 +43,15 @@ type kvmManager struct {
 	powers map[string]*powerRun
 	// kept is the result of a recording that ended by itself and whose session closed before
 	// kvm_record_stop fetched it, one per favKey.
-	kept   map[string]recordResult
-	onFeed func(step string) // tests: called at each step of a recording's reopen
+	kept map[string]recordResult
+	// failed is the result of a mandatory recording that failed and closed its session, one
+	// per favKey, until kvm_connect or kvm_disconnect: the KVM tools name it instead of "no
+	// session".
+	failed map[string]recordResult
+	// startRec starts the recorder of a file; tests replace it (size limit, write errors).
+	startRec func(f *os.File, first *image.RGBA, o capture.RecorderOptions) (*capture.Recorder, error)
+	onFeed   func(step string) // tests: called at each step of a recording's reopen
+	onCall   func(step string) // tests: called when a tool call waits (step "power")
 }
 
 // powerRun counts the power actions of one device that run now; done is closed when the last
@@ -84,13 +94,62 @@ type feedOpen struct {
 
 func newKVMManager(idle time.Duration, open kvmOpener) *kvmManager {
 	return &kvmManager{entries: map[string]*kvmEntry{}, idle: idle, open: open, now: time.Now,
-		powers: map[string]*powerRun{}, kept: map[string]recordResult{}}
+		powers: map[string]*powerRun{}, kept: map[string]recordResult{}, failed: map[string]recordResult{}, startRec: capture.StartRecorder}
 }
 
 var errShuttingDown = refuse("The MCP server is shutting down.")
 
 func noSession(fav favorites.Favorite) error {
 	return refuse("No KVM session is open for %q: call kvm_connect first.", fav.DisplayName())
+}
+
+// missing is the error of a KVM tool call without a session: noSession, or, after a mandatory
+// recording failed and closed the session, why.
+func (m *kvmManager) missing(fav favorites.Favorite) error {
+	m.mu.Lock()
+	res, failed := m.failed[favKey(fav)]
+	m.mu.Unlock()
+	if failed {
+		return errRecordingFailed(fav, res)
+	}
+	return noSession(fav)
+}
+
+func errRecordingFailed(fav favorites.Favorite, res recordResult) error {
+	return refuse("The KVM session of %q was closed because its recording failed (%s); the server configuration (capture.record_always) "+
+		"allows no KVM session without a recording. The video so far: %s. Call kvm_connect to open a new session with a new recording.",
+		fav.DisplayName(), res.EndedBy, res.Path)
+}
+
+func (m *kvmManager) callStep(step string) {
+	if m.onCall != nil {
+		m.onCall(step)
+	}
+}
+
+// recordingFailed closes the session of e after its mandatory recording rec ended by itself
+// (a write error, or the file after the size limit could not start): no session runs without
+// its recording. The result stays for the next KVM call and kvm_disconnect (see failed).
+func (m *kvmManager) recordingFailed(e *kvmEntry, rec *recording) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.removed || e.rec != rec { // ended from outside, or replaced
+		return
+	}
+	m.remove(e)
+	res, _ := e.shut("")
+	m.mu.Lock()
+	m.failed[e.key] = res
+	m.mu.Unlock()
+}
+
+// takeFailed returns the failed result of the device with key once (see kvmManager.failed).
+func (m *kvmManager) takeFailed(key string) (recordResult, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	res, ok := m.failed[key]
+	delete(m.failed, key)
+	return res, ok
 }
 
 // alive reports whether the client runs.
@@ -165,6 +224,31 @@ func (e *kvmEntry) endFeedOpen(op *feedOpen) {
 		e.feedOpen = nil
 	}
 	close(op.done)
+}
+
+// awaitReady waits until neither a reopen of the recording (awaitFeedOpen) nor a power action
+// of the device runs, before a tool call opens the session: AMT refuses off, cycle and shutdown
+// while KVM is open, so a call never opens it while the power action runs. The caller holds
+// e.mu; it is unlocked while waiting and held again on return, also on a ctx error.
+func (m *kvmManager) awaitReady(ctx context.Context, e *kvmEntry) error {
+	for {
+		if err := e.awaitFeedOpen(ctx); err != nil {
+			return err
+		}
+		done := m.powerDone(e.key)
+		if done == nil {
+			return nil
+		}
+		e.mu.Unlock()
+		m.callStep("power")
+		select {
+		case <-done:
+		case <-ctx.Done():
+			e.mu.Lock()
+			return ctx.Err()
+		}
+		e.mu.Lock()
+	}
 }
 
 // awaitFeedOpen waits until a reopen of the recording that runs now has ended, so nobody opens a
@@ -248,7 +332,10 @@ func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code c
 
 		e.mu.Lock()
 		if !e.removed && !e.alive() {
-			if err := e.awaitFeedOpen(ctx); err != nil {
+			if err := m.awaitReady(ctx, e); err != nil {
+				if created && !e.removed && !e.alive() {
+					m.remove(e)
+				}
 				e.mu.Unlock()
 				return err
 			}
@@ -268,9 +355,12 @@ func (m *kvmManager) connect(ctx context.Context, fav favorites.Favorite, code c
 				return err
 			}
 			e.install(c, warnings, fav.UseTLS)
-			if created && m.idle > 0 {
+			if e.timer == nil && m.idle > 0 {
 				e.timer = time.AfterFunc(m.idle, func() { m.expire(e) })
 			}
+			m.mu.Lock()
+			delete(m.failed, key) // a new session: the failure was reported or is past
+			m.mu.Unlock()
 		}
 		e.lastUsed = m.now()
 		err := fn(e, already)
@@ -297,17 +387,20 @@ func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e 
 	case closed:
 		return errShuttingDown
 	case e == nil:
-		return noSession(fav)
+		return m.missing(fav)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if !e.removed && !e.alive() {
-		if err := e.awaitFeedOpen(ctx); err != nil {
+		if err := m.awaitReady(ctx, e); err != nil {
 			return err
 		}
 	}
 	if e.removed {
-		return noSession(fav)
+		return m.missing(fav)
+	}
+	if r := e.rec; r != nil && r.mandatory && !r.running() { // failed; recordingFailed closes the session next
+		return errRecordingFailed(fav, r.end(""))
 	}
 	if !e.alive() {
 		e.release()
@@ -336,14 +429,17 @@ func (m *kvmManager) remove(e *kvmEntry) {
 	m.mu.Unlock()
 }
 
-// expire closes e once it was not used for the idle timeout; a call in progress delays it.
+// expire closes e once it was not used for the idle timeout; a call in progress delays it. A
+// recording the agent started keeps the session open while it records frames; one that waits
+// for a tool call (consent, KVM off, refused login, see reopen) does not, and a mandatory one
+// never does, so a session the agent forgot still closes.
 func (m *kvmManager) expire(e *kvmEntry) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.removed {
 		return
 	}
-	if e.rec.running() { // a recording keeps the session open
+	if e.rec.running() && !e.rec.mandatory && e.alive() {
 		e.lastUsed = m.now()
 		e.timer.Reset(m.idle)
 		return
@@ -353,9 +449,9 @@ func (m *kvmManager) expire(e *kvmEntry) {
 		return
 	}
 	m.remove(e)
-	// The recording ended by itself before (a running one keeps the session): keep its result
-	// for kvm_record_stop.
-	if res, ok := e.shut("the KVM session was closed after the idle timeout"); ok {
+	// Keep the result of a recording the agent started for kvm_record_stop. A mandatory one
+	// is the person's: its files stay in the capture folder.
+	if res, ok := e.shut("the KVM session was closed after the idle timeout"); ok && !res.Mandatory {
 		m.mu.Lock()
 		m.kept[e.key] = res
 		m.mu.Unlock()
@@ -373,11 +469,15 @@ func (m *kvmManager) takeKept(key string) (recordResult, bool) {
 
 // disconnect closes and removes the session of the device of fav; why ends a running recording.
 // It reports whether there was a session, and the result of the recording on it, if any.
+// A mandatory recording that failed and closed the session before is returned once, too.
 func (m *kvmManager) disconnect(fav favorites.Favorite, why string) (bool, *recordResult) {
 	m.mu.Lock()
 	e := m.entries[favKey(fav)]
 	m.mu.Unlock()
 	if e == nil {
+		if res, ok := m.takeFailed(favKey(fav)); ok {
+			return false, &res
+		}
 		return false, nil
 	}
 	e.cancelFeed()
@@ -405,9 +505,12 @@ func (m *kvmManager) stopRecording(fav favorites.Favorite) (res recordResult, ok
 		return recordResult{}, false, errShuttingDown
 	}
 	if e != nil {
+		if r := e.live.Load(); r != nil && r.mandatory {
+			return recordResult{}, false, errMandatoryStop
+		}
 		e.cancelFeed()
 		e.mu.Lock()
-		if !e.removed && e.rec != nil {
+		if !e.removed && e.rec != nil && !e.rec.mandatory {
 			res = e.rec.end("stopped")
 			e.setRec(nil)
 			e.lastUsed = m.now()
@@ -419,6 +522,8 @@ func (m *kvmManager) stopRecording(fav favorites.Favorite) (res recordResult, ok
 	res, ok = m.takeKept(key)
 	return res, ok, nil
 }
+
+var errMandatoryStop = refuse("This session is recorded by the server configuration (capture.record_always); the recording ends with kvm_disconnect.")
 
 // powerRunning reports whether a power action of the device with key runs now.
 func (m *kvmManager) powerRunning(key string) bool { return m.powerDone(key) != nil }
@@ -489,6 +594,7 @@ func (m *kvmManager) closeAll() {
 	}
 	clear(m.entries)
 	clear(m.kept)
+	clear(m.failed)
 	m.mu.Unlock()
 	for _, e := range entries {
 		e.cancelFeed()

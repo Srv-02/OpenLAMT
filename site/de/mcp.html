@@ -136,7 +136,7 @@
 <p>Ein Agent kann dokumentieren, was er tut. Er nimmt den Bildschirm eines Geräts als Video auf und speichert Screenshots als Dateien. Beides braucht eine offene KVM-Sitzung (<code>kvm_connect</code>) und die Gruppe <code>read</code>, wie <code>kvm_screenshot</code>.</p>
 <ul>
   <li><code>kvm_record_start</code> startet ein Video (eine AVI-Datei, wie die App sie erzeugt). Pro Gerät läuft nur eine Aufnahme. <code>kvm_record_stop</code> beendet sie und liefert Pfad, Dauer, Größe und Anzahl der Bilder.</li>
-  <li>Eine Aufnahme hält die KVM-Sitzung offen, das Leerlauf-Timeout schließt sie also nicht.</li>
+  <li>Eine Aufnahme hält die KVM-Sitzung offen, solange sie aufnimmt, das Leerlauf-Timeout schließt sie dann nicht. Wartet sie stattdessen auf den Agenten (siehe unten), schließt das Leerlauf-Timeout die Sitzung wie sonst auch.</li>
   <li>Nach einer Power-Aktion läuft die Aufnahme weiter. AMT schaltet ein Gerät nicht aus und startet es nicht neu, solange KVM offen ist. Deshalb wartet die Aufnahme, bis die Power-Aktion fertig ist, und öffnet KVM danach selbst wieder. Bis dahin wiederholt das Video das letzte Bild.</li>
   <li>Die Aufnahme ändert nichts, was du am Gerät entschieden hast: Sie schaltet KVM nie ein und fragt nie von sich aus nach der Benutzerzustimmung. Das Gerät zeigt also keinen Code, nach dem niemand gefragt hat. Verlangt das Gerät wieder eine Zustimmung oder ist KVM aus, wartet die Aufnahme, bis der Agent <code>kvm_connect</code> aufruft (mit dem Code vom Bildschirm des Geräts), und läuft dann weiter. Genauso wartet sie, wenn das Passwort oder das vertraute Zertifikat fehlt oder das Gerät die Anmeldung ablehnt. Ist das Gerät nur kurz nicht erreichbar, etwa während eines Neustarts, versucht die Aufnahme es von selbst weiter.</li>
   <li>Eine Aufnahme endet mit <code>kvm_record_stop</code>, mit <code>kvm_disconnect</code>, wenn der Agent Host, Benutzernamen oder TLS des Geräts mit <code>update_favorite</code> ändert oder es mit <code>delete_favorite</code> löscht, wenn der Server stoppt oder bei 2 GB. Die Datei wird immer sauber abgeschlossen. <code>kvm_disconnect</code>, <code>update_favorite</code> und <code>delete_favorite</code> nennen das fertige Video in ihrem Ergebnis. Hat sich eine Aufnahme von selbst beendet (2 GB, ein Schreibfehler), liefert <code>kvm_record_stop</code> trotzdem ihr Ergebnis und nennt den Grund, auch wenn die KVM-Sitzung inzwischen geschlossen ist.</li>
@@ -145,6 +145,14 @@
   <li>Der Agent kann <code>folder</code> (ein absoluter Pfad zu einem vorhandenen Ordner) und <code>name</code> (ein Dateiname ohne Ordner; die Endung <code>.avi</code> oder <code>.png</code> setzt das Werkzeug) angeben. Ohne Namen heißt die Datei wie die Dateien der App: <code>openlamt-&lt;Gerät&gt;-&lt;Datum&gt;-&lt;Uhrzeit&gt;</code>. Ein Name über 100 Byte wird gekürzt, und ein Windows-Gerätename wie <code>NUL</code>, <code>CON</code> oder <code>COM1</code> bekommt auf jedem System das Präfix <code>openlamt-</code>, damit die Dateien überall funktionieren.</li>
   <li>Ohne <code>folder</code> landen die Dateien in <code>capture.folder</code> der <a href="#config">Konfigurationsdatei</a>, und ohne diese in einem Ordner <code>OpenLAMT</code> in deinem Home-Ordner. OpenLAMT legt beide Ordner an, wenn sie fehlen. Ein Ordner, den der Agent angibt, muss schon vorhanden sein.</li>
   <li>OpenLAMT überschreibt nie eine Datei. Ist der Name vergeben, hängt es <code>-2</code>, <code>-3</code> und so weiter an.</li>
+</ul>
+<p id="record-always"><b>Jede Sitzung aufnehmen.</b> Willst du später prüfen, was ein Agent an einem Gerät getan hat, lass den Server jede KVM-Sitzung selbst aufnehmen, egal ob der Agent das will. Du schaltest das mit <code>"capture": {"record_always": true}</code> in der <a href="#config">Konfigurationsdatei</a> ein. Dann gilt:</p>
+<ul>
+  <li>Jede Sitzung, die <code>kvm_connect</code> öffnet, wird als Video in <code>capture.folder</code> aufgenommen (oder im Ordner <code>OpenLAMT</code> in deinem Home-Ordner), unter dem üblichen Dateinamen. <code>kvm_connect</code> sagt dem Agenten, dass die Sitzung aufgenommen wird, und nennt die Datei.</li>
+  <li>Der Agent kann diese Aufnahme nicht stoppen, keine zweite starten und nicht bestimmen, wohin sie geht. Sie endet mit der Sitzung: mit <code>kvm_disconnect</code>, nach dem Leerlauf-Timeout, wenn der Agent den Favoriten ändert oder löscht, oder wenn der Server stoppt. <code>kvm_disconnect</code> nennt die Dateien.</li>
+  <li>Keine KVM-Sitzung ohne Aufnahme. Kann die Aufnahme nicht starten, etwa weil der Ordner nicht beschreibbar ist, schlägt <code>kvm_connect</code> fehl und nennt den Grund. Bricht sie später ab, etwa weil die Platte voll ist, schließt der Server die Sitzung, und der Agent muss wieder <code>kvm_connect</code> aufrufen.</li>
+  <li>Bei 2 GB geht die Aufnahme sofort in einer neuen Datei weiter.</li>
+  <li>Anders als eine Aufnahme, die der Agent startet, hält sie die Sitzung nicht offen: Das Leerlauf-Timeout schließt eine Sitzung, die niemand nutzt, und ihr Video endet mit ihr.</li>
 </ul>
 
 <h3 id="serial-console">Serielle Konsole</h3>
@@ -256,7 +264,7 @@ openlamt-mcp trust "Lab Server"</code></pre>
   "action_log": {"enabled": true, "path": ""},
   "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
           "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
-  "capture": {"folder": ""},
+  "capture": {"folder": "", "record_always": false},
   "sol": {"idle_timeout_seconds": 300},
   "media": {"allowed_paths": []},
   "passwords": {"command": [], "allow_plaintext_passwords": false},
@@ -272,6 +280,7 @@ openlamt-mcp trust "Lab Server"</code></pre>
   <dt><code>action_log</code></dt><dd>Schreibt eine Zeile pro Werkzeugaufruf nach <code>openlamt-mcp-actions.log</code> neben der Konfigurationsdatei, oder nach <code>path</code>. Darin stehen Tasten und Mausaktionen, eingehängte Pfade und die geänderten Einstellungen, aber nie Text, der über KVM oder die serielle Konsole getippt wurde, kein Consent-Code und kein Passwort.</dd>
   <dt><code>kvm</code></dt><dd>Das Leerlauf-Timeout einer KVM-Sitzung (<code>0</code> hält sie offen, bis der Server stoppt) und die Standardgröße, das Format (<code>jpeg</code> oder <code>png</code>) und die Qualität von Screenshots. Der Agent kann pro Aufruf eine andere Größe oder ein anderes Format verlangen.</dd>
   <dt><code>capture.folder</code></dt><dd>Der Ordner für Aufnahmen und gespeicherte Screenshots, wenn der Agent keinen nennt (ein absoluter Pfad). Leer heißt der Ordner <code>OpenLAMT</code> in deinem Home-Ordner. OpenLAMT legt den Ordner an, wenn er fehlt. Siehe <a href="#record">Aufnehmen und dokumentieren</a>.</dd>
+  <dt><code>capture.record_always</code></dt><dd>Nimmt jede KVM-Sitzung als Video auf, damit du später prüfen kannst, was der Agent getan hat. Der Agent kann das nicht stoppen, und ohne funktionierende Aufnahme gibt es keine KVM-Sitzung. Standardmäßig aus. Siehe <a href="#record-always">Jede Sitzung aufnehmen</a>.</dd>
   <dt><code>sol</code></dt><dd>Das Leerlauf-Timeout einer Sitzung der seriellen Konsole.</dd>
   <dt><code>media.allowed_paths</code></dt><dd>Begrenzt <code>media_mount</code> auf die Ordner, die du aufzählst (absolute Pfade). Leer heißt überall außer in den geschützten Ordnern.</dd>
   <dt><code>passwords.command</code></dt><dd>Programm und Argumente, die ein Gerätepasswort ausgeben, siehe <a href="#password-sources">Woher Passwörter kommen</a>. Leer heißt keines.</dd>

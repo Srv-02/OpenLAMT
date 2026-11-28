@@ -74,7 +74,8 @@ func TestRecordAlwaysRecordsEverySession(t *testing.T) {
 		t.Fatalf("second connect %v", again)
 	}
 	h.mustFail("kvm_record_stop", dev("NUC"),
-		"This session is recorded by the server configuration (capture.record_always); the recording ends with kvm_disconnect.")
+		"This session is recorded by the server configuration (capture.record_always); the recording ends with the session: "+
+			"with kvm_disconnect, after the idle timeout, or when this server stops.")
 	h.mustFail("kvm_record_start", dev("NUC"), "recorded already, by the server configuration")
 	h.mustFail("kvm_record_start", dev("NUC", "folder", t.TempDir(), "name", "mine"), "recorded already")
 	eventually(t, "frames", func() bool { return recordedFrames(h) >= 3 })

@@ -78,6 +78,13 @@ type recording struct {
 	gap      *recGap           // the session is missing since gap.from; nil while it runs
 	warnings []string          // one per past gap, at most maxGapWarnings
 	moreGaps int               // gaps beyond maxGapWarnings
+	// waitFrom: since then the feed waits for a tool call to open the session (consent, KVM
+	// off, see waitReason); zero otherwise. Only then the idle timeout counts (see expire).
+	waitFrom time.Time
+	// lateCalls ran after a reopen before the recording had a picture of the new session (see
+	// kvmManager.awaitFeed), the first at lateFrom.
+	lateCalls int
+	lateFrom  time.Time
 }
 
 // recGap is a time without KVM session during a recording: the video repeats the last picture.
@@ -149,6 +156,33 @@ func (r *recording) resumed() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.closeGap(false)
+	r.waitFrom = time.Time{}
+}
+
+// waitForCall notes that the feed waits for a tool call to open the session.
+func (r *recording) waitForCall() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.waitFrom.IsZero() {
+		r.waitFrom = r.now()
+	}
+}
+
+// waitingSince reports whether the feed waits for a tool call, and since when.
+func (r *recording) waitingSince() (time.Time, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.waitFrom, !r.waitFrom.IsZero()
+}
+
+// lateCall notes a tool call that ran before the recording had a picture of the session.
+func (r *recording) lateCall() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lateCalls == 0 {
+		r.lateFrom = r.now()
+	}
+	r.lateCalls++
 }
 
 // closeGap turns the open gap into a warning; the caller holds r.mu. atEnd: the recording ends
@@ -216,6 +250,11 @@ func (r *recording) end(why string) recordResult {
 		warnings := slices.Clone(r.warnings)
 		if r.moreGaps > 0 {
 			warnings = append(warnings, fmt.Sprintf("KVM was closed %d more times; the video shows the last picture meanwhile.", r.moreGaps))
+		}
+		if r.lateCalls > 0 {
+			warnings = append(warnings, fmt.Sprintf("%d KVM %s ran after KVM was opened again, before the recording had a picture of the new session "+
+				"(the first at %s); the video may not show what %s did.", r.lateCalls, plural(r.lateCalls, "call", "calls"),
+				r.lateFrom.UTC().Format("2006-01-02 15:04:05 UTC"), plural(r.lateCalls, "it", "they")))
 		}
 		earlier := slices.Clone(r.earlier)
 		r.mu.Unlock()
@@ -308,7 +347,9 @@ func (m *kvmManager) startRecording(e *kvmEntry, f *os.File, img *image.RGBA, fa
 		rec.failed = func() { m.recordingFailed(e, rec) }
 	}
 	go rec.watch()
-	go m.feed(rec, e, fav, e.client)
+	h := e.handoff.Load()
+	h.markFed() // the recording starts with a picture of its client
+	go m.feed(rec, e, fav, h)
 	return rec, nil
 }
 
@@ -320,25 +361,26 @@ func (m *kvmManager) feedStep(step string) {
 
 // feed hands the newest frame of the session to the recorder until the recording ends. When the
 // session ends, reopen brings it back; the recorder repeats the last frame meanwhile, and the
-// recording notes the gap as a warning.
-func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, c *kvm.Client) {
+// recording notes the gap as a warning. The first frame of each client marks it fed, so a tool
+// call that waits for it (awaitFeed) sends its input only once the video shows the session.
+func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, h *kvmHandoff) {
 	var (
 		img *image.RGBA
 		seq uint64
 	)
 	for {
-		n, err := c.WaitFrame(rec.ctx, seq)
+		n, err := h.c.WaitFrame(rec.ctx, seq)
 		if rec.ctx.Err() != nil {
 			return
 		}
 		if err != nil {
 			why := whyAMT
-			if m.powerRunning(e.key) {
+			if h.byPower.Load() || m.powerRunning(e.key) {
 				why = whyPower
 			}
 			rec.lost(why)
 			m.feedStep("lost")
-			if c = m.reopen(rec, e, fav); c == nil {
+			if h = m.reopen(rec, e, fav, h); h == nil {
 				return
 			}
 			rec.resumed()
@@ -347,8 +389,9 @@ func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, c
 			continue
 		}
 		seq = n
-		img = c.SnapshotInto(img)
+		img = h.c.SnapshotInto(img)
 		rec.current().Offer(img)
+		h.markFed()
 		// At most two snapshots per frame slot: the recorder takes one frame per slot anyway.
 		if sleepCtx(rec.ctx, time.Second/time.Duration(2*rec.fps)) != nil {
 			return
@@ -356,16 +399,20 @@ func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, c
 	}
 }
 
-// reopen waits until the session of e runs again and returns its client; nil when the recording
-// ended. A tool call may open the session meanwhile (kvm_connect with a consent code, say), and
-// the recording goes on with it. Otherwise the recording opens it itself after its wait, without
-// holding e.mu, and only passively: never while a power action of the device runs (the wait
+// reopen waits until the session of e runs again with a client other than prev and returns it;
+// nil when the recording ended. A tool call may open the session meanwhile (kvm_connect with a
+// consent code, say), and the recording goes on with it: it takes that client from e.handoff,
+// without e.mu, while the tool call waits until the recording shows it (awaitFeed). Otherwise
+// the recording opens the session itself after its wait, without holding e.mu, and only passively: never while a power action of the device runs (the wait
 // starts again after it), never turning KVM on, never starting user consent. Network errors are
 // tried again with a growing wait; consent, KVM off, a refused login or a changed certificate
 // make it wait for a tool call.
-func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite) *kvm.Client {
+func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite, prev *kvmHandoff) *kvmHandoff {
 	delay, wait, passive := rec.reopenDelay, true, false
 	for {
+		if h := e.handoff.Load(); h != nil && h != prev && h.alive() {
+			return h
+		}
 		e.mu.Lock()
 		if e.removed {
 			e.mu.Unlock()
@@ -373,9 +420,9 @@ func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite)
 			return nil
 		}
 		if e.alive() {
-			c := e.client
+			h := e.handoff.Load()
 			e.mu.Unlock()
-			return c
+			return h
 		}
 		opened := e.awaitOpen()
 		power := m.powerDone(e.key)
@@ -423,11 +470,11 @@ func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite)
 		m.feedStep("open")
 		c, warnings, err := m.open(op.ctx, fav, kvmOpen{passive: true})
 		e.mu.Lock()
-		installed := false
+		var installed *kvmHandoff
 		if err == nil {
 			if !e.removed && !e.alive() && !m.powerRunning(e.key) && rec.ctx.Err() == nil {
 				e.install(c, warnings, fav.UseTLS)
-				installed = true
+				installed = e.handoff.Load()
 			} else {
 				_ = c.Close()
 			}
@@ -437,13 +484,14 @@ func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite)
 		switch {
 		case rec.ctx.Err() != nil:
 			return nil
-		case installed:
-			return c
+		case installed != nil:
+			return installed
 		case err == nil: // a tool call opened the session, or a power action began: look again
 			continue
 		}
 		if why, ok := waitReason(err); ok {
 			rec.because(why)
+			rec.waitForCall()
 			passive = true
 		} else {
 			wait, delay = true, min(delay*2, rec.reopenMax)

@@ -104,7 +104,7 @@ func (s *server) registerKVM(srv *mcp.Server) {
 			"call without consent_code first, ask a person at the device for the code, then call again with it. " +
 			"The session closes after the idle timeout without calls, with kvm_disconnect, or when this server stops. " +
 			"If the server configuration records every session (capture.record_always), the result names the video file in recording: " +
-			"you cannot stop that recording, it ends with the session."},
+			"you cannot stop that recording, it ends with the session, and KVM calls before it runs are refused."},
 		s.kvmConnect)
 	addTool(s, srv, &mcp.Tool{Name: "kvm_disconnect", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 		Description: "Close the KVM session of a device (held keys and buttons are released first), so the OpenLAMT app can use KVM again. " +
@@ -123,15 +123,19 @@ func (s *server) registerKVM(srv *mcp.Server) {
 		addTool(s, srv, &mcp.Tool{Name: "kvm_record_start", Annotations: &mcp.ToolAnnotations{OpenWorldHint: closed},
 			InputSchema: schemaFor[recordStartInput](nil),
 			Description: "Record the screen of a device as a video file (AVI, Motion-JPEG). Needs kvm_connect first. " +
-				"While it records, it keeps the KVM session open; while it waits for kvm_connect, the idle timeout applies. After a power action it goes on and opens KVM again by itself once the action has finished; " +
+				"While it records, and while it opens KVM again by itself (after a power action or a network error), it keeps the KVM session open; " +
+				"only while it waits for kvm_connect (user consent, KVM off, a rejected login, a missing password or certificate) the idle timeout applies. " +
+				"After a power action it goes on and opens KVM again by itself once the action has finished; " +
 				"it never turns KVM on and never asks for user consent: if the device asks for consent again, it waits until kvm_connect with the code. " +
-				"One recording per device; it ends with kvm_record_stop, kvm_disconnect, update_favorite or delete_favorite of the device, when this server stops, or at 2 GB. " +
+				"When a KVM call opens the session again, it sends its input once the recording shows the new picture. " +
+				"One recording per device; it ends with kvm_record_stop, kvm_disconnect, update_favorite of the host, user name or TLS, delete_favorite of the device, when this server stops, or at 2 GB. " +
 				"folder (absolute path) and name choose where the file goes; an existing file is never overwritten. " +
 				"If the server configuration records every session (capture.record_always), the session is recorded already and this tool refuses."},
 			s.kvmRecordStart)
 		addTool(s, srv, &mcp.Tool{Name: "kvm_record_stop", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 			Description: "Stop the recording of a device and finish the video file. Returns path, duration, size in bytes and frame count; " +
-				"if the recording ended by itself (size limit, error) it returns that result and the reason, also after the session closed. " +
+				"if the recording ended by itself (size limit, error), or with its session (the idle timeout while it waited for kvm_connect), " +
+				"it returns that result and the reason, also after the session closed. " +
 				"warnings lists each time KVM was closed during the recording (UTC) and why; the video shows the last picture meanwhile. " +
 				"It refuses a recording of the server configuration (capture.record_always): that one ends with kvm_disconnect."},
 			s.kvmRecordStop)

@@ -139,16 +139,17 @@
   <li>Der Agent kann diese Aufnahme nicht stoppen, keine zweite starten und nicht bestimmen, wohin sie geht.</li>
   <li>Keine Aufnahme, keine KVM-Sitzung. Kann die Aufnahme nicht starten, etwa weil der Ordner nicht beschreibbar ist, schlägt <code>kvm_connect</code> fehl und nennt den Grund.</li>
   <li>Keine Aufnahme, keine Eingabe. Der Agent kann nicht tippen, klicken oder auf den Bildschirm schauen, bevor die Aufnahme läuft. Öffnet <code>kvm_connect</code> die Sitzung noch, etwa nach einer Power-Aktion, lehnt der Server so einen Aufruf ab und sendet nichts.</li>
-  <li>Bricht die Aufnahme später ab, etwa weil die Platte voll ist, schließt der Server die Sitzung. Ein Aufruf, der gerade tippt oder klickt, bricht sofort ab. Der Agent muss dann wieder <code>kvm_connect</code> aufrufen.</li>
+  <li>Bricht die Aufnahme später ab, etwa weil die Platte voll ist, schließt der Server die Sitzung. Ein Aufruf, der gerade tippt oder klickt, sendet ab der nächsten Taste oder dem nächsten Klick nichts mehr. Tasten oder Maustasten, die der Agent noch hält, lässt OpenLAMT dann nicht los: Das wäre eine Eingabe ohne Video. Der Agent muss dann wieder <code>kvm_connect</code> aufrufen.</li>
   <li>Das Video landet im üblichen Ordner unter dem üblichen Dateinamen. <code>kvm_connect</code> sagt dem Agenten, dass die Sitzung aufgenommen wird, und nennt die Datei.</li>
   <li>Die Aufnahme endet mit der Sitzung: mit <code>kvm_disconnect</code>, nach dem Leerlauf-Timeout, wenn der Agent Host, Benutzernamen oder TLS des Favoriten ändert oder ihn löscht, oder wenn der Server stoppt. Ein neuer Name für den Favoriten lässt sie weiterlaufen. <code>kvm_disconnect</code> nennt die Dateien.</li>
-  <li>Bei 2 GB geht die Aufnahme sofort in einer neuen Datei weiter.</li>
+  <li>Bei 2 GB geht die Aufnahme in einer neuen Datei weiter. Das Anlegen dauert einen Moment, solange wartet jede Eingabe, höchstens 5 Sekunden. Startet die neue Datei nicht, schließt der Server die Sitzung wie oben. Fehlte dem Video beim Wechsel ein Bild, sagt das Ergebnis es.</li>
   <li>Diese Aufnahme hält die Sitzung nicht offen. Das Leerlauf-Timeout schließt eine Sitzung, die niemand nutzt, und ihr Video endet mit ihr.</li>
 </ul>
 <p><b>Was dich erwartet.</b></p>
 <ul>
   <li>Das Video läuft weiter, wenn der Agent das Gerät neu startet oder aus- und wieder einschaltet. AMT lehnt Power-Aktionen ab, solange KVM offen ist. Deshalb wartet die Aufnahme, bis die Power-Aktion fertig ist, und öffnet KVM danach selbst wieder.</li>
   <li>Solange der Bildschirm fehlt, zeigt das Video das letzte Bild.</li>
+  <li>Endet eine Sitzung, lässt OpenLAMT zuerst gehaltene Tasten und Maustasten los und beendet erst danach das Video. So zeigt das Video auch das Ende eines Ziehens.</li>
   <li>Öffnet der Agent KVM wieder, etwa gleich nach einem Neustart, wartet sein Aufruf, bis das Video den Bildschirm wieder zeigt. Erst dann tippt oder klickt er. So zeigt das Video, was der Agent tut.</li>
   <li>Kommt binnen 5 Sekunden kein Bild, lehnt eine Aufnahme jeder Sitzung den Aufruf ab und es wird nichts gesendet. Eine Aufnahme, die der Agent gestartet hat, lässt den Aufruf weiterlaufen, und ihr Ergebnis sagt das.</li>
   <li>Ist das Gerät nur kurz nicht erreichbar, etwa während eines Neustarts, versucht die Aufnahme es von selbst weiter.</li>

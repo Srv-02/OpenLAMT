@@ -139,16 +139,17 @@
   <li>The agent cannot stop this recording, start a second one or choose where it goes.</li>
   <li>No recording, no KVM session. If the recording cannot start, for example because the folder is not writable, <code>kvm_connect</code> fails and says why.</li>
   <li>No recording, no input. The agent cannot type, click or look at the screen before the recording runs. While <code>kvm_connect</code> is still opening the session, for example after a power action, such a call is refused and nothing is sent.</li>
-  <li>If the recording fails later, for example because the disk is full, the server closes the session. A call that types or clicks right then stops at once. The agent has to call <code>kvm_connect</code> again.</li>
+  <li>If the recording fails later, for example because the disk is full, the server closes the session. A call that types or clicks right then sends nothing more, from its next key or click on. Keys or buttons the agent still holds are not released then: that would be input without a video. The agent has to call <code>kvm_connect</code> again.</li>
   <li>The video goes to the usual folder under the usual file name. <code>kvm_connect</code> tells the agent that the session is recorded and names the file.</li>
   <li>The recording ends with the session: with <code>kvm_disconnect</code>, after the idle timeout, when the agent changes the host, user name or TLS of the favorite or deletes it, or when the server stops. A new name for the favorite keeps it running. <code>kvm_disconnect</code> lists the files.</li>
-  <li>At 2 GB the recording goes on in a new file right away.</li>
+  <li>At 2 GB the recording goes on in a new file. Starting it takes a moment, and input waits meanwhile, for at most 5 seconds. If the new file cannot start, the server closes the session as above. If the video missed a picture during the switch, the result says so.</li>
   <li>This recording does not keep the session open. The idle timeout closes a session nobody uses, and its video ends with it.</li>
 </ul>
 <p><b>What to expect.</b></p>
 <ul>
   <li>The video goes on when the agent restarts the device or switches it off and on. AMT refuses power actions while KVM is open. So the recording waits until the power action has finished and then opens KVM again by itself.</li>
   <li>While the screen is gone, the video shows the last picture.</li>
+  <li>When a session ends, OpenLAMT first releases held keys and mouse buttons, then ends the video. So the video also shows the end of a drag.</li>
   <li>When the agent opens KVM again, for example right after a restart, its call waits until the video shows the screen again. Only then does it type or click. So the video shows what the agent does.</li>
   <li>If no picture comes within 5 seconds, a recording of every session refuses the call, and nothing is sent. A recording the agent started lets the call go on, and its result says so.</li>
   <li>If the device is unreachable for a while, for example during a restart, the recording keeps trying by itself.</li>

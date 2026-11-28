@@ -108,6 +108,9 @@ func TestRecorderKeepsTheTimeline(t *testing.T) {
 	if c := decodeAt(t, frames[4].data, 5, 5); c.B < 200 || c.R > 50 {
 		t.Fatalf("last frame %v", c)
 	}
+	if r.Frames() != len(frames) {
+		t.Fatalf("Frames() %d, file has %d", r.Frames(), len(frames))
+	}
 	select {
 	case <-r.Done():
 	default:

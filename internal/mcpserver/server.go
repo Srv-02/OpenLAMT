@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -53,6 +54,7 @@ type server struct {
 	log     *ActionLog
 	logger  *slog.Logger
 	kvm     *kvmManager
+	home    func() (string, error) // the home folder; tests replace it
 	sol     *solManager
 	media   *mediaManager
 	// mountAsks holds what open media_mount questions showed.
@@ -86,6 +88,7 @@ To find devices: scan_network a network or range, then add_favorite; update_favo
 Power actions act on real hardware: check device_status before and after.
 boot_to_bios, kvm_connect, sol_connect and media_mount may need user consent on the device: then ask a person at the device for the six-digit code on its screen and pass it as consent_code.
 For the screen: kvm_connect once, then kvm_screenshot, kvm_send_keys, kvm_mouse and kvm_type_text as often as needed; kvm_disconnect when done.
+To document your work: kvm_screenshot with save true also saves a PNG at the full screen size, and kvm_record_start / kvm_record_stop record the screen as a video (AVI). Both return the file path. Files go to the folder you pass (absolute path) or else the configured folder; existing files are never overwritten. A recording ends with kvm_record_stop, kvm_disconnect or the 2 GB limit.
 kvm_mouse takes x and y in the pixels of the last kvm_screenshot. After input, take a new screenshot (wait_ms helps when the screen changes slowly).
 For the serial console: sol_connect once, then sol_read (it goes on where the last read ended; wait_ms waits for new output), sol_type_text and sol_send_keys; sol_disconnect when done.
 For media: media_mount an absolute path of an .iso file or a folder on this computer, then media_boot_next (boot from it at the next start) or boot_from_iso (restart from it now); media_status shows the mount; media_unmount when done.
@@ -98,7 +101,7 @@ func New(o Options) *Server {
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &server{cfg: o.Config, favs: o.Favorites, keys: o.Keys, connect: o.Connect, logins: o.Logins, log: o.Log, logger: logger,
-		pws: newPasswords(o.Config.Passwords, o.Keys), scanner: o.Scanner, fetchFP: o.FetchFingerprint, stateKey: make([]byte, 32)}
+		pws: newPasswords(o.Config.Passwords, o.Keys), scanner: o.Scanner, fetchFP: o.FetchFingerprint, stateKey: make([]byte, 32), home: os.UserHomeDir}
 	s.editor, _ = o.Favorites.(FavoriteEditor)
 	if s.scanner == nil {
 		s.scanner = &scan.Scanner{}

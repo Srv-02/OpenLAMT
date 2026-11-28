@@ -60,7 +60,7 @@ Each device opens in its own window with remote keyboard, video and mouse (KVM).
 
 ![Claude asks openlamt-mcp for the screen of Lab Server and shows the BIOS setup](screenshots/mcp.png)
 
-`openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can find devices in the network and manage favorites, read status and logs, switch devices on and off, look at the screen and type, use the serial console and boot from an ISO. It runs on your computer and opens no network port, also without the app on a Linux server without a desktop.
+`openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can find devices in the network and manage favorites, read status and logs, switch devices on and off, look at the screen and type, record the screen as a video and save screenshots (for documentation), use the serial console and boot from an ISO. It runs on your computer and opens no network port, also without the app on a Linux server without a desktop.
 
 - Device passwords stay in the keychain or your password manager and never reach the agent.
 - A config file limits the agent to some devices or actions, or to reading only.
@@ -234,7 +234,7 @@ Save the device passwords in the app first, or without the app with `openlamt-mc
 {"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}
 ```
 
-**Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json`, user consent, KVM, media, the serial console and the action log.
+**Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json` (including `capture.folder`, the folder for recordings and saved screenshots; without it they go to a folder `OpenLAMT` in your home folder), user consent, KVM, media, the serial console and the action log.
 
 ### Removing
 

@@ -39,6 +39,7 @@ type kvmEntry struct {
 	removed  bool        // disconnected, idle or shut down: the entry is no longer in the manager
 	lastUsed time.Time
 	timer    *time.Timer
+	rec      *recording // the recording of this device, running or ended and not yet reported by kvm_record_stop
 
 	imgW, imgH   int        // size of the last screenshot; 0 before the first one
 	buttons      kvm.Button // mouse buttons held by kvm_mouse down
@@ -80,10 +81,14 @@ func (e *kvmEntry) release() {
 	_ = e.client.ReleaseAll()
 }
 
-// shut releases input and closes the client; the caller holds e.mu.
-func (e *kvmEntry) shut() {
+// shut ends a recording (why says why), releases input and closes the client; the caller holds
+// e.mu.
+func (e *kvmEntry) shut(why string) {
 	if e.timer != nil {
 		e.timer.Stop()
+	}
+	if e.rec != nil {
+		e.rec.end(why)
 	}
 	e.release()
 	if e.client != nil {
@@ -200,6 +205,29 @@ func (m *kvmManager) use(ctx context.Context, fav favorites.Favorite, fn func(e 
 	return err
 }
 
+// inspect runs fn on the entry of the device of fav with the entry locked, without a running
+// session (a recording outlives the client). It reports noSession if there is no entry.
+func (m *kvmManager) inspect(fav favorites.Favorite, fn func(e *kvmEntry) error) error {
+	m.mu.Lock()
+	closed, e := m.closed, m.entries[favKey(fav)]
+	m.mu.Unlock()
+	switch {
+	case closed:
+		return errShuttingDown
+	case e == nil:
+		return noSession(fav)
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.removed {
+		return noSession(fav)
+	}
+	e.lastUsed = m.now()
+	err := fn(e)
+	e.lastUsed = m.now()
+	return err
+}
+
 // remove takes e out of the manager; the caller holds e.mu.
 func (m *kvmManager) remove(e *kvmEntry) {
 	e.removed = true
@@ -217,30 +245,40 @@ func (m *kvmManager) expire(e *kvmEntry) {
 	if e.removed {
 		return
 	}
+	if e.rec.running() { // a recording keeps the session open
+		e.lastUsed = m.now()
+		e.timer.Reset(m.idle)
+		return
+	}
 	if left := m.idle - m.now().Sub(e.lastUsed); left > 0 {
 		e.timer.Reset(left)
 		return
 	}
 	m.remove(e)
-	e.shut()
+	e.shut("the KVM session was closed after the idle timeout")
 }
 
-// disconnect closes and removes the session of the device of fav; it reports whether there was one.
-func (m *kvmManager) disconnect(fav favorites.Favorite) bool {
+// disconnect closes and removes the session of the device of fav; it reports whether there was
+// one, and the result of the recording it ended, if any.
+func (m *kvmManager) disconnect(fav favorites.Favorite) (bool, *recordResult) {
 	m.mu.Lock()
 	e := m.entries[favKey(fav)]
 	m.mu.Unlock()
 	if e == nil {
-		return false
+		return false, nil
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.removed {
-		return false
+		return false, nil
 	}
 	m.remove(e)
-	e.shut()
-	return true
+	e.shut("the KVM session was closed with kvm_disconnect")
+	if e.rec != nil {
+		res := e.rec.end("")
+		return true, &res
+	}
+	return true, nil
 }
 
 // closeForPower closes a running session of the device of fav before a power action that AMT
@@ -280,7 +318,7 @@ func (m *kvmManager) closeAll() {
 			e.mu.Lock()
 			defer e.mu.Unlock()
 			e.removed = true
-			e.shut()
+			e.shut("the MCP server shut down")
 		})
 	}
 	wg.Wait()

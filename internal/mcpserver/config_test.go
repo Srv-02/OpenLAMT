@@ -235,3 +235,26 @@ func TestLoadCertificateSettings(t *testing.T) {
 		t.Fatalf("on: %v %+v", err, c.Certificates)
 	}
 }
+
+// TestLoadCaptureFolder: capture.folder takes an absolute folder; without it the field stays
+// empty and the server uses OpenLAMT in the home folder.
+func TestLoadCaptureFolder(t *testing.T) {
+	if c := Defaults(t.TempDir()); c.CaptureFolder != "" {
+		t.Fatalf("default %q", c.CaptureFolder)
+	}
+	for _, body := range []string{`{}`, `{"capture": {}}`, `{"capture": {"folder": "  "}}`} {
+		if c, err := Load(writeConfig(t, body), true); err != nil || c.CaptureFolder != "" {
+			t.Fatalf("%s: %v %q", body, err, c.CaptureFolder)
+		}
+	}
+	abs := filepath.Join(t.TempDir(), "docs")
+	c, err := Load(writeConfig(t, `{"capture": {"folder": `+strconv.Quote(abs+string(filepath.Separator))+`}}`), true)
+	if err != nil || c.CaptureFolder != abs {
+		t.Fatalf("%v %q", err, c.CaptureFolder)
+	}
+	for _, bad := range []string{`{"capture": {"folder": "docs"}}`, `{"capture": {"dir": "/x"}}`, `{"capture": {"folder": 5}}`} {
+		if _, err := Load(writeConfig(t, bad), true); err == nil {
+			t.Errorf("%s: no error", bad)
+		}
+	}
+}

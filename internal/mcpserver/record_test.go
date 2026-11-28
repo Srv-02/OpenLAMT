@@ -258,7 +258,7 @@ func TestKVMRecordEndedByItself(t *testing.T) {
 		default:
 		}
 	}
-	<-r.Done()
+	<-rec.ended // the recording saw the limit and finished the file
 	h.mustFail("kvm_record_start", dev("NUC", "folder", t.TempDir()), "ended by itself")
 	out := h.mustOK("kvm_record_stop", dev("NUC"))
 	if !strings.Contains(out["ended_by"].(string), "size limit") || out["path"] != r.Path() || out["frames"].(float64) < 1 {

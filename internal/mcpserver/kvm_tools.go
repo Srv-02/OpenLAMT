@@ -34,10 +34,12 @@ const (
 )
 
 // openKVM opens a KVM session to the device of fav: login check, the favorite's quality (high
-// unless the favorite says low), consent with code. The WS-Man session is closed again; the KVM
+// unless the favorite says low), consent with the code of o. A passive open (a recording's own)
+// never turns KVM on and never starts user consent: a device that needs consent fails with
+// amt.ErrConsentRequired before it shows a code. The WS-Man session is closed again; the KVM
 // client has its own socket.
-func (s *server) openKVM(ctx context.Context, fav favorites.Favorite, code consentCode, agreed bool) (*kvm.Client, []string, error) {
-	sess, warnings, err := s.openRedirection(ctx, fav, agreed)
+func (s *server) openKVM(ctx context.Context, fav favorites.Favorite, o kvmOpen) (*kvm.Client, []string, error) {
+	sess, _, warnings, err := s.openFavEnable(ctx, fav, !o.passive && s.mayEnable(o.agreed))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -46,7 +48,11 @@ func (s *server) openKVM(ctx context.Context, fav favorites.Favorite, code conse
 	if fav.QualityChoice() == favorites.QualityLow {
 		q = kvm.QualityLow
 	}
-	c, err := sess.OpenKVM(ctx, q, code)
+	var prompt amt.ConsentPrompt = o.code
+	if o.passive {
+		prompt = nil
+	}
+	c, err := sess.OpenKVM(ctx, q, prompt)
 	if err != nil {
 		return nil, nil, s.offError(err, "kvm_connect")
 	}
@@ -99,7 +105,7 @@ func (s *server) registerKVM(srv *mcp.Server) {
 		s.kvmConnect)
 	addTool(s, srv, &mcp.Tool{Name: "kvm_disconnect", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 		Description: "Close the KVM session of a device (held keys and buttons are released first), so the OpenLAMT app can use KVM again. " +
-			"A running recording ends and its file is finished; the result lists it."},
+			"A running recording ends and its file is finished; the result lists it with its warnings."},
 		s.kvmDisconnect)
 	if view {
 		addTool(s, srv, &mcp.Tool{Name: "kvm_screenshot", Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true, OpenWorldHint: closed},
@@ -113,13 +119,15 @@ func (s *server) registerKVM(srv *mcp.Server) {
 		addTool(s, srv, &mcp.Tool{Name: "kvm_record_start", Annotations: &mcp.ToolAnnotations{OpenWorldHint: closed},
 			InputSchema: schemaFor[recordStartInput](nil),
 			Description: "Record the screen of a device as a video file (AVI, Motion-JPEG). Needs kvm_connect first. " +
-				"The recording keeps the KVM session open and goes on when a power action closes it. " +
-				"One recording per device; it ends with kvm_record_stop, kvm_disconnect or at 2 GB. " +
+				"The recording keeps the KVM session open. After a power action it goes on and opens KVM again by itself once the action has finished; " +
+				"it never turns KVM on and never asks for user consent: if the device asks for consent again, it waits until kvm_connect with the code. " +
+				"One recording per device; it ends with kvm_record_stop, kvm_disconnect, update_favorite or delete_favorite of the device, when this server stops, or at 2 GB. " +
 				"folder (absolute path) and name choose where the file goes; an existing file is never overwritten."},
 			s.kvmRecordStart)
 		addTool(s, srv, &mcp.Tool{Name: "kvm_record_stop", Annotations: &mcp.ToolAnnotations{IdempotentHint: true, OpenWorldHint: closed},
 			Description: "Stop the recording of a device and finish the video file. Returns path, duration, size in bytes and frame count; " +
-				"if the recording ended by itself (size limit, error) it returns that result and the reason."},
+				"if the recording ended by itself (size limit, error) it returns that result and the reason, also after the session closed. " +
+				"warnings lists each time KVM was closed during the recording (UTC) and why; the video shows the last picture meanwhile."},
 			s.kvmRecordStop)
 	}
 	if !input {
@@ -258,7 +266,7 @@ func (s *server) kvmDisconnect(_ context.Context, _ *mcp.CallToolRequest, in dev
 	if err != nil {
 		return nil, kvmDisconnectOutput{}, err
 	}
-	closed, res := s.kvm.disconnect(fav)
+	closed, res := s.kvm.disconnect(fav, "the KVM session was closed with kvm_disconnect")
 	out := kvmDisconnectOutput{Device: fav.DisplayName(), Closed: closed}
 	if res != nil {
 		out.Recording = res.output()

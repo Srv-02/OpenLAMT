@@ -80,6 +80,7 @@ type Fake struct {
 	maxBusy      atomic.Int32
 	powerStarted atomic.Bool
 	idleClosed   atomic.Int32
+	prompts      atomic.Int32
 }
 
 func (f *Fake) enter() {
@@ -124,6 +125,7 @@ func (f *Fake) consent(prompt amt.ConsentPrompt) error {
 	if prompt == nil {
 		return amt.ErrConsentRequired
 	}
+	f.prompts.Add(1)
 	code, err := prompt.ConsentCode()
 	if err != nil {
 		return fmt.Errorf("read consent code: %w", err)
@@ -193,6 +195,10 @@ func (f *Fake) Fingerprint() string { f.mu.Lock(); defer f.mu.Unlock(); return f
 
 // CloseIdleConnections counts the calls (see IdleClosed).
 func (f *Fake) CloseIdleConnections() { f.idleClosed.Add(1) }
+
+// ConsentPrompts is the number of consent steps with Consent set that asked the prompt: there
+// a real device starts the opt-in and shows a code on its screen (unless one shows already).
+func (f *Fake) ConsentPrompts() int { return int(f.prompts.Load()) }
 
 // IdleClosed is the number of CloseIdleConnections calls.
 func (f *Fake) IdleClosed() int { return int(f.idleClosed.Load()) }

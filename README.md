@@ -60,13 +60,13 @@ Each device opens in its own window with remote keyboard, video and mouse (KVM).
 
 ![Claude asks openlamt-mcp for the screen of Lab Server and shows the BIOS setup](screenshots/mcp.png)
 
-`openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can find devices in the network and manage favorites, read status and logs, switch devices on and off, look at the screen and type, record the screen as a video and save screenshots (for documentation), use the serial console and boot from an ISO. It runs on your computer and opens no network port, also without the app on a Linux server without a desktop.
+`openlamt-mcp` connects your OpenLAMT favorites to an AI agent, such as Claude Desktop, Claude Code or any other MCP client. The agent can find devices in the network and manage favorites, read status and logs, switch devices on and off, look at the screen and type, record the screen and save screenshots, use the serial console and boot from an ISO. It runs on your computer and opens no network port, also without the app on a Linux server without a desktop.
 
 - Device passwords stay in the keychain or your password manager and never reach the agent.
 - A config file limits the agent to some devices or actions, or to reading only.
 - Changes that can cut you off from a device always ask you first.
 - An action log records every tool call.
-- A screen recording shows what the agent did. It goes on across power actions, never turns KVM on or asks for user consent by itself, and lists each time the screen was missing.
+- Your agent can film what it does on a device, so you can check it later.
 
 Setup and every tool: [MCP server](#mcp-server-openlamt-mcp) below and the [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html).
 
@@ -235,7 +235,9 @@ Save the device passwords in the app first, or without the app with `openlamt-mc
 {"mcpServers": {"openlamt": {"command": "/path/to/openlamt-mcp"}}}
 ```
 
-**Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json` (including `capture.folder`, the folder for recordings and saved screenshots; without it they go to a folder `OpenLAMT` in your home folder; OpenLAMT creates either folder if it is missing), user consent, KVM, media, the serial console and the action log.
+**Without a config file, everything is allowed:** every favorite and every action; only the risky settings and account changes ask. Before you hand your devices to an agent you do not fully trust, write a config file. The [MCP guide](https://srv-02.github.io/OpenLAMT/mcp.html) lists every tool and explains the config file `openlamt-mcp.json`, user consent, KVM, recording, media, the serial console and the action log.
+
+So you can check later what an agent did, the server can record every KVM session as a video that the agent cannot stop. Without a working recording there is no KVM session and no input. It is off by default; turn it on with `"capture": {"record_always": true}` in the config file.
 
 ### Removing
 

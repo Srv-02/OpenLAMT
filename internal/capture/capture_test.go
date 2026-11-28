@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func TestFileNameSanitisesDeviceName(t *testing.T) {
@@ -37,6 +38,36 @@ func TestFileNameSanitisesDeviceName(t *testing.T) {
 	got := FileName(long, at, "avi")
 	if !strings.HasSuffix(got, "-2026-11-23-101412.avi") || len([]rune(got)) > len("openlamt--2026-11-23-101412.avi")+maxNameRunes {
 		t.Fatalf("long name not shortened: %q", got)
+	}
+}
+
+// TestFileNameLimitsBytes: a device name of multi-byte characters is cut by bytes at a
+// character boundary, so the file (with a counter of CreateUnique) can be created on file
+// systems that allow 255 bytes per name; the device part of a short or ASCII name stays as
+// before.
+func TestFileNameLimitsBytes(t *testing.T) {
+	at := time.Date(2026, 11, 23, 10, 14, 12, 0, time.Local)
+	for _, device := range []string{strings.Repeat("😀", 64), strings.Repeat("日", 100), strings.Repeat("ä", 200), "x" + strings.Repeat("😀", 63)} {
+		got := FileName(device, at, "avi")
+		part := strings.TrimSuffix(strings.TrimPrefix(got, "openlamt-"), "-2026-11-23-101412.avi")
+		if !utf8.ValidString(got) || len(part) > maxNameBytes || len(part) < maxNameBytes-3 || !strings.HasPrefix(device, part) {
+			t.Fatalf("%q: device part %q (%d bytes)", device, part, len(part))
+		}
+		if len(got)+len("-10000") > 200 {
+			t.Fatalf("%q: %d bytes", got, len(got))
+		}
+		dir := t.TempDir()
+		for range 2 { // the second one gets the counter -2
+			f, err := CreateUnique(dir, got)
+			if err != nil {
+				t.Fatalf("%q: %v", got, err)
+			}
+			f.Close()
+		}
+	}
+	ascii := strings.Repeat("y", maxNameRunes)
+	if got := FileName(ascii+"zzz", at, "avi"); got != "openlamt-"+ascii+"-2026-11-23-101412.avi" {
+		t.Fatalf("ASCII name %q", got)
 	}
 }
 

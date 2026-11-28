@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Reasons why a configured folder cannot take a file; the device window falls back to the
@@ -24,9 +25,13 @@ var (
 	ErrFolderReadOnly = errors.New("capture: folder is not writable")
 )
 
-// maxNameRunes bounds the device part of a file name, so the whole name stays well below the
-// 255 bytes most file systems allow.
-const maxNameRunes = 64
+// maxNameRunes and maxNameBytes bound the device part of a file name, so the whole name (with
+// a counter of CreateUnique) stays well below the 255 bytes most file systems allow, also for
+// characters of four bytes.
+const (
+	maxNameRunes = 64
+	maxNameBytes = 128
+)
 
 // FileName returns openlamt-<device>-<YYYY-MM-DD-HHMMSS>.<ext> for a file taken at t. The device
 // name is made safe for every file system: characters that Windows, macOS or Linux reject in a
@@ -48,8 +53,13 @@ func FileName(device string, t time.Time, ext string) string {
 	}
 	name := strings.Trim(b.String(), "-.")
 	if r := []rune(name); len(r) > maxNameRunes {
-		name = strings.TrimRight(string(r[:maxNameRunes]), "-.")
+		name = string(r[:maxNameRunes])
 	}
+	for len(name) > maxNameBytes { // cut at a character boundary
+		_, size := utf8.DecodeLastRuneInString(name)
+		name = name[:len(name)-size]
+	}
+	name = strings.TrimRight(name, "-.")
 	if name == "" {
 		name = "device"
 	}

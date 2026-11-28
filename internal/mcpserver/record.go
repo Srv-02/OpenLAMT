@@ -49,22 +49,49 @@ const (
 // recording is a screen recording of one device: a capture.Recorder, fed with the frames of the
 // KVM session by a goroutine. It lives on the device's kvmEntry. end finalizes the file, once,
 // whoever ends the recording first.
+//
+// A mandatory recording (capture.record_always) belongs to the session, not to the agent: at
+// the size limit it goes on in a new file (next), and when it ends by itself otherwise
+// (a write error, or no new file) failed closes the session, so no session runs unrecorded.
+// Its gate (see kvm_gate.go) lets KVM input pass only while it runs and shows the session.
 type recording struct {
-	recorder *capture.Recorder
-	fps      int
-	ctx      context.Context // ends with the recording; stops the feed
-	cancel   context.CancelFunc
-	once     sync.Once
-	ended    chan struct{} // closed when the file is finalized and res is set
-	res      recordResult
+	fps    int
+	ctx    context.Context    // ends with the recording (halt); stops the feed
+	cancel context.CancelFunc // only through halt
+	once   sync.Once
+	ended  chan struct{} // closed when the file is finalized and res is set
+	res    recordResult
 	// The waits before a reopen, read when the recording starts.
 	reopenDelay, reopenMax time.Duration
 	now                    func() time.Time // clock of the warnings
+	mandatory              bool
+	// next starts the file that follows at the size limit, with first as its first frame; nil:
+	// the recording ends at the limit.
+	next func(first *image.RGBA) (*capture.Recorder, error)
+	// failed runs when a mandatory recording ended by itself (not by end from outside).
+	failed func()
 
-	mu       sync.Mutex
-	gap      *recGap  // the session is missing since gap.from; nil while it runs
-	warnings []string // one per past gap, at most maxGapWarnings
-	moreGaps int      // gaps beyond maxGapWarnings
+	gate recGate
+
+	mu sync.Mutex
+	// recorder is the file written now; see current. It changes under gate.mu and mu, so the
+	// gate reads it with gate.mu alone.
+	recorder *capture.Recorder
+	earlier  []recordResult // files finished at the size limit, oldest first
+	nextErr  error          // why the file after the size limit could not start
+	gap      *recGap        // the session is missing since gap.from; nil while it runs
+	warnings []string       // one per past gap or slow switch of files, at most maxGapWarnings
+	moreGaps int            // gaps beyond maxGapWarnings
+	// moreSwitches: switches of files beyond maxGapWarnings that left the video without
+	// pictures for a while (see switchGap)
+	moreSwitches int
+	// waitFrom: since then the feed waits for a tool call to open the session (consent, KVM
+	// off, see waitReason); zero otherwise. Only then the idle timeout counts (see expire).
+	waitFrom time.Time
+	// lateCalls ran after a reopen before the recording had a picture of the new session (see
+	// kvmManager.awaitFeed), the first at lateFrom.
+	lateCalls int
+	lateFrom  time.Time
 }
 
 // recGap is a time without KVM session during a recording: the video repeats the last picture.
@@ -75,12 +102,14 @@ type recGap struct {
 
 // recordResult is what a finished recording leaves.
 type recordResult struct {
-	Path     string
-	Duration time.Duration
-	Bytes    int64
-	Frames   int
-	EndedBy  string
-	Warnings []string
+	Path      string
+	Duration  time.Duration
+	Bytes     int64
+	Frames    int
+	EndedBy   string
+	Warnings  []string
+	Mandatory bool
+	Earlier   []recordResult // the files before Path, finished at the size limit (Path, Duration, Bytes, Frames)
 }
 
 // running reports whether r is a recording that has not ended; false for nil.
@@ -94,6 +123,20 @@ func (r *recording) running() bool {
 	default:
 		return true
 	}
+}
+
+// current returns the recorder of the file written now.
+func (r *recording) current() *capture.Recorder {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.recorder
+}
+
+// files returns how many files the recording has written so far.
+func (r *recording) files() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.earlier) + 1
 }
 
 // lost notes that the session went away (why); a gap that is open already keeps its start.
@@ -120,7 +163,47 @@ func (r *recording) resumed() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.closeGap(false)
+	r.waitFrom = time.Time{}
 }
+
+// waitForCall notes that the feed waits for a tool call to open the session.
+func (r *recording) waitForCall() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.waitFrom.IsZero() {
+		r.waitFrom = r.now()
+	}
+}
+
+// waitingSince reports whether the feed waits for a tool call, and since when.
+func (r *recording) waitingSince() (time.Time, bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.waitFrom, !r.waitFrom.IsZero()
+}
+
+// lateCall notes a tool call that ran before the recording had a picture of the session.
+func (r *recording) lateCall() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.lateCalls == 0 {
+		r.lateFrom = r.now()
+	}
+	r.lateCalls++
+}
+
+// switchGap notes that starting the next file at the size limit took from from to to: the video
+// has no pictures of that time, and the gate sent no input meanwhile. The caller holds r.mu.
+func (r *recording) switchGap(from, to time.Time) {
+	if len(r.warnings) >= maxGapWarnings {
+		r.moreSwitches++
+		return
+	}
+	r.warnings = append(r.warnings, fmt.Sprintf("The recording started its next file at the size limit from %s to %s; "+
+		"the video has no pictures of that time, and no KVM input was sent meanwhile.", utcTime(from), utcTime(to)))
+}
+
+func utcTime(t time.Time) string { return t.UTC().Format("2006-01-02 15:04:05.000 UTC") }
 
 // closeGap turns the open gap into a warning; the caller holds r.mu. atEnd: the recording ends
 // while the session is missing.
@@ -155,13 +238,25 @@ func (g *recGap) add(why string) {
 	}
 }
 
+// fileResult is the part of a result that one file has.
+func fileResult(c *capture.Recorder) recordResult {
+	d, size := c.Stats()
+	return recordResult{Path: c.Path(), Duration: d, Bytes: size, Frames: c.Frames()}
+}
+
 // end stops the feed, finalizes the file and returns the result. why says what ended it; a limit
 // or write error of the recorder wins over it. Later calls return the first result.
 func (r *recording) end(why string) recordResult {
 	r.once.Do(func() {
-		r.cancel()
-		err := r.recorder.Stop()
+		r.halt(false) // no input passes, no new file starts after the size limit
+		r.awaitSwitch()
+		cur := r.current()
+		err := cur.Stop()
+		r.mu.Lock()
 		switch {
+		case r.nextErr != nil:
+			why = fmt.Sprintf("the recording reached the size limit (%d GB) and the next file could not be started: %v",
+				capture.DefaultLimit/1_000_000_000, r.nextErr)
 		case errors.Is(err, capture.ErrLimit):
 			why = fmt.Sprintf("the recording reached the size limit (%d GB)", capture.DefaultLimit/1_000_000_000)
 		case err != nil:
@@ -169,49 +264,110 @@ func (r *recording) end(why string) recordResult {
 		case why == "":
 			why = "stopped"
 		}
-		r.mu.Lock()
 		r.closeGap(true)
 		warnings := slices.Clone(r.warnings)
 		if r.moreGaps > 0 {
 			warnings = append(warnings, fmt.Sprintf("KVM was closed %d more times; the video shows the last picture meanwhile.", r.moreGaps))
 		}
+		if r.moreSwitches > 0 {
+			warnings = append(warnings, fmt.Sprintf("Starting a next file at the size limit left the video without pictures %d more times; "+
+				"no KVM input was sent meanwhile.", r.moreSwitches))
+		}
+		if r.lateCalls > 0 {
+			warnings = append(warnings, fmt.Sprintf("%d KVM %s ran after KVM was opened again, before the recording had a picture of the new session "+
+				"(the first at %s); the video may not show what %s did.", r.lateCalls, plural(r.lateCalls, "call", "calls"),
+				r.lateFrom.UTC().Format("2006-01-02 15:04:05 UTC"), plural(r.lateCalls, "it", "they")))
+		}
+		earlier := slices.Clone(r.earlier)
 		r.mu.Unlock()
-		d, size := r.recorder.Stats()
-		r.res = recordResult{Path: r.recorder.Path(), Duration: d, Bytes: size, Frames: r.recorder.Frames(), EndedBy: why, Warnings: warnings}
+		r.res = fileResult(cur)
+		r.res.EndedBy, r.res.Warnings, r.res.Mandatory, r.res.Earlier = why, warnings, r.mandatory, earlier
 		close(r.ended)
 	})
 	<-r.ended
 	return r.res
 }
 
-// newRecording wraps r, which watches it end by itself (size limit, write error).
-func newRecording(r *capture.Recorder, fps int) *recording {
+// rollOver starts the next file after cur reached the size limit, if the recording has next;
+// cur took no more frames from from on. It reports whether the recording goes on. Input waits
+// meanwhile (see the gate); next runs without a lock, so an end waits for it (awaitSwitch).
+func (r *recording) rollOver(cur *capture.Recorder, from time.Time) bool {
+	if r.next == nil || !errors.Is(cur.Stop(), capture.ErrLimit) { // Stop waits for the file to be finished
+		return false
+	}
+	if !r.beginSwitch() { // end runs: no new file
+		return false
+	}
+	nr, err := r.next(cur.Last())
+	return r.endSwitch(cur, nr, err, from)
+}
+
+// watch ends the recording when its file ends by itself (size limit, write error), or goes on
+// in the next file at the size limit (see rollOver).
+func (r *recording) watch() {
+	for {
+		cur := r.current()
+		select {
+		case <-cur.Halted():
+		case <-r.ended:
+			return
+		}
+		if r.rollOver(cur, r.now()) {
+			continue
+		}
+		r.halt(true) // ended by itself; a no-op if end from outside came first
+		r.end("")
+		if r.mandatory && r.failed != nil {
+			r.failed()
+		}
+		return
+	}
+}
+
+// makeRecording wraps r; watch must run for it.
+func makeRecording(r *capture.Recorder, fps int) *recording {
 	ctx, cancel := context.WithCancel(context.Background())
 	rec := &recording{recorder: r, fps: fps, ctx: ctx, cancel: cancel, ended: make(chan struct{}),
 		reopenDelay: recReopenDelay, reopenMax: recReopenMax, now: time.Now}
-	go func() {
-		select {
-		case <-r.Done():
-			rec.end("")
-		case <-rec.ended:
-		}
-	}()
+	rec.gate.init()
 	return rec
+}
+
+// newRecording wraps r, which watches it end by itself (size limit, write error).
+func newRecording(r *capture.Recorder, fps int) *recording {
+	rec := makeRecording(r, fps)
+	go rec.watch()
+	return rec
+}
+
+// recSpec says how a recording is made.
+type recSpec struct {
+	fps, quality int
+	// mandatory: capture.record_always; next starts the file after the size limit.
+	mandatory bool
+	next      func(first *image.RGBA) (*capture.Recorder, error)
 }
 
 // startRecording records into f from img on and feeds it from the client of e; fav is used to
 // reopen the session. The caller holds e.mu.
-func (m *kvmManager) startRecording(e *kvmEntry, f *os.File, img *image.RGBA, fav favorites.Favorite, fps, quality int) (*recording, error) {
-	r, err := capture.StartRecorder(f, img, capture.RecorderOptions{FPS: fps, Quality: quality})
+func (m *kvmManager) startRecording(e *kvmEntry, f *os.File, img *image.RGBA, fav favorites.Favorite, sp recSpec) (*recording, error) {
+	r, err := m.startRec(f, img, capture.RecorderOptions{FPS: sp.fps, Quality: sp.quality})
 	if err != nil {
 		return nil, err
 	}
+	fps := sp.fps
 	if fps <= 0 {
 		fps = capture.DefaultFPS
 	}
-	rec := newRecording(r, fps)
-	rec.now = m.now
-	go m.feed(rec, e, fav, e.client)
+	rec := makeRecording(r, fps)
+	rec.now, rec.mandatory, rec.next = m.now, sp.mandatory, sp.next
+	if sp.mandatory {
+		rec.failed = func() { m.recordingFailed(e, rec) }
+	}
+	go rec.watch()
+	h := e.handoff.Load()
+	h.markFed() // the recording starts with a picture of its client
+	go m.feed(rec, e, fav, h)
 	return rec, nil
 }
 
@@ -223,25 +379,26 @@ func (m *kvmManager) feedStep(step string) {
 
 // feed hands the newest frame of the session to the recorder until the recording ends. When the
 // session ends, reopen brings it back; the recorder repeats the last frame meanwhile, and the
-// recording notes the gap as a warning.
-func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, c *kvm.Client) {
+// recording notes the gap as a warning. The first frame of each client marks it fed, so a tool
+// call that waits for it (awaitFeed) sends its input only once the video shows the session.
+func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, h *kvmHandoff) {
 	var (
 		img *image.RGBA
 		seq uint64
 	)
 	for {
-		n, err := c.WaitFrame(rec.ctx, seq)
+		n, err := h.c.WaitFrame(rec.ctx, seq)
 		if rec.ctx.Err() != nil {
 			return
 		}
 		if err != nil {
 			why := whyAMT
-			if m.powerRunning(e.key) {
+			if h.byPower.Load() || m.powerRunning(e.key) {
 				why = whyPower
 			}
 			rec.lost(why)
 			m.feedStep("lost")
-			if c = m.reopen(rec, e, fav); c == nil {
+			if h = m.reopen(rec, e, fav, h); h == nil {
 				return
 			}
 			rec.resumed()
@@ -250,8 +407,9 @@ func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, c
 			continue
 		}
 		seq = n
-		img = c.SnapshotInto(img)
-		rec.recorder.Offer(img)
+		img = h.c.SnapshotInto(img)
+		rec.current().Offer(img)
+		h.markFed()
 		// At most two snapshots per frame slot: the recorder takes one frame per slot anyway.
 		if sleepCtx(rec.ctx, time.Second/time.Duration(2*rec.fps)) != nil {
 			return
@@ -259,16 +417,20 @@ func (m *kvmManager) feed(rec *recording, e *kvmEntry, fav favorites.Favorite, c
 	}
 }
 
-// reopen waits until the session of e runs again and returns its client; nil when the recording
-// ended. A tool call may open the session meanwhile (kvm_connect with a consent code, say), and
-// the recording goes on with it. Otherwise the recording opens it itself after its wait, without
-// holding e.mu, and only passively: never while a power action of the device runs (the wait
+// reopen waits until the session of e runs again with a client other than prev and returns it;
+// nil when the recording ended. A tool call may open the session meanwhile (kvm_connect with a
+// consent code, say), and the recording goes on with it: it takes that client from e.handoff,
+// without e.mu, while the tool call waits until the recording shows it (awaitFeed). Otherwise
+// the recording opens the session itself after its wait, without holding e.mu, and only passively: never while a power action of the device runs (the wait
 // starts again after it), never turning KVM on, never starting user consent. Network errors are
 // tried again with a growing wait; consent, KVM off, a refused login or a changed certificate
 // make it wait for a tool call.
-func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite) *kvm.Client {
+func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite, prev *kvmHandoff) *kvmHandoff {
 	delay, wait, passive := rec.reopenDelay, true, false
 	for {
+		if h := e.handoff.Load(); h != nil && h != prev && h.alive() {
+			return h
+		}
 		e.mu.Lock()
 		if e.removed {
 			e.mu.Unlock()
@@ -276,9 +438,9 @@ func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite)
 			return nil
 		}
 		if e.alive() {
-			c := e.client
+			h := e.handoff.Load()
 			e.mu.Unlock()
-			return c
+			return h
 		}
 		opened := e.awaitOpen()
 		power := m.powerDone(e.key)
@@ -326,11 +488,11 @@ func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite)
 		m.feedStep("open")
 		c, warnings, err := m.open(op.ctx, fav, kvmOpen{passive: true})
 		e.mu.Lock()
-		installed := false
+		var installed *kvmHandoff
 		if err == nil {
 			if !e.removed && !e.alive() && !m.powerRunning(e.key) && rec.ctx.Err() == nil {
 				e.install(c, warnings, fav.UseTLS)
-				installed = true
+				installed = e.handoff.Load()
 			} else {
 				_ = c.Close()
 			}
@@ -340,13 +502,14 @@ func (m *kvmManager) reopen(rec *recording, e *kvmEntry, fav favorites.Favorite)
 		switch {
 		case rec.ctx.Err() != nil:
 			return nil
-		case installed:
-			return c
+		case installed != nil:
+			return installed
 		case err == nil: // a tool call opened the session, or a power action began: look again
 			continue
 		}
 		if why, ok := waitReason(err); ok {
 			rec.because(why)
+			rec.waitForCall()
 			passive = true
 		} else {
 			wait, delay = true, min(delay*2, rec.reopenMax)
@@ -503,10 +666,13 @@ func (s *server) kvmRecordStart(ctx context.Context, _ *mcp.CallToolRequest, in 
 		return nil, recordStartOutput{}, err
 	}
 	var out recordStartOutput
-	err = s.kvm.use(ctx, fav, func(e *kvmEntry) error {
+	err = s.kvm.use(ctx, fav, func(e *kvmEntry, _ *kvmInput) error {
 		switch {
+		case e.rec != nil && e.rec.mandatory:
+			return refuse("This session of %s is recorded already, by the server configuration (capture.record_always), into %s. "+
+				"That recording ends with kvm_disconnect.", fav.DisplayName(), e.rec.current().Path())
 		case e.rec.running():
-			return refuse("%s is being recorded already (%s). Call kvm_record_stop first.", fav.DisplayName(), e.rec.recorder.Path())
+			return refuse("%s is being recorded already (%s). Call kvm_record_stop first.", fav.DisplayName(), e.rec.current().Path())
 		case e.rec != nil:
 			return refuse("The last recording of %s ended by itself (%s). Call kvm_record_stop to get its result.", fav.DisplayName(), e.rec.end("").EndedBy)
 		}
@@ -525,13 +691,13 @@ func (s *server) kvmRecordStart(ctx context.Context, _ *mcp.CallToolRequest, in 
 		if err != nil {
 			return err
 		}
-		r, err := s.kvm.startRecording(e, f, c.SnapshotInto(nil), fav, in.FPS, in.Quality)
+		r, err := s.kvm.startRecording(e, f, c.SnapshotInto(nil), fav, recSpec{fps: in.FPS, quality: in.Quality})
 		if err != nil {
 			return fmt.Errorf("start the recording: %w", err)
 		}
 		e.setRec(r)
 		w, h := c.Size()
-		out = recordStartOutput{Device: fav.DisplayName(), Path: r.recorder.Path(), ScreenWidth: w, ScreenHeight: h, FPS: r.fps, Warnings: out.Warnings}
+		out = recordStartOutput{Device: fav.DisplayName(), Path: r.current().Path(), ScreenWidth: w, ScreenHeight: h, FPS: r.fps, Warnings: out.Warnings}
 		return nil
 	})
 	if err != nil {
@@ -548,11 +714,73 @@ type recordingResult struct {
 	EndedBy         string  `json:"ended_by" jsonschema:"why the recording ended: stopped, or the reason it ended by itself (size limit, write error)"`
 	// Warnings name each time the KVM session was missing during the recording.
 	Warnings []string `json:"warnings,omitempty" jsonschema:"each time the KVM session was closed during the recording (UTC), and why; the video shows the last picture meanwhile"`
+	// Mandatory: the server configuration recorded the session (capture.record_always).
+	Mandatory bool `json:"mandatory,omitempty" jsonschema:"true: the server configuration recorded this session (capture.record_always)"`
+	// EarlierFiles are the files a mandatory recording finished at the size limit before path.
+	EarlierFiles []recordingFile `json:"earlier_files,omitempty" jsonschema:"the earlier video files of this recording, oldest first: at the size limit the server goes on in a new file; path is the last one"`
+}
+
+// recordingFile is one finished file of a recording that went on in a new file at the size limit.
+type recordingFile struct {
+	Path            string  `json:"path"`
+	DurationSeconds float64 `json:"duration_seconds"`
+	Bytes           int64   `json:"bytes"`
+	Frames          int     `json:"frames"`
 }
 
 func (r recordResult) output() *recordingResult {
-	return &recordingResult{Path: r.Path, DurationSeconds: r.Duration.Round(100 * time.Millisecond).Seconds(), Bytes: r.Bytes, Frames: r.Frames,
-		EndedBy: r.EndedBy, Warnings: r.Warnings}
+	out := &recordingResult{Path: r.Path, DurationSeconds: seconds(r.Duration), Bytes: r.Bytes, Frames: r.Frames,
+		EndedBy: r.EndedBy, Warnings: r.Warnings, Mandatory: r.Mandatory}
+	for _, f := range r.Earlier {
+		out.EarlierFiles = append(out.EarlierFiles, recordingFile{Path: f.Path, DurationSeconds: seconds(f.Duration), Bytes: f.Bytes, Frames: f.Frames})
+	}
+	return out
+}
+
+func seconds(d time.Duration) float64 { return d.Round(100 * time.Millisecond).Seconds() }
+
+// --- capture.record_always
+
+// errNoRecording explains a kvm_connect that capture.record_always refused: the recording of
+// the session could not start (why). opened: the session was opened and closed again.
+func errNoRecording(why error, opened bool) error {
+	what := "No KVM session was opened."
+	if opened {
+		what = "The KVM session was closed again."
+	}
+	return refuse("The server configuration records every KVM session (capture.record_always), and the recording could not start: %s %s",
+		strings.TrimSuffix(why.Error(), "."), what)
+}
+
+// startMandatory starts the recording of the session of e that capture.record_always requires,
+// into dir under the default name; the caller holds e.mu. At the size limit it goes on in a new
+// file there. It fails without a first picture, so the video never starts black.
+func (s *server) startMandatory(ctx context.Context, e *kvmEntry, fav favorites.Favorite, dir string) (*recording, error) {
+	c := e.client
+	if c.Frame() == 0 {
+		wctx, cancel := context.WithTimeout(ctx, firstFrameWait)
+		_, _ = c.WaitFrame(wctx, 0)
+		cancel()
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		if c.Frame() == 0 {
+			return nil, fmt.Errorf("the device sent no picture within %v", firstFrameWait)
+		}
+	}
+	name := fav.DisplayName()
+	next := func(first *image.RGBA) (*capture.Recorder, error) {
+		f, err := s.createCapture(dir, "", name, "avi")
+		if err != nil {
+			return nil, err
+		}
+		return s.kvm.startRec(f, first, capture.RecorderOptions{})
+	}
+	f, err := s.createCapture(dir, "", name, "avi")
+	if err != nil {
+		return nil, err
+	}
+	return s.kvm.startRecording(e, f, c.SnapshotInto(nil), fav, recSpec{mandatory: true, next: next})
 }
 
 type recordStopOutput struct {

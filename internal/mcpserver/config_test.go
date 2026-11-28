@@ -258,3 +258,27 @@ func TestLoadCaptureFolder(t *testing.T) {
 		}
 	}
 }
+
+// TestLoadCaptureRecordAlways: capture.record_always is off unless the file turns it on (#205);
+// it goes with or without capture.folder and takes only a boolean.
+func TestLoadCaptureRecordAlways(t *testing.T) {
+	for _, body := range []string{`{}`, `{"capture": {}}`, `{"capture": {"record_always": false}}`, `{"capture": {"folder": ""}}`} {
+		c, err := Load(writeConfig(t, body), true)
+		if err != nil || c.RecordAlways {
+			t.Fatalf("%s: record_always %v, %v", body, c.RecordAlways, err)
+		}
+	}
+	abs := t.TempDir()
+	c, err := Load(writeConfig(t, `{"capture": {"folder": `+strconv.Quote(abs)+`, "record_always": true}}`), true)
+	if err != nil || !c.RecordAlways || c.CaptureFolder != abs {
+		t.Fatalf("%+v %v", c, err)
+	}
+	if c, err = Load(writeConfig(t, `{"capture": {"record_always": true}}`), true); err != nil || !c.RecordAlways || c.CaptureFolder != "" {
+		t.Fatalf("%+v %v", c, err)
+	}
+	for _, bad := range []string{`{"capture": {"record_always": "yes"}}`, `{"capture": {"record_always": 1}}`, `{"capture": {"recordAlways": true}}`} {
+		if _, err := Load(writeConfig(t, bad), true); err == nil {
+			t.Errorf("%s accepted", bad)
+		}
+	}
+}

@@ -94,7 +94,7 @@
   <thead><tr><th>Group</th><th>Tools</th></tr></thead>
   <tbody>
     <tr><td>always</td><td><code>list_devices</code> (contacts no device)</td></tr>
-    <tr><td><code>read</code></td><td><code>device_status</code>, <code>hardware_info</code>, <code>event_log</code>, <code>audit_log</code>, <code>kvm_screenshot</code>, <code>sol_read</code></td></tr>
+    <tr><td><code>read</code></td><td><code>device_status</code>, <code>hardware_info</code>, <code>event_log</code>, <code>audit_log</code>, <code>kvm_screenshot</code>, <code>kvm_record_start</code>, <code>kvm_record_stop</code>, <code>sol_read</code></td></tr>
     <tr><td><code>read</code> or <code>kvm_input</code></td><td><code>kvm_connect</code>, <code>kvm_disconnect</code>, <code>sol_connect</code>, <code>sol_disconnect</code></td></tr>
     <tr><td><code>read</code> and <code>settings</code></td><td><code>get_settings</code></td></tr>
     <tr><td><code>read</code> and <code>users</code></td><td><code>list_users</code></td></tr>
@@ -125,10 +125,24 @@
 <h3 id="remote-screen">Remote screen</h3>
 <ul>
   <li><code>kvm_connect</code> opens the KVM session of a device and keeps it for the following calls.</li>
-  <li><code>kvm_screenshot</code> returns the screen as an image sized for AI models: by default at most 1280 pixels on the longest side, as JPEG.</li>
+  <li><code>kvm_screenshot</code> returns the screen as an image sized for AI models: by default at most 1280 pixels on the longest side, as JPEG. With <code>save</code> it also saves a PNG file, see <a href="#record">Record and document</a>.</li>
+  <li><code>kvm_record_start</code> and <code>kvm_record_stop</code> record the screen as a video, see <a href="#record">Record and document</a>.</li>
   <li><code>kvm_send_keys</code> presses keys and combinations such as <code>Ctrl+Alt+Delete</code>. <code>kvm_mouse</code> moves, clicks and scrolls at a point of the last screenshot. <code>kvm_type_text</code> types text in the keyboard layout of the favorite.</li>
   <li>AMT allows one KVM session per device. While the agent holds it, the app cannot connect KVM to that device, and the other way round. The session closes with <code>kvm_disconnect</code>, after five minutes without a call, or when the MCP client stops the server.</li>
   <li>If KVM is off on the device, <code>kvm_connect</code> turns it on. That is a settings change: it needs the group <code>settings</code> and, with <code>require_client_confirmation</code>, your answer to a question. Without <code>settings</code>, the call says what to turn on. The wake key that <code>kvm_connect</code> presses on a new session needs <code>kvm_input</code>.</li>
+</ul>
+
+<h3 id="record">Record and document</h3>
+<p>An agent can document what it does. It records the screen of a device as a video and saves screenshots as files. Both need an open KVM session (<code>kvm_connect</code>) and the group <code>read</code>, like <code>kvm_screenshot</code>.</p>
+<ul>
+  <li><code>kvm_record_start</code> starts a video (an AVI file, as the app makes it). One recording per device at a time. <code>kvm_record_stop</code> ends it and returns the path, the duration, the size and the number of frames.</li>
+  <li>A recording keeps the KVM session open, so the idle timeout does not close it. It goes on when a power action closes KVM: the video repeats the last picture until the session is open again.</li>
+  <li>A recording ends with <code>kvm_record_stop</code>, with <code>kvm_disconnect</code>, when the server stops, or at 2 GB. The file is always finished properly. If a recording ended by itself, <code>kvm_record_stop</code> still returns its result and says why.</li>
+  <li><code>kvm_screenshot</code> with <code>save</code> also writes a PNG file at the full screen size, not the smaller image the agent sees, and returns <code>saved_path</code>.</li>
+  <li>The agent may pass <code>folder</code> (an absolute path to an existing folder) and <code>name</code> (a file name without folder; the tool sets the extension, <code>.avi</code> or <code>.png</code>). Without a name the file is called like the files of the app, <code>openlamt-&lt;device&gt;-&lt;date&gt;-&lt;time&gt;</code>.</li>
+  <li>Without <code>folder</code> the files go to <code>capture.folder</code> of the <a href="#config">config file</a>, and without that to a folder <code>OpenLAMT</code> in your home folder. OpenLAMT creates that folder if it is missing.</li>
+  <li>OpenLAMT never overwrites a file. If the name is taken, it adds <code>-2</code>, <code>-3</code> and so on.</li>
+  <li>The action log (<code>action_log</code> in the <a href="#config">config file</a>) lists the path of every file, never the picture itself.</li>
 </ul>
 
 <h3 id="serial-console">Serial console</h3>
@@ -240,6 +254,7 @@ openlamt-mcp trust "Lab Server"</code></pre>
   "action_log": {"enabled": true, "path": ""},
   "kvm": {"idle_timeout_seconds": 300, "screenshot_max_width": 1280, "screenshot_max_height": 1280,
           "screenshot_format": "jpeg", "screenshot_jpeg_quality": 80},
+  "capture": {"folder": ""},
   "sol": {"idle_timeout_seconds": 300},
   "media": {"allowed_paths": []},
   "passwords": {"command": [], "allow_plaintext_passwords": false},
@@ -254,6 +269,7 @@ openlamt-mcp trust "Lab Server"</code></pre>
   <dt><code>require_client_confirmation</code></dt><dd>Asks you in the MCP client before each power action, each key, mouse or typing call, each mount and <code>media_boot_next</code>, each settings or account change and each new favorite. Orange and red changes ask always. The question shows every key, the text to type and the full path to mount after links are resolved. Each line break (an Enter press) shows as ⏎, and invisible or direction-changing characters as their code point. If the agent marks a single line as <code>secret</code>, the question says that the agent chose to hide it. A client that cannot ask gets a refusal.</dd>
   <dt><code>action_log</code></dt><dd>Writes one line per tool call to <code>openlamt-mcp-actions.log</code> next to the config file, or to <code>path</code>. It holds keys and mouse actions, mounted paths and the settings changed, but never text typed over KVM or the serial console, a consent code or a password.</dd>
   <dt><code>kvm</code></dt><dd>The idle timeout of a KVM session (<code>0</code> keeps it open until the server stops) and the default size, format (<code>jpeg</code> or <code>png</code>) and quality of screenshots. The agent may ask for another size or format per call.</dd>
+  <dt><code>capture.folder</code></dt><dd>The folder for recordings and saved screenshots when the agent names none (an absolute path). Empty means the folder <code>OpenLAMT</code> in your home folder. See <a href="#record">Record and document</a>.</dd>
   <dt><code>sol</code></dt><dd>The idle timeout of a serial console session.</dd>
   <dt><code>media.allowed_paths</code></dt><dd>Limits <code>media_mount</code> to the folders you list (absolute paths). Empty means anywhere except the protected folders.</dd>
   <dt><code>passwords.command</code></dt><dd>The program and arguments that print a device password, see <a href="#password-sources">Where passwords come from</a>. Empty means none.</dd>

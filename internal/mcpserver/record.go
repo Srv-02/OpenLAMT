@@ -305,7 +305,6 @@ func (s *server) kvmRecordStart(ctx context.Context, _ *mcp.CallToolRequest, in 
 	if err != nil {
 		return nil, recordStartOutput{}, err
 	}
-	rec.path = out.Path
 	return nil, out, nil
 }
 
@@ -346,6 +345,5 @@ func (s *server) kvmRecordStop(_ context.Context, _ *mcp.CallToolRequest, in dev
 	if err != nil {
 		return nil, recordStopOutput{}, err
 	}
-	rec.path = res.Path
 	return nil, recordStopOutput{Device: fav.DisplayName(), recordingResult: *res.output()}, nil
 }

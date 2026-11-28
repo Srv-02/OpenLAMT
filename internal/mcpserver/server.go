@@ -124,7 +124,6 @@ func New(o Options) *Server {
 // record is what the action log keeps of one call.
 type record struct {
 	device, action string
-	path           string // file the call saved; never image data
 }
 
 // handler is a tool handler that fills rec for the action log.
@@ -141,7 +140,7 @@ func addTool[In, Out any](s *server, srv *mcp.Server, t *mcp.Tool, h handler[In,
 		}
 		// The device as the agent sent it, shortened: a huge name must not flood the log.
 		device := shorten(rec.device, maxLogged)
-		e := ActionEntry{Time: time.Now().UTC(), Tool: t.Name, Device: device, Action: rec.action, Path: shorten(rec.path, maxLoggedMessage), Outcome: "ok"}
+		e := ActionEntry{Time: time.Now().UTC(), Tool: t.Name, Device: device, Action: rec.action, Outcome: "ok"}
 		switch {
 		case err != nil && isRefusal(err):
 			e.Outcome, e.Message = "refused", shorten(explain(err), maxLoggedMessage)

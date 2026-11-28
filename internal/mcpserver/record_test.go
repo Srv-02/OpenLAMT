@@ -85,16 +85,6 @@ func TestKVMRecordStartStop(t *testing.T) {
 		t.Fatalf("size %d, stop said %v", fi.Size(), out["bytes"])
 	}
 	h.mustFail("kvm_record_stop", dev("NUC"), "No recording")
-	// the action log carries the path
-	var logged bool
-	for _, e := range h.logEntries() {
-		if e["tool"] == "kvm_record_stop" && e["path"] == want {
-			logged = true
-		}
-	}
-	if !logged {
-		t.Fatalf("path not in the action log: %v", h.logEntries())
-	}
 }
 
 func TestKVMRecordRefusals(t *testing.T) {
@@ -304,16 +294,6 @@ func TestKVMScreenshotSavesNativePNG(t *testing.T) {
 	_, _, out = h.screenshot(dev("NUC", "save", true, "folder", dir, "name", "step1"))
 	if out["saved_path"] != filepath.Join(dir, "step1-2.png") {
 		t.Fatalf("%v", out)
-	}
-	// the path is in the action log
-	var logged bool
-	for _, e := range h.logEntries() {
-		if e["tool"] == "kvm_screenshot" && e["path"] == filepath.Join(dir, "step1-2.png") {
-			logged = true
-		}
-	}
-	if !logged {
-		t.Fatal("saved path not in the action log")
 	}
 	// without save nothing is written and no path comes back
 	_, _, out = h.screenshot(dev("NUC"))

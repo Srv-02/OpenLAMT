@@ -262,7 +262,6 @@ func (s *server) kvmDisconnect(_ context.Context, _ *mcp.CallToolRequest, in dev
 	out := kvmDisconnectOutput{Device: fav.DisplayName(), Closed: closed}
 	if res != nil {
 		out.Recording = res.output()
-		rec.path = res.Path
 	}
 	return nil, out, nil
 }
@@ -390,7 +389,7 @@ func (s *server) kvmScreenshot(ctx context.Context, _ *mcp.CallToolRequest, in s
 		if err == nil {
 			path := f.Name()
 			if err = capture.WritePNG(f, snap); err == nil {
-				out.SavedPath, rec.path = path, path
+				out.SavedPath = path
 			}
 		}
 		if err != nil {

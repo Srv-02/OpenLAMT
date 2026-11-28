@@ -209,6 +209,8 @@ func TestRecordingHasThePictureBeforeInputAfterAReopen(t *testing.T) {
 				if inGap > 0 {
 					t.Errorf("%d of %d tool calls sent input while the recording still showed the old picture", inGap, calls)
 				}
+				// the fake reads what the client sent on its own: wait for the last key
+				eventually(t, "all key events", func() bool { return len(keyEvents(srv))-before >= 2*len(text) })
 				if n := len(keyEvents(srv)) - before; n != 2*len(text) {
 					t.Fatalf("%d key events, want %d", n, 2*len(text))
 				}
@@ -447,6 +449,7 @@ func TestRecordingWithoutPictureOfTheReopenedSession(t *testing.T) {
 				return
 			}
 			h.mustOK("kvm_type_text", dev("NUC", "text", "abc"))
+			eventually(t, "all key events", func() bool { return len(keyEvents(srv))-before >= 6 })
 			if n := len(keyEvents(srv)) - before; n != 6 {
 				t.Fatalf("%d key events, want 6", n)
 			}
@@ -489,7 +492,7 @@ func TestRecordAlwaysFailureStopsRunningInput(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("kvm_type_text goes on after the recording ended")
 	}
-	if n := len(keyEvents(srv)); n >= 2*len(text) || n > atEnd+2 {
+	if n := len(keyEvents(srv)); n >= 2*len(text) || n > atEnd+4 { // a key or two may be on the way
 		t.Fatalf("%d key events, %d when the recording ended, of %d", n, atEnd, 2*len(text))
 	}
 	eventually(t, "session closed", func() bool { return h.kvmEntry("NUC") == nil })
